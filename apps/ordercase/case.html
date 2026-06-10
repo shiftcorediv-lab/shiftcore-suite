@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OrderCase 案件詳細</title>
+
+  <link rel="stylesheet" href="./css/common.css" />
+
+  <style>
+    /****************************************************
+     * case.html 専用スタイル
+     ****************************************************/
+    main {
+      padding-bottom: 40px;
+    }
+
+    .actions {
+      margin-bottom: 16px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .actions .button-link {
+      min-width: 140px;
+    }
+
+    .button-link.edit {
+      background: #4caf50;
+      color: #fff;
+      border: none;
+    }
+
+    .detail-head {
+      margin-bottom: 14px;
+    }
+
+    .case-id {
+      font-size: 18px;
+      margin-bottom: 4px;
+    }
+
+    .case-title {
+      color: #555;
+    }
+
+    .change-log-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .change-log-item {
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 14px;
+      background: #f8fafc;
+    }
+
+    .change-log-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: flex-start;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+
+    .change-log-title {
+      font-weight: 800;
+      color: #333;
+      line-height: 1.5;
+    }
+
+    .change-log-meta {
+      font-size: 13px;
+      color: #666;
+      line-height: 1.6;
+    }
+
+    .change-log-type {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+      background: #eef2ff;
+      color: #3949ab;
+      white-space: nowrap;
+    }
+
+    .change-log-memo {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 10px;
+      background: #fff;
+      border: 1px solid #edf0f3;
+      font-size: 13px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+    }
+
+    .change-log-fields {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 10px;
+      background: #fff;
+      border: 1px solid #edf0f3;
+      font-size: 13px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+    }
+
+    @media (max-width: 480px) {
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr;
+      }
+
+      .actions .button-link {
+        width: 100%;
+      }
+
+      .change-log-head {
+        display: grid;
+        grid-template-columns: 1fr;
+      }
+
+      .change-log-type {
+        width: fit-content;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-box">
+      <div class="spinner"></div>
+      <div class="loading-text" id="loadingText">読み込み中...</div>
+    </div>
+  </div>
+
+  <header id="ordercaseHeader"></header>
+
+  <main>
+    <div class="actions">
+      <a class="button-link secondary" href="./cases.html">案件一覧へ戻る</a>
+      <a class="button-link edit" id="editCaseLink" href="./edit.html">編集する</a>
+    </div>
+
+    <div class="message" id="messageBox">読み込み中...</div>
+    <div id="detailRoot"></div>
+  </main>
+
+  <script src="./js/config.js"></script>
+  <script src="./js/utils.js"></script>
+  <script src="./js/auth-session.js"></script>
+  <script src="./js/api.js"></script>
+  <script src="./js/loading.js"></script>
+  <script src="./js/navigation.js"></script>
+
+  <script>
+    /****************************************************
+     * 状態 ここから
+     ****************************************************/
+    const state = {
+  caseDetail: null,
+  changeLogs: [],
+  permission: ''
+};
+    /****************************************************
+     * 状態 ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * 初期化 ここから
+     ****************************************************/
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        renderOrderCaseHeader('', '案件詳細');
+        setupEditLink();
+        await loadCaseDetail();
+
+      } catch (error) {
+        console.error(error);
+        setMessage('読み込みエラー: ' + error.message, 'error');
+        renderEmpty('案件詳細を表示できませんでした。');
+      }
+    });
+    /****************************************************
+     * 初期化 ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * setupEditLink ここから
+     ****************************************************/
+    function setupEditLink() {
+      const caseId = getQueryParam('case_id');
+      const link = document.getElementById('editCaseLink');
+
+      if (!link) {
+        return;
+      }
+
+      if (!caseId) {
+        link.href = './edit.html';
+        return;
+      }
+
+      link.href = `./edit.html?case_id=${encodeURIComponent(caseId)}`;
+    }
+    /****************************************************
+     * setupEditLink ここまで
+     ****************************************************/
+
+
+        /****************************************************
+     * applyPermissionView ここから
+     * 権限に応じて編集導線を制御する
+     ****************************************************/
+    function applyPermissionView() {
+      const canEdit = state.permission === 'all' || state.permission === 'edit';
+
+      const editLink = document.getElementById('editCaseLink');
+
+      if (editLink) {
+        editLink.style.display = canEdit ? '' : 'none';
+      }
+
+      document.querySelectorAll('a[href="./index.html"], a[href="index.html"]').forEach(link => {
+        link.style.display = canEdit ? '' : 'none';
+      });
+    }
+    /****************************************************
+     * applyPermissionView ここまで
+     ****************************************************/
+
+    
+       /****************************************************
+     * loadCaseDetail ここから
+     * 案件詳細と変更履歴を1回のAPI通信でまとめて読み込む
+     ****************************************************/
+    async function loadCaseDetail() {
+      const caseId = getQueryParam('case_id');
+
+      if (!caseId) {
+        throw new Error('case_id がURLに指定されていません。');
+      }
+
+      setMessage('案件詳細を読み込み中...', '');
+      showLoading('案件詳細を読み込み中...');
+
+      try {
+        const pageJson = await fetchApiJsonWithParams('getCaseDetailPageData', {
+  case_id: caseId,
+  force_refresh: getQueryParam('force_refresh')
+});
+
+        if (!pageJson.ok) {
+          throw new Error(pageJson.message || '案件詳細の取得に失敗しました');
+        }
+
+        const pageData = pageJson.data || {};
+
+state.permission = pageJson.permission || '';
+state.caseDetail = pageData.case_detail || null;
+state.changeLogs = Array.isArray(pageData.change_logs)
+  ? pageData.change_logs
+  : [];
+
+applyPermissionView();
+
+        renderCaseDetail();
+        setMessage('案件詳細を読み込みました。', '');
+
+        removeForceRefreshFromUrl();
+
+      } finally {
+        hideLoading();
+      }
+    }
+    /****************************************************
+     * loadCaseDetail ここまで
+     ****************************************************/
+
+    /****************************************************
+     * loadCaseChangeLogs ここから
+     * 変更履歴を遅延読み込みする
+     ****************************************************/
+    async function loadCaseChangeLogs(caseId) {
+      try {
+        const logRoot = document.getElementById('changeLogRoot');
+
+        if (logRoot) {
+          logRoot.innerHTML = '<div class="message">変更履歴を読み込み中...</div>';
+        }
+
+        const logsJson = await fetchApiJsonWithParams('getCaseChangeLogs', {
+          case_id: caseId
+        });
+
+        if (logsJson.ok) {
+          state.changeLogs = Array.isArray(logsJson.data) ? logsJson.data : [];
+        } else {
+          state.changeLogs = [];
+          console.warn('変更履歴の取得に失敗しました:', logsJson.message);
+        }
+
+        renderCaseDetail();
+
+      } catch (error) {
+        console.warn('変更履歴の取得に失敗しました:', error);
+
+        const logRoot = document.getElementById('changeLogRoot');
+
+        if (logRoot) {
+          logRoot.innerHTML = '<div class="message error">変更履歴を読み込めませんでした。</div>';
+        }
+      }
+    }
+    /****************************************************
+     * loadCaseChangeLogs ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * canViewAmount ここから
+     * 金額表示できる権限か判定する
+     ****************************************************/
+    function canViewAmount() {
+      return state.permission !== 'view_without_amount';
+    }
+    /****************************************************
+     * canViewAmount ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * canViewChangeLogs ここから
+     * 変更履歴を表示できる権限か判定する
+     ****************************************************/
+    function canViewChangeLogs() {
+      return state.permission !== 'view_without_amount';
+    }
+    /****************************************************
+     * canViewChangeLogs ここまで
+     ****************************************************/
+    
+
+    /****************************************************
+     * renderCaseDetail ここから
+     ****************************************************/
+    function renderCaseDetail() {
+      const root = document.getElementById('detailRoot');
+      const item = state.caseDetail;
+
+      if (!item) {
+        renderEmpty('案件が見つかりません。');
+        return;
+      }
+
+      const statusName = getStatusName(item.status);
+      const caseTypeName = getCaseTypeName(item.case_type);
+      const scheduleText = getScheduleText(item);
+      const billingUnits = calculateBillingUnits(item);
+      const agencyStoreIdText = `${item.agency_id || '-'} / ${item.store_id || '-'}`;
+
+      const amountSectionHtml = canViewAmount() ? `
+        <section class="detail-card">
+          <h2 class="section-title">金額</h2>
+          <div class="grid two">
+            ${fieldHtml('金額', formatAmount(item.amount))}
+            ${fieldHtml('金額区分', getAmountTypeName(item.amount_type))}
+            ${fieldHtml('税区分', getTaxTypeName(item.tax_type))}
+            ${fieldHtml('金額メモ', item.amount_memo)}
+          </div>
+        </section>
+      ` : '';
+
+      const changeLogsSectionHtml = canViewChangeLogs() ? `
+        <section class="detail-card">
+          <h2 class="section-title">変更履歴</h2>
+          ${renderChangeLogs()}
+        </section>
+      ` : '';
+      
+      root.innerHTML = `
+        <section class="detail-card">
+          <div class="detail-head">
+            <div>
+              <div class="case-id">${escapeHtml(item.case_id)}</div>
+              <div class="case-title">${escapeHtml(caseTypeName)} / ${escapeHtml(item.store_name || '-')}</div>
+            </div>
+            <div class="status ${escapeHtml(item.status || '')}">${escapeHtml(statusName)}</div>
+          </div>
+
+          <div class="grid three">
+            ${fieldHtml('対象月', item.target_month)}
+            ${fieldHtml('案件種別', caseTypeName)}
+            ${fieldHtml('ステータス', statusName)}
+            ${fieldHtml('入力方式', item.input_mode === 'days' ? '日数指定' : '日付指定')}
+            ${fieldHtml('日付/日数', scheduleText)}
+            ${fieldHtml('返答期限', item.reply_deadline)}
+          </div>
+        </section>
+
+        <section class="detail-card">
+          <h2 class="section-title">代理店・連携店舗</h2>
+          <div class="grid two">
+            ${fieldHtml('代理店', item.agency_name)}
+            ${fieldHtml('連携店舗', item.store_name)}
+            ${fieldHtml('連携店舗エリア', item.store_area)}
+            ${fieldHtml('代理店ID / 店舗ID', agencyStoreIdText)}
+          </div>
+        </section>
+
+        <section class="detail-card">
+          <h2 class="section-title">稼働条件</h2>
+          <div class="grid two">
+            ${fieldHtml('実稼働場所', item.work_location)}
+            ${fieldHtml('実稼働エリア', item.work_area)}
+            ${fieldHtml('稼働開始時間', item.work_start_time)}
+            ${fieldHtml('稼働終了時間', item.work_end_time)}
+            ${fieldHtml('集合時間', item.meeting_time)}
+            ${fieldHtml('集合場所', item.meeting_place)}
+            ${fieldHtml('必要スキル', getSkillName(item.required_skill))}
+          </div>
+        </section>
+
+        <section class="detail-card">
+          <h2 class="section-title">必要数</h2>
+          <div class="grid three">
+            ${fieldHtml('必要枠数', item.required_lines)}
+            ${fieldHtml('1枠あたり人数', item.people_per_line)}
+            ${fieldHtml('必要人数', item.required_people)}
+            ${fieldHtml('請求コマ数', formatBillingUnits(billingUnits))}
+          </div>
+        </section>
+
+        <section class="detail-card">
+          <h2 class="section-title">日付明細</h2>
+          ${renderCaseDates(item)}
+        </section>
+
+       ${amountSectionHtml}
+
+        <section class="detail-card">
+          <h2 class="section-title">メモ</h2>
+          <div class="grid">
+            ${memoHtml('先方メモ', item.client_memo)}
+            ${memoHtml('社内メモ', item.internal_memo)}
+            ${memoHtml('運用メモ', item.operation_memo)}
+          </div>
+        </section>
+
+        <section class="detail-card">
+          <h2 class="section-title">管理情報</h2>
+          <div class="grid two">
+            ${fieldHtml('ShiftBuilder対象', formatBoolean(item.for_shift_builder))}
+            ${fieldHtml('アーカイブ', formatBoolean(item.archived))}
+            ${fieldHtml('登録者', item.created_by)}
+            ${fieldHtml('登録日時', item.created_at)}
+            ${fieldHtml('更新者', item.updated_by)}
+            ${fieldHtml('更新者メール', item.updated_by_email)}
+            ${fieldHtml('更新日時', item.updated_at)}
+          </div>
+        </section>
+
+               ${changeLogsSectionHtml}
+
+      `; 
+    }
+  
+    /****************************************************
+     * renderCaseDetail ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * renderCaseDates ここから
+     ****************************************************/
+    function renderCaseDates(item) {
+      if (item.input_mode === 'days') {
+        return `
+          <div class="grid two">
+            ${fieldHtml('希望日数', item.requested_days ? `${item.requested_days}日分` : '-')}
+            ${fieldHtml('割当状況', getAllocationStatusName(item.allocation_status))}
+          </div>
+        `;
+      }
+
+      const dates = Array.isArray(item.case_dates) ? item.case_dates : [];
+
+      if (dates.length === 0) {
+        return '<div class="empty">日付明細はありません。</div>';
+      }
+
+      const rows = dates.map(date => {
+        return `
+          <div class="date-item">
+            <div class="date-main">${escapeHtml(date.work_date || '-')}</div>
+            <div class="date-sub">必要枠数：${escapeHtml(date.required_lines || '-')} / 1枠あたり人数：${escapeHtml(date.people_per_line || '-')} / 必要人数：${escapeHtml(date.required_people || '-')}</div>
+            <div class="date-sub">メモ：${escapeHtml(date.memo || '-')}</div>
+          </div>
+        `;
+      }).join('');
+
+      return `<div class="date-list">${rows}</div>`;
+    }
+    /****************************************************
+     * renderCaseDates ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * renderChangeLogs ここから
+     ****************************************************/
+    function renderChangeLogs() {
+      const logs = Array.isArray(state.changeLogs) ? state.changeLogs : [];
+
+      if (logs.length === 0) {
+        return '<div class="empty">変更履歴はありません。</div>';
+      }
+
+      const html = logs.map(log => {
+        return `
+          <div class="change-log-item">
+            <div class="change-log-head">
+              <div>
+                <div class="change-log-title">${escapeHtml(log.change_reason || getChangeTypeDisplayName(log.changed_type))}</div>
+                <div class="change-log-meta">
+                  ${escapeHtml(log.changed_at || '-')} / ${escapeHtml(log.changed_by || '-')} / ${escapeHtml(log.changed_by_email || '-')}
+                </div>
+              </div>
+              <div class="change-log-type">${escapeHtml(getChangeTypeDisplayName(log.changed_type))}</div>
+            </div>
+
+            <div class="change-log-memo">
+              <strong>変更メモ：</strong><br>
+              ${escapeHtml(log.memo || '-')}
+            </div>
+
+            <div class="change-log-fields">
+              <strong>変更内容：</strong><br>
+              ${escapeHtml(log.changed_fields || '-')}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      return `<div class="change-log-list">${html}</div>`;
+    }
+    /****************************************************
+     * renderChangeLogs ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * 請求コマ数計算 ここから
+     ****************************************************/
+    function calculateBillingUnits(item) {
+      if (item.input_mode === 'days') {
+        const requestedDays = Number(item.requested_days || 0);
+        const requiredPeople = Number(item.required_people || 0);
+
+        if (!requestedDays || !requiredPeople) {
+          return 0;
+        }
+
+        return requestedDays * requiredPeople;
+      }
+
+      const dates = Array.isArray(item.case_dates) ? item.case_dates : [];
+
+      if (dates.length === 0) {
+        const requiredPeople = Number(item.required_people || 0);
+        return requiredPeople || 0;
+      }
+
+      return dates.reduce((sum, date) => {
+        return sum + Number(date.required_people || 0);
+      }, 0);
+    }
+    /****************************************************
+     * 請求コマ数計算 ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * HTML部品 ここから
+     ****************************************************/
+    function fieldHtml(label, value) {
+      return `
+        <div class="field">
+          <div class="label">${escapeHtml(label)}</div>
+          <div class="value">${escapeHtml(displayValue(value))}</div>
+        </div>
+      `;
+    }
+
+    function memoHtml(label, value) {
+      return `
+        <div>
+          <div class="label">${escapeHtml(label)}</div>
+          <div class="memo-box">${escapeHtml(displayValue(value))}</div>
+        </div>
+      `;
+    }
+
+    function renderEmpty(text) {
+      const root = document.getElementById('detailRoot');
+      root.innerHTML = `<div class="empty">${escapeHtml(text)}</div>`;
+    }
+    /****************************************************
+     * HTML部品 ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * 表示名変換 ここから
+     ****************************************************/
+    function getChangeTypeDisplayName(value) {
+      const map = {
+        correction: '誤入力の修正',
+        condition_change: '発注条件変更',
+        status_change: 'ステータス変更',
+        internal_note: '社内メモ更新',
+        other: 'その他'
+      };
+
+      return map[value] || value || 'その他';
+    }
+
+    function formatBillingUnits(value) {
+      if (value === '' || value === null || value === undefined || Number(value) === 0) {
+        return '-';
+      }
+
+      return `${value}コマ`;
+    }
+    /****************************************************
+     * 表示名変換 ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * removeForceRefreshFromUrl ここから
+     * force_refresh=1 を一度使ったらURLから消す
+     ****************************************************/
+    function removeForceRefreshFromUrl() {
+      const url = new URL(window.location.href);
+
+      if (!url.searchParams.has('force_refresh')) {
+        return;
+      }
+
+      url.searchParams.delete('force_refresh');
+
+      window.history.replaceState(
+        {},
+        document.title,
+        url.pathname + url.search + url.hash
+      );
+    }
+    /****************************************************
+     * removeForceRefreshFromUrl ここまで
+     ****************************************************/
+
+    
+    /****************************************************
+     * 小物関数 ここから
+     ****************************************************/
+    function setMessage(text, type) {
+      const box = document.getElementById('messageBox');
+      box.textContent = text;
+      box.className = `message ${type || ''}`;
+    }
+    /****************************************************
+     * 小物関数 ここまで
+     ****************************************************/
+  </script>
+</body>
+</html>

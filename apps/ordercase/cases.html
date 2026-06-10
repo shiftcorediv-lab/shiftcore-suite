@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OrderCase 案件一覧</title>
+
+  <link rel="stylesheet" href="./css/common.css" />
+
+  <style>
+    /****************************************************
+     * cases.html 専用スタイル
+     ****************************************************/
+    html,
+    body {
+      width: 100%;
+      max-width: 100%;
+      overflow-x: hidden;
+    }
+
+    main {
+      width: 100%;
+      max-width: 980px;
+      overflow-x: hidden;
+    }
+
+    .filter-panel {
+      margin-bottom: 12px;
+    }
+
+    .filter-toggle {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: #757575;
+      color: #fff;
+      border-radius: 14px;
+      padding: 11px 14px;
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    .filter-toggle-text {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .filter-toggle-icon {
+      font-size: 13px;
+      transition: transform .15s;
+    }
+
+    .filter-panel.open .filter-toggle-icon {
+      transform: rotate(180deg);
+    }
+
+    .toolbar {
+      display: none;
+      gap: 10px;
+      margin-top: 10px;
+      min-width: 0;
+    }
+
+    .filter-panel.open .toolbar {
+      display: grid;
+    }
+
+    @media (min-width: 860px) {
+      .filter-panel .toolbar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 150px 150px 150px auto;
+        align-items: end;
+      }
+
+      .filter-toggle {
+        width: auto;
+        min-width: 180px;
+      }
+    }
+
+    .case-list {
+      display: grid;
+      gap: 10px;
+      width: 100%;
+      max-width: 100%;
+      overflow-x: hidden;
+    }
+
+    .case-card {
+      padding: 14px 16px;
+      position: relative;
+      border-radius: 14px;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .case-top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 10px;
+      min-width: 0;
+    }
+
+    .created-at {
+      font-size: 11px;
+      color: #777;
+      font-weight: bold;
+      line-height: 1.5;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .case-main-row {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 8px;
+      align-items: center;
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .case-main-row > * {
+      min-width: 0;
+    }
+
+    @media (min-width: 980px) {
+      .case-main-row {
+        grid-template-columns: 0.9fr minmax(0, 1.8fr) 96px 96px 130px;
+      }
+    }
+
+    @media (min-width: 720px) and (max-width: 979px) {
+      .case-main-row {
+        grid-template-columns: 1fr minmax(0, 1.5fr) 86px 86px 130px;
+      }
+    }
+
+    .target-month-title {
+      font-size: 20px;
+      font-weight: bold;
+      color: #333;
+      line-height: 1.3;
+      word-break: keep-all;
+      min-width: 0;
+    }
+
+    .case-main-title {
+      font-size: 20px;
+      font-weight: bold;
+      color: #333;
+      line-height: 1.3;
+      word-break: break-word;
+      min-width: 0;
+    }
+
+    .required-people-main,
+    .billing-units-main {
+      font-size: 22px;
+      font-weight: bold;
+      line-height: 1.15;
+      white-space: nowrap;
+      min-width: 0;
+    }
+
+    .required-people-main {
+      color: #2e7d32;
+    }
+
+    .billing-units-main {
+      color: #3949ab;
+    }
+
+    .required-people-main span,
+    .billing-units-main span {
+      font-size: 11px;
+      color: #666;
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .detail-link {
+      display: inline-block;
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: bold;
+      background: #4caf50;
+      color: #fff;
+      text-decoration: none;
+      white-space: nowrap;
+      min-width: 0;
+    }
+
+    .detail-link:hover {
+      opacity: .88;
+    }
+
+    .overview-line {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      font-size: 12px;
+      color: #666;
+      font-weight: bold;
+      line-height: 1.6;
+      margin-top: 4px;
+      padding-top: 8px;
+      border-top: 1px solid #edf0f3;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .overview-line strong {
+      color: #444;
+    }
+
+    .case-bottom-row {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      margin-top: 6px;
+      min-width: 0;
+    }
+
+    .case-id-small {
+      font-size: 10px;
+      color: #888;
+      font-weight: bold;
+      text-align: right;
+      max-width: 100%;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /****************************************************
+     * スマホ表示調整
+     ****************************************************/
+    @media (max-width: 719px) {
+      main {
+        padding: 10px;
+      }
+
+      .message {
+        font-size: 12px;
+        margin-top: 8px;
+        margin-bottom: 8px;
+      }
+
+      .filter-panel {
+        margin-bottom: 10px;
+      }
+
+      .filter-toggle {
+        padding: 10px 12px;
+        font-size: 14px;
+        border-radius: 12px;
+      }
+
+      .toolbar {
+        gap: 8px;
+        margin-top: 8px;
+        padding: 12px;
+      }
+
+      .toolbar label {
+        font-size: 12px;
+        margin-bottom: 5px;
+      }
+
+      .toolbar input,
+      .toolbar select {
+        font-size: 14px;
+        padding: 10px 11px;
+      }
+
+      .toolbar button {
+        padding: 11px 12px;
+        font-size: 14px;
+      }
+
+      .case-list {
+        gap: 9px;
+      }
+
+      .case-card {
+        padding: 12px;
+        border-radius: 14px;
+      }
+
+      .case-top-row {
+        margin-bottom: 8px;
+      }
+
+      .created-at {
+        font-size: 10px;
+        max-width: 70%;
+      }
+
+      .status {
+        font-size: 10px;
+        padding: 4px 8px;
+        flex-shrink: 0;
+      }
+
+      .case-main-row {
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        gap: 5px 9px;
+        margin-bottom: 6px;
+        align-items: end;
+      }
+
+      .target-month-title {
+        grid-column: 1 / -1;
+        font-size: 17px;
+      }
+
+      .case-main-title {
+        grid-column: 1 / 2;
+        font-size: 18px;
+        min-width: 0;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+      }
+
+      .required-people-main {
+        grid-column: 2 / 3;
+        align-self: end;
+        justify-self: end;
+        font-size: 20px;
+        text-align: right;
+        min-width: 42px;
+      }
+
+      .billing-units-main {
+        grid-column: 3 / 4;
+        align-self: end;
+        justify-self: end;
+        font-size: 20px;
+        text-align: right;
+        min-width: 42px;
+      }
+
+      .required-people-main span,
+      .billing-units-main span {
+        font-size: 10px;
+      }
+
+      .detail-link {
+        grid-column: 1 / -1;
+        width: 100%;
+        padding: 10px 12px;
+        font-size: 14px;
+      }
+
+      .overview-line {
+        font-size: 11px;
+        margin-top: 4px;
+        padding-top: 7px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .case-bottom-row {
+        margin-top: 4px;
+      }
+
+      .case-id-small {
+        font-size: 10px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-box">
+      <div class="spinner"></div>
+      <div class="loading-text" id="loadingText">読み込み中...</div>
+    </div>
+  </div>
+
+  <header id="ordercaseHeader"></header>
+
+  <main>
+    <div class="filter-panel" id="filterPanel">
+      <button type="button" class="filter-toggle" id="filterToggleButton">
+        <span class="filter-toggle-text">絞り込み条件</span>
+        <span class="filter-toggle-icon">▼</span>
+      </button>
+
+      <div class="toolbar">
+        <div>
+          <label for="keyword">キーワード</label>
+          <input id="keyword" placeholder="案件ID・代理店・店舗・場所で検索" />
+        </div>
+
+        <div>
+          <label for="targetMonthFilter">対象月</label>
+          <input id="targetMonthFilter" type="month" />
+        </div>
+
+        <div>
+          <label for="statusFilter">ステータス</label>
+          <select id="statusFilter">
+            <option value="">すべて</option>
+            <option value="received">受付済み</option>
+            <option value="checking">確認中</option>
+            <option value="confirmed">確定</option>
+            <option value="cancelled">キャンセル</option>
+            <option value="archived">アーカイブ</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="caseTypeFilter">案件種別</label>
+          <select id="caseTypeFilter">
+            <option value="">すべて</option>
+          </select>
+        </div>
+
+        <button type="button" id="reloadButton">再読み込み</button>
+      </div>
+    </div>
+
+    <div class="message" id="messageBox">読み込み中...</div>
+    <div class="case-list" id="caseList"></div>
+  </main>
+
+  <script src="./js/config.js"></script>
+  <script src="./js/utils.js"></script>
+  <script src="./js/auth-session.js"></script>
+  <script src="./js/api.js"></script>
+  <script src="./js/loading.js"></script>
+  <script src="./js/navigation.js"></script>
+
+  <script>
+    /****************************************************
+     * 状態 ここから
+     ****************************************************/
+    const state = {
+  cases: [],
+  caseTypes: [],
+  permission: ''
+};
+
+    let searchTimer = null;
+    /****************************************************
+     * 状態 ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * 初期化 ここから
+     ****************************************************/
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        renderOrderCaseHeader('cases', '案件一覧');
+        setupEventListeners();
+        setupFilterPanel();
+        await loadListPageData();
+
+      } catch (error) {
+        console.error(error);
+        setMessage('読み込みエラー: ' + error.message, 'error');
+      }
+    });
+    /****************************************************
+     * 初期化 ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * setupEventListeners ここから
+     ****************************************************/
+    function setupEventListeners() {
+      document.getElementById('reloadButton').addEventListener('click', loadListPageData);
+
+      document.getElementById('keyword').addEventListener('input', debounceLoadListPageData);
+      document.getElementById('targetMonthFilter').addEventListener('change', loadListPageData);
+      document.getElementById('statusFilter').addEventListener('change', loadListPageData);
+      document.getElementById('caseTypeFilter').addEventListener('change', loadListPageData);
+
+      document.getElementById('filterToggleButton').addEventListener('click', toggleFilterPanel);
+    }
+    /****************************************************
+     * setupEventListeners ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * setupFilterPanel ここから
+     * PCでは開いた状態、スマホでは閉じた状態にする
+     ****************************************************/
+    function setupFilterPanel() {
+      const panel = document.getElementById('filterPanel');
+
+      if (window.innerWidth >= 860) {
+        panel.classList.add('open');
+      }
+    }
+    /****************************************************
+     * setupFilterPanel ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * toggleFilterPanel ここから
+     ****************************************************/
+    function toggleFilterPanel() {
+      document.getElementById('filterPanel').classList.toggle('open');
+    }
+    /****************************************************
+     * toggleFilterPanel ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * loadListPageData ここから
+     * 一覧画面に必要なデータをまとめて取得
+     ****************************************************/
+    async function loadListPageData() {
+      setMessage('案件一覧を読み込み中...', '');
+      showLoading('案件一覧を読み込み中...');
+
+      const button = document.getElementById('reloadButton');
+      button.disabled = true;
+      button.textContent = '読込中...';
+
+      try {
+        const json = await fetchApiJsonWithParams('listPageData', getListFilters());
+
+        if (!json.ok) {
+          throw new Error(json.message || '一覧データ取得に失敗しました');
+        }
+
+        state.permission = json.permission || '';
+        state.caseTypes = json.data.case_types || [];
+        state.cases = json.data.cases || [];
+
+        applyPermissionView();
+        
+        renderCaseTypeFilter();
+        renderCases();
+
+        setMessage(`${state.cases.length}件の案件を読み込みました`, '');
+
+        removeForceRefreshFromUrl();
+
+      } finally {
+        button.disabled = false;
+        button.textContent = '再読み込み';
+        hideLoading();
+      }
+    }
+    /****************************************************
+     * loadListPageData ここまで
+     ****************************************************/
+
+    
+    /****************************************************
+     * applyPermissionView ここから
+     * 権限に応じて画面上の導線を制御する
+     ****************************************************/
+    function applyPermissionView() {
+      const canEdit = state.permission === 'all' || state.permission === 'edit';
+
+      document.querySelectorAll('a[href="./index.html"], a[href="index.html"]').forEach(link => {
+        link.style.display = canEdit ? '' : 'none';
+      });
+    }
+    /****************************************************
+     * applyPermissionView ここまで
+     ****************************************************/
+    
+    
+    /****************************************************
+     * debounceLoadListPageData ここから
+     * キーワード入力時の一覧再読み込みを少し遅らせる
+     ****************************************************/
+    function debounceLoadListPageData() {
+      if (searchTimer) {
+        clearTimeout(searchTimer);
+      }
+
+      searchTimer = setTimeout(function() {
+        loadListPageData();
+      }, 300);
+    }
+    /****************************************************
+     * debounceLoadListPageData ここまで
+     ****************************************************/
+    
+
+    /****************************************************
+     * renderCaseTypeFilter ここから
+     ****************************************************/
+    function renderCaseTypeFilter() {
+      const select = document.getElementById('caseTypeFilter');
+      const currentValue = select.value;
+
+      select.innerHTML = '<option value="">すべて</option>';
+
+      state.caseTypes.forEach(type => {
+        const option = document.createElement('option');
+        option.value = type.case_type_id;
+        option.textContent = type.case_type_name;
+        select.appendChild(option);
+      });
+
+      select.value = currentValue;
+    }
+    /****************************************************
+     * renderCaseTypeFilter ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * renderCases ここから
+     ****************************************************/
+    function renderCases() {
+      const list = document.getElementById('caseList');
+      list.innerHTML = '';
+
+      if (state.cases.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.textContent = '該当する案件はありません。';
+        list.appendChild(empty);
+        return;
+      }
+
+      state.cases.forEach(item => {
+        list.appendChild(createCaseCard(item));
+      });
+    }
+    /****************************************************
+     * renderCases ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * createCaseCard ここから
+     * 一覧カードは概要だけ表示する
+     ****************************************************/
+    function createCaseCard(item) {
+      const card = document.createElement('article');
+      card.className = 'case-card';
+
+      const caseTypeName = getCaseTypeName(item.case_type, state.caseTypes);
+      const statusName = getStatusName(item.status);
+      const detailUrl = `./case.html?case_id=${encodeURIComponent(item.case_id)}`;
+      const billingUnits = calculateBillingUnits(item);
+
+      card.innerHTML = `
+        <div class="case-top-row">
+          <div class="created-at">${escapeHtml(formatCreatedAt(item.created_at))}</div>
+          <div class="status ${escapeHtml(item.status || '')}">${escapeHtml(statusName)}</div>
+        </div>
+
+        <div class="case-main-row">
+          <div class="target-month-title">${escapeHtml(formatTargetMonth(item.target_month))}</div>
+
+          <div class="case-main-title">
+            ${escapeHtml(caseTypeName)} / ${escapeHtml(item.store_name || '-')}
+          </div>
+
+          <div class="required-people-main">
+            <span>必要人数</span>
+            ${escapeHtml(formatRequiredPeople(item.required_people))}
+          </div>
+
+          <div class="billing-units-main">
+            <span>請求コマ</span>
+            ${escapeHtml(formatBillingUnits(billingUnits))}
+          </div>
+
+          <a class="detail-link" href="${detailUrl}">詳細を見る</a>
+        </div>
+
+        ${renderOverviewLine(item)}
+
+        <div class="case-bottom-row">
+          <div class="case-id-small">${escapeHtml(item.case_id || '-')}</div>
+        </div>
+      `;
+
+      return card;
+    }
+    /****************************************************
+     * createCaseCard ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * renderOverviewLine ここから
+     * 代理店・実稼働場所を1行表示する
+     ****************************************************/
+    function renderOverviewLine(item) {
+      const parts = [];
+
+      if (item.agency_name) {
+        parts.push(`<strong>代理店：</strong>${escapeHtml(item.agency_name)}`);
+      }
+
+      if (item.case_type !== 'retail_store' && item.work_location) {
+        parts.push(`<strong>実稼働場所：</strong>${escapeHtml(item.work_location)}`);
+      }
+
+      if (parts.length === 0) {
+        return '';
+      }
+
+      return `<div class="overview-line">${parts.join('　/　')}</div>`;
+    }
+    /****************************************************
+     * renderOverviewLine ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * 請求コマ数計算 ここから
+     ****************************************************/
+    function calculateBillingUnits(item) {
+      if (item.input_mode === 'days') {
+        const requestedDays = Number(item.requested_days || 0);
+        const requiredPeople = Number(item.required_people || 0);
+
+        if (!requestedDays || !requiredPeople) {
+          return 0;
+        }
+
+        return requestedDays * requiredPeople;
+      }
+
+      const dates = Array.isArray(item.case_dates) ? item.case_dates : [];
+
+      if (dates.length === 0) {
+        const requiredPeople = Number(item.required_people || 0);
+        return requiredPeople || 0;
+      }
+
+      return dates.reduce((sum, date) => {
+        return sum + Number(date.required_people || 0);
+      }, 0);
+    }
+    /****************************************************
+     * 請求コマ数計算 ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * 表示整形 ここから
+     ****************************************************/
+    function formatCreatedAt(value) {
+      if (!value) {
+        return '登録：-';
+      }
+
+      return `登録：${value}`;
+    }
+
+    function formatTargetMonth(value) {
+      if (!value) {
+        return '-';
+      }
+
+      const parts = String(value).split('-');
+
+      if (parts.length !== 2) {
+        return value;
+      }
+
+      const year = parts[0];
+      const month = Number(parts[1]);
+
+      if (!year || !month) {
+        return value;
+      }
+
+      return `${year}年${month}月度`;
+    }
+
+    function formatRequiredPeople(value) {
+      if (value === '' || value === null || value === undefined) {
+        return '-';
+      }
+
+      return `${value}人`;
+    }
+
+    function formatBillingUnits(value) {
+      if (value === '' || value === null || value === undefined || Number(value) === 0) {
+        return '-';
+      }
+
+      return `${value}コマ`;
+    }
+    /****************************************************
+     * 表示整形 ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * API・検索条件 ここから
+     ****************************************************/
+    function getListFilters() {
+  const forceRefreshFromUrl = getQueryParam('force_refresh');
+  const forceRefreshFromStorage = sessionStorage.getItem('ordercase_force_list_refresh');
+
+  if (forceRefreshFromStorage === '1') {
+    sessionStorage.removeItem('ordercase_force_list_refresh');
+  }
+
+  return {
+    keyword: document.getElementById('keyword').value.trim(),
+    target_month: document.getElementById('targetMonthFilter').value,
+    status: document.getElementById('statusFilter').value,
+    case_type: document.getElementById('caseTypeFilter').value,
+    force_refresh: forceRefreshFromUrl === '1' || forceRefreshFromStorage === '1' ? '1' : ''
+  };
+}
+    /****************************************************
+     * API・検索条件 ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * removeForceRefreshFromUrl ここから
+     * force_refresh=1 を一度使ったらURLから消す
+     ****************************************************/
+    function removeForceRefreshFromUrl() {
+      const url = new URL(window.location.href);
+
+      if (!url.searchParams.has('force_refresh')) {
+        return;
+      }
+
+      url.searchParams.delete('force_refresh');
+
+      window.history.replaceState(
+        {},
+        document.title,
+        url.pathname + url.search + url.hash
+      );
+    }
+    /****************************************************
+     * removeForceRefreshFromUrl ここまで
+     ****************************************************/
+    
+
+    /****************************************************
+     * 小物関数 ここから
+     ****************************************************/
+    function setMessage(text, type) {
+      const box = document.getElementById('messageBox');
+      box.textContent = text;
+      box.className = `message ${type || ''}`;
+    }
+    /****************************************************
+     * 小物関数 ここまで
+     ****************************************************/
+  </script>
+</body>
+</html>

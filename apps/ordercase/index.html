@@ -1,0 +1,1535 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OrderCase 案件登録</title>
+
+  <link rel="stylesheet" href="./css/common.css" />
+
+  <style>
+    /****************************************************
+     * index.html 専用スタイル
+     ****************************************************/
+    main {
+      max-width: 900px;
+      padding-bottom: 150px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    @media (min-width: 720px) {
+      .grid.two {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .grid.three {
+        grid-template-columns: 1fr 1fr 1fr;
+      }
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+/****************************************************
+ * スマホ入力欄はみ出し防止 ここから
+ ****************************************************/
+input,
+select,
+textarea {
+  max-width: 100%;
+  min-width: 0;
+}
+
+section {
+  overflow: hidden;
+}
+
+input[type="month"],
+input[type="date"],
+input[type="time"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  max-width: 100%;
+}
+/****************************************************
+ * スマホ入力欄はみ出し防止 ここまで
+ ****************************************************/
+    
+    .suggest-wrap {
+      position: relative;
+    }
+
+    .suggest-dropdown {
+      display: none;
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: calc(100% + 6px);
+      background: #fff;
+      border: 1px solid #d0d7de;
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.12);
+      z-index: 2000;
+      max-height: 260px;
+      overflow-y: auto;
+      padding: 6px;
+    }
+
+    .suggest-dropdown.show {
+      display: grid;
+      gap: 6px;
+    }
+
+    .suggest-option {
+      width: 100%;
+      background: #f8fafc;
+      color: #333;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 10px 12px;
+      text-align: left;
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .suggest-option:hover {
+      background: #f0fff4;
+      border-color: #b7ebc6;
+    }
+
+    .suggest-main {
+      display: block;
+      font-weight: bold;
+      color: #333;
+    }
+
+    .suggest-sub {
+      display: block;
+      font-size: 12px;
+      color: #666;
+      margin-top: 3px;
+    }
+
+    .suggest-empty {
+      padding: 10px 12px;
+      font-size: 12px;
+      color: #777;
+      line-height: 1.5;
+    }
+
+    .calendar-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .calendar-title {
+      font-weight: bold;
+      font-size: 18px;
+      text-align: left;
+    }
+
+    .calendar {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 6px;
+    }
+
+    .weekday {
+      text-align: center;
+      font-size: 12px;
+      font-weight: bold;
+      color: #666;
+      padding: 8px 0;
+    }
+
+    .weekday.sun {
+      color: #c62828;
+    }
+
+    .weekday.sat {
+      color: #1565c0;
+    }
+
+    .day {
+      min-height: 44px;
+      aspect-ratio: auto;
+      border: 1px solid #d9dee5;
+      border-radius: 12px;
+      background: #fff;
+      color: #333;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      user-select: none;
+      transition: .15s;
+      font-weight: bold;
+      padding: 0;
+    }
+
+    .day.blank {
+      background: transparent;
+      border: none;
+      cursor: default;
+      color: transparent;
+    }
+
+    .day.sun {
+      color: #c62828;
+    }
+
+    .day.sat {
+      color: #1565c0;
+    }
+
+    .day.selected {
+      background: #4caf50;
+      color: #fff;
+      border-color: #4caf50;
+      font-weight: bold;
+    }
+
+    .selected-date-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .date-row {
+      border: 1px solid #e3e7eb;
+      border-radius: 12px;
+      padding: 12px;
+      background: #fafafa;
+    }
+
+    .date-row-title {
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    .summary-bar {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255,255,255,0.94);
+      border-top: 1px solid #e2e8f0;
+      padding: 12px 16px;
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+    }
+
+    .summary-inner {
+      max-width: 900px;
+      margin: 0 auto;
+      display: grid;
+      gap: 10px;
+      grid-template-columns: 1fr;
+    }
+
+    @media (min-width: 720px) {
+      .summary-inner {
+        grid-template-columns: 1fr auto;
+        align-items: center;
+      }
+    }
+
+    .summary {
+      font-size: 14px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 14px;
+      line-height: 1.7;
+      font-weight: bold;
+    }
+
+    .submit-button {
+      border: none;
+      border-radius: 12px;
+      padding: 16px 18px;
+      font-size: 16px;
+      font-weight: bold;
+      background: #4caf50;
+      color: white;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    @media (min-width: 720px) {
+      .submit-button {
+        min-width: 180px;
+      }
+    }
+
+    .submit-button:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+
+    @media (max-width: 480px) {
+  main {
+    padding: 10px;
+    padding-bottom: 95px;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  section {
+    overflow: hidden;
+  }
+
+  .grid,
+  .grid.two,
+  .grid.three {
+    min-width: 0;
+  }
+
+  .grid > div {
+    min-width: 0;
+  }
+
+  input,
+  select,
+  textarea {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  input[type="month"],
+  input[type="date"],
+  input[type="time"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .summary-bar {
+    padding: 10px;
+  }
+
+  .summary {
+    display: none;
+  }
+
+  #messageBox {
+    font-size: 13px;
+    margin-top: 0;
+  }
+
+  .submit-button {
+    padding: 14px;
+  }
+
+  .suggest-dropdown {
+    max-height: 220px;
+  }
+}
+  </style>
+</head>
+
+<body>
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-box">
+      <div class="spinner"></div>
+      <div class="loading-text" id="loadingText">読み込み中...</div>
+    </div>
+  </div>
+
+  <header id="ordercaseHeader"></header>
+
+  <main>
+    <section>
+      <h2>基本情報</h2>
+
+      <div class="grid two">
+        <div>
+          <label for="targetMonth">対象月</label>
+          <input id="targetMonth" type="month" />
+        </div>
+
+        <div>
+          <label for="caseType">案件種別</label>
+          <select id="caseType"></select>
+        </div>
+
+        <div>
+          <label for="inputMode">入力方式</label>
+          <select id="inputMode">
+            <option value="dates">日付指定</option>
+            <option value="days">日数指定</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="replyDeadline">返答期限</label>
+          <input id="replyDeadline" type="date" />
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>代理店・連携店舗</h2>
+
+      <div class="grid two">
+        <div class="suggest-wrap">
+          <label for="agencyName">代理店名</label>
+          <input id="agencyName" autocomplete="off" placeholder="例：〇〇代理店" />
+          <div class="suggest-dropdown" id="agencySuggest"></div>
+        </div>
+
+        <div class="suggest-wrap">
+          <label for="storeName">連携店舗</label>
+          <input id="storeName" autocomplete="off" placeholder="例：ドコモショップ〇〇店" />
+          <div class="suggest-dropdown" id="storeSuggest"></div>
+        </div>
+
+        <div>
+          <label for="storeArea">連携店舗エリア</label>
+          <select id="storeArea"></select>
+        </div>
+      </div>
+
+      <p class="hint">
+        候補を選ぶと入力欄に反映されます。店舗候補を選んだ場合、代理店名とエリアも自動入力されます。未登録の代理店・店舗は登録時に stores_master へ仮登録されます。
+      </p>
+    </section>
+
+    <section id="workConditionSection">
+      <h2>稼働条件</h2>
+
+      <div class="grid two">
+        <div id="workLocationWrap">
+          <label for="workLocation">実稼働場所・会場</label>
+          <input id="workLocation" placeholder="例：イオンモール〇〇 1F催事スペース" />
+        </div>
+
+        <div id="workAreaWrap">
+          <label for="workArea">実稼働エリア</label>
+          <select id="workArea"></select>
+        </div>
+
+        <div id="workStartTimeWrap">
+          <label for="workStartTime">稼働開始時間</label>
+          <input id="workStartTime" type="time" />
+        </div>
+
+        <div id="workEndTimeWrap">
+          <label for="workEndTime">稼働終了時間</label>
+          <input id="workEndTime" type="time" />
+        </div>
+
+        <div id="meetingTimeWrap">
+          <label for="meetingTime">集合時間</label>
+          <input id="meetingTime" type="time" />
+        </div>
+
+        <div id="meetingPlaceWrap">
+          <label for="meetingPlace">集合場所</label>
+          <input id="meetingPlace" placeholder="例：正面入口前" />
+        </div>
+
+        <div id="requiredSkillWrap">
+          <label for="requiredSkill">必要スキル</label>
+          <select id="requiredSkill">
+            <option value="any">指定なし</option>
+            <option value="registration_only">登録のみ</option>
+            <option value="multi_complete">マルチ完結</option>
+            <option value="leader">リーダー候補</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>必要人数・必要枠</h2>
+
+      <p class="hint">
+        「必要枠数」は、稼働ライン・ブース・売り場面の数です。<br>
+        例：出張販売1ブースに2人必要な場合は「必要枠数 1」「1枠あたり人数 2」になります。
+      </p>
+
+      <div class="grid three">
+        <div>
+          <label for="requiredLines">必要枠数</label>
+          <input id="requiredLines" type="number" min="1" value="1" />
+          <p class="hint">例：1ブースなら 1、2ブースなら 2</p>
+        </div>
+
+        <div>
+          <label for="peoplePerLine">1枠あたり人数</label>
+          <input id="peoplePerLine" type="number" min="1" value="1" />
+          <p class="hint">例：1ブースに2人なら 2</p>
+        </div>
+
+        <div>
+          <label for="requiredPeople">必要人数</label>
+          <input id="requiredPeople" type="number" readonly />
+          <p class="hint">必要枠数 × 1枠あたり人数で自動計算</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="datesSection">
+      <h2>日付指定</h2>
+
+      <div class="calendar-head">
+        <div class="calendar-title" id="calendarTitle">----</div>
+        <button type="button" class="secondary" id="clearDatesButton">選択日をクリア</button>
+      </div>
+
+      <div class="calendar" id="calendar"></div>
+
+      <div class="selected-date-list" id="selectedDateList"></div>
+    </section>
+
+    <section id="daysSection" class="hidden">
+      <h2>日数指定</h2>
+
+      <div class="grid two">
+        <div>
+          <label for="requestedDays">希望日数</label>
+          <input id="requestedDays" type="number" min="1" placeholder="例：10" />
+        </div>
+      </div>
+
+      <p class="hint">
+        日数指定はOrderCaseでは日数のまま保存し、日付への割当は後工程で行います。
+      </p>
+    </section>
+
+    <section>
+      <h2>金額・メモ</h2>
+
+      <div class="grid two">
+        <div>
+          <label for="amount">金額</label>
+          <input id="amount" type="number" min="0" placeholder="決定済みのみ入力" />
+        </div>
+
+        <div>
+          <label for="amountType">金額区分</label>
+          <select id="amountType">
+            <option value="">未入力</option>
+            <option value="per_day">1日あたり</option>
+            <option value="per_person_day">1人日あたり</option>
+            <option value="per_line_day">1枠日あたり</option>
+            <option value="per_case">案件一式</option>
+            <option value="monthly">月額</option>
+            <option value="other">その他</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="taxType">税区分</label>
+          <select id="taxType">
+            <option value="">未入力</option>
+            <option value="tax_included">税込</option>
+            <option value="tax_excluded">税別</option>
+            <option value="unknown">不明</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="amountMemo">金額メモ</label>
+          <input id="amountMemo" placeholder="例：交通費別、先方確認中" />
+        </div>
+      </div>
+
+      <div class="grid">
+        <div>
+          <label for="clientMemo">先方メモ</label>
+          <textarea id="clientMemo"></textarea>
+        </div>
+
+        <div>
+          <label for="internalMemo">社内メモ</label>
+          <textarea id="internalMemo"></textarea>
+        </div>
+
+        <div id="operationMemoWrap">
+          <label for="operationMemo">運用メモ</label>
+          <textarea id="operationMemo" placeholder="服装・持ち物・注意事項など"></textarea>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="summary-bar">
+    <div class="summary-inner">
+      <div>
+        <div class="summary" id="summaryBox">読み込み中...</div>
+        <div class="message" id="messageBox"></div>
+      </div>
+      <button class="submit-button" id="submitButton" type="button">案件を登録する</button>
+    </div>
+  </div>
+
+  <script src="./js/config.js"></script>
+  <script src="./js/utils.js"></script>
+  <script src="./js/auth-session.js"></script>
+  <script src="./js/api.js"></script>
+  <script src="./js/loading.js"></script>
+  <script src="./js/navigation.js"></script>
+
+  <script>
+    /****************************************************
+     * 状態 ここから
+     ****************************************************/
+    const state = {
+      bootstrap: null,
+      selectedDates: [],
+      storesMaster: []
+    };
+    /****************************************************
+     * 状態 ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * 初期化 ここから
+     ****************************************************/
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        renderOrderCaseHeader('index', '案件登録フォーム v1');
+
+        await requireEditablePermissionForEntryPage();
+
+        setupDefaultDates();
+        setupEventListeners();
+
+        await loadBootstrap();
+
+        updateRequiredPeople();
+        renderCalendar();
+        updateInputModeView();
+        updateSummary();
+
+      } catch (error) {
+        console.error(error);
+        setMessage('初期化エラー: ' + error.message, 'error');
+        disableEntryForm();
+      }
+    });
+    /****************************************************
+     * 初期化 ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * requireEditablePermissionForEntryPage ここから
+     * 登録画面に入れる権限か確認する
+     ****************************************************/
+    async function requireEditablePermissionForEntryPage() {
+      const json = await fetchApiJsonWithParams('getOrderCasePermission', {});
+
+      if (!json.ok) {
+        throw new Error(json.message || 'OrderCase権限の確認に失敗しました');
+      }
+
+      const permission = json.permission || json.data?.permission || '';
+      const canEdit = permission === 'all' || permission === 'edit';
+
+      if (!canEdit) {
+        throw new Error('案件登録権限がありません。案件一覧または詳細画面から閲覧してください。');
+      }
+    }
+    /****************************************************
+     * requireEditablePermissionForEntryPage ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * disableEntryForm ここから
+     * 権限不足や初期化失敗時に登録フォームを止める
+     ****************************************************/
+    function disableEntryForm() {
+      const submitButton = document.getElementById('submitButton');
+
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = '登録権限がありません';
+      }
+
+      document.querySelectorAll('input, select, textarea, button').forEach(el => {
+        if (el.id === 'submitButton') {
+          return;
+        }
+
+        el.disabled = true;
+      });
+    }
+    /****************************************************
+     * disableEntryForm ここまで
+     ****************************************************/
+
+    
+    /****************************************************
+     * setupDefaultDates ここから
+     ****************************************************/
+    function setupDefaultDates() {
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+
+      document.getElementById('targetMonth').value = `${yyyy}-${mm}`;
+    }
+    /****************************************************
+     * setupDefaultDates ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * setupEventListeners ここから
+     ****************************************************/
+    function setupEventListeners() {
+      [
+        'targetMonth',
+        'caseType',
+        'inputMode',
+        'storeArea',
+        'workArea',
+        'requiredLines',
+        'peoplePerLine',
+        'requestedDays',
+        'workLocation'
+      ].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener('input', handleInputChange);
+          el.addEventListener('change', handleInputChange);
+        }
+      });
+
+      document.getElementById('agencyName').addEventListener('input', handleAgencyInput);
+      document.getElementById('agencyName').addEventListener('focus', renderAgencySuggestions);
+
+      document.getElementById('storeName').addEventListener('input', handleStoreInput);
+      document.getElementById('storeName').addEventListener('focus', renderStoreSuggestions);
+
+      document.addEventListener('click', handleOutsideSuggestClick);
+
+      document.getElementById('caseType').addEventListener('change', applyCaseTypeRule);
+      document.getElementById('inputMode').addEventListener('change', updateInputModeView);
+      document.getElementById('targetMonth').addEventListener('change', renderCalendar);
+      document.getElementById('clearDatesButton').addEventListener('click', clearSelectedDates);
+      document.getElementById('submitButton').addEventListener('click', submitCase);
+    }
+    /****************************************************
+     * setupEventListeners ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * loadBootstrap ここから
+     ****************************************************/
+    async function loadBootstrap() {
+      setMessage('初期データを読み込み中...', '');
+      showLoading('初期データを読み込み中...');
+
+      try {
+        const json = await fetchApiJson('bootstrap');
+
+        if (!json.ok) {
+          throw new Error(json.message || 'bootstrap取得に失敗しました');
+        }
+
+        state.bootstrap = json.data;
+        state.storesMaster = json.data.stores_master || [];
+
+        renderCaseTypes();
+        renderAreaOptions();
+
+        applyCaseTypeRule();
+
+        hideSuggest('agencySuggest');
+        hideSuggest('storeSuggest');
+
+        setMessage('初期データを読み込みました', 'success');
+
+      } finally {
+        hideLoading();
+      }
+    }
+    /****************************************************
+     * loadBootstrap ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * renderCaseTypes ここから
+     ****************************************************/
+    function renderCaseTypes() {
+      const select = document.getElementById('caseType');
+      select.innerHTML = '';
+
+      state.bootstrap.case_types.forEach(type => {
+        const option = document.createElement('option');
+        option.value = type.case_type_id;
+        option.textContent = type.case_type_name;
+        select.appendChild(option);
+      });
+    }
+    /****************************************************
+     * renderCaseTypes ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * renderAreaOptions ここから
+     ****************************************************/
+    function renderAreaOptions() {
+      const areaText = state.bootstrap.settings.area_options || '関西,東海,関東';
+      const areas = areaText.split(',').map(v => v.trim()).filter(Boolean);
+
+      ['storeArea', 'workArea'].forEach(id => {
+        const select = document.getElementById(id);
+        select.innerHTML = '';
+
+        areas.forEach(area => {
+          const option = document.createElement('option');
+          option.value = area;
+          option.textContent = area;
+          select.appendChild(option);
+        });
+      });
+    }
+    /****************************************************
+     * renderAreaOptions ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * 候補表示：代理店 ここから
+     ****************************************************/
+    function handleAgencyInput() {
+      renderAgencySuggestions();
+      renderStoreSuggestions();
+      handleInputChange();
+    }
+
+    function renderAgencySuggestions() {
+      const box = document.getElementById('agencySuggest');
+
+      if (document.activeElement !== document.getElementById('agencyName')) {
+        return;
+      }
+
+      const keyword = document.getElementById('agencyName').value.trim();
+
+      const agencies = getUniqueAgencies()
+        .filter(row => {
+          if (!keyword) return true;
+          return normalizeText(row.agency_name).includes(normalizeText(keyword));
+        })
+        .slice(0, 10);
+
+      if (agencies.length === 0) {
+        box.innerHTML = '<div class="suggest-empty">一致する代理店候補はありません。手入力で登録できます。</div>';
+        box.classList.add('show');
+        return;
+      }
+
+      box.innerHTML = agencies.map(row => {
+        return `
+          <button type="button" class="suggest-option" data-agency-name="${escapeHtml(row.agency_name)}">
+            <span class="suggest-main">${escapeHtml(row.agency_name)}</span>
+            <span class="suggest-sub">登録済み代理店</span>
+          </button>
+        `;
+      }).join('');
+
+      box.querySelectorAll('.suggest-option').forEach(button => {
+        button.addEventListener('click', () => {
+          selectAgencySuggestion(button.dataset.agencyName);
+        });
+      });
+
+      box.classList.add('show');
+    }
+
+    function selectAgencySuggestion(agencyName) {
+      document.getElementById('agencyName').value = agencyName;
+
+      hideSuggest('agencySuggest');
+      renderStoreSuggestions();
+      handleInputChange();
+
+      setTimeout(() => {
+        document.getElementById('storeName').focus();
+      }, 50);
+    }
+    /****************************************************
+     * 候補表示：代理店 ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * 候補表示：店舗 ここから
+     ****************************************************/
+    function handleStoreInput() {
+      renderStoreSuggestions();
+      handleInputChange();
+    }
+
+    function renderStoreSuggestions() {
+      const box = document.getElementById('storeSuggest');
+
+      if (document.activeElement !== document.getElementById('storeName')) {
+        return;
+      }
+
+      const storeKeyword = document.getElementById('storeName').value.trim();
+      const agencyName = document.getElementById('agencyName').value.trim();
+
+      const matchedAgencyName = findExactAgencyName(agencyName);
+
+      let stores = state.storesMaster.slice();
+
+      if (matchedAgencyName) {
+        stores = stores.filter(row => {
+          return normalizeText(row.agency_name) === normalizeText(matchedAgencyName);
+        });
+      }
+
+      if (storeKeyword) {
+        stores = stores.filter(row => {
+          return normalizeText(row.store_name).includes(normalizeText(storeKeyword));
+        });
+      }
+
+      stores = stores
+        .filter(row => row.store_name)
+        .slice(0, 12);
+
+      if (stores.length === 0) {
+        const message = matchedAgencyName
+          ? 'この代理店に紐づく店舗候補はありません。手入力で登録できます。'
+          : '一致する店舗候補はありません。手入力で登録できます。';
+
+        box.innerHTML = `<div class="suggest-empty">${message}</div>`;
+        box.classList.add('show');
+        return;
+      }
+
+      box.innerHTML = stores.map((row, index) => {
+        return `
+          <button type="button" class="suggest-option" data-store-index="${index}">
+            <span class="suggest-main">${escapeHtml(row.store_name)}</span>
+            <span class="suggest-sub">${escapeHtml(row.agency_name || '-')} / ${escapeHtml(row.store_area || '-')}</span>
+          </button>
+        `;
+      }).join('');
+
+      box.querySelectorAll('.suggest-option').forEach(button => {
+        const index = Number(button.dataset.storeIndex);
+        button.addEventListener('click', () => {
+          selectStoreSuggestion(stores[index]);
+        });
+      });
+
+      box.classList.add('show');
+    }
+
+    function selectStoreSuggestion(row) {
+      document.getElementById('storeName').value = row.store_name || '';
+
+      if (row.agency_name) {
+        document.getElementById('agencyName').value = row.agency_name;
+      }
+
+      if (row.store_area) {
+        document.getElementById('storeArea').value = row.store_area;
+      }
+
+      if (row.store_area && !document.getElementById('workArea').value) {
+        document.getElementById('workArea').value = row.store_area;
+      }
+
+      hideSuggest('storeSuggest');
+      hideSuggest('agencySuggest');
+      handleInputChange();
+    }
+    /****************************************************
+     * 候補表示：店舗 ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * 候補共通 ここから
+     ****************************************************/
+    function getUniqueAgencies() {
+      const map = {};
+
+      state.storesMaster.forEach(row => {
+        const name = row.agency_name || '';
+        if (!name) return;
+
+        const key = normalizeText(name);
+
+        if (!map[key]) {
+          map[key] = {
+            agency_name: name
+          };
+        }
+      });
+
+      return Object.values(map).sort((a, b) => {
+        return String(a.agency_name).localeCompare(String(b.agency_name), 'ja');
+      });
+    }
+
+    function findExactAgencyName(value) {
+      if (!value) return '';
+
+      const target = normalizeText(value);
+
+      const found = getUniqueAgencies().find(row => {
+        return normalizeText(row.agency_name) === target;
+      });
+
+      return found ? found.agency_name : '';
+    }
+
+    function normalizeText(value) {
+      return String(value || '')
+        .trim()
+        .normalize('NFKC')
+        .replace(/\s+/g, '')
+        .toLowerCase();
+    }
+
+    function handleOutsideSuggestClick(event) {
+      if (!event.target.closest('.suggest-wrap')) {
+        hideSuggest('agencySuggest');
+        hideSuggest('storeSuggest');
+      }
+    }
+
+    function hideSuggest(id) {
+      const box = document.getElementById(id);
+      if (box) {
+        box.classList.remove('show');
+      }
+    }
+    /****************************************************
+     * 候補共通 ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * applyCaseTypeRule ここから
+     ****************************************************/
+    function applyCaseTypeRule() {
+      const rule = getSelectedCaseTypeRule();
+
+      if (!rule) return;
+
+      document.getElementById('inputMode').value = rule.default_input_mode || 'dates';
+      document.getElementById('peoplePerLine').value = rule.default_people_per_line || 1;
+
+      toggleWrap('workLocationWrap', rule.show_work_location);
+      toggleWrap('workAreaWrap', rule.show_work_area);
+      toggleWrap('workStartTimeWrap', rule.show_work_time);
+      toggleWrap('workEndTimeWrap', rule.show_work_time);
+      toggleWrap('meetingTimeWrap', rule.show_meeting_info);
+      toggleWrap('meetingPlaceWrap', rule.show_meeting_info);
+      toggleWrap('requiredSkillWrap', rule.show_required_skill);
+      toggleWrap('operationMemoWrap', rule.show_operation_memo);
+
+      const storeArea = document.getElementById('storeArea').value;
+      const workArea = document.getElementById('workArea');
+
+      if (!workArea.value) {
+        workArea.value = storeArea;
+      }
+
+      updateRequiredPeople();
+      updateInputModeView();
+      updateSummary();
+    }
+    /****************************************************
+     * applyCaseTypeRule ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * updateInputModeView ここから
+     ****************************************************/
+    function updateInputModeView() {
+      const mode = document.getElementById('inputMode').value;
+
+      document.getElementById('datesSection').classList.toggle('hidden', mode !== 'dates');
+      document.getElementById('daysSection').classList.toggle('hidden', mode !== 'days');
+
+      updateSummary();
+    }
+    /****************************************************
+     * updateInputModeView ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * renderCalendar ここから
+     ****************************************************/
+    function renderCalendar() {
+      const targetMonth = document.getElementById('targetMonth').value;
+      const calendar = document.getElementById('calendar');
+      const title = document.getElementById('calendarTitle');
+
+      calendar.innerHTML = '';
+
+      if (!targetMonth) {
+        title.textContent = '対象月を選択してください';
+        return;
+      }
+
+      const [year, month] = targetMonth.split('-').map(Number);
+      title.textContent = `${year}年${month}月`;
+
+      const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+
+      weekdays.forEach((w, index) => {
+        const div = document.createElement('div');
+        div.className = 'weekday';
+        if (index === 0) div.classList.add('sun');
+        if (index === 6) div.classList.add('sat');
+        div.textContent = w;
+        calendar.appendChild(div);
+      });
+
+      const firstDate = new Date(year, month - 1, 1);
+      const lastDate = new Date(year, month, 0);
+      const firstDay = firstDate.getDay();
+      const lastDay = lastDate.getDate();
+
+      for (let i = 0; i < firstDay; i++) {
+        const blank = document.createElement('button');
+        blank.className = 'day blank';
+        blank.type = 'button';
+        blank.disabled = true;
+        calendar.appendChild(blank);
+      }
+
+      for (let day = 1; day <= lastDay; day++) {
+        const date = `${targetMonth}-${String(day).padStart(2, '0')}`;
+        const dayOfWeek = new Date(year, month - 1, day).getDay();
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'day';
+        button.textContent = day;
+
+        if (dayOfWeek === 0) button.classList.add('sun');
+        if (dayOfWeek === 6) button.classList.add('sat');
+
+        if (state.selectedDates.some(item => item.work_date === date)) {
+          button.classList.add('selected');
+        }
+
+        button.addEventListener('click', () => toggleDate(date));
+        calendar.appendChild(button);
+      }
+
+      renderSelectedDateList();
+    }
+    /****************************************************
+     * renderCalendar ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * toggleDate ここから
+     ****************************************************/
+    function toggleDate(date) {
+      const exists = state.selectedDates.some(item => item.work_date === date);
+
+      if (exists) {
+        state.selectedDates = state.selectedDates.filter(item => item.work_date !== date);
+      } else {
+        state.selectedDates.push({
+          work_date: date,
+          required_lines: Number(document.getElementById('requiredLines').value || 1),
+          people_per_line: Number(document.getElementById('peoplePerLine').value || 1),
+          memo: ''
+        });
+      }
+
+      state.selectedDates.sort((a, b) => a.work_date.localeCompare(b.work_date));
+
+      renderCalendar();
+      updateSummary();
+    }
+    /****************************************************
+     * toggleDate ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * renderSelectedDateList ここから
+     ****************************************************/
+    function renderSelectedDateList() {
+      const list = document.getElementById('selectedDateList');
+      list.innerHTML = '';
+
+      if (state.selectedDates.length === 0) {
+        const p = document.createElement('p');
+        p.className = 'hint';
+        p.textContent = '日付を選択してください。';
+        list.appendChild(p);
+        return;
+      }
+
+      state.selectedDates.forEach((item, index) => {
+        const row = document.createElement('div');
+        row.className = 'date-row';
+
+        row.innerHTML = `
+          <div class="date-row-title">${item.work_date}</div>
+          <div class="grid three">
+            <div>
+              <label>必要枠数</label>
+              <input type="number" min="1" value="${item.required_lines}" data-date-index="${index}" data-field="required_lines">
+            </div>
+            <div>
+              <label>1枠あたり人数</label>
+              <input type="number" min="1" value="${item.people_per_line}" data-date-index="${index}" data-field="people_per_line">
+            </div>
+            <div>
+              <label>日別メモ</label>
+              <input type="text" value="${escapeHtml(item.memo)}" data-date-index="${index}" data-field="memo">
+            </div>
+          </div>
+        `;
+
+        row.querySelectorAll('input').forEach(input => {
+          input.addEventListener('input', updateDateDetail);
+        });
+
+        list.appendChild(row);
+      });
+    }
+    /****************************************************
+     * renderSelectedDateList ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * updateDateDetail ここから
+     ****************************************************/
+    function updateDateDetail(event) {
+      const index = Number(event.target.dataset.dateIndex);
+      const field = event.target.dataset.field;
+      const value = event.target.value;
+
+      if (field === 'required_lines' || field === 'people_per_line') {
+        state.selectedDates[index][field] = Number(value || 1);
+      } else {
+        state.selectedDates[index][field] = value;
+      }
+
+      updateSummary();
+    }
+    /****************************************************
+     * updateDateDetail ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * clearSelectedDates ここから
+     ****************************************************/
+    function clearSelectedDates() {
+      state.selectedDates = [];
+      renderCalendar();
+      updateSummary();
+    }
+    /****************************************************
+     * clearSelectedDates ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * handleInputChange ここから
+     ****************************************************/
+    function handleInputChange() {
+      const storeArea = document.getElementById('storeArea').value;
+      const workArea = document.getElementById('workArea');
+
+      if (!workArea.value) {
+        workArea.value = storeArea;
+      }
+
+      updateRequiredPeople();
+      updateSummary();
+    }
+    /****************************************************
+     * handleInputChange ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * updateRequiredPeople ここから
+     ****************************************************/
+    function updateRequiredPeople() {
+      const lines = Number(document.getElementById('requiredLines').value || 1);
+      const people = Number(document.getElementById('peoplePerLine').value || 1);
+      document.getElementById('requiredPeople').value = lines * people;
+    }
+    /****************************************************
+     * updateRequiredPeople ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * submitCase ここから
+     ****************************************************/
+    async function submitCase() {
+      try {
+        clearMessage();
+
+        const payload = buildPayload();
+        validatePayload(payload);
+
+        const button = document.getElementById('submitButton');
+        button.disabled = true;
+        button.textContent = '登録中...';
+
+        showLoading('案件を登録中...');
+
+        const json = await postCreateCase(payload);
+
+        if (!json.ok) {
+          throw new Error(json.message || '登録に失敗しました');
+        }
+
+        const createdCaseId = json.data.case_id;
+
+sessionStorage.setItem('ordercase_force_list_refresh', '1');
+
+clearFormAfterSubmit();
+        
+        setMessage(`登録完了：${createdCaseId}　続けて登録できます。`, 'success');
+
+        scrollToPageTop();
+
+      } catch (error) {
+        setMessage(error.message, 'error');
+
+      } finally {
+        const button = document.getElementById('submitButton');
+        button.disabled = false;
+        button.textContent = '案件を登録する';
+        hideLoading();
+      }
+    }
+    /****************************************************
+     * submitCase ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * buildPayload ここから
+     ****************************************************/
+    function buildPayload() {
+      const inputMode = document.getElementById('inputMode').value;
+      const storeArea = document.getElementById('storeArea').value;
+
+      return {
+        target_month: document.getElementById('targetMonth').value,
+        request_date: todayString(),
+        reply_deadline: document.getElementById('replyDeadline').value,
+
+        case_type: document.getElementById('caseType').value,
+        input_mode: inputMode,
+
+        agency_name: document.getElementById('agencyName').value.trim(),
+        store_name: document.getElementById('storeName').value.trim(),
+        store_area: storeArea,
+
+        work_location: document.getElementById('workLocation').value.trim() || document.getElementById('storeName').value.trim(),
+        work_area: document.getElementById('workArea').value || storeArea,
+        work_start_time: document.getElementById('workStartTime').value,
+        work_end_time: document.getElementById('workEndTime').value,
+        meeting_time: document.getElementById('meetingTime').value,
+        meeting_place: document.getElementById('meetingPlace').value.trim(),
+
+        requested_days: inputMode === 'days' ? document.getElementById('requestedDays').value : '',
+
+        required_lines: Number(document.getElementById('requiredLines').value || 1),
+        people_per_line: Number(document.getElementById('peoplePerLine').value || 1),
+        required_skill: document.getElementById('requiredSkill').value || 'any',
+
+        amount: document.getElementById('amount').value,
+        amount_type: document.getElementById('amountType').value,
+        tax_type: document.getElementById('taxType').value,
+        amount_memo: document.getElementById('amountMemo').value.trim(),
+
+        client_memo: document.getElementById('clientMemo').value.trim(),
+        internal_memo: document.getElementById('internalMemo').value.trim(),
+        operation_memo: document.getElementById('operationMemo').value.trim(),
+
+        created_by: '画面登録',
+        created_by_email: '',
+
+        case_dates: inputMode === 'dates' ? state.selectedDates : []
+      };
+    }
+    /****************************************************
+     * buildPayload ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * validatePayload ここから
+     ****************************************************/
+    function validatePayload(payload) {
+      if (!payload.target_month) throw new Error('対象月を入力してください。');
+      if (!payload.case_type) throw new Error('案件種別を選択してください。');
+      if (!payload.agency_name) throw new Error('代理店名を入力してください。');
+      if (!payload.store_name) throw new Error('連携店舗を入力してください。');
+      if (!payload.store_area) throw new Error('連携店舗エリアを選択してください。');
+
+      if (payload.input_mode === 'dates' && payload.case_dates.length === 0) {
+        throw new Error('日付指定の場合、日付を1つ以上選択してください。');
+      }
+
+      if (payload.input_mode === 'days' && !payload.requested_days) {
+        throw new Error('日数指定の場合、希望日数を入力してください。');
+      }
+    }
+    /****************************************************
+     * validatePayload ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * clearFormAfterSubmit ここから
+     * 登録成功後にフォームを初期状態へ戻す
+     * 対象月・案件種別・入力方式は維持する
+     ****************************************************/
+    function clearFormAfterSubmit() {
+      document.getElementById('agencyName').value = '';
+      document.getElementById('storeName').value = '';
+      document.getElementById('replyDeadline').value = '';
+
+      document.getElementById('workLocation').value = '';
+      document.getElementById('workStartTime').value = '';
+      document.getElementById('workEndTime').value = '';
+      document.getElementById('meetingTime').value = '';
+      document.getElementById('meetingPlace').value = '';
+
+      document.getElementById('requiredLines').value = 1;
+      document.getElementById('peoplePerLine').value = 1;
+      document.getElementById('requiredPeople').value = 1;
+
+      document.getElementById('requestedDays').value = '';
+
+      document.getElementById('amount').value = '';
+      document.getElementById('amountType').value = '';
+      document.getElementById('taxType').value = '';
+      document.getElementById('amountMemo').value = '';
+
+      document.getElementById('clientMemo').value = '';
+      document.getElementById('internalMemo').value = '';
+      document.getElementById('operationMemo').value = '';
+
+      document.getElementById('requiredSkill').value = 'any';
+
+      state.selectedDates = [];
+
+      hideSuggest('agencySuggest');
+      hideSuggest('storeSuggest');
+
+      applyCaseTypeRule();
+      renderCalendar();
+      updateRequiredPeople();
+      updateInputModeView();
+      updateSummary();
+    }
+    /****************************************************
+     * clearFormAfterSubmit ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * updateSummary ここから
+     ****************************************************/
+    function updateSummary() {
+      const mode = document.getElementById('inputMode').value;
+      const lines = Number(document.getElementById('requiredLines').value || 1);
+      const ppl = Number(document.getElementById('peoplePerLine').value || 1);
+      const people = lines * ppl;
+
+      const dateText = mode === 'dates'
+        ? `選択日数：${state.selectedDates.length}日`
+        : `希望日数：${document.getElementById('requestedDays').value || '-'}日`;
+
+      document.getElementById('summaryBox').innerHTML = `
+        入力方式：${mode === 'dates' ? '日付指定' : '日数指定'}<br>
+        ${dateText}<br>
+        必要数：${lines}枠 × ${ppl}人 = ${people}人
+      `;
+    }
+    /****************************************************
+     * updateSummary ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * 小物関数 ここから
+     ****************************************************/
+    function getSelectedCaseTypeRule() {
+      const id = document.getElementById('caseType').value;
+      return state.bootstrap?.case_types?.find(type => type.case_type_id === id);
+    }
+
+    function toggleWrap(id, show) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.classList.toggle('hidden', !show);
+      }
+    }
+
+    function setMessage(text, type) {
+      const box = document.getElementById('messageBox');
+      box.textContent = text;
+      box.className = `message ${type || ''}`;
+    }
+
+    function clearMessage() {
+      setMessage('', '');
+    }
+
+    function scrollToPageTop() {
+      setTimeout(() => {
+        window.scrollTo({
+          top: 0,
+          left: 0,
+          behavior: 'smooth'
+        });
+
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
+      }, 100);
+    }
+    /****************************************************
+     * 小物関数 ここまで
+     ****************************************************/
+  </script>
+</body>
+</html>
