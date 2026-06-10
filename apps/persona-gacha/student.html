@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>ロープレ用 顧客基本情報</title>
+
+  <link rel="stylesheet" href="./css/style.css" />
+</head>
+
+<body>
+  <header class="app-header compact">
+    <div>
+      <p class="app-kicker">ロープレ用</p>
+      <h1>顧客基本情報</h1>
+      <p class="app-description">
+        講師の指示に従って、まずは来店理由からヒアリングしてください。
+      </p>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <section id="studentResultPanel" class="panel">
+      <div id="studentResultArea">
+        <p class="help-text">ペルソナ情報を読み込み中です。</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <p>この画面には、講師用ヒアリング結果・来店理由は表示されません。</p>
+  </footer>
+
+  <script src="./js/masters.js"></script>
+  <script src="./js/personaTypes.js"></script>
+  <script src="./js/rules.js"></script>
+  <script src="./js/generator.js"></script>
+  <script src="./js/render.js"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const params = new URLSearchParams(window.location.search);
+      const seed = params.get('seed');
+      const rarity = params.get('rarity') || 'random';
+
+      const resultArea = document.getElementById('studentResultArea');
+
+      if (!seed) {
+        resultArea.innerHTML = '<p class="error-text">生徒用URLが正しくありません。講師画面からQRを再生成してください。</p>';
+        return;
+      }
+
+      const persona = PersonaGenerator.generatePersona({
+        seed: Number(seed),
+        requestedRarity: rarity
+      });
+
+      Render.renderStudentView(resultArea, persona);
+    });
+  </script>
+</body>
+</html>
