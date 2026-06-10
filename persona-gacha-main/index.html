@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>ドコモペルソナガチャ</title>
+
+  <link rel="stylesheet" href="./css/style.css" />
+</head>
+
+<body>
+  <header class="app-header">
+    <div>
+      <p class="app-kicker">接客ロープレ支援ツール</p>
+      <h1>ドコモペルソナガチャ</h1>
+      <p class="app-description">
+        架空ペルソナを生成し、ヒアリング練習・講師ロープレに使う研修支援ツールです。
+      </p>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <section class="panel">
+      <h2>モード選択</h2>
+
+      <div class="mode-grid">
+        <label class="mode-card">
+          <input type="radio" name="mode" value="teacher" checked />
+          <span class="mode-title">講師ロープレモード</span>
+          <span class="mode-text">講師がカンペを見ながら、生徒にQRで基本情報を共有します。</span>
+        </label>
+
+        <label class="mode-card">
+          <input type="radio" name="mode" value="solo" />
+          <span class="mode-title">ひとり学習モード</span>
+          <span class="mode-text">基本情報を見て、自分で考えたあと項目別にヒアリング結果を開示します。</span>
+        </label>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>生成設定</h2>
+
+      <div class="form-row">
+        <label for="raritySelect">難易度</label>
+        <select id="raritySelect">
+          <option value="random">おまかせガチャ</option>
+          <option value="N">N：基礎</option>
+          <option value="R">R：標準</option>
+          <option value="SR">SR：応用</option>
+          <option value="SSR">SSR：高難度</option>
+          <option value="UR">UR：特殊ケース</option>
+        </select>
+      </div>
+
+      <button id="generateButton" class="primary-button">ペルソナを生成</button>
+    </section>
+
+    <section id="timerPanel" class="panel hidden">
+      <h2>ロープレタイマー</h2>
+
+      <div class="timer-presets">
+        <button class="timer-preset" data-minutes="1">1分</button>
+        <button class="timer-preset" data-minutes="3">3分</button>
+        <button class="timer-preset" data-minutes="5">5分</button>
+        <button class="timer-preset" data-minutes="10">10分</button>
+      </div>
+
+      <div id="timerDisplay" class="timer-display">05:00</div>
+
+      <div class="button-row">
+        <button id="timerStartButton">開始</button>
+        <button id="timerPauseButton">一時停止</button>
+        <button id="timerResetButton">リセット</button>
+      </div>
+
+      <p id="timerMessage" class="timer-message"></p>
+    </section>
+
+    <section id="qrPanel" class="panel hidden">
+      <h2>生徒用QR</h2>
+      <p class="help-text">生徒はこのQRを読み取ると、基本情報だけ確認できます。</p>
+
+      <div id="qrBox" class="qr-box"></div>
+
+      <div class="button-row">
+        <button id="copyStudentUrlButton">生徒用URLをコピー</button>
+        <a id="openStudentUrlLink" class="button-link" href="#" target="_blank" rel="noopener">生徒画面を開く</a>
+      </div>
+
+      <p id="copyMessage" class="help-text"></p>
+    </section>
+
+    <section id="resultPanel" class="panel hidden">
+      <div id="resultArea"></div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <p>
+      実在顧客情報は扱わず、AI APIも使用しない、ブラウザ上で動作する研修支援ツールです。
+    </p>
+  </footer>
+
+  <script src="./js/masters.js"></script>
+  <script src="./js/personaTypes.js"></script>
+  <script src="./js/rules.js"></script>
+  <script src="./js/generator.js"></script>
+  <script src="./js/render.js"></script>
+  <script src="./js/qrcode.js"></script>
+  <script src="./js/timer.js"></script>
+  <script src="./js/app.js"></script>
+</body>
+</html>
