@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>利用申請</title>
+  <link rel="stylesheet" href="./css/signup-request.css" />
+  <link rel="stylesheet" href="./css/line-browser-guard.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>利用申請</h1>
+      <div class="description">
+        ShiftCore の利用申請を行います。
+      </div>
+
+      <label>ログイン中メールアドレス</label>
+      <div class="info-box" id="emailBox">取得中...</div>
+    </div>
+
+    <div class="card">
+      <label for="applicantNameInput">氏名</label>
+      <input type="text" id="applicantNameInput" class="text-box" placeholder="例：山田 太郎" />
+
+      <label for="applicantTypeSelect" class="mt-12">申請区分</label>
+      <select id="applicantTypeSelect" class="select-box">
+        <option value="">選択してください</option>
+        <option value="employee">弊社社員</option>
+        <option value="partner_individual">協力個人</option>
+        <option value="partner_company_admin">協力会社代表</option>
+      </select>
+
+      <label for="companyNameInput" class="mt-12">会社名 / 所属名</label>
+      <input type="text" id="companyNameInput" class="text-box" placeholder="例：株式会社○○ / ○○事業部 / 屋号名" />
+
+      <label for="phoneInput" class="mt-12">業務連絡可能な電話番号</label>
+      <input type="text" id="phoneInput" class="text-box" placeholder="例：09012345678" />
+      <div class="hint">承認連絡や確認事項の連絡先として使用します。</div>
+
+      <label for="noteInput" class="mt-12">備考</label>
+      <textarea id="noteInput" class="text-area" placeholder="補足があれば入力してください"></textarea>
+    </div>
+
+    <div class="card">
+      <div class="button-stack">
+        <button class="submit-btn" id="submitBtn" type="button">利用申請を送信</button>
+        <button class="back-btn" id="backToLoginBtn" type="button">ログイン画面へ戻る</button>
+      </div>
+
+      <div class="message" id="messageBox"></div>
+    </div>
+  </div>
+
+  <script type="module" src="./js/signup-request/main.js"></script>
+<script type="module">
+  import { initLineBrowserGuard } from "./js/common/line-browser-guard.js";
+  initLineBrowserGuard({ pageLabel: "利用申請画面" });
+</script>
+</body>
+</html>

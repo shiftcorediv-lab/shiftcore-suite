@@ -1,0 +1,135 @@
+.line-guard-hidden {
+  display: none !important;
+}
+
+.line-guard-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.line-guard-card {
+  width: 100%;
+  max-width: 520px;
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 22px 18px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.24);
+  color: #222;
+}
+
+.line-guard-badge {
+  display: inline-block;
+  margin-bottom: 10px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #e8f5e9;
+  color: #1b5e20;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.line-guard-title {
+  margin: 0 0 10px;
+  font-size: 24px;
+  line-height: 1.4;
+  font-weight: 800;
+  color: #111827;
+}
+
+.line-guard-text {
+  margin: 0 0 14px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: #374151;
+}
+
+.line-guard-warning {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+  font-size: 13px;
+  line-height: 1.7;
+  font-weight: 700;
+}
+
+.line-guard-button-stack {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.line-guard-btn {
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  padding: 15px 16px;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.line-guard-btn-primary {
+  background: #111827;
+  color: #fff;
+}
+
+.line-guard-btn-secondary {
+  background: #0f766e;
+  color: #fff;
+}
+
+.line-guard-mini-link {
+  margin-top: 14px;
+  border: none;
+  background: transparent;
+  color: #3949ab;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.line-guard-details {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.line-guard-details-title {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.line-guard-steps {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #374151;
+}
+
+.line-guard-status {
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1d4ed8;
+  white-space: pre-wrap;
+}
+
+.line-guard-body-lock {
+  overflow: hidden;
+}

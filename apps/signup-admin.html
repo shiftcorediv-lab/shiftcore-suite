@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>登録申請管理</title>
+  <link rel="stylesheet" href="./css/signup-admin.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>登録申請管理</h1>
+      <div class="description">
+        利用申請の確認、承認、却下を行います。
+      </div>
+
+      <div id="entryBannerArea"></div>
+
+      <label>ログインユーザー</label>
+      <div class="info-box" id="userNameBox">取得中...</div>
+
+      <div class="mt-12">
+        <label>アカウントコード</label>
+        <div class="info-box" id="employeeCodeBox">取得中...</div>
+      </div>
+
+      <div class="mt-12">
+        <label>アカウント情報</label>
+        <div id="accountMetaArea"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>申請一覧</h2>
+      <div class="hint">申請日時、氏名、メールアドレスのみ一覧表示します。</div>
+      <div id="requestListArea" class="list-area"></div>
+    </div>
+
+    <div class="card">
+      <h2>申請詳細</h2>
+
+      <div class="detail-grid">
+        <div class="detail-row">
+          <div class="detail-label">申請日時</div>
+          <div class="detail-value" id="detailSubmittedAt">未選択</div>
+        </div>
+
+        <div class="detail-row">
+          <div class="detail-label">氏名</div>
+          <div class="detail-value" id="detailApplicantName">未選択</div>
+        </div>
+
+        <div class="detail-row">
+          <div class="detail-label">メールアドレス</div>
+          <div class="detail-value" id="detailApplicantEmail">未選択</div>
+        </div>
+
+        <div class="detail-row">
+          <div class="detail-label">申請区分</div>
+          <div class="detail-value" id="detailApplicantType">未選択</div>
+        </div>
+
+        <div class="detail-row">
+          <div class="detail-label">会社名 / 所属名</div>
+          <div class="detail-value" id="detailCompanyName">未選択</div>
+        </div>
+
+        <div class="detail-row">
+          <div class="detail-label">業務連絡可能な電話番号</div>
+          <div class="detail-value" id="detailPhone">未選択</div>
+        </div>
+
+        <div class="detail-row">
+          <div class="detail-label">備考</div>
+          <div class="detail-value" id="detailNote">未選択</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>承認設定</h2>
+      <div class="hint">
+        既存の保存項目名は変更せず、画面表示だけ労務面に配慮した表現にしています。
+      </div>
+
+      <label for="roleSelect">アカウント種別</label>
+      <select id="roleSelect" class="select-box">
+        <option value="">選択してください</option>
+        <option value="employee">弊社内人員</option>
+        <option value="partner_individual">アライアンス個人</option>
+        <option value="partner_company_admin">アライアンス法人 管理者</option>
+      </select>
+      <div class="field-note">保存値：role。既存GASとの互換性維持のため、内部値はまだ変更しません。</div>
+
+      <label for="organizationIdInput" class="mt-12">所属ID / 所属名</label>
+      <input type="text" id="organizationIdInput" class="text-box" placeholder="例: internal / ORG-001 / 所属名" />
+      <div class="field-note">保存値：organization_id。弊社内人員は internal など、外部連携先は所属名または管理IDを入れます。</div>
+
+      <label for="allowedModulesInput" class="mt-12">利用可能機能</label>
+      <input type="text" id="allowedModulesInput" class="text-box" placeholder="例: pmo,ordercase" />
+      <div class="field-note">保存値：allowed_modules。複数ある場合はカンマ区切りで入力します。</div>
+
+      <label for="statusSelect" class="mt-12">アカウント状態</label>
+      <select id="statusSelect" class="select-box">
+        <option value="active">有効</option>
+        <option value="inactive">停止</option>
+      </select>
+      <div class="field-note">保存値：status。</div>
+
+      <label for="workStatusSelect" class="mt-12">稼働対象状態</label>
+      <select id="workStatusSelect" class="select-box">
+        <option value="on">稼働対象</option>
+        <option value="off">稼働対象外</option>
+      </select>
+      <div class="field-note">保存値：work_status。将来的には engagement_status へ寄せる想定です。</div>
+    </div>
+
+    <div class="card">
+      <div class="button-stack">
+        <button class="approve-btn" id="approveBtn" type="button">承認する</button>
+        <button class="reject-btn" id="rejectBtn" type="button">却下する</button>
+        <button class="back-btn" id="backToAccountPortalBtn" type="button">Account Consoleへ戻る</button>
+      </div>
+
+      <div class="message" id="messageBox"></div>
+    </div>
+  </div>
+
+  <script type="module" src="./js/signup-admin/main.js"></script>
+</body>
+</html>
