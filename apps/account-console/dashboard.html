@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShiftCore Dashboard</title>
+  <link rel="stylesheet" href="./css/dashboard.css">
+</head>
+<body>
+  <div class="container">
+    <h1>ShiftCore Dashboard</h1>
+
+    <div class="info-box">
+      <div><strong>名前：</strong><span id="nameText"></span></div>
+      <div><strong>メール：</strong><span id="emailText"></span></div>
+      <div><strong>ロール：</strong><span id="roleText"></span></div>
+      <div><strong>組織：</strong><span id="organizationText"></span></div>
+    </div>
+
+    <h2>利用可能モジュール</h2>
+    <div id="moduleList" class="module-list"></div>
+
+    <div class="button-row">
+      <button id="logoutBtn">ログアウト</button>
+      <button id="backToLoginBtn">ログイン画面へ戻る</button>
+    </div>
+
+    <div id="statusBox" class="status-box">ログイン済みユーザー情報を表示中</div>
+  </div>
+
+  <script type="module" src="./js/dashboard/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShiftCore Account Console</title>
+  <link rel="stylesheet" href="./css/account-console.css">
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <div>
+        <h1>Account Console</h1>
+        <p class="subtitle">アカウント・権限管理</p>
+      </div>
+
+      <div class="header-actions">
+        <button id="signupAdminBtn" class="secondary-button">登録申請管理へ</button>
+        <button id="dashboardBtn" class="secondary-button">Dashboardへ</button>
+      </div>
+    </header>
+
+    <section class="operator-card">
+      <div>
+        <div class="label">ログイン中</div>
+        <div id="operatorText" class="operator-text">確認中...</div>
+      </div>
+      <div id="permissionBadge" class="badge">権限確認中</div>
+    </section>
+
+    <section class="operator-card" id="currentUserPermissionCard">
+      <div>
+        <div class="label">現在ログイン中アカウントの権限</div>
+        <div id="currentUserPermissionText" class="operator-text">確認中...</div>
+      </div>
+    </section>
+
+    <section class="toolbar">
+      <input id="searchInput" type="search" placeholder="氏名 / 表示名 / メール / アカウントコード / 所属 / 部署 / 役職 / エリア / 権限で検索">
+      <button id="newUserBtn" class="primary-button">アカウント追加</button>
+      <button id="reloadBtn" class="secondary-button">再読み込み</button>
+    </section>
+
+    <section class="summary-row">
+      <div class="summary-card">
+        <div class="summary-label">表示中</div>
+        <div id="visibleCountText" class="summary-value">0</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">登録総数</div>
+        <div id="totalCountText" class="summary-value">0</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">アカウント状態</div>
+        <div id="statusSummaryText" class="summary-value">-</div>
+      </div>
+    </section>
+
+    <main class="content-grid">
+      <section class="panel user-panel">
+        <div class="panel-header">
+          <h2>アカウント一覧</h2>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>氏名</th>
+                <th>表示名</th>
+                <th>アカウントコード</th>
+                <th>メール</th>
+                <th>アカウント種別</th>
+                <th>部署</th>
+                <th>役職</th>
+                <th>担当エリア</th>
+                <th>状態</th>
+                <th>利用機能</th>
+                <th>OrderCase</th>
+                <th>ShiftBuilder</th>
+              </tr>
+            </thead>
+            <tbody id="userTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <aside class="panel editor-panel">
+        <div class="panel-header">
+          <h2 id="editorTitle">アカウント編集</h2>
+          <span id="selectedUserIdText" class="hint">未選択</span>
+        </div>
+
+        <form id="userForm" class="form">
+          <input type="hidden" id="internalUserIdInput">
+
+          <label>
+            氏名 / 登録名
+            <input id="nameInput" type="text" autocomplete="off">
+          </label>
+
+          <label>
+            表示名
+            <input id="displayNameInput" type="text" autocomplete="off" placeholder="画面表示用の名前">
+          </label>
+
+          <label>
+            アカウントコード
+            <input id="employeeCodeInput" type="text" autocomplete="off" placeholder="既存保存項目：employee_code">
+          </label>
+
+          <label>
+            メール
+            <input id="emailInput" type="email" autocomplete="off">
+          </label>
+
+          <label>
+            電話番号
+            <input id="phoneInput" type="tel" autocomplete="off">
+          </label>
+
+          <label>
+            アカウント種別
+            <select id="roleInput">
+              <option value="member">弊社内人員</option>
+              <option value="admin">管理者</option>
+              <option value="dev">開発管理者</option>
+              <option value="partner_individual">アライアンス個人</option>
+              <option value="partner_company_admin">アライアンス法人 管理者</option>
+              <option value="agency">代理店</option>
+            </select>
+          </label>
+
+          <label>
+            所属ID / 所属名
+            <input id="organizationInput" type="text" autocomplete="off" placeholder="例：internal / ORG-001 / 所属名">
+          </label>
+
+          <label>
+            部署
+            <input id="departmentInput" type="text" autocomplete="off">
+          </label>
+
+          <label>
+            役職
+            <input id="positionInput" type="text" autocomplete="off">
+          </label>
+
+          <label>
+            担当エリア
+            <input id="baseAreaInput" type="text" autocomplete="off" placeholder="例：関西 / 東海 / 関東">
+          </label>
+
+          <label>
+            アカウント状態
+            <select id="statusInput">
+              <option value="active">有効</option>
+              <option value="inactive">停止</option>
+            </select>
+          </label>
+
+          <label>
+            稼働対象状態
+            <select id="workStatusInput">
+              <option value="off">稼働対象外</option>
+              <option value="on">稼働対象</option>
+            </select>
+          </label>
+
+          <label>
+            並び順
+            <input id="sortOrderInput" type="number" inputmode="numeric">
+          </label>
+
+          <fieldset>
+            <legend>利用可能機能</legend>
+
+            <label class="check-row">
+              <input type="checkbox" name="module" value="account">
+              アカウント基盤
+            </label>
+
+            <label class="check-row">
+              <input type="checkbox" name="module" value="account_console">
+              Account Console
+            </label>
+
+            <label class="check-row">
+              <input type="checkbox" name="module" value="pmo">
+              希望休 / 稼働不可日申請
+            </label>
+
+            <label class="check-row">
+              <input type="checkbox" name="module" value="ordercase">
+              OrderCase
+            </label>
+
+            <label class="check-row">
+              <input type="checkbox" name="module" value="manual">
+              取扱説明書
+            </label>
+
+            <label class="check-row">
+              <input type="checkbox" name="module" value="shift">
+              ShiftBuilder
+            </label>
+          </fieldset>
+
+          <label>
+            OrderCase権限
+            <select id="ordercasePermissionInput">
+              <option value="">なし</option>
+              <option value="all">全操作可能</option>
+              <option value="edit">登録・編集可能</option>
+              <option value="view">閲覧のみ 金額表示あり</option>
+              <option value="view_without_amount">閲覧のみ 金額非表示</option>
+            </select>
+          </label>
+
+          <label>
+            ShiftBuilder権限
+            <select id="shiftbuilderPermissionInput">
+              <option value="">なし</option>
+              <option value="all">全管理</option>
+              <option value="manager">確定・公開管理</option>
+              <option value="edit">作成・編集</option>
+              <option value="view">閲覧のみ</option>
+              <option value="self">自分の予定のみ</option>
+            </select>
+          </label>
+
+          <label>
+            メモ
+            <textarea id="memoInput" rows="4" placeholder="補足メモ"></textarea>
+          </label>
+
+          <div class="readonly-box">
+            <div><strong>認証プロバイダ：</strong><span id="authProviderText">-</span></div>
+            <div><strong>認証UID：</strong><span id="authUidText">-</span></div>
+            <div><strong>作成：</strong><span id="createdAtText">-</span></div>
+            <div><strong>更新：</strong><span id="updatedAtText">-</span></div>
+            <div><strong>更新者：</strong><span id="updatedByText">-</span></div>
+          </div>
+
+          <div class="form-actions">
+            <button id="saveUserBtn" type="submit" class="primary-button">保存</button>
+            <button id="clearFormBtn" type="button" class="secondary-button">新規入力に戻す</button>
+          </div>
+        </form>
+      </aside>
+    </main>
+
+    <section class="panel logs-panel">
+      <div class="panel-header">
+        <h2>変更履歴</h2>
+        <button id="loadLogsBtn" class="secondary-button">履歴を更新</button>
+      </div>
+      <div id="logsList" class="logs-list">履歴未取得</div>
+    </section>
+
+    <div id="statusBox" class="status-box">初期化中...</div>
+  </div>
+
+  <script type="module" src="./js/account-console/main.js"></script>
+</body>
+</html>

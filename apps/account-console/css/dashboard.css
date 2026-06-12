@@ -1,0 +1,112 @@
+body {
+  font-family: Arial, sans-serif;
+  background: #f7f7f7;
+  margin: 0;
+  padding: 0;
+}
+
+.container {
+  max-width: 720px;
+  margin: 40px auto;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+h1 {
+  margin: 0 0 20px;
+  font-size: 28px;
+}
+
+h2 {
+  margin-top: 28px;
+  font-size: 20px;
+}
+
+.info-box,
+.module-box {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 10px;
+  background: #f3f3f3;
+}
+
+.module-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.module-card {
+  background: #fafafa;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.module-card-title {
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+.module-card-code {
+  font-size: 13px;
+  color: #555;
+  word-break: break-word;
+  margin-bottom: 12px;
+}
+
+.module-card button {
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  background: #111;
+  color: #fff;
+  font-size: 14px;
+}
+
+.module-card button:disabled {
+  background: #ccc;
+  color: #666;
+  cursor: not-allowed;
+}
+
+.button-row {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+  flex-wrap: wrap;
+}
+
+button {
+  padding: 12px 18px;
+  font-size: 15px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+#logoutBtn {
+  background: #111;
+  color: #fff;
+}
+
+#backToLoginBtn {
+  background: #ddd;
+  color: #111;
+}
+
+.status-box {
+  margin-top: 20px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f0f0f0;
+  font-size: 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

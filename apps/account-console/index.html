@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShiftCore Login</title>
+  <link rel="stylesheet" href="./css/index.css">
+  <link rel="stylesheet" href="./css/line-browser-guard.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>ShiftCore</h1>
+    <p>Googleアカウントでログインしてください。</p>
+
+    <button id="loginBtn">Googleでログイン</button>
+
+    <div id="statusBox" class="status-box">ログイン状態を確認中...</div>
+  </div>
+
+  <script type="module" src="./js/login/main.js"></script>
+<script type="module">
+  import { initLineBrowserGuard } from "./js/common/line-browser-guard.js";
+  initLineBrowserGuard({ pageLabel: "ShiftCore ログイン画面" });
+</script>
+</body>
+</html>
