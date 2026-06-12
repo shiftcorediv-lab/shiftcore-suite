@@ -21,14 +21,12 @@ Hirotimerは単体ツールとして独立管理します。
 
 Git履歴の統合は行いません。
 
-## ディレクトリ予定
+## 移行状況
 
-```text
-apps/
-  persona-gacha/
-  pmo/
-  ordercase/
-  account-console/
-
-docs/
-shared/
+| アプリ | 配置先 | 状態 |
+|---|---|---|
+| Persona Gacha | apps/persona-gacha/ | 表示OK |
+| PMO / Pick My Off | apps/pmo/ | 表示OK。直接アクセス時のユーザー情報取得は要確認 |
+| OrderCase | apps/ordercase/ | URL表示OK。API通信・権限表示は要確認 |
+| Account Console | apps/account-console/ | 動作OK |
+| Hirotimer | 統合対象外 | 独立管理 |
