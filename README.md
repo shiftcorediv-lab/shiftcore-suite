@@ -29,4 +29,13 @@ Git履歴の統合は行いません。
 | PMO / Pick My Off | apps/pmo/ | 表示OK。直接アクセス時のユーザー情報取得は要確認 |
 | OrderCase | apps/ordercase/ | URL表示OK。API通信・権限表示は要確認 |
 | Account Console | apps/account-console/ | 動作OK |
-| Hirotimer | 統合対象外 | 独立管理 |
+
+## 公開URL
+
+| アプリ | URL |
+|---|---|
+| Persona Gacha | https://shiftcorediv-lab.github.io/shiftcore-suite/apps/persona-gacha/ |
+| PMO / Pick My Off | https://shiftcorediv-lab.github.io/shiftcore-suite/apps/pmo/ |
+| OrderCase | https://shiftcorediv-lab.github.io/shiftcore-suite/apps/ordercase/ |
+| Account Console | https://shiftcorediv-lab.github.io/shiftcore-suite/apps/account-console/ |
+| ShiftBuilder | https://shiftcorediv-lab.github.io/shiftcore-suite/apps/shiftbuilder/ |
