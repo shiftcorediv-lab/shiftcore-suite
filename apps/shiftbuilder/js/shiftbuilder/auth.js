@@ -1,4 +1,4 @@
-// ===== ShiftBuilder auth ここから =====
+// ===== ShiftBuilder auth.js ここから =====
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
@@ -6,45 +6,52 @@ import {
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-import {
-  firebaseConfig,
-  LOGIN_URL
-} from "./config.js";
+import { firebaseConfig, LOGIN_URL } from "./config.js";
 
-
-// ===== Firebase初期化ここから =====
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-// ===== Firebase初期化ここまで =====
 
+export function getShiftBuilderAuth() {
+  return auth;
+}
 
-// ===== ログインセッション取得ここから =====
-export function requireShiftBuilderSession() {
-  return new Promise((resolve, reject) => {
+export function getLoginUrl() {
+  return LOGIN_URL;
+}
+
+export function waitForAuthState() {
+  return new Promise((resolve) => {
     onAuthStateChanged(auth, async (user) => {
-      try {
-        if (!user) {
-          window.location.href = LOGIN_URL;
-          resolve(null);
-          return;
-        }
-
-        const idToken = await user.getIdToken(true);
-
+      if (!user) {
         resolve({
-          firebaseUser: user,
-          idToken: idToken,
-          email: user.email || "",
-          uid: user.uid || ""
+          isLoggedIn: false,
+          user: null,
+          idToken: null,
+          email: null,
+          uid: null
         });
-
-      } catch (error) {
-        reject(error);
+        return;
       }
+
+      const idToken = await user.getIdToken();
+
+      resolve({
+        isLoggedIn: true,
+        user,
+        idToken,
+        email: user.email || "",
+        uid: user.uid || ""
+      });
     });
   });
 }
-// ===== ログインセッション取得ここまで =====
 
+export async function requireShiftBuilderSession() {
+  const session = await waitForAuthState();
 
-// ===== ShiftBuilder auth ここまで =====
+  // デバッグ中は自動リダイレクトしない。
+  // 未ログインなら main.js 側で画面に表示する。
+  return session;
+}
+
+// ===== ShiftBuilder auth.js ここまで =====
