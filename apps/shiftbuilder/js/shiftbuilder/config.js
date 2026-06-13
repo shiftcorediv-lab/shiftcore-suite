@@ -8,8 +8,6 @@ export const SHIFTBUILDER_API_URL =
 export const DASHBOARD_URL = APP_URLS.accountConsole;
 export const LOGIN_URL = APP_URLS.accountConsole;
 
-// Firebase設定は既存のAccount Console側と同じ値を使う。
-// ここはAccount ConsoleのfirebaseConfigをそのまま貼る。
 export const firebaseConfig = {
   apiKey: "AIzaSyAXDhMT1IP1xQ9f0WiOIjmmfBHoQDWZ0dI",
   authDomain: "shiftcore-div.firebaseapp.com",
