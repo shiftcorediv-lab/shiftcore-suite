@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="../../shared/css/shiftcore-ui.css" />
   <link rel="stylesheet" href="./css/shiftbuilder.css" />
 </head>
+
 <body>
   <main class="page">
     <header class="header">
@@ -20,8 +21,12 @@
       </div>
 
       <div class="header-actions">
-        <button id="dashboardBtn" type="button" class="secondary-button">Dashboardへ戻る</button>
-        <button id="reloadBtn" type="button" class="primary-button">再読み込み</button>
+        <button id="dashboardBtn" type="button" class="secondary-button">
+          Dashboardへ戻る
+        </button>
+        <button id="reloadBtn" type="button" class="primary-button">
+          再読み込み
+        </button>
       </div>
     </header>
 
@@ -36,9 +41,9 @@
     </section>
 
     <section class="panel">
-      <h2>接続確認</h2>
+      <h2>接続・権限ステータス</h2>
       <p class="hint">
-        まずは Firebaseログイン状態と ShiftBuilder API 認証が通るかを確認します。
+        Firebaseログイン、ShiftBuilder API接続、ShiftBuilder権限を確認します。
       </p>
 
       <div class="info-grid">
@@ -62,6 +67,126 @@
           <div id="editPermissionText" class="info-value">-</div>
         </div>
       </div>
+    </section>
+
+    <section class="shiftbuilder-toolbar">
+      <div class="toolbar-group">
+        <label class="field-label" for="targetMonthInput">対象月</label>
+        <input id="targetMonthInput" type="month" class="field-input" />
+      </div>
+
+      <div class="toolbar-group">
+        <label class="field-label" for="areaSelect">エリア</label>
+        <select id="areaSelect" class="field-input">
+          <option value="all">全エリア</option>
+          <option value="fukuoka">福岡</option>
+          <option value="kitakyushu">北九州</option>
+          <option value="kumamoto">熊本</option>
+          <option value="saga">佐賀</option>
+          <option value="nagasaki">長崎</option>
+          <option value="oita">大分</option>
+          <option value="miyazaki">宮崎</option>
+          <option value="kagoshima">鹿児島</option>
+        </select>
+      </div>
+
+      <div class="toolbar-actions">
+        <button id="loadShiftDataBtn" type="button" class="primary-button">
+          シフト表を表示
+        </button>
+      </div>
+    </section>
+
+    <section class="quick-view-grid" aria-label="クイックビュー">
+      <div class="quick-view-card">
+        <div class="label">必要枠</div>
+        <div id="requiredTotalText" class="quick-value">-</div>
+      </div>
+
+      <div class="quick-view-card">
+        <div class="label">アサイン済</div>
+        <div id="assignedTotalText" class="quick-value">-</div>
+      </div>
+
+      <div class="quick-view-card">
+        <div class="label">不足</div>
+        <div id="shortageTotalText" class="quick-value">-</div>
+      </div>
+
+      <div class="quick-view-card">
+        <div class="label">充足率</div>
+        <div id="completionRateText" class="quick-value">-</div>
+      </div>
+
+      <div class="quick-view-card">
+        <div class="label">未アサインセル</div>
+        <div id="unassignedCellText" class="quick-value">-</div>
+      </div>
+
+      <div class="quick-view-card">
+        <div class="label">超過セル</div>
+        <div id="overCellText" class="quick-value">-</div>
+      </div>
+    </section>
+
+    <section class="shiftbuilder-layout">
+      <section class="shift-table-panel">
+        <div class="section-heading-row">
+          <div>
+            <h2>案件 × 日付</h2>
+            <p class="hint">
+              v1-1では、案件ごとの必要人数とアサイン状況を日別に確認します。
+            </p>
+          </div>
+        </div>
+
+        <div class="shift-table-scroll">
+          <table class="shift-table">
+            <thead id="shiftTableHead">
+              <tr>
+                <th>案件</th>
+                <th>日付</th>
+              </tr>
+            </thead>
+            <tbody id="shiftTableBody">
+              <tr>
+                <td colspan="2" class="empty-cell">
+                  シフト表はまだ表示されていません。
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <aside class="floating-panel" id="shiftDetailPanel">
+        <div class="floating-panel-header">
+          <div>
+            <div class="label">選択中のセル</div>
+            <h2 id="selectedCellTitle">未選択</h2>
+          </div>
+        </div>
+
+        <div class="floating-panel-body">
+          <p id="selectedCellSummary" class="hint">
+            案件×日付セルを選択すると、候補者やアサイン状況をここに表示します。
+          </p>
+
+          <div class="detail-block">
+            <h3>アサイン状況</h3>
+            <div id="assignedMembersList" class="member-list">
+              <div class="empty-note">未選択</div>
+            </div>
+          </div>
+
+          <div class="detail-block">
+            <h3>候補者</h3>
+            <div id="candidateList" class="candidate-list">
+              <div class="empty-note">未選択</div>
+            </div>
+          </div>
+        </div>
+      </aside>
     </section>
 
     <section class="status-box" id="statusBox">
