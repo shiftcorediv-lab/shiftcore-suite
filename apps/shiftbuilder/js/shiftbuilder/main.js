@@ -1,14 +1,12 @@
-// ===== ShiftBuilder main ここから =====
+// ===== ShiftBuilder main.js ここから =====
 
 import { DASHBOARD_URL } from "./config.js";
-import { requireShiftBuilderSession } from "./auth.js";
+import { requireShiftBuilderSession, getLoginUrl } from "./auth.js";
 import {
   pingShiftBuilderApi,
   getCurrentShiftBuilderUser
 } from "./api.js";
 
-
-// ===== DOM取得ここから =====
 const dashboardBtn = document.getElementById("dashboardBtn");
 const reloadBtn = document.getElementById("reloadBtn");
 
@@ -20,183 +18,151 @@ const apiStatusText = document.getElementById("apiStatusText");
 const userNameText = document.getElementById("userNameText");
 const shiftPermissionText = document.getElementById("shiftPermissionText");
 const editPermissionText = document.getElementById("editPermissionText");
-
 const statusBox = document.getElementById("statusBox");
-// ===== DOM取得ここまで =====
-
-
-// ===== 状態ここから =====
-let session = null;
-let idToken = "";
-let currentUser = null;
-// ===== 状態ここまで =====
-
-
-// ===== 表示ラベルここから =====
-const SHIFTBUILDER_PERMISSION_LABELS = {
-  all: "全管理",
-  manager: "確定・公開管理",
-  edit: "作成・編集",
-  view: "閲覧のみ",
-  self: "自分の予定のみ"
-};
-// ===== 表示ラベルここまで =====
-
-
-// ===== 共通表示ここから =====
-function text(value) {
-  return String(value == null ? "" : value).trim();
-}
 
 function setStatus(message) {
-  statusBox.textContent = message;
-}
-
-function setPermissionBadge(label, type) {
-  permissionBadge.textContent = label;
-  permissionBadge.className = "badge";
-
-  if (type === "ok") {
-    permissionBadge.classList.add("ok");
-  }
-
-  if (type === "ng") {
-    permissionBadge.classList.add("ng");
+  if (statusBox) {
+    statusBox.textContent = message;
   }
 }
 
-function getShiftBuilderPermissionLabel(value) {
-  const key = text(value);
-  return SHIFTBUILDER_PERMISSION_LABELS[key] || "権限なし";
-}
+function setLoading(isLoading, message = "処理中...") {
+  const existing = document.getElementById("shiftbuilderLoadingOverlay");
 
-function showLoading(message = "読み込み中...") {
-  let overlay = document.getElementById("shiftBuilderLoadingOverlay");
-
-  if (!overlay) {
-    overlay = document.createElement("div");
-    overlay.id = "shiftBuilderLoadingOverlay";
-    overlay.className = "loading-overlay";
-    overlay.innerHTML = `
-      <div class="loading-card">
-        <div class="loading-spinner" aria-hidden="true"></div>
-        <div class="loading-text">読み込み中...</div>
-      </div>
-    `;
-    document.body.appendChild(overlay);
+  if (!isLoading) {
+    if (existing) existing.remove();
+    return;
   }
 
-  const loadingText = overlay.querySelector(".loading-text");
-
-  if (loadingText) {
-    loadingText.textContent = message;
+  if (existing) {
+    const text = existing.querySelector(".loading-text");
+    if (text) text.textContent = message;
+    return;
   }
 
-  overlay.classList.add("show");
+  const overlay = document.createElement("div");
+  overlay.id = "shiftbuilderLoadingOverlay";
+  overlay.className = "loading-overlay";
+  overlay.innerHTML = `
+    <div class="loading-card">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">${message}</div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
 }
 
-function hideLoading() {
-  const overlay = document.getElementById("shiftBuilderLoadingOverlay");
+function getPermissionLabel(permission) {
+  const labels = {
+    all: "全管理",
+    manager: "確定・公開管理",
+    edit: "作成・編集",
+    view: "閲覧のみ",
+    self: "自分の予定のみ"
+  };
 
-  if (overlay) {
-    overlay.classList.remove("show");
-  }
+  return labels[permission] || "権限なし";
 }
-// ===== 共通表示ここまで =====
 
+function canEdit(permission) {
+  return ["all", "manager", "edit"].includes(permission);
+}
 
-// ===== 初期化ここから =====
+function renderNoLogin(session) {
+  operatorText.textContent = "未ログイン";
+  permissionText.textContent = "ShiftBuilder側でログイン状態を検出できませんでした";
+  permissionBadge.textContent = "未ログイン";
+
+  apiStatusText.textContent = "未実行";
+  userNameText.textContent = "-";
+  shiftPermissionText.textContent = "-";
+  editPermissionText.textContent = "-";
+
+  setStatus(
+    `未ログイン判定です。ログインURL: ${getLoginUrl()} / email: ${session.email || "-"} / uid: ${session.uid || "-"}`
+  );
+}
+
+function renderUser(currentUser) {
+  const user = currentUser.user || currentUser.currentUser || currentUser;
+
+  const displayName =
+    user.name ||
+    user.display_name ||
+    user.email ||
+    "名前未設定";
+
+  const permission =
+    user.shiftbuilder_permission ||
+    user.shiftBuilderPermission ||
+    "";
+
+  const permissionLabel = getPermissionLabel(permission);
+  const editable = canEdit(permission);
+
+  operatorText.textContent = displayName;
+  permissionText.textContent = `ShiftBuilder権限：${permissionLabel}`;
+  permissionBadge.textContent = permissionLabel;
+
+  userNameText.textContent = displayName;
+  shiftPermissionText.textContent = permissionLabel;
+  editPermissionText.textContent = editable ? "編集可" : "閲覧のみ";
+
+  setStatus("ShiftBuilder認証確認OK");
+}
+
 async function init() {
   try {
-    showLoading("ログイン状態を確認中...");
+    setLoading(true, "ログイン状態を確認中...");
     setStatus("ログイン状態を確認中...");
-    setPermissionBadge("確認中", "");
 
-    session = await requireShiftBuilderSession();
+    const session = await requireShiftBuilderSession();
 
-    if (!session) {
-      hideLoading();
+    console.log("[ShiftBuilder] auth session:", session);
+
+    if (!session.isLoggedIn) {
+      renderNoLogin(session);
       return;
     }
 
-    idToken = session.idToken;
+    setStatus(`Firebaseログイン検出: ${session.email}`);
 
-    showLoading("ShiftBuilder APIに接続中...");
-    setStatus("ShiftBuilder APIに接続中...");
-
+    setLoading(true, "ShiftBuilder APIを確認中...");
     const pingResult = await pingShiftBuilderApi();
 
-    if (!isOkResult(pingResult)) {
-      throw new Error(pingResult.message || "ShiftBuilder APIへの接続に失敗しました");
-    }
+    console.log("[ShiftBuilder] ping result:", pingResult);
 
     apiStatusText.textContent = "接続OK";
 
-    showLoading("ShiftBuilder権限を確認中...");
-    setStatus("ShiftBuilder権限を確認中...");
+    setLoading(true, "ShiftBuilder権限を確認中...");
+    const currentUser = await getCurrentShiftBuilderUser(session.idToken);
 
-    const currentUserResult = await getCurrentShiftBuilderUser(idToken);
+    console.log("[ShiftBuilder] current user:", currentUser);
 
-    if (!isOkResult(currentUserResult)) {
-      setPermissionBadge("権限なし", "ng");
-      operatorText.textContent = session.email || "-";
-      permissionText.textContent = currentUserResult.message || "ShiftBuilderの利用権限がありません";
-      apiStatusText.textContent = "認証NG";
-      userNameText.textContent = "-";
-      shiftPermissionText.textContent = "-";
-      editPermissionText.textContent = "-";
-      setStatus(currentUserResult.message || "ShiftBuilderの利用権限がありません");
-      return;
-    }
-
-    currentUser = currentUserResult.user;
-
-    renderCurrentUser(currentUser, currentUserResult);
-
-    setStatus("ShiftBuilder認証確認が完了しました");
-
+    renderUser(currentUser);
   } catch (error) {
-    setPermissionBadge("エラー", "ng");
+    console.error("[ShiftBuilder] init error:", error);
+
+    operatorText.textContent = "確認エラー";
+    permissionText.textContent = "ShiftBuilder初期化中にエラーが発生しました";
+    permissionBadge.textContent = "エラー";
+
     apiStatusText.textContent = "エラー";
-    setStatus("初期化エラー\n\n" + error.message);
+
+    setStatus(error.message || String(error));
   } finally {
-    hideLoading();
+    setLoading(false);
   }
 }
 
-function isOkResult(result) {
-  return result && (result.ok === true || result.success === true);
-}
-
-function renderCurrentUser(user, result) {
-  const displayName = text(user.display_name || user.name || user.email);
-  const email = text(user.email);
-  const permissionLabel = getShiftBuilderPermissionLabel(user.shiftbuilder_permission);
-  const canEdit = result.canEditShiftBuilder === true || user.can_edit_shiftbuilder === true;
-
-  operatorText.textContent = `${displayName || "-"} / ${email || "-"}`;
-  permissionText.textContent = `ShiftBuilder：${permissionLabel}`;
-  setPermissionBadge("利用可", "ok");
-
-  apiStatusText.textContent = "認証OK";
-  userNameText.textContent = displayName || "-";
-  shiftPermissionText.textContent = permissionLabel;
-  editPermissionText.textContent = canEdit ? "編集可" : "閲覧のみ";
-}
-// ===== 初期化ここまで =====
-
-
-// ===== イベントここから =====
-dashboardBtn.addEventListener("click", () => {
+dashboardBtn?.addEventListener("click", () => {
   window.location.href = DASHBOARD_URL;
 });
 
-reloadBtn.addEventListener("click", () => {
-  init();
+reloadBtn?.addEventListener("click", () => {
+  window.location.reload();
 });
-// ===== イベントここまで =====
-
 
 init();
 
-// ===== ShiftBuilder main ここまで =====
+// ===== ShiftBuilder main.js ここまで =====
