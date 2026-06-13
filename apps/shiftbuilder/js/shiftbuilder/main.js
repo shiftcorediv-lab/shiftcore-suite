@@ -70,7 +70,7 @@ function canEdit(permission) {
 
 function renderNoLogin(session) {
   operatorText.textContent = "未ログイン";
-  permissionText.textContent = "ShiftBuilder側でログイン状態を検出できませんでした";
+  permissionText.textContent = "ShiftBuilderを利用するにはログインが必要です";
   permissionBadge.textContent = "未ログイン";
 
   apiStatusText.textContent = "未実行";
@@ -79,7 +79,7 @@ function renderNoLogin(session) {
   editPermissionText.textContent = "-";
 
   setStatus(
-    `未ログイン判定です。ログインURL: ${getLoginUrl()} / email: ${session.email || "-"} / uid: ${session.uid || "-"}`
+    `未ログインです。Dashboardからログイン後、再度ShiftBuilderを開いてください。ログインURL: ${getLoginUrl()} / email: ${session.email || "-"} / uid: ${session.uid || "-"}`
   );
 }
 
@@ -108,7 +108,11 @@ function renderUser(currentUser) {
   shiftPermissionText.textContent = permissionLabel;
   editPermissionText.textContent = editable ? "編集可" : "閲覧のみ";
 
-  setStatus("ShiftBuilder認証確認OK");
+  setStatus(
+    editable
+      ? "ShiftBuilderを利用できます。現在は開発中トップ画面です。"
+      : "ShiftBuilderを閲覧できます。編集権限はありません。"
+  );
 }
 
 async function init() {
@@ -125,7 +129,7 @@ async function init() {
       return;
     }
 
-    setStatus(`Firebaseログイン検出: ${session.email}`);
+    setStatus(`Firebaseログイン確認OK：${session.email}`);
 
     setLoading(true, "ShiftBuilder APIを確認中...");
     const pingResult = await pingShiftBuilderApi();
@@ -144,7 +148,7 @@ async function init() {
     console.error("[ShiftBuilder] init error:", error);
 
     operatorText.textContent = "確認エラー";
-    permissionText.textContent = "ShiftBuilder初期化中にエラーが発生しました";
+    permissionText.textContent = "ShiftBuilderの初期化中にエラーが発生しました";
     permissionBadge.textContent = "エラー";
 
     apiStatusText.textContent = "エラー";
