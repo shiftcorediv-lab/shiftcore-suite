@@ -11,12 +11,12 @@ export const LOGIN_URL = APP_URLS.accountConsole;
 // Firebase設定は既存のAccount Console側と同じ値を使う。
 // ここはAccount ConsoleのfirebaseConfigをそのまま貼る。
 export const firebaseConfig = {
-  apiKey: "ここにFirebase apiKey",
-  authDomain: "ここにFirebase authDomain",
-  projectId: "ここにFirebase projectId",
-  storageBucket: "ここにFirebase storageBucket",
-  messagingSenderId: "ここにFirebase messagingSenderId",
-  appId: "ここにFirebase appId"
+  apiKey: "AIzaSyAXDhMT1IP1xQ9f0WiOIjmmfBHoQDWZ0dI",
+  authDomain: "shiftcore-div.firebaseapp.com",
+  projectId: "shiftcore-div",
+  storageBucket: "shiftcore-div.firebasestorage.app",
+  messagingSenderId: "882342275588",
+  appId: "1:882342275588:web:bab610608d1bc00453e351"
 };
 
 // ===== ShiftBuilder config ここまで =====
