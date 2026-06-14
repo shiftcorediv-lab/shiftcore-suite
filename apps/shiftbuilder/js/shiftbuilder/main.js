@@ -176,6 +176,18 @@ function selectShiftCell(caseId, date) {
     return;
   }
 
+  selectedCell = found;
+
+  renderSelectedCell(found, {
+    selectedCellTitle,
+    selectedCellSummary,
+    assignedMembersList,
+    candidateList
+  });
+
+  setStatus(`セルを選択しました：${found.caseItem.title} ${found.dateItem.label}`);
+}
+
 function loadMockShiftData() {
   const selectedArea = areaSelect?.value || "all";
   const selectedMonth = targetMonthInput?.value || mockShiftData.month;
