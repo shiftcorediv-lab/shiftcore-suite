@@ -57,12 +57,6 @@ const candidateList = document.getElementById("candidateList");
 
 const statusBox = document.getElementById("statusBox");
 
-let currentSession = null;
-let currentUser = null;
-let currentShiftData = null;
-let selectedCell = null;
-
-
 function setStatus(message) {
   if (statusBox) {
     statusBox.textContent = message;
