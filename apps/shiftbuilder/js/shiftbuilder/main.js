@@ -9,6 +9,7 @@ import {
 import { mockShiftData } from "./mock-data.js";
 import { escapeHtml, getCurrentMonthValue } from "./utils.js";
 import { getPermissionLabel, canEdit } from "./permissions.js";
+import { renderSummary } from "./render-summary.js";
 
 const dashboardBtn = document.getElementById("dashboardBtn");
 const reloadBtn = document.getElementById("reloadBtn");
