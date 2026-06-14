@@ -361,7 +361,15 @@ function loadMockShiftData() {
     area: selectedArea
   };
 
-  renderSummary(currentShiftData);
+ renderSummary(currentShiftData, {
+  requiredTotalText,
+  assignedTotalText,
+  shortageTotalText,
+  completionRateText,
+  unassignedCellText,
+  overCellText
+});
+  
   renderShiftTable(currentShiftData);
 
   selectedCell = null;
