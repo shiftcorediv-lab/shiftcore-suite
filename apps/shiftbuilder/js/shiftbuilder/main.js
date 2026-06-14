@@ -81,31 +81,6 @@ function setLoading(isLoading, message = "処理中...") {
   document.body.appendChild(overlay);
 }
 
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function getPermissionLabel(permission) {
-  const labels = {
-    all: "全管理",
-    manager: "確定・公開管理",
-    edit: "作成・編集",
-    view: "閲覧のみ",
-    self: "自分の予定のみ"
-  };
-
-  return labels[permission] || "権限なし";
-}
-
-function canEdit(permission) {
-  return ["all", "manager", "edit"].includes(permission);
-}
-
 function renderNoLogin(session) {
   operatorText.textContent = "未ログイン";
   permissionText.textContent = "ShiftBuilderを利用するにはログインが必要です";
@@ -155,13 +130,6 @@ function renderUser(currentUserResult) {
       ? "ShiftBuilderを利用できます。現在は開発中トップ画面です。"
       : "ShiftBuilderを閲覧できます。編集権限はありません。"
   );
-}
-
-function getCurrentMonthValue() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  return `${year}-${month}`;
 }
 
 function initializeFilters() {
