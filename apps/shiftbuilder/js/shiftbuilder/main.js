@@ -147,10 +147,12 @@ function initializeFilters() {
 }
 
 function findShiftCell(caseId, date) {
-  if (!currentShiftData) return null;
+  const shiftData = getCurrentShiftData();
 
-  const caseItem = currentShiftData.cases.find((item) => item.caseId === caseId);
-  const dateItem = currentShiftData.dates.find((item) => item.date === date);
+  if (!shiftData) return null;
+
+  const caseItem = shiftData.cases.find((item) => item.caseId === caseId);
+  const dateItem = shiftData.dates.find((item) => item.date === date);
 
   if (!caseItem || !dateItem) return null;
 
@@ -175,7 +177,7 @@ function selectShiftCell(caseId, date) {
     return;
   }
 
-  selectedCell = found;
+  setSelectedCell(found);
 
   renderSelectedCell(found, {
     selectedCellTitle,
@@ -191,13 +193,15 @@ function loadMockShiftData() {
   const selectedArea = areaSelect?.value || "all";
   const selectedMonth = targetMonthInput?.value || mockShiftData.month;
 
-  currentShiftData = {
+  const shiftData = {
     ...mockShiftData,
     month: selectedMonth,
     area: selectedArea
   };
 
- renderSummary(currentShiftData, {
+setCurrentShiftData(shiftData);
+
+ renderSummary(ShiftData, {
   requiredTotalText,
   assignedTotalText,
   shortageTotalText,
@@ -207,7 +211,7 @@ function loadMockShiftData() {
 });
   
   renderShiftTable(
-  currentShiftData,
+  ShiftData,
   {
     shiftTableHead,
     shiftTableBody
@@ -217,7 +221,7 @@ function loadMockShiftData() {
   }
 );
 
-    selectedCell = null;
+    resetSelectedCell();
 
   resetDetailPanel({
     selectedCellTitle,
@@ -237,7 +241,7 @@ async function init() {
 
     const session = await requireShiftBuilderSession();
 
-    currentSession = session;
+    setCurrentSession(session);
 
     console.log("[ShiftBuilder] auth session:", session);
 
@@ -258,7 +262,7 @@ async function init() {
     setLoading(true, "ShiftBuilder権限を確認中...");
     const currentUserResult = await getCurrentShiftBuilderUser(session.idToken);
 
-    currentUser = normalizeCurrentUser(currentUserResult);
+    setCurrentUser(normalizeCurrentUser(currentUserResult));
 
     console.log("[ShiftBuilder] current user:", currentUserResult);
 
