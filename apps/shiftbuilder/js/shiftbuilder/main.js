@@ -15,6 +15,14 @@ import {
   renderSelectedCell,
   resetDetailPanel
 } from "./render-detail-panel.js";
+import {
+  setCurrentSession,
+  setCurrentUser,
+  setCurrentShiftData,
+  getCurrentShiftData,
+  setSelectedCell,
+  resetSelectedCell
+} from "./state.js";
 
 const dashboardBtn = document.getElementById("dashboardBtn");
 const reloadBtn = document.getElementById("reloadBtn");
