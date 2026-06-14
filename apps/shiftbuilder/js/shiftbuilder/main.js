@@ -25,39 +25,6 @@ import {
 } from "./state.js";
 import { elements } from "./dom.js";
 
-const dashboardBtn = document.getElementById("dashboardBtn");
-const reloadBtn = document.getElementById("reloadBtn");
-const loadShiftDataBtn = document.getElementById("loadShiftDataBtn");
-
-const operatorText = document.getElementById("operatorText");
-const permissionText = document.getElementById("permissionText");
-const permissionBadge = document.getElementById("permissionBadge");
-
-const apiStatusText = document.getElementById("apiStatusText");
-const userNameText = document.getElementById("userNameText");
-const shiftPermissionText = document.getElementById("shiftPermissionText");
-const editPermissionText = document.getElementById("editPermissionText");
-
-const targetMonthInput = document.getElementById("targetMonthInput");
-const areaSelect = document.getElementById("areaSelect");
-
-const requiredTotalText = document.getElementById("requiredTotalText");
-const assignedTotalText = document.getElementById("assignedTotalText");
-const shortageTotalText = document.getElementById("shortageTotalText");
-const completionRateText = document.getElementById("completionRateText");
-const unassignedCellText = document.getElementById("unassignedCellText");
-const overCellText = document.getElementById("overCellText");
-
-const shiftTableHead = document.getElementById("shiftTableHead");
-const shiftTableBody = document.getElementById("shiftTableBody");
-
-const selectedCellTitle = document.getElementById("selectedCellTitle");
-const selectedCellSummary = document.getElementById("selectedCellSummary");
-const assignedMembersList = document.getElementById("assignedMembersList");
-const candidateList = document.getElementById("candidateList");
-
-const statusBox = document.getElementById("statusBox");
-
 function setStatus(message) {
   if (statusBox) {
     statusBox.textContent = message;
