@@ -218,13 +218,14 @@ function loadMockShiftData() {
   }
 );
 
-  selectedCell = null;
-  selectedCellTitle.textContent = "未選択";
-  selectedCellSummary.textContent =
-    "案件×日付セルを選択すると、候補者やアサイン状況をここに表示します。";
-  assignedMembersList.innerHTML = `<div class="empty-note">未選択</div>`;
-  candidateList.innerHTML = `<div class="empty-note">未選択</div>`;
+    selectedCell = null;
 
+  resetDetailPanel({
+    selectedCellTitle,
+    selectedCellSummary,
+    assignedMembersList,
+    candidateList
+  });
   setStatus("仮データのシフト表を表示しました。次の段階でGAS APIから実データを取得します。");
 }
 
