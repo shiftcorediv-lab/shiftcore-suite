@@ -256,7 +256,16 @@ function loadMockShiftData() {
   overCellText
 });
   
-  renderShiftTable(currentShiftData);
+  renderShiftTable(
+  currentShiftData,
+  {
+    shiftTableHead,
+    shiftTableBody
+  },
+  {
+    onSelectCell: selectShiftCell
+  }
+);
 
   selectedCell = null;
   selectedCellTitle.textContent = "未選択";
