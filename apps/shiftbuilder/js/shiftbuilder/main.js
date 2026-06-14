@@ -23,6 +23,7 @@ import {
   setSelectedCell,
   resetSelectedCell
 } from "./state.js";
+import { elements } from "./dom.js";
 
 const dashboardBtn = document.getElementById("dashboardBtn");
 const reloadBtn = document.getElementById("reloadBtn");
