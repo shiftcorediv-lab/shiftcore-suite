@@ -190,48 +190,6 @@ function selectShiftCell(caseId, date) {
 }
 
 function loadMockShiftData() {
-  const selectedArea = areaSelect?.value || "all";
-  const selectedMonth = targetMonthInput?.value || mockShiftData.month;
-
-  const shiftData = {
-    ...mockShiftData,
-    month: selectedMonth,
-    area: selectedArea
-  };
-
-setCurrentShiftData(shiftData);
-
- renderSummary(ShiftData, {
-  requiredTotalText,
-  assignedTotalText,
-  shortageTotalText,
-  completionRateText,
-  unassignedCellText,
-  overCellText
-});
-  
-  renderShiftTable(
-  ShiftData,
-  {
-    shiftTableHead,
-    shiftTableBody
-  },
-  {
-    onSelectCell: selectShiftCell
-  }
-);
-
-    resetSelectedCell();
-
-  resetDetailPanel({
-    selectedCellTitle,
-    selectedCellSummary,
-    assignedMembersList,
-    candidateList
-  });
-  setStatus("仮データのシフト表を表示しました。次の段階でGAS APIから実データを取得します。");
-}
-
 async function init() {
   try {
     initializeFilters();
