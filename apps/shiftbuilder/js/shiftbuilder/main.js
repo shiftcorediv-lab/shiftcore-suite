@@ -14,6 +14,10 @@ import {
   getCellStatus,
   renderShiftTable
 } from "./render-shift-table.js";
+import {
+  renderSelectedCell,
+  resetDetailPanel
+} from "./render-detail-panel.js";
 
 const dashboardBtn = document.getElementById("dashboardBtn");
 const reloadBtn = document.getElementById("reloadBtn");
