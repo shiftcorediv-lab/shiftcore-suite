@@ -2,6 +2,7 @@
 
 import { escapeHtml } from "./utils.js";
 import { getCellStatus } from "./render-shift-table.js";
+import { CANDIDATE_GROUP_CLASSES } from "./constants.js";
 
 export function renderSelectedCell(found, elements) {
   const {
@@ -87,10 +88,7 @@ export function resetDetailPanel(elements) {
 }
 
 function getCandidateGroupClass(group) {
-  if (group === "追加できる候補") return "candidate-available";
-  if (group === "注意あり候補") return "candidate-warning";
-  if (group === "追加不可") return "candidate-unavailable";
-  return "";
+  return CANDIDATE_GROUP_CLASSES[group] || "";
 }
 
 // ===== ShiftBuilder render-detail-panel.js ここまで =====
