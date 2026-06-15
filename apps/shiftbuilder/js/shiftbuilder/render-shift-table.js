@@ -1,6 +1,11 @@
 // ===== ShiftBuilder render-shift-table.js ここから =====
 
 import { escapeHtml } from "./utils.js";
+import {
+  SHIFT_CELL_STATUS,
+  SHIFT_CELL_STATUS_LABELS,
+  EMPTY_CELL
+} from "./constants.js";
 
 export function getCellStatus(cell) {
   const required = Number(cell?.required || 0);
@@ -8,7 +13,7 @@ export function getCellStatus(cell) {
 
   if (required === 0 && assignedCount === 0) {
     return {
-      key: "completed",
+      key: SHIFT_CELL_STATUS.COMPLETED,
       label: "対象外",
       note: "必要枠なし"
     };
@@ -16,31 +21,31 @@ export function getCellStatus(cell) {
 
   if (assignedCount === 0) {
     return {
-      key: "unassigned",
-      label: "未アサイン",
+      key: SHIFT_CELL_STATUS.UNASSIGNED,
+      label: SHIFT_CELL_STATUS_LABELS[SHIFT_CELL_STATUS.UNASSIGNED],
       note: `${assignedCount}/${required}`
     };
   }
 
   if (assignedCount < required) {
     return {
-      key: "shortage",
-      label: "不足",
+      key: SHIFT_CELL_STATUS.SHORTAGE,
+      label: SHIFT_CELL_STATUS_LABELS[SHIFT_CELL_STATUS.SHORTAGE],
       note: `${assignedCount}/${required}`
     };
   }
 
   if (assignedCount === required) {
     return {
-      key: "completed",
-      label: "アサイン完了",
+      key: SHIFT_CELL_STATUS.COMPLETED,
+      label: SHIFT_CELL_STATUS_LABELS[SHIFT_CELL_STATUS.COMPLETED],
       note: `${assignedCount}/${required}`
     };
   }
 
   return {
-    key: "over",
-    label: "超過",
+    key: SHIFT_CELL_STATUS.OVER,
+    label: SHIFT_CELL_STATUS_LABELS[SHIFT_CELL_STATUS.OVER],
     note: `${assignedCount}/${required}`
   };
 }
@@ -69,11 +74,7 @@ export function renderShiftTable(data, elements, handlers = {}) {
     .map((caseItem) => {
       const dateCells = data.dates
         .map((dateItem) => {
-          const cell = caseItem.cells[dateItem.date] || {
-            required: 0,
-            assigned: [],
-            candidates: []
-          };
+          const cell = caseItem.cells[dateItem.date] || EMPTY_CELL;
 
           const status = getCellStatus(cell);
           const assignedCount = Array.isArray(cell.assigned) ? cell.assigned.length : 0;
