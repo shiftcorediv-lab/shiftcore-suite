@@ -26,8 +26,8 @@ import {
 import { elements } from "./dom.js";
 
 function setStatus(message) {
-  if (statusBox) {
-    statusBox.textContent = message;
+  if (elements.statusBox) {
+    elements.statusBox.textContent = message;
   }
 }
 
@@ -58,14 +58,14 @@ function setLoading(isLoading, message = "処理中...") {
 }
 
 function renderNoLogin(session) {
-  operatorText.textContent = "未ログイン";
-  permissionText.textContent = "ShiftBuilderを利用するにはログインが必要です";
-  permissionBadge.textContent = "未ログイン";
+  elements.operatorText.textContent = "未ログイン";
+  elements.permissionText.textContent = "ShiftBuilderを利用するにはログインが必要です";
+  elements.permissionBadge.textContent = "未ログイン";
 
-  apiStatusText.textContent = "未実行";
-  userNameText.textContent = "-";
-  shiftPermissionText.textContent = "-";
-  editPermissionText.textContent = "-";
+  elements.apiStatusText.textContent = "未実行";
+  elements.userNameText.textContent = "-";
+  elements.shiftPermissionText.textContent = "-";
+  elements.editPermissionText.textContent = "-";
 
   setStatus(
     `未ログインです。Dashboardからログイン後、再度ShiftBuilderを開いてください。ログインURL: ${getLoginUrl()} / email: ${session.email || "-"} / uid: ${session.uid || "-"}`
@@ -93,13 +93,13 @@ function renderUser(currentUserResult) {
   const permissionLabel = getPermissionLabel(permission);
   const editable = canEdit(permission);
 
-  operatorText.textContent = displayName;
-  permissionText.textContent = `ShiftBuilder権限：${permissionLabel}`;
-  permissionBadge.textContent = permissionLabel;
+  elements.operatorText.textContent = displayName;
+  elements.permissionText.textContent = `ShiftBuilder権限：${permissionLabel}`;
+  elements.permissionBadge.textContent = permissionLabel;
 
-  userNameText.textContent = displayName;
-  shiftPermissionText.textContent = permissionLabel;
-  editPermissionText.textContent = editable ? "編集可" : "閲覧のみ";
+  elements.userNameText.textContent = displayName;
+  elements.shiftPermissionText.textContent = permissionLabel;
+  elements.editPermissionText.textContent = editable ? "編集可" : "閲覧のみ";
 
   setStatus(
     editable
@@ -109,8 +109,8 @@ function renderUser(currentUserResult) {
 }
 
 function initializeFilters() {
-  if (targetMonthInput && !targetMonthInput.value) {
-    targetMonthInput.value = mockShiftData.month || getCurrentMonthValue();
+  if (elements.targetMonthInput && !elements.targetMonthInput.value) {
+    elements.targetMonthInput.value = mockShiftData.month || getCurrentMonthValue();
   }
 }
 
@@ -148,18 +148,18 @@ function selectShiftCell(caseId, date) {
   setSelectedCell(found);
 
   renderSelectedCell(found, {
-    selectedCellTitle,
-    selectedCellSummary,
-    assignedMembersList,
-    candidateList
+    selectedCellTitle: elements.selectedCellTitle,
+    selectedCellSummary: elements.selectedCellSummary,
+    assignedMembersList: elements.assignedMembersList,
+    candidateList: elements.candidateList
   });
 
   setStatus(`セルを選択しました：${found.caseItem.title} ${found.dateItem.label}`);
 }
 
 function loadMockShiftData() {
-  const selectedArea = areaSelect?.value || "all";
-  const selectedMonth = targetMonthInput?.value || mockShiftData.month;
+  const selectedArea = elements.areaSelect?.value || "all";
+  const selectedMonth = elements.targetMonthInput?.value || mockShiftData.month;
 
   const shiftData = {
     ...mockShiftData,
@@ -170,19 +170,19 @@ function loadMockShiftData() {
   setCurrentShiftData(shiftData);
 
   renderSummary(shiftData, {
-    requiredTotalText,
-    assignedTotalText,
-    shortageTotalText,
-    completionRateText,
-    unassignedCellText,
-    overCellText
+    requiredTotalText: elements.requiredTotalText,
+    assignedTotalText: elements.assignedTotalText,
+    shortageTotalText: elements.shortageTotalText,
+    completionRateText: elements.completionRateText,
+    unassignedCellText: elements.unassignedCellText,
+    overCellText: elements.overCellText
   });
 
   renderShiftTable(
     shiftData,
     {
-      shiftTableHead,
-      shiftTableBody
+      shiftTableHead: elements.shiftTableHead,
+      shiftTableBody: elements.shiftTableBody
     },
     {
       onSelectCell: selectShiftCell
@@ -192,10 +192,10 @@ function loadMockShiftData() {
   resetSelectedCell();
 
   resetDetailPanel({
-    selectedCellTitle,
-    selectedCellSummary,
-    assignedMembersList,
-    candidateList
+    selectedCellTitle: elements.selectedCellTitle,
+    selectedCellSummary: elements.selectedCellSummary,
+    assignedMembersList: elements.assignedMembersList,
+    candidateList: elements.candidateList
   });
 
   setStatus("仮データのシフト表を表示しました。次の段階でGAS APIから実データを取得します。");
@@ -226,7 +226,7 @@ async function init() {
 
     console.log("[ShiftBuilder] ping result:", pingResult);
 
-    apiStatusText.textContent = "接続OK";
+    elements.apiStatusText.textContent = "接続OK";
 
     setLoading(true, "ShiftBuilder権限を確認中...");
     const currentUserResult = await getCurrentShiftBuilderUser(session.idToken);
@@ -239,11 +239,11 @@ async function init() {
   } catch (error) {
     console.error("[ShiftBuilder] init error:", error);
 
-    operatorText.textContent = "確認エラー";
-    permissionText.textContent = "ShiftBuilderの初期化中にエラーが発生しました";
-    permissionBadge.textContent = "エラー";
+    elements.operatorText.textContent = "確認エラー";
+    elements.permissionText.textContent = "ShiftBuilderの初期化中にエラーが発生しました";
+    elements.permissionBadge.textContent = "エラー";
 
-    apiStatusText.textContent = "エラー";
+    elements.apiStatusText.textContent = "エラー";
 
     setStatus(error.message || String(error));
   } finally {
@@ -251,15 +251,15 @@ async function init() {
   }
 }
 
-dashboardBtn?.addEventListener("click", () => {
+elements.dashboardBtn?.addEventListener("click", () => {
   window.location.href = DASHBOARD_URL;
 });
 
-reloadBtn?.addEventListener("click", () => {
+elements.reloadBtn?.addEventListener("click", () => {
   window.location.reload();
 });
 
-loadShiftDataBtn?.addEventListener("click", () => {
+elements.loadShiftDataBtn?.addEventListener("click", () => {
   loadMockShiftData();
 });
 
