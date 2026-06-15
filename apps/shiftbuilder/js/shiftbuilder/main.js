@@ -4,7 +4,8 @@ import { DASHBOARD_URL } from "./config.js";
 import { requireShiftBuilderSession, getLoginUrl } from "./auth.js";
 import {
   pingShiftBuilderApi,
-  getCurrentShiftBuilderUser
+  getCurrentShiftBuilderUser,
+  getShiftBuilderMonthData
 } from "./api.js";
 import { mockShiftData } from "./mock-data.js";
 import { escapeHtml, getCurrentMonthValue } from "./utils.js";
