@@ -45,4 +45,15 @@ export async function getCurrentShiftBuilderUser(idToken) {
 // ===== 現在ユーザー取得ここまで =====
 
 
+// ===== 月次シフトデータ取得ここから =====
+export async function getShiftBuilderMonthData(idToken, params = {}) {
+  return postToShiftBuilderApi("shiftBuilderGetMonthData", {
+    idToken: idToken,
+    targetMonth: params.targetMonth || "",
+    area: params.area || "all"
+  });
+}
+// ===== 月次シフトデータ取得ここまで =====
+
+
 // ===== ShiftBuilder API client ここまで =====
