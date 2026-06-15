@@ -158,7 +158,103 @@ function selectShiftCell(caseId, date) {
   setStatus(`セルを選択しました：${found.caseItem.title} ${found.dateItem.label}`);
 }
 
-async function loadMockShiftData()
+async function loadMockShiftData() {
+  const selectedArea = elements.areaSelect?.value || "all";
+  const selectedMonth = elements.targetMonthInput?.value || mockShiftData.month;
+
+  let apiResult = null;
+  let shiftDataSource = "mock";
+
+  try {
+    setLoading(true, "ShiftBuilder月次データAPIを確認中...");
+
+    const session = await requireShiftBuilderSession();
+
+    if (!session.isLoggedIn) {
+      renderNoLogin(session);
+      return;
+    }
+
+    apiResult = await getShiftBuilderMonthData(session.idToken, {
+      targetMonth: selectedMonth,
+      area: selectedArea
+    });
+
+    console.log("[ShiftBuilder] month data API result:", apiResult);
+
+    if (!apiResult || apiResult.success !== true) {
+      throw new Error(apiResult?.message || "月次シフトデータAPIの取得に失敗しました");
+    }
+  } catch (error) {
+    console.error("[ShiftBuilder] month data API error:", error);
+    setStatus(`月次データAPI確認エラー：${error.message || String(error)} / 仮データ表示に切り替えます。`);
+  } finally {
+    setLoading(false);
+  }
+
+  const apiData = apiResult?.data;
+  const hasApiCases =
+    apiData &&
+    Array.isArray(apiData.cases) &&
+    apiData.cases.length > 0;
+
+  const shiftData = hasApiCases
+    ? {
+        ...apiData,
+        month: apiData.month || selectedMonth,
+        area: apiData.area || selectedArea
+      }
+    : {
+        ...mockShiftData,
+        month: selectedMonth,
+        area: selectedArea
+      };
+
+  if (hasApiCases) {
+    shiftDataSource = "api";
+  }
+
+  setCurrentShiftData(shiftData);
+
+  renderSummary(shiftData, {
+    requiredTotalText: elements.requiredTotalText,
+    assignedTotalText: elements.assignedTotalText,
+    shortageTotalText: elements.shortageTotalText,
+    completionRateText: elements.completionRateText,
+    unassignedCellText: elements.unassignedCellText,
+    overCellText: elements.overCellText
+  });
+
+  renderShiftTable(
+    shiftData,
+    {
+      shiftTableHead: elements.shiftTableHead,
+      shiftTableBody: elements.shiftTableBody
+    },
+    {
+      onSelectCell: selectShiftCell
+    }
+  );
+
+  resetSelectedCell();
+
+  resetDetailPanel({
+    selectedCellTitle: elements.selectedCellTitle,
+    selectedCellSummary: elements.selectedCellSummary,
+    assignedMembersList: elements.assignedMembersList,
+    candidateList: elements.candidateList
+  });
+
+  if (shiftDataSource === "api") {
+    setStatus(
+      `APIデータのシフト表を表示しました：${shiftData.month} / cases=${shiftData.cases.length}`
+    );
+  } else {
+    setStatus(
+      `APIは疎通OKですが案件データが未取得のため、仮データを表示しています。API dates=${apiData?.dates?.length || 0} / cases=${apiData?.cases?.length || 0}`
+    );
+  }
+}
 
 async function init() {
   try {
