@@ -158,9 +158,40 @@ function selectShiftCell(caseId, date) {
   setStatus(`セルを選択しました：${found.caseItem.title} ${found.dateItem.label}`);
 }
 
-function loadMockShiftData() {
+async function loadMockShiftData() {
   const selectedArea = elements.areaSelect?.value || "all";
   const selectedMonth = elements.targetMonthInput?.value || mockShiftData.month;
+
+  try {
+    setLoading(true, "ShiftBuilder月次データAPIを確認中...");
+
+    const session = await requireShiftBuilderSession();
+
+    if (!session.isLoggedIn) {
+      renderNoLogin(session);
+      return;
+    }
+
+    const apiResult = await getShiftBuilderMonthData(session.idToken, {
+      targetMonth: selectedMonth,
+      area: selectedArea
+    });
+
+    console.log("[ShiftBuilder] month data API result:", apiResult);
+
+    if (!apiResult || apiResult.success !== true) {
+      throw new Error(apiResult?.message || "月次シフトデータAPIの取得に失敗しました");
+    }
+
+    setStatus(
+      `月次データAPI確認OK：${apiResult.data?.month || selectedMonth} / dates=${apiResult.data?.dates?.length || 0} / cases=${apiResult.data?.cases?.length || 0}`
+    );
+  } catch (error) {
+    console.error("[ShiftBuilder] month data API error:", error);
+    setStatus(error.message || String(error));
+  } finally {
+    setLoading(false);
+  }
 
   const shiftData = {
     ...mockShiftData,
@@ -199,7 +230,7 @@ function loadMockShiftData() {
     candidateList: elements.candidateList
   });
 
-  setStatus("仮データのシフト表を表示しました。次の段階でGAS APIから実データを取得します。");
+  setStatus("仮データのシフト表を表示しました。月次データAPIの結果はConsoleに出力しています。");
 }
 
 async function init() {
