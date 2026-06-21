@@ -55,5 +55,18 @@ export async function getShiftBuilderMonthData(idToken, params = {}) {
 }
 // ===== 月次シフトデータ取得ここまで =====
 
-
+// ===== アサイン作成ここから =====
+export async function createShiftBuilderAssignment(idToken, params = {}) {
+  return postToShiftBuilderApi("shiftBuilderCreateAssignment", {
+    idToken: idToken,
+    targetMonth: params.targetMonth || "",
+    area: params.area || "",
+    caseId: params.caseId || "",
+    caseDateId: params.caseDateId || "",
+    workDate: params.workDate || "",
+    internalUserId: params.internalUserId || "",
+    assignmentNote: params.assignmentNote || ""
+  });
+}
+// ===== アサイン作成ここまで =====
 // ===== ShiftBuilder API client ここまで =====
