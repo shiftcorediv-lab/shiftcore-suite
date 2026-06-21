@@ -69,4 +69,13 @@ export async function createShiftBuilderAssignment(idToken, params = {}) {
   });
 }
 // ===== アサイン作成ここまで =====
+
+// ===== アサイン解除ここから =====
+export async function archiveShiftBuilderAssignment(idToken, assignmentId) {
+  return postToShiftBuilderApi("shiftBuilderArchiveAssignment", {
+    idToken: idToken,
+    assignmentId: assignmentId
+  });
+}
+// ===== アサイン解除ここまで =====
 // ===== ShiftBuilder API client ここまで =====
