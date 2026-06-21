@@ -5,7 +5,8 @@ import { requireShiftBuilderSession, getLoginUrl } from "./auth.js";
 import {
   pingShiftBuilderApi,
   getCurrentShiftBuilderUser,
-  getShiftBuilderMonthData
+  getShiftBuilderMonthData,
+  createShiftBuilderAssignment
 } from "./api.js";
 import { mockShiftData } from "./mock-data.js";
 import { escapeHtml, getCurrentMonthValue } from "./utils.js";
@@ -21,6 +22,8 @@ import {
   setCurrentUser,
   setCurrentShiftData,
   getCurrentShiftData,
+  getCurrentSession,
+  getSelectedCell,
   setSelectedCell,
   resetSelectedCell
 } from "./state.js";
@@ -148,11 +151,13 @@ function selectShiftCell(caseId, date) {
 
   setSelectedCell(found);
 
-  renderSelectedCell(found, {
+   renderSelectedCell(found, {
     selectedCellTitle: elements.selectedCellTitle,
     selectedCellSummary: elements.selectedCellSummary,
     assignedMembersList: elements.assignedMembersList,
-    candidateList: elements.candidateList
+    candidateList: elements.candidateList,
+    createAssignmentBtn: elements.createAssignmentBtn,
+    assignmentFormStatus: elements.assignmentFormStatus
   });
 
   setStatus(`セルを選択しました：${found.caseItem.title} ${found.dateItem.label}`);
@@ -242,7 +247,10 @@ async function loadMockShiftData() {
     selectedCellTitle: elements.selectedCellTitle,
     selectedCellSummary: elements.selectedCellSummary,
     assignedMembersList: elements.assignedMembersList,
-    candidateList: elements.candidateList
+    candidateList: elements.candidateList,
+    assignmentUserIdInput: elements.assignmentUserIdInput,
+    createAssignmentBtn: elements.createAssignmentBtn,
+    assignmentFormStatus: elements.assignmentFormStatus
   });
 
   if (shiftDataSource === "api") {
@@ -253,6 +261,123 @@ async function loadMockShiftData() {
     setStatus(
       `APIは疎通OKですが案件データが未取得のため、仮データを表示しています。API dates=${apiData?.dates?.length || 0} / cases=${apiData?.cases?.length || 0}`
     );
+  }
+}
+
+async function createAssignmentFromSelectedCell() {
+  const selectedCell = getSelectedCell();
+
+  if (!selectedCell) {
+    setStatus("アサイン作成にはセル選択が必要です。");
+    return;
+  }
+
+  const { caseItem, dateItem, cell } = selectedCell;
+  const internalUserId = elements.assignmentUserIdInput?.value?.trim() || "";
+
+  if (!internalUserId) {
+    setStatus("internal_user_id を入力してください。");
+    if (elements.assignmentFormStatus) {
+      elements.assignmentFormStatus.textContent = "internal_user_id を入力してください。";
+    }
+    return;
+  }
+
+  if (Number(cell.required || 0) <= 0) {
+    setStatus("必要枠のないセルにはアサイン作成できません。");
+    if (elements.assignmentFormStatus) {
+      elements.assignmentFormStatus.textContent = "必要枠のないセルにはアサイン作成できません。";
+    }
+    return;
+  }
+
+  if (!cell.case_date_id) {
+    setStatus("case_date_id がないため、アサイン作成できません。");
+    if (elements.assignmentFormStatus) {
+      elements.assignmentFormStatus.textContent = "case_date_id がないセルです。";
+    }
+    return;
+  }
+
+  const alreadyAssigned = Array.isArray(cell.assigned)
+    ? cell.assigned.some((member) => {
+        return String(member.internal_user_id || "") === internalUserId;
+      })
+    : false;
+
+  if (alreadyAssigned) {
+    setStatus("このユーザーはすでに選択セルにアサイン済みです。");
+    if (elements.assignmentFormStatus) {
+      elements.assignmentFormStatus.textContent = "同じユーザーは重複アサインできません。";
+    }
+    return;
+  }
+
+  try {
+    setLoading(true, "アサインを作成中...");
+
+    let session = getCurrentSession();
+
+    if (!session || !session.isLoggedIn || !session.idToken) {
+      session = await requireShiftBuilderSession();
+      setCurrentSession(session);
+    }
+
+    if (!session.isLoggedIn) {
+      renderNoLogin(session);
+      return;
+    }
+
+    if (elements.createAssignmentBtn) {
+      elements.createAssignmentBtn.disabled = true;
+    }
+
+    if (elements.assignmentFormStatus) {
+      elements.assignmentFormStatus.textContent = "アサインを作成中...";
+    }
+
+    const shiftData = getCurrentShiftData();
+    const targetMonth =
+      shiftData?.month ||
+      elements.targetMonthInput?.value ||
+      mockShiftData.month;
+
+    const result = await createShiftBuilderAssignment(session.idToken, {
+      targetMonth: targetMonth,
+      area: caseItem.area || elements.areaSelect?.value || "all",
+      caseId: caseItem.caseId,
+      caseDateId: cell.case_date_id,
+      workDate: dateItem.date,
+      internalUserId: internalUserId,
+      assignmentNote: "ShiftBuilder画面から作成"
+    });
+
+    console.log("[ShiftBuilder] create assignment result:", result);
+
+    if (!result || result.success !== true) {
+      throw new Error(result?.message || "アサイン作成に失敗しました");
+    }
+
+    setStatus(`アサインを作成しました：${caseItem.title} ${dateItem.label} / ${internalUserId}`);
+
+    if (elements.assignmentFormStatus) {
+      elements.assignmentFormStatus.textContent = "アサインを作成しました。シフト表を再取得します。";
+    }
+
+    await loadMockShiftData();
+  } catch (error) {
+    console.error("[ShiftBuilder] create assignment error:", error);
+    setStatus(error.message || String(error));
+
+    if (elements.assignmentFormStatus) {
+      elements.assignmentFormStatus.textContent = error.message || String(error);
+    }
+
+    if (elements.createAssignmentBtn) {
+      elements.createAssignmentBtn.disabled = false;
+    }
+  } finally {
+    setLoading(false);
   }
 }
 
@@ -316,6 +441,10 @@ elements.reloadBtn?.addEventListener("click", () => {
 
 elements.loadShiftDataBtn?.addEventListener("click", () => {
   loadMockShiftData();
+});
+
+elements.createAssignmentBtn?.addEventListener("click", () => {
+  createAssignmentFromSelectedCell();
 });
 
 init();
