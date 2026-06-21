@@ -50,16 +50,21 @@ export function renderAssignedMembers(members, elements) {
     return;
   }
 
-  assignedMembersList.innerHTML = members
-    .map((member) => {
-      return `
-        <div class="member-item">
-         <div class="member-name">${escapeHtml(member.name || member.displayName || member.display_name || "氏名未設定")}</div>
-<div class="member-meta">${escapeHtml(member.assignment_note || member.note || member.assignment_status || "メモなし")}</div>
-        </div>
-      `;
-    })
-    .join("");
+ assignedMembersList.innerHTML = members.map((member) => {
+  return `
+    <div class="member-card">
+      <div class="member-name">${escapeHtml(member.name || member.displayName || member.display_name || "氏名未設定")}</div>
+      <div class="member-meta">${escapeHtml(member.assignment_note || member.note || member.assignment_status || "メモなし")}</div>
+      <button
+        type="button"
+        class="secondary-button archive-assignment-btn"
+        data-assignment-id="${escapeHtml(member.assignment_id || "")}"
+      >
+        解除
+      </button>
+    </div>
+  `;
+}).join("");
 }
 
 export function renderCandidates(candidates, elements) {
