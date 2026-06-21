@@ -32,6 +32,9 @@ export const elements = {
   assignedMembersList: document.getElementById("assignedMembersList"),
   candidateList: document.getElementById("candidateList"),
 
+    assignmentUserIdInput: document.getElementById("assignmentUserIdInput"),
+  createAssignmentBtn: document.getElementById("createAssignmentBtn"),
+  assignmentFormStatus: document.getElementById("assignmentFormStatus"),
   statusBox: document.getElementById("statusBox")
 };
 
