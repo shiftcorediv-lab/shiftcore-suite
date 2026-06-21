@@ -5,11 +5,13 @@ import { getCellStatus } from "./render-shift-table.js";
 import { CANDIDATE_GROUP_CLASSES } from "./constants.js";
 
 export function renderSelectedCell(found, elements) {
-  const {
+    const {
     selectedCellTitle,
     selectedCellSummary,
     assignedMembersList,
-    candidateList
+    candidateList,
+    createAssignmentBtn,
+    assignmentFormStatus
   } = elements;
 
   const { caseItem, dateItem, cell } = found;
@@ -28,6 +30,16 @@ export function renderSelectedCell(found, elements) {
   renderCandidates(cell.candidates || [], {
     candidateList
   });
+    if (createAssignmentBtn) {
+    createAssignmentBtn.disabled = Number(cell.required || 0) <= 0;
+  }
+
+  if (assignmentFormStatus) {
+    assignmentFormStatus.textContent =
+      Number(cell.required || 0) > 0
+        ? "internal_user_id を入力してアサインを作成できます。"
+        : "必要枠のないセルにはアサイン作成できません。";
+  }
 }
 
 export function renderAssignedMembers(members, elements) {
@@ -42,8 +54,8 @@ export function renderAssignedMembers(members, elements) {
     .map((member) => {
       return `
         <div class="member-item">
-          <div class="member-name">${escapeHtml(member.name)}</div>
-          <div class="member-meta">${escapeHtml(member.note || "メモなし")}</div>
+         <div class="member-name">${escapeHtml(member.name || member.displayName || member.display_name || "氏名未設定")}</div>
+<div class="member-meta">${escapeHtml(member.assignment_note || member.note || member.assignment_status || "メモなし")}</div>
         </div>
       `;
     })
@@ -73,13 +85,28 @@ export function renderCandidates(candidates, elements) {
 }
 
 export function resetDetailPanel(elements) {
-  const {
+    const {
     selectedCellTitle,
     selectedCellSummary,
     assignedMembersList,
-    candidateList
+    candidateList,
+    assignmentUserIdInput,
+    createAssignmentBtn,
+    assignmentFormStatus
   } = elements;
 
+    if (assignmentUserIdInput) {
+    assignmentUserIdInput.value = "";
+  }
+
+  if (createAssignmentBtn) {
+    createAssignmentBtn.disabled = true;
+  }
+
+  if (assignmentFormStatus) {
+    assignmentFormStatus.textContent = "案件×日付セルを選択すると作成できます。";
+  }
+  
   selectedCellTitle.textContent = "未選択";
   selectedCellSummary.textContent =
     "案件×日付セルを選択すると、候補者やアサイン状況をここに表示します。";
