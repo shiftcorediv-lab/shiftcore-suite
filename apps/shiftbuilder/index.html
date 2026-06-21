@@ -180,6 +180,35 @@
           </div>
 
           <div class="detail-block">
+  <h3>アサイン作成</h3>
+
+  <p class="hint">
+    v1では internal_user_id を直接入力してアサインを作成します。
+  </p>
+
+  <div class="toolbar-group">
+    <label class="field-label" for="assignmentUserIdInput">internal_user_id</label>
+    <input
+      id="assignmentUserIdInput"
+      type="text"
+      class="field-input"
+      placeholder="例：U0024"
+      autocomplete="off"
+    />
+  </div>
+
+  <div class="toolbar-actions">
+    <button id="createAssignmentBtn" type="button" class="primary-button" disabled>
+      アサイン作成
+    </button>
+  </div>
+
+  <p id="assignmentFormStatus" class="hint">
+    案件×日付セルを選択すると作成できます。
+  </p>
+</div>
+
+          <div class="detail-block">
             <h3>候補者</h3>
             <div id="candidateList" class="candidate-list">
               <div class="empty-note">未選択</div>
