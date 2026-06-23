@@ -10,6 +10,8 @@ export function renderSelectedCell(found, elements) {
     selectedCellSummary,
     assignedMembersList,
     candidateList,
+    assignmentCandidateStatus,
+    assignmentCandidateList,
     createAssignmentBtn,
     assignmentFormStatus
   } = elements;
@@ -27,18 +29,26 @@ export function renderSelectedCell(found, elements) {
     assignedMembersList
   });
 
-  renderCandidates(cell.candidates || [], {
+    renderCandidates(cell.candidates || [], {
     candidateList
   });
-    if (createAssignmentBtn) {
+
+  if (createAssignmentBtn) {
     createAssignmentBtn.disabled = Number(cell.required || 0) <= 0;
   }
 
   if (assignmentFormStatus) {
     assignmentFormStatus.textContent =
       Number(cell.required || 0) > 0
-        ? "internal_user_id を入力してアサインを作成できます。"
+        ? "候補者カードの「アサイン」で追加できます。"
         : "必要枠のないセルにはアサイン作成できません。";
+  }
+
+  if (assignmentCandidateStatus) {
+    assignmentCandidateStatus.textContent =
+      Number(cell.required || 0) > 0
+        ? "候補者カードの「アサイン」で、このセルに追加できます。"
+        : "必要枠のないセルにはアサインできません。";
   }
 }
 
@@ -90,17 +100,19 @@ export function renderCandidates(candidates, elements) {
 }
 
 export function resetDetailPanel(elements) {
-    const {
+  const {
     selectedCellTitle,
     selectedCellSummary,
     assignedMembersList,
     candidateList,
     assignmentUserIdInput,
+    assignmentCandidateStatus,
+    assignmentCandidateList,
     createAssignmentBtn,
     assignmentFormStatus
   } = elements;
 
-    if (assignmentUserIdInput) {
+  if (assignmentUserIdInput) {
     assignmentUserIdInput.value = "";
   }
 
@@ -111,7 +123,15 @@ export function resetDetailPanel(elements) {
   if (assignmentFormStatus) {
     assignmentFormStatus.textContent = "案件×日付セルを選択すると作成できます。";
   }
-  
+
+  if (assignmentCandidateStatus) {
+    assignmentCandidateStatus.textContent = "セルを選択すると候補者カードからアサインできます。";
+  }
+
+  if (assignmentCandidateList) {
+    assignmentCandidateList.innerHTML = `<div class="empty-note">セル未選択</div>`;
+  }
+
   selectedCellTitle.textContent = "未選択";
   selectedCellSummary.textContent =
     "案件×日付セルを選択すると、候補者やアサイン状況をここに表示します。";
