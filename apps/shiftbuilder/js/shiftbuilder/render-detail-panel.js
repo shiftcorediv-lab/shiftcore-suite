@@ -69,16 +69,27 @@ export function renderAssignedMembers(members, elements) {
   }
 
   assignedMembersList.innerHTML = members.map((member) => {
+    const assignmentId = member.assignment_id || member.assignmentId || "";
+    const isPending =
+      member.is_pending === true ||
+      member.isPending === true ||
+      member.assignment_status === "saving" ||
+      String(assignmentId).startsWith("PENDING-");
+
+    const buttonLabel = isPending ? "保存中" : "解除";
+    const buttonDisabled = isPending || !assignmentId;
+
     return `
-      <div class="member-card">
+      <div class="member-card ${isPending ? "is-pending" : ""}">
         <div class="member-name">${escapeHtml(member.name || member.displayName || member.display_name || "氏名未設定")}</div>
         <div class="member-meta">${escapeHtml(member.assignment_note || member.note || member.assignment_status || "メモなし")}</div>
         <button
           type="button"
           class="secondary-button archive-assignment-btn"
-          data-assignment-id="${escapeHtml(member.assignment_id || "")}"
+          data-assignment-id="${escapeHtml(assignmentId)}"
+          ${buttonDisabled ? "disabled" : ""}
         >
-          解除
+          ${escapeHtml(buttonLabel)}
         </button>
       </div>
     `;
