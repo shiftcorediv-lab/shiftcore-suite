@@ -11,7 +11,7 @@ import {
   getShiftBuilderAssignmentCandidates
 } from "./api.js";
 import { mockShiftData } from "./mock-data.js";
-import { escapeHtml, getCurrentMonthValue } from "./utils.js";
+import { escapeHtml } from "./utils.js";
 import { getPermissionLabel, canEdit } from "./permissions.js";
 import { renderSummary } from "./render-summary.js";
 import { renderShiftTable } from "./render-shift-table.js";
@@ -65,6 +65,17 @@ function setLoading(isLoading, message = "処理中...") {
   document.body.appendChild(overlay);
 }
 
+function getNextMonthValue() {
+  const date = new Date();
+
+  date.setMonth(date.getMonth() + 1);
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+
+  return `${year}-${month}`;
+}
+
 function renderNoLogin(session) {
   elements.operatorText.textContent = "未ログイン";
   elements.permissionText.textContent = "ShiftBuilderを利用するにはログインが必要です";
@@ -111,14 +122,14 @@ function renderUser(currentUserResult) {
 
   setStatus(
     editable
-      ? "ShiftBuilderを利用できます。現在は開発中トップ画面です。"
+      ? "ShiftBuilderを利用できます。翌月シフトを自動表示します。"
       : "ShiftBuilderを閲覧できます。編集権限はありません。"
   );
 }
 
 function initializeFilters() {
   if (elements.targetMonthInput && !elements.targetMonthInput.value) {
-    elements.targetMonthInput.value = mockShiftData.month || getCurrentMonthValue();
+    elements.targetMonthInput.value = getNextMonthValue();
   }
 }
 
@@ -205,7 +216,7 @@ async function loadAssignmentCandidates(session) {
   const targetMonth =
     elements.targetMonthInput?.value ||
     getCurrentShiftData()?.month ||
-    mockShiftData.month;
+    getNextMonthValue();
 
   const area =
     elements.areaSelect?.value ||
@@ -301,9 +312,13 @@ function selectShiftCell(caseId, date) {
   renderAssignmentCandidateCards();
 }
 
-async function loadMockShiftData() {
+async function loadMockShiftData(options = {}) {
+  const reloadCandidates = options.reloadCandidates !== false;
+
   const selectedArea = elements.areaSelect?.value || "all";
-  const selectedMonth = elements.targetMonthInput?.value || mockShiftData.month;
+  const selectedMonth =
+    elements.targetMonthInput?.value ||
+    getNextMonthValue();
 
   let apiResult = null;
   let shiftDataSource = "mock";
@@ -407,8 +422,10 @@ async function loadMockShiftData() {
 
   const currentSession = getCurrentSession();
 
-  if (currentSession?.isLoggedIn) {
+  if (reloadCandidates && currentSession?.isLoggedIn) {
     await loadAssignmentCandidates(currentSession);
+  } else {
+    renderAssignmentCandidateCards();
   }
 }
 
@@ -484,7 +501,7 @@ async function createAssignmentFromSelectedCell(internalUserId) {
     const targetMonth =
       shiftData?.month ||
       elements.targetMonthInput?.value ||
-      mockShiftData.month;
+      getNextMonthValue();
 
     const result = await createShiftBuilderAssignment(session.idToken, {
       targetMonth: targetMonth,
@@ -508,7 +525,10 @@ async function createAssignmentFromSelectedCell(internalUserId) {
       elements.assignmentCandidateStatus.textContent = "アサインを作成しました。シフト表を再取得します。";
     }
 
-    await loadMockShiftData();
+    await loadMockShiftData({
+      reloadCandidates: false
+    });
+
     renderAssignmentCandidateCards();
   } catch (error) {
     console.error("[ShiftBuilder] create assignment error:", error);
@@ -556,7 +576,10 @@ async function archiveAssignmentFromButton(assignmentId) {
 
     setStatus(`アサインを解除しました：${assignmentId}`);
 
-    await loadMockShiftData();
+    await loadMockShiftData({
+      reloadCandidates: false
+    });
+
     renderAssignmentCandidateCards();
   } catch (error) {
     console.error("[ShiftBuilder] archive assignment error:", error);
@@ -602,7 +625,7 @@ async function init() {
 
     renderUser(currentUserResult);
 
-    await loadAssignmentCandidates(session);
+    await loadMockShiftData();
   } catch (error) {
     console.error("[ShiftBuilder] init error:", error);
 
