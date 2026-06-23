@@ -133,6 +133,90 @@ function initializeFilters() {
   }
 }
 
+function findCandidateByInternalUserId(internalUserId) {
+  return assignmentCandidates.find((candidate) => {
+    return String(candidate.internal_user_id || "") === String(internalUserId || "");
+  }) || null;
+}
+
+function extractAssignmentFromResult(result) {
+  return (
+    result?.assignment ||
+    result?.data?.assignment ||
+    result?.data?.created_assignment ||
+    result?.created_assignment ||
+    result?.record ||
+    result?.data?.record ||
+    null
+  );
+}
+
+function extractAssignmentIdFromResult(result) {
+  const assignment = extractAssignmentFromResult(result);
+
+  return (
+    assignment?.assignment_id ||
+    assignment?.assignmentId ||
+    result?.assignment_id ||
+    result?.assignmentId ||
+    result?.data?.assignment_id ||
+    result?.data?.assignmentId ||
+    ""
+  );
+}
+
+function buildAssignedMemberFromCandidate(internalUserId, result) {
+  const candidate = findCandidateByInternalUserId(internalUserId);
+  const assignment = extractAssignmentFromResult(result);
+  const assignmentId = extractAssignmentIdFromResult(result);
+
+  const displayName =
+    assignment?.display_name ||
+    assignment?.displayName ||
+    assignment?.name ||
+    candidate?.display_name ||
+    candidate?.displayName ||
+    candidate?.name ||
+    internalUserId;
+
+  return {
+    assignment_id: assignmentId,
+    assignmentId: assignmentId,
+    internal_user_id: internalUserId,
+    internalUserId: internalUserId,
+    name: displayName,
+    display_name: displayName,
+    displayName: displayName,
+    account_code:
+      assignment?.account_code ||
+      candidate?.account_code ||
+      candidate?.employee_code ||
+      "",
+    employee_code:
+      assignment?.employee_code ||
+      candidate?.employee_code ||
+      candidate?.account_code ||
+      "",
+    person_type:
+      assignment?.person_type ||
+      candidate?.person_type ||
+      "",
+    contract_type:
+      assignment?.contract_type ||
+      candidate?.contract_type ||
+      "",
+    assignment_status:
+      assignment?.assignment_status ||
+      "assigned",
+    assignment_note:
+      assignment?.assignment_note ||
+      "ShiftBuilder画面から作成",
+    note:
+      assignment?.assignment_note ||
+      "ShiftBuilder画面から作成"
+  };
+}
+
 function renderAssignmentCandidateCards() {
   if (!elements.assignmentCandidateList) {
     return;
@@ -204,6 +288,51 @@ function renderAssignmentCandidateCards() {
       </div>
     `;
   }).join("");
+}
+
+function renderCurrentShiftView() {
+  const shiftData = getCurrentShiftData();
+
+  if (!shiftData) {
+    return;
+  }
+
+  renderSummary(shiftData, {
+    requiredTotalText: elements.requiredTotalText,
+    assignedTotalText: elements.assignedTotalText,
+    shortageTotalText: elements.shortageTotalText,
+    completionRateText: elements.completionRateText,
+    unassignedCellText: elements.unassignedCellText,
+    overCellText: elements.overCellText
+  });
+
+  renderShiftTable(
+    shiftData,
+    {
+      shiftTableHead: elements.shiftTableHead,
+      shiftTableBody: elements.shiftTableBody
+    },
+    {
+      onSelectCell: selectShiftCell
+    }
+  );
+
+  const selectedCell = getSelectedCell();
+
+  if (selectedCell) {
+    renderSelectedCell(selectedCell, {
+      selectedCellTitle: elements.selectedCellTitle,
+      selectedCellSummary: elements.selectedCellSummary,
+      assignedMembersList: elements.assignedMembersList,
+      candidateList: elements.candidateList,
+      assignmentCandidateStatus: elements.assignmentCandidateStatus,
+      assignmentCandidateList: elements.assignmentCandidateList,
+      createAssignmentBtn: elements.createAssignmentBtn,
+      assignmentFormStatus: elements.assignmentFormStatus
+    });
+  }
+
+  renderAssignmentCandidateCards();
 }
 
 async function loadAssignmentCandidates(session) {
@@ -376,25 +505,7 @@ async function loadMockShiftData(options = {}) {
 
   setCurrentShiftData(shiftData);
 
-  renderSummary(shiftData, {
-    requiredTotalText: elements.requiredTotalText,
-    assignedTotalText: elements.assignedTotalText,
-    shortageTotalText: elements.shortageTotalText,
-    completionRateText: elements.completionRateText,
-    unassignedCellText: elements.unassignedCellText,
-    overCellText: elements.overCellText
-  });
-
-  renderShiftTable(
-    shiftData,
-    {
-      shiftTableHead: elements.shiftTableHead,
-      shiftTableBody: elements.shiftTableBody
-    },
-    {
-      onSelectCell: selectShiftCell
-    }
-  );
+  renderCurrentShiftView();
 
   resetSelectedCell();
 
@@ -519,17 +630,30 @@ async function createAssignmentFromSelectedCell(internalUserId) {
       throw new Error(result?.message || "アサイン作成に失敗しました");
     }
 
+    const optimisticMember = buildAssignedMemberFromCandidate(
+      targetInternalUserId,
+      result
+    );
+
+    if (!Array.isArray(cell.assigned)) {
+      cell.assigned = [];
+    }
+
+    cell.assigned.push(optimisticMember);
+
+    setSelectedCell({
+      caseItem,
+      dateItem,
+      cell
+    });
+
+    renderCurrentShiftView();
+
     setStatus(`アサインを作成しました：${caseItem.title} ${dateItem.label} / ${targetInternalUserId}`);
 
     if (elements.assignmentCandidateStatus) {
-      elements.assignmentCandidateStatus.textContent = "アサインを作成しました。シフト表を再取得します。";
+      elements.assignmentCandidateStatus.textContent = "アサインを作成しました。";
     }
-
-    await loadMockShiftData({
-      reloadCandidates: false
-    });
-
-    renderAssignmentCandidateCards();
   } catch (error) {
     console.error("[ShiftBuilder] create assignment error:", error);
     setStatus(error.message || String(error));
@@ -547,6 +671,11 @@ async function archiveAssignmentFromButton(assignmentId) {
     setStatus("解除対象の assignment_id が取得できませんでした。");
     return;
   }
+
+  const selectedCell = getSelectedCell();
+  const previousAssigned = selectedCell?.cell?.assigned
+    ? [...selectedCell.cell.assigned]
+    : null;
 
   try {
     setLoading(true, "アサインを解除中...");
@@ -574,16 +703,34 @@ async function archiveAssignmentFromButton(assignmentId) {
       throw new Error(result?.message || "アサイン解除に失敗しました");
     }
 
+    if (selectedCell?.cell && Array.isArray(selectedCell.cell.assigned)) {
+      selectedCell.cell.assigned = selectedCell.cell.assigned.filter((member) => {
+        return String(member.assignment_id || member.assignmentId || "") !== String(assignmentId);
+      });
+
+      setSelectedCell(selectedCell);
+      renderCurrentShiftView();
+    }
+
     setStatus(`アサインを解除しました：${assignmentId}`);
 
-    await loadMockShiftData({
-      reloadCandidates: false
-    });
-
-    renderAssignmentCandidateCards();
+    if (elements.assignmentCandidateStatus) {
+      elements.assignmentCandidateStatus.textContent = "アサインを解除しました。";
+    }
   } catch (error) {
     console.error("[ShiftBuilder] archive assignment error:", error);
+
+    if (selectedCell?.cell && previousAssigned) {
+      selectedCell.cell.assigned = previousAssigned;
+      setSelectedCell(selectedCell);
+      renderCurrentShiftView();
+    }
+
     setStatus(error.message || String(error));
+
+    if (elements.assignmentCandidateStatus) {
+      elements.assignmentCandidateStatus.textContent = error.message || String(error);
+    }
   } finally {
     setLoading(false);
   }
