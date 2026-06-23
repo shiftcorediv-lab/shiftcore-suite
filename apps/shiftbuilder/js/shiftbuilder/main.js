@@ -152,7 +152,7 @@ function selectShiftCell(caseId, date) {
 
   setSelectedCell(found);
 
-   renderSelectedCell(found, {
+  renderSelectedCell(found, {
     selectedCellTitle: elements.selectedCellTitle,
     selectedCellSummary: elements.selectedCellSummary,
     assignedMembersList: elements.assignedMembersList,
@@ -273,49 +273,6 @@ async function createAssignmentFromSelectedCell() {
     return;
   }
 
-async function archiveAssignmentFromButton(assignmentId) {
-  if (!assignmentId) {
-    setStatus("解除対象の assignment_id が取得できませんでした。");
-    return;
-  }
-
-  try {
-    setLoading(true, "アサインを解除中...");
-
-    let session = getCurrentSession();
-
-    if (!session || !session.isLoggedIn || !session.idToken) {
-      session = await requireShiftBuilderSession();
-      setCurrentSession(session);
-    }
-
-    if (!session.isLoggedIn) {
-      renderNoLogin(session);
-      return;
-    }
-
-    const result = await archiveShiftBuilderAssignment(
-      session.idToken,
-      assignmentId
-    );
-
-    console.log("[ShiftBuilder] archive assignment result:", result);
-
-    if (!result || result.success !== true) {
-      throw new Error(result?.message || "アサイン解除に失敗しました");
-    }
-
-    setStatus(`アサインを解除しました：${assignmentId}`);
-
-    await loadMockShiftData();
-  } catch (error) {
-    console.error("[ShiftBuilder] archive assignment error:", error);
-    setStatus(error.message || String(error));
-  } finally {
-    setLoading(false);
-  }
-}
-  
   const { caseItem, dateItem, cell } = selectedCell;
   const internalUserId = elements.assignmentUserIdInput?.value?.trim() || "";
 
@@ -420,6 +377,49 @@ async function archiveAssignmentFromButton(assignmentId) {
     if (elements.createAssignmentBtn) {
       elements.createAssignmentBtn.disabled = false;
     }
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function archiveAssignmentFromButton(assignmentId) {
+  if (!assignmentId) {
+    setStatus("解除対象の assignment_id が取得できませんでした。");
+    return;
+  }
+
+  try {
+    setLoading(true, "アサインを解除中...");
+
+    let session = getCurrentSession();
+
+    if (!session || !session.isLoggedIn || !session.idToken) {
+      session = await requireShiftBuilderSession();
+      setCurrentSession(session);
+    }
+
+    if (!session.isLoggedIn) {
+      renderNoLogin(session);
+      return;
+    }
+
+    const result = await archiveShiftBuilderAssignment(
+      session.idToken,
+      assignmentId
+    );
+
+    console.log("[ShiftBuilder] archive assignment result:", result);
+
+    if (!result || result.success !== true) {
+      throw new Error(result?.message || "アサイン解除に失敗しました");
+    }
+
+    setStatus(`アサインを解除しました：${assignmentId}`);
+
+    await loadMockShiftData();
+  } catch (error) {
+    console.error("[ShiftBuilder] archive assignment error:", error);
+    setStatus(error.message || String(error));
   } finally {
     setLoading(false);
   }
