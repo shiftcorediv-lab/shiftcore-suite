@@ -118,6 +118,14 @@ select {
   opacity: 0.92;
 }
 
+.primary-button:disabled,
+.secondary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+  box-shadow: none;
+}
+
 .operator-card,
 .panel,
 .shiftbuilder-toolbar,
@@ -465,11 +473,17 @@ select {
 }
 
 .member-item,
-.candidate-item {
+.candidate-item,
+.member-card {
   padding: 10px 12px;
   border: 1px solid var(--sb-border);
   border-radius: 12px;
   background: #ffffff;
+}
+
+.member-card {
+  display: grid;
+  gap: 6px;
 }
 
 .member-name,
@@ -483,6 +497,46 @@ select {
   color: var(--sb-muted);
   font-size: 12px;
   line-height: 1.5;
+}
+
+.candidate-card-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.candidate-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.candidate-card.is-assigned {
+  opacity: 0.65;
+}
+
+.candidate-card-main {
+  min-width: 0;
+}
+
+.candidate-card .candidate-name {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.candidate-card .candidate-meta {
+  margin-top: 2px;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.assign-candidate-btn {
+  white-space: nowrap;
 }
 
 .empty-note {
@@ -608,6 +662,15 @@ select {
   .floating-panel,
   .panel {
     padding: 18px;
+  }
+
+  .candidate-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .assign-candidate-btn {
+    width: 100%;
   }
 }
 
