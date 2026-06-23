@@ -76,6 +76,28 @@ function getNextMonthValue() {
   return `${year}-${month}`;
 }
 
+function createPendingAssignmentId() {
+  return `PENDING-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function getSelectedCellKey(selectedCell) {
+  if (!selectedCell) {
+    return null;
+  }
+
+  return {
+    caseId: selectedCell.caseItem?.caseId || "",
+    date: selectedCell.dateItem?.date || ""
+  };
+}
+
+function isSelectedCellKey(caseId, date) {
+  const selectedCell = getSelectedCell();
+  const key = getSelectedCellKey(selectedCell);
+
+  return key?.caseId === caseId && key?.date === date;
+}
+
 function renderNoLogin(session) {
   elements.operatorText.textContent = "未ログイン";
   elements.permissionText.textContent = "ShiftBuilderを利用するにはログインが必要です";
@@ -165,10 +187,10 @@ function extractAssignmentIdFromResult(result) {
   );
 }
 
-function buildAssignedMemberFromCandidate(internalUserId, result) {
+function buildAssignedMemberFromCandidate(internalUserId, result, pendingAssignmentId) {
   const candidate = findCandidateByInternalUserId(internalUserId);
   const assignment = extractAssignmentFromResult(result);
-  const assignmentId = extractAssignmentIdFromResult(result);
+  const assignmentId = extractAssignmentIdFromResult(result) || pendingAssignmentId;
 
   const displayName =
     assignment?.display_name ||
@@ -179,9 +201,12 @@ function buildAssignedMemberFromCandidate(internalUserId, result) {
     candidate?.name ||
     internalUserId;
 
+  const isPending = !extractAssignmentIdFromResult(result);
+
   return {
     assignment_id: assignmentId,
     assignmentId: assignmentId,
+    client_pending_id: pendingAssignmentId,
     internal_user_id: internalUserId,
     internalUserId: internalUserId,
     name: displayName,
@@ -205,16 +230,58 @@ function buildAssignedMemberFromCandidate(internalUserId, result) {
       assignment?.contract_type ||
       candidate?.contract_type ||
       "",
-    assignment_status:
-      assignment?.assignment_status ||
-      "assigned",
-    assignment_note:
-      assignment?.assignment_note ||
-      "ShiftBuilder画面から作成",
-    note:
-      assignment?.assignment_note ||
-      "ShiftBuilder画面から作成"
+    assignment_status: isPending ? "saving" : "assigned",
+    assignment_note: isPending ? "保存中..." : "ShiftBuilder画面から作成",
+    note: isPending ? "保存中..." : "ShiftBuilder画面から作成",
+    is_pending: isPending,
+    isPending: isPending
   };
+}
+
+function updatePendingAssignment(caseId, date, pendingAssignmentId, result) {
+  const assignmentId = extractAssignmentIdFromResult(result);
+  const assignment = extractAssignmentFromResult(result);
+
+  if (!assignmentId) {
+    return false;
+  }
+
+  const found = findShiftCell(caseId, date);
+
+  if (!found?.cell || !Array.isArray(found.cell.assigned)) {
+    return false;
+  }
+
+  const index = found.cell.assigned.findIndex((member) => {
+    return (
+      String(member.client_pending_id || "") === String(pendingAssignmentId) ||
+      String(member.assignment_id || member.assignmentId || "") === String(pendingAssignmentId)
+    );
+  });
+
+  if (index < 0) {
+    return false;
+  }
+
+  found.cell.assigned[index] = {
+    ...found.cell.assigned[index],
+    ...assignment,
+    assignment_id: assignmentId,
+    assignmentId: assignmentId,
+    assignment_status: assignment?.assignment_status || "assigned",
+    assignment_note: assignment?.assignment_note || "ShiftBuilder画面から作成",
+    note: assignment?.assignment_note || "ShiftBuilder画面から作成",
+    is_pending: false,
+    isPending: false
+  };
+
+  if (isSelectedCellKey(caseId, date)) {
+    setSelectedCell(found);
+  }
+
+  renderCurrentShiftView();
+
+  return true;
 }
 
 function renderAssignmentCandidateCards() {
@@ -443,6 +510,10 @@ function selectShiftCell(caseId, date) {
 
 async function loadMockShiftData(options = {}) {
   const reloadCandidates = options.reloadCandidates !== false;
+  const silent = options.silent === true;
+  const preserveSelectedCell = options.preserveSelectedCell === true;
+  const suppressStatus = options.suppressStatus === true;
+  const selectedKey = getSelectedCellKey(getSelectedCell());
 
   const selectedArea = elements.areaSelect?.value || "all";
   const selectedMonth =
@@ -453,7 +524,9 @@ async function loadMockShiftData(options = {}) {
   let shiftDataSource = "mock";
 
   try {
-    setLoading(true, "ShiftBuilder月次データAPIを確認中...");
+    if (!silent) {
+      setLoading(true, "ShiftBuilder月次データAPIを確認中...");
+    }
 
     const session = await requireShiftBuilderSession();
 
@@ -476,9 +549,14 @@ async function loadMockShiftData(options = {}) {
     }
   } catch (error) {
     console.error("[ShiftBuilder] month data API error:", error);
-    setStatus(`月次データAPI確認エラー：${error.message || String(error)} / 仮データ表示に切り替えます。`);
+
+    if (!suppressStatus) {
+      setStatus(`月次データAPI確認エラー：${error.message || String(error)} / 仮データ表示に切り替えます。`);
+    }
   } finally {
-    setLoading(false);
+    if (!silent) {
+      setLoading(false);
+    }
   }
 
   const apiData = apiResult?.data;
@@ -505,30 +583,44 @@ async function loadMockShiftData(options = {}) {
 
   setCurrentShiftData(shiftData);
 
+  if (preserveSelectedCell && selectedKey?.caseId && selectedKey?.date) {
+    const restored = findShiftCell(selectedKey.caseId, selectedKey.date);
+
+    if (restored) {
+      setSelectedCell(restored);
+    } else {
+      resetSelectedCell();
+    }
+  } else {
+    resetSelectedCell();
+  }
+
   renderCurrentShiftView();
 
-  resetSelectedCell();
+  if (!getSelectedCell()) {
+    resetDetailPanel({
+      selectedCellTitle: elements.selectedCellTitle,
+      selectedCellSummary: elements.selectedCellSummary,
+      assignedMembersList: elements.assignedMembersList,
+      candidateList: elements.candidateList,
+      assignmentUserIdInput: elements.assignmentUserIdInput,
+      assignmentCandidateStatus: elements.assignmentCandidateStatus,
+      assignmentCandidateList: elements.assignmentCandidateList,
+      createAssignmentBtn: elements.createAssignmentBtn,
+      assignmentFormStatus: elements.assignmentFormStatus
+    });
+  }
 
-  resetDetailPanel({
-    selectedCellTitle: elements.selectedCellTitle,
-    selectedCellSummary: elements.selectedCellSummary,
-    assignedMembersList: elements.assignedMembersList,
-    candidateList: elements.candidateList,
-    assignmentUserIdInput: elements.assignmentUserIdInput,
-    assignmentCandidateStatus: elements.assignmentCandidateStatus,
-    assignmentCandidateList: elements.assignmentCandidateList,
-    createAssignmentBtn: elements.createAssignmentBtn,
-    assignmentFormStatus: elements.assignmentFormStatus
-  });
-
-  if (shiftDataSource === "api") {
-    setStatus(
-      `APIデータのシフト表を表示しました：${shiftData.month} / cases=${shiftData.cases.length}`
-    );
-  } else {
-    setStatus(
-      `APIは疎通OKですが案件データが未取得のため、仮データを表示しています。API dates=${apiData?.dates?.length || 0} / cases=${apiData?.cases?.length || 0}`
-    );
+  if (!suppressStatus) {
+    if (shiftDataSource === "api") {
+      setStatus(
+        `APIデータのシフト表を表示しました：${shiftData.month} / cases=${shiftData.cases.length}`
+      );
+    } else {
+      setStatus(
+        `APIは疎通OKですが案件データが未取得のため、仮データを表示しています。API dates=${apiData?.dates?.length || 0} / cases=${apiData?.cases?.length || 0}`
+      );
+    }
   }
 
   const currentSession = getCurrentSession();
@@ -589,9 +681,41 @@ async function createAssignmentFromSelectedCell(internalUserId) {
     return;
   }
 
-  try {
-    setLoading(true, "アサインを作成中...");
+  const caseId = caseItem.caseId;
+  const workDate = dateItem.date;
+  const previousAssigned = Array.isArray(cell.assigned)
+    ? [...cell.assigned]
+    : [];
 
+  const pendingAssignmentId = createPendingAssignmentId();
+
+  const optimisticMember = buildAssignedMemberFromCandidate(
+    targetInternalUserId,
+    null,
+    pendingAssignmentId
+  );
+
+  if (!Array.isArray(cell.assigned)) {
+    cell.assigned = [];
+  }
+
+  cell.assigned.push(optimisticMember);
+
+  setSelectedCell({
+    caseItem,
+    dateItem,
+    cell
+  });
+
+  renderCurrentShiftView();
+
+  setStatus(`アサインを反映しました：${caseItem.title} ${dateItem.label} / ${targetInternalUserId}`);
+
+  if (elements.assignmentCandidateStatus) {
+    elements.assignmentCandidateStatus.textContent = "保存中...";
+  }
+
+  try {
     let session = getCurrentSession();
 
     if (!session || !session.isLoggedIn || !session.idToken) {
@@ -604,10 +728,6 @@ async function createAssignmentFromSelectedCell(internalUserId) {
       return;
     }
 
-    if (elements.assignmentCandidateStatus) {
-      elements.assignmentCandidateStatus.textContent = "アサインを作成中...";
-    }
-
     const shiftData = getCurrentShiftData();
     const targetMonth =
       shiftData?.month ||
@@ -617,9 +737,9 @@ async function createAssignmentFromSelectedCell(internalUserId) {
     const result = await createShiftBuilderAssignment(session.idToken, {
       targetMonth: targetMonth,
       area: caseItem.area || elements.areaSelect?.value || "all",
-      caseId: caseItem.caseId,
+      caseId: caseId,
       caseDateId: cell.case_date_id,
-      workDate: dateItem.date,
+      workDate: workDate,
       internalUserId: targetInternalUserId,
       assignmentNote: "ShiftBuilder画面から作成"
     });
@@ -630,39 +750,47 @@ async function createAssignmentFromSelectedCell(internalUserId) {
       throw new Error(result?.message || "アサイン作成に失敗しました");
     }
 
-    const optimisticMember = buildAssignedMemberFromCandidate(
-      targetInternalUserId,
+    const updated = updatePendingAssignment(
+      caseId,
+      workDate,
+      pendingAssignmentId,
       result
     );
 
-    if (!Array.isArray(cell.assigned)) {
-      cell.assigned = [];
+    if (!updated) {
+      await loadMockShiftData({
+        reloadCandidates: false,
+        silent: true,
+        preserveSelectedCell: true,
+        suppressStatus: true
+      });
     }
 
-    cell.assigned.push(optimisticMember);
-
-    setSelectedCell({
-      caseItem,
-      dateItem,
-      cell
-    });
-
-    renderCurrentShiftView();
-
-    setStatus(`アサインを作成しました：${caseItem.title} ${dateItem.label} / ${targetInternalUserId}`);
+    setStatus(`アサインを保存しました：${caseItem.title} ${dateItem.label} / ${targetInternalUserId}`);
 
     if (elements.assignmentCandidateStatus) {
-      elements.assignmentCandidateStatus.textContent = "アサインを作成しました。";
+      elements.assignmentCandidateStatus.textContent = "アサインを保存しました。";
     }
   } catch (error) {
     console.error("[ShiftBuilder] create assignment error:", error);
+
+    const found = findShiftCell(caseId, workDate);
+
+    if (found?.cell) {
+      found.cell.assigned = previousAssigned;
+
+      if (isSelectedCellKey(caseId, workDate)) {
+        setSelectedCell(found);
+      }
+
+      renderCurrentShiftView();
+    }
+
     setStatus(error.message || String(error));
 
     if (elements.assignmentCandidateStatus) {
       elements.assignmentCandidateStatus.textContent = error.message || String(error);
     }
-  } finally {
-    setLoading(false);
   }
 }
 
@@ -672,14 +800,47 @@ async function archiveAssignmentFromButton(assignmentId) {
     return;
   }
 
+  if (String(assignmentId).startsWith("PENDING-")) {
+    setStatus("保存中のアサインは、保存完了後に解除できます。");
+    return;
+  }
+
   const selectedCell = getSelectedCell();
-  const previousAssigned = selectedCell?.cell?.assigned
-    ? [...selectedCell.cell.assigned]
-    : null;
+
+  if (!selectedCell) {
+    setStatus("解除にはセル選択が必要です。");
+    return;
+  }
+
+  const { caseItem, dateItem, cell } = selectedCell;
+  const caseId = caseItem.caseId;
+  const workDate = dateItem.date;
+
+  const previousAssigned = Array.isArray(cell.assigned)
+    ? [...cell.assigned]
+    : [];
+
+  if (Array.isArray(cell.assigned)) {
+    cell.assigned = cell.assigned.filter((member) => {
+      return String(member.assignment_id || member.assignmentId || "") !== String(assignmentId);
+    });
+  }
+
+  setSelectedCell({
+    caseItem,
+    dateItem,
+    cell
+  });
+
+  renderCurrentShiftView();
+
+  setStatus(`アサイン解除を反映しました：${assignmentId}`);
+
+  if (elements.assignmentCandidateStatus) {
+    elements.assignmentCandidateStatus.textContent = "解除を保存中...";
+  }
 
   try {
-    setLoading(true, "アサインを解除中...");
-
     let session = getCurrentSession();
 
     if (!session || !session.isLoggedIn || !session.idToken) {
@@ -703,15 +864,6 @@ async function archiveAssignmentFromButton(assignmentId) {
       throw new Error(result?.message || "アサイン解除に失敗しました");
     }
 
-    if (selectedCell?.cell && Array.isArray(selectedCell.cell.assigned)) {
-      selectedCell.cell.assigned = selectedCell.cell.assigned.filter((member) => {
-        return String(member.assignment_id || member.assignmentId || "") !== String(assignmentId);
-      });
-
-      setSelectedCell(selectedCell);
-      renderCurrentShiftView();
-    }
-
     setStatus(`アサインを解除しました：${assignmentId}`);
 
     if (elements.assignmentCandidateStatus) {
@@ -720,9 +872,15 @@ async function archiveAssignmentFromButton(assignmentId) {
   } catch (error) {
     console.error("[ShiftBuilder] archive assignment error:", error);
 
-    if (selectedCell?.cell && previousAssigned) {
-      selectedCell.cell.assigned = previousAssigned;
-      setSelectedCell(selectedCell);
+    const found = findShiftCell(caseId, workDate);
+
+    if (found?.cell) {
+      found.cell.assigned = previousAssigned;
+
+      if (isSelectedCellKey(caseId, workDate)) {
+        setSelectedCell(found);
+      }
+
       renderCurrentShiftView();
     }
 
@@ -731,8 +889,6 @@ async function archiveAssignmentFromButton(assignmentId) {
     if (elements.assignmentCandidateStatus) {
       elements.assignmentCandidateStatus.textContent = error.message || String(error);
     }
-  } finally {
-    setLoading(false);
   }
 }
 
@@ -807,6 +963,9 @@ elements.assignmentCandidateList?.addEventListener("click", (event) => {
     return;
   }
 
+  button.disabled = true;
+  button.textContent = "反映中...";
+
   const internalUserId = button.dataset.internalUserId || "";
 
   createAssignmentFromSelectedCell(internalUserId);
@@ -818,6 +977,9 @@ elements.assignedMembersList?.addEventListener("click", (event) => {
   if (!button) {
     return;
   }
+
+  button.disabled = true;
+  button.textContent = "解除中...";
 
   const assignmentId = button.dataset.assignmentId || "";
 
