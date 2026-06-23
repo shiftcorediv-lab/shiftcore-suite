@@ -78,4 +78,15 @@ export async function archiveShiftBuilderAssignment(idToken, assignmentId) {
   });
 }
 // ===== アサイン解除ここまで =====
+
+// ===== アサイン候補者取得ここから =====
+export async function getShiftBuilderAssignmentCandidates(idToken, params = {}) {
+  return postToShiftBuilderApi("shiftBuilderGetAssignmentCandidates", {
+    idToken: idToken,
+    targetMonth: params.targetMonth || "",
+    area: params.area || "all"
+  });
+}
+// ===== アサイン候補者取得ここまで =====
+
 // ===== ShiftBuilder API client ここまで =====
