@@ -76,6 +76,41 @@ function getNextMonthValue() {
   return `${year}-${month}`;
 }
 
+function shiftMonthValue(monthValue, offset) {
+  const normalizedMonthValue = String(monthValue || "").trim();
+  const parts = normalizedMonthValue.split("-");
+
+  if (parts.length !== 2) {
+    return getNextMonthValue();
+  }
+
+  const year = Number(parts[0]);
+  const month = Number(parts[1]);
+
+  if (!year || !month || month < 1 || month > 12) {
+    return getNextMonthValue();
+  }
+
+  const date = new Date(year, month - 1, 1);
+  date.setMonth(date.getMonth() + offset);
+
+  const shiftedYear = date.getFullYear();
+  const shiftedMonth = String(date.getMonth() + 1).padStart(2, "0");
+
+  return `${shiftedYear}-${shiftedMonth}`;
+}
+
+function moveTargetMonth(offset) {
+  if (!elements.targetMonthInput) {
+    return;
+  }
+
+  const currentValue = elements.targetMonthInput.value || getNextMonthValue();
+  elements.targetMonthInput.value = shiftMonthValue(currentValue, offset);
+
+  loadMockShiftData();
+}
+
 function createPendingAssignmentId() {
   return `PENDING-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -1059,6 +1094,14 @@ elements.reloadBtn?.addEventListener("click", () => {
 
 elements.loadShiftDataBtn?.addEventListener("click", () => {
   loadMockShiftData();
+});
+
+elements.prevMonthBtn?.addEventListener("click", () => {
+  moveTargetMonth(-1);
+});
+
+elements.nextMonthBtn?.addEventListener("click", () => {
+  moveTargetMonth(1);
 });
 
 elements.assignmentCandidateList?.addEventListener("click", (event) => {
