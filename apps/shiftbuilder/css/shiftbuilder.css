@@ -935,4 +935,117 @@ select {
 }
 
 /* ===== ShiftBuilder compact layout override ここまで ===== */
+
+/* ===== ShiftBuilder table alignment + saving state ここから ===== */
+
+/* 日付列の罫線とセル内表示を揃える */
+.shift-table {
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.shift-table th,
+.shift-table td {
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* 案件列以外の日付列を均等化 */
+.shift-table th:not(:first-child),
+.shift-table td:not(:first-child) {
+  width: 42px;
+  min-width: 42px;
+  max-width: 42px;
+  padding: 4px;
+}
+
+/* 案件列 */
+.shift-table th:first-child,
+.shift-table td:first-child {
+  width: 160px;
+  min-width: 160px;
+  max-width: 160px;
+}
+
+/* td内のカードをセル幅ぴったりに寄せる */
+.shift-cell {
+  width: 100%;
+  min-height: 58px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 2px;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+/* hoverで列ズレっぽく見えないようにする */
+.shift-cell:hover {
+  transform: none;
+}
+
+/* ステータス表示を縦長でも見やすく */
+.shift-cell-status {
+  width: 100%;
+  justify-content: center;
+  padding: 2px 3px;
+  font-size: 10px;
+  line-height: 1.2;
+  white-space: normal;
+  text-align: center;
+}
+
+.shift-cell-count {
+  margin-top: 0;
+  font-size: 14px;
+  line-height: 1.1;
+}
+
+/* 保存中セル */
+.shift-cell-saving {
+  position: relative;
+  overflow: hidden;
+  outline: 2px solid rgba(59, 130, 246, 0.35);
+  outline-offset: -2px;
+}
+
+.shift-cell-saving::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.15) 35%,
+    rgba(59, 130, 246, 0.25) 50%,
+    rgba(255, 255, 255, 0.15) 65%,
+    transparent 100%
+  );
+  animation: sb-cell-saving-sweep 1s linear infinite;
+  pointer-events: none;
+}
+
+.shift-cell-saving .shift-cell-status::before {
+  content: "保存中";
+  display: block;
+  margin-bottom: 2px;
+  color: #1d4ed8;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+@keyframes sb-cell-saving-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* ===== ShiftBuilder table alignment + saving state ここまで ===== */
 /* ===== ShiftBuilder CSS ここまで ===== */
