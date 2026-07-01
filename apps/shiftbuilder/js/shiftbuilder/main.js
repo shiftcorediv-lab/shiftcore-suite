@@ -635,28 +635,31 @@ async function loadMockShiftData(options = {}) {
     }
   }
 
-  const apiData = apiResult?.data;
-  const hasApiCases =
+    const apiData = apiResult?.data;
+
+  let shiftData = null;
+
+  const hasValidApiData =
     apiData &&
-    Array.isArray(apiData.cases) &&
-    apiData.cases.length > 0;
+    Array.isArray(apiData.dates) &&
+    Array.isArray(apiData.cases);
 
-  const shiftData = hasApiCases
-    ? {
-        ...apiData,
-        month: apiData.month || selectedMonth,
-        area: apiData.area || selectedArea
-      }
-    : {
-        ...mockShiftData,
-        month: selectedMonth,
-        area: selectedArea
-      };
-
-  if (hasApiCases) {
+  if (hasValidApiData) {
+    shiftData = {
+      ...apiData,
+      month: apiData.month || selectedMonth,
+      area: apiData.area || selectedArea
+    };
     shiftDataSource = "api";
+  } else {
+    shiftData = {
+      ...mockShiftData,
+      month: selectedMonth,
+      area: selectedArea
+    };
+    shiftDataSource = "mock";
   }
-
+  
   setCurrentShiftData(shiftData);
 
   if (preserveSelectedCell && selectedKey?.caseId && selectedKey?.date) {
@@ -687,14 +690,20 @@ async function loadMockShiftData(options = {}) {
     });
   }
 
-  if (!suppressStatus) {
+    if (!suppressStatus) {
     if (shiftDataSource === "api") {
-      setStatus(
-        `APIデータのシフト表を表示しました：${shiftData.month} / cases=${shiftData.cases.length}`
-      );
+      if (shiftData.cases.length > 0) {
+        setStatus(
+          `APIデータのシフト表を表示しました：${shiftData.month} / cases=${shiftData.cases.length}`
+        );
+      } else {
+        setStatus(
+          `対象月の案件データはありません：${shiftData.month} / cases=0`
+        );
+      }
     } else {
       setStatus(
-        `APIは疎通OKですが案件データが未取得のため、仮データを表示しています。API dates=${apiData?.dates?.length || 0} / cases=${apiData?.cases?.length || 0}`
+        "月次データAPIから有効なデータを取得できなかったため、仮データを表示しています。"
       );
     }
   }
