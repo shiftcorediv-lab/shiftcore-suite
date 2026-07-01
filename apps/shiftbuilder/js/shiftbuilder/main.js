@@ -628,9 +628,9 @@ function selectShiftCell(caseId, date) {
   }
 
   setSelectedCell(found);
+  openDetailPanel();
 
   renderSelectedCell(found, {
-    openDetailPanel();
     selectedCellTitle: elements.selectedCellTitle,
     selectedCellSummary: elements.selectedCellSummary,
     assignedMembersList: elements.assignedMembersList,
@@ -697,7 +697,7 @@ async function loadMockShiftData(options = {}) {
     }
   }
 
-    const apiData = apiResult?.data;
+  const apiData = apiResult?.data;
 
   let shiftData = null;
 
@@ -721,10 +721,10 @@ async function loadMockShiftData(options = {}) {
     };
     shiftDataSource = "mock";
   }
-  
+
   setCurrentShiftData(shiftData);
 
-    elements.shiftDetailPanel?.classList.remove("is-open");
+  elements.shiftDetailPanel?.classList.remove("is-open");
 
   if (preserveSelectedCell && selectedKey?.caseId && selectedKey?.date) {
     const restored = findShiftCell(selectedKey.caseId, selectedKey.date);
@@ -754,7 +754,7 @@ async function loadMockShiftData(options = {}) {
     });
   }
 
-    if (!suppressStatus) {
+  if (!suppressStatus) {
     if (shiftDataSource === "api") {
       if (shiftData.cases.length > 0) {
         setStatus(
