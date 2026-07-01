@@ -25,6 +25,30 @@ function getAssignedMemberName(member) {
   );
 }
 
+function getAssignedMemberMeta(member) {
+  return (
+    member?.assignment_note ||
+    member?.note ||
+    member?.assignment_status ||
+    "メモなし"
+  );
+}
+
+function getAssignmentId(member) {
+  return member?.assignment_id || member?.assignmentId || "";
+}
+
+function isPendingAssignedMember(member) {
+  const assignmentId = getAssignmentId(member);
+
+  return (
+    member?.is_pending === true ||
+    member?.isPending === true ||
+    member?.assignment_status === "saving" ||
+    String(assignmentId).startsWith("PENDING-")
+  );
+}
+
 function getAssignedMemberSummary(members, maxVisible = 2) {
   const safeMembers = Array.isArray(members) ? members : [];
 
@@ -131,32 +155,9 @@ export function renderAssignedMembers(members, elements) {
     return;
   }
 
-  assignedMembersList.innerHTML = members.map((member) => {
-    const assignmentId = member.assignment_id || member.assignmentId || "";
-    const isPending =
-      member.is_pending === true ||
-      member.isPending === true ||
-      member.assignment_status === "saving" ||
-      String(assignmentId).startsWith("PENDING-");
-
-    const buttonLabel = isPending ? "保存中" : "解除";
-    const buttonDisabled = isPending || !assignmentId;
-
-    return `
-      <div class="member-card ${isPending ? "is-pending" : ""}">
-        <div class="member-name">${escapeHtml(getAssignedMemberName(member))}</div>
-        <div class="member-meta">${escapeHtml(member.assignment_note || member.note || member.assignment_status || "メモなし")}</div>
-        <button
-          type="button"
-          class="secondary-button archive-assignment-btn"
-          data-assignment-id="${escapeHtml(assignmentId)}"
-          ${buttonDisabled ? "disabled" : ""}
-        >
-          ${escapeHtml(buttonLabel)}
-        </button>
-      </div>
-    `;
-  }).join("");
+  assignedMembersList.innerHTML = members
+    .map((member) => renderAssignedMemberCardHtml(member))
+    .join("");
 }
 
 export function renderCandidates(candidates, elements) {
@@ -282,32 +283,49 @@ function renderAssignedMembersHtml(members) {
 
   return `
     <div class="member-list">
-      ${members.map((member) => {
-        const assignmentId = member.assignment_id || member.assignmentId || "";
-        const isPending =
-          member.is_pending === true ||
-          member.isPending === true ||
-          member.assignment_status === "saving" ||
-          String(assignmentId).startsWith("PENDING-");
+      ${members.map((member) => renderAssignedMemberCardHtml(member)).join("")}
+    </div>
+  `;
+}
 
-        const buttonLabel = isPending ? "保存中" : "解除";
-        const buttonDisabled = isPending || !assignmentId;
+function renderAssignedMemberCardHtml(member) {
+  const assignmentId = getAssignmentId(member);
+  const isPending = isPendingAssignedMember(member);
+  const memberName = getAssignedMemberName(member);
+  const memberMeta = getAssignedMemberMeta(member);
 
-        return `
-          <div class="member-card ${isPending ? "is-pending" : ""}">
-            <div class="member-name">${escapeHtml(getAssignedMemberName(member))}</div>
-            <div class="member-meta">${escapeHtml(member.assignment_note || member.note || member.assignment_status || "メモなし")}</div>
-            <button
-              type="button"
-              class="secondary-button archive-assignment-btn"
-              data-assignment-id="${escapeHtml(assignmentId)}"
-              ${buttonDisabled ? "disabled" : ""}
-            >
-              ${escapeHtml(buttonLabel)}
-            </button>
+  const buttonLabel = isPending ? "保存中" : "解除";
+  const buttonDisabled = isPending || !assignmentId;
+
+  const stateLabel = isPending
+    ? "保存中"
+    : assignmentId
+      ? "解除可能"
+      : "ID未取得";
+
+  return `
+    <div class="member-card member-card-assigned ${isPending ? "is-pending" : ""}">
+      <div class="member-card-main">
+        <div class="member-card-head">
+          <div class="member-name">${escapeHtml(memberName)}</div>
+          <div class="member-state-badge ${isPending ? "is-saving" : ""}">
+            ${escapeHtml(stateLabel)}
           </div>
-        `;
-      }).join("")}
+        </div>
+
+        <div class="member-meta">${escapeHtml(memberMeta)}</div>
+      </div>
+
+      <div class="member-card-actions">
+        <button
+          type="button"
+          class="secondary-button archive-assignment-btn"
+          data-assignment-id="${escapeHtml(assignmentId)}"
+          ${buttonDisabled ? "disabled" : ""}
+        >
+          ${escapeHtml(buttonLabel)}
+        </button>
+      </div>
     </div>
   `;
 }
