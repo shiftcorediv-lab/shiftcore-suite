@@ -1048,4 +1048,58 @@ select {
 }
 
 /* ===== ShiftBuilder table alignment + saving state ここまで ===== */
+
+/* ===== ShiftBuilder month navigation ここから ===== */
+
+.toolbar-month-group {
+  min-width: 300px;
+}
+
+.month-control-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.month-control-row .field-input {
+  min-width: 136px;
+}
+
+.month-nav-button {
+  min-height: 34px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.toolbar-actions-inline {
+  margin-left: 0;
+  align-self: end;
+}
+
+/* compact override との整合 */
+.shiftbuilder-toolbar {
+  justify-content: flex-start;
+}
+
+@media (max-width: 720px) {
+  .toolbar-month-group {
+    min-width: 0;
+  }
+
+  .month-control-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .month-control-row .field-input,
+  .month-nav-button {
+    width: 100%;
+  }
+
+  .toolbar-actions-inline {
+    align-self: stretch;
+  }
+}
+
+/* ===== ShiftBuilder month navigation ここまで ===== */
 /* ===== ShiftBuilder CSS ここまで ===== */
