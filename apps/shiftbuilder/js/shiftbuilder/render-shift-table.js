@@ -50,6 +50,23 @@ export function getCellStatus(cell) {
   };
 }
 
+function hasSavingAssignment(cell) {
+  if (!cell || !Array.isArray(cell.assigned)) {
+    return false;
+  }
+
+  return cell.assigned.some((member) => {
+    const assignmentId = member.assignment_id || member.assignmentId || "";
+
+    return (
+      member.is_pending === true ||
+      member.isPending === true ||
+      member.assignment_status === "saving" ||
+      String(assignmentId).startsWith("PENDING-")
+    );
+  });
+}
+
 export function renderShiftTable(data, elements, handlers = {}) {
   const { shiftTableHead, shiftTableBody } = elements;
   const { onSelectCell } = handlers;
@@ -79,12 +96,21 @@ export function renderShiftTable(data, elements, handlers = {}) {
           const status = getCellStatus(cell);
           const assignedCount = Array.isArray(cell.assigned) ? cell.assigned.length : 0;
           const required = Number(cell.required || 0);
+          const isSaving = hasSavingAssignment(cell);
+
+          const shiftCellClass = [
+            "shift-cell",
+            `shift-cell-${status.key}`,
+            isSaving ? "shift-cell-saving" : ""
+          ]
+            .filter(Boolean)
+            .join(" ");
 
           return `
             <td>
               <button
                 type="button"
-                class="shift-cell shift-cell-${escapeHtml(status.key)}"
+                class="${escapeHtml(shiftCellClass)}"
                 data-case-id="${escapeHtml(caseItem.caseId)}"
                 data-date="${escapeHtml(dateItem.date)}"
               >
