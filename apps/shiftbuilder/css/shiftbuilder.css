@@ -38,44 +38,44 @@ select {
   font: inherit;
 }
 
+/* ===== Page / Header ここから ===== */
+
 .page {
-  width: min(1440px, 100%);
+  width: min(1600px, 100%);
   margin: 0 auto;
-  padding: 28px;
+  padding: 14px;
 }
 
 .header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 20px;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
 }
 
 .header h1 {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 0 0 6px;
-  font-size: 34px;
+  margin: 0;
+  font-size: 24px;
   line-height: 1.15;
   letter-spacing: -0.04em;
 }
 
 .subtitle {
-  margin: 0;
-  color: var(--sb-muted);
-  line-height: 1.7;
+  display: none;
 }
 
 .beta-badge {
   display: inline-flex;
   align-items: center;
-  padding: 4px 9px;
+  padding: 2px 7px;
   border-radius: 999px;
   background: #fff2bf;
   color: #7a5a00;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0;
 }
@@ -83,17 +83,22 @@ select {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
+/* ===== Page / Header ここまで ===== */
+
+/* ===== Buttons / Fields ここから ===== */
+
 .primary-button,
 .secondary-button {
-  min-height: 44px;
-  padding: 0 18px;
+  min-height: 34px;
+  padding: 0 12px;
   border: 0;
-  border-radius: 12px;
+  border-radius: 9px;
   cursor: pointer;
+  font-size: 13px;
   font-weight: 700;
   transition:
     transform 0.15s ease,
@@ -126,6 +131,32 @@ select {
   box-shadow: none;
 }
 
+.field-label {
+  color: var(--sb-muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.field-input {
+  min-height: 34px;
+  padding: 0 9px;
+  border: 1px solid var(--sb-border-strong);
+  border-radius: 9px;
+  background: #ffffff;
+  color: var(--sb-text);
+  font-size: 13px;
+  outline: none;
+}
+
+.field-input:focus {
+  border-color: #9a9184;
+  box-shadow: 0 0 0 3px rgba(154, 145, 132, 0.16);
+}
+
+/* ===== Buttons / Fields ここまで ===== */
+
+/* ===== Common Cards ここから ===== */
+
 .operator-card,
 .panel,
 .shiftbuilder-toolbar,
@@ -139,13 +170,9 @@ select {
   box-shadow: var(--sb-shadow);
 }
 
-.operator-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 22px;
-  margin-bottom: 18px;
+.operator-card,
+.panel {
+  display: none;
 }
 
 .label {
@@ -154,405 +181,10 @@ select {
   font-weight: 700;
 }
 
-.operator-text {
-  margin-top: 6px;
-  font-size: 22px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-}
-
-.permission-text {
-  margin-top: 8px;
-  color: var(--sb-muted);
-  font-size: 14px;
-}
-
-.badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 36px;
-  padding: 0 14px;
-  border-radius: 999px;
-  background: #efeeec;
-  color: var(--sb-text);
-  font-size: 14px;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.panel {
-  padding: 22px;
-  margin-bottom: 18px;
-}
-
-.panel h2,
-.shift-table-panel h2,
-.floating-panel h2 {
-  margin: 0;
-  font-size: 22px;
-  letter-spacing: -0.03em;
-}
-
 .hint {
   margin: 8px 0 0;
   color: var(--sb-muted);
   line-height: 1.7;
-}
-
-.info-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 18px;
-}
-
-.info-card {
-  padding: 16px;
-  border: 1px solid var(--sb-border);
-  border-radius: 14px;
-  background: var(--sb-surface-soft);
-}
-
-.info-value {
-  margin-top: 8px;
-  font-size: 18px;
-  font-weight: 800;
-}
-
-.shiftbuilder-toolbar {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 18px;
-  margin-bottom: 18px;
-}
-
-.toolbar-group {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  min-width: 180px;
-}
-
-.toolbar-actions {
-  margin-left: auto;
-}
-
-.field-label {
-  color: var(--sb-muted);
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.field-input {
-  min-height: 42px;
-  padding: 0 12px;
-  border: 1px solid var(--sb-border-strong);
-  border-radius: 12px;
-  background: #ffffff;
-  color: var(--sb-text);
-  outline: none;
-}
-
-.field-input:focus {
-  border-color: #9a9184;
-  box-shadow: 0 0 0 3px rgba(154, 145, 132, 0.16);
-}
-
-.quick-view-grid {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 18px;
-}
-
-.quick-view-card {
-  padding: 16px;
-}
-
-.quick-value {
-  margin-top: 8px;
-  font-size: 24px;
-  font-weight: 900;
-  letter-spacing: -0.04em;
-}
-
-.shiftbuilder-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  gap: 18px;
-  align-items: start;
-}
-
-.shift-table-panel {
-  min-width: 0;
-  padding: 22px;
-}
-
-.section-heading-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.shift-table-scroll {
-  width: 100%;
-  overflow: auto;
-  border: 1px solid var(--sb-border);
-  border-radius: 16px;
-  background: #ffffff;
-}
-
-.shift-table {
-  width: 100%;
-  min-width: 760px;
-  border-collapse: separate;
-  border-spacing: 0;
-}
-
-.shift-table th,
-.shift-table td {
-  min-width: 112px;
-  padding: 12px;
-  border-right: 1px solid var(--sb-border);
-  border-bottom: 1px solid var(--sb-border);
-  text-align: left;
-  vertical-align: top;
-}
-
-.shift-table th {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  background: #f2f0ec;
-  color: var(--sb-muted);
-  font-size: 13px;
-  font-weight: 900;
-}
-
-.shift-table th:first-child,
-.shift-table td:first-child {
-  position: sticky;
-  left: 0;
-  z-index: 1;
-  min-width: 220px;
-  background: #ffffff;
-}
-
-.shift-table th:first-child {
-  z-index: 3;
-  background: #f2f0ec;
-}
-
-.shift-table tr:last-child td {
-  border-bottom: 0;
-}
-
-.shift-table th:last-child,
-.shift-table td:last-child {
-  border-right: 0;
-}
-
-.empty-cell {
-  padding: 28px !important;
-  color: var(--sb-muted);
-  text-align: center !important;
-}
-
-.shift-cell {
-  cursor: pointer;
-  border-radius: 12px;
-  transition:
-    transform 0.15s ease,
-    box-shadow 0.15s ease,
-    background 0.15s ease;
-}
-
-.shift-cell:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
-}
-
-.shift-cell-status {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 8px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.shift-cell-count {
-  margin-top: 8px;
-  font-size: 18px;
-  font-weight: 900;
-}
-
-.shift-cell-note {
-  margin-top: 4px;
-  color: var(--sb-muted);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.shift-cell-unassigned {
-  background: #fff8dc;
-}
-
-.shift-cell-unassigned .shift-cell-status {
-  background: #ffeaa3;
-  color: #6b4d00;
-}
-
-.shift-cell-shortage {
-  background: #fff0e8;
-}
-
-.shift-cell-shortage .shift-cell-status {
-  background: #ffd3bd;
-  color: #7b2f00;
-}
-
-.shift-cell-completed {
-  background: #eef9ef;
-}
-
-.shift-cell-completed .shift-cell-status {
-  background: #c9efce;
-  color: #1d6b2c;
-}
-
-.shift-cell-over {
-  background: #f0edff;
-}
-
-.shift-cell-over .shift-cell-status {
-  background: #d7d0ff;
-  color: #3b287d;
-}
-
-.floating-panel {
-  position: sticky;
-  top: 18px;
-  padding: 20px;
-}
-
-.floating-panel-header {
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--sb-border);
-  margin-bottom: 16px;
-}
-
-.floating-panel-body {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.detail-block {
-  padding: 14px;
-  border: 1px solid var(--sb-border);
-  border-radius: 14px;
-  background: var(--sb-surface-soft);
-}
-
-.detail-block h3 {
-  margin: 0 0 10px;
-  font-size: 16px;
-}
-
-.member-list,
-.candidate-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.member-item,
-.candidate-item,
-.member-card {
-  padding: 10px 12px;
-  border: 1px solid var(--sb-border);
-  border-radius: 12px;
-  background: #ffffff;
-}
-
-.member-card {
-  display: grid;
-  gap: 6px;
-}
-
-.member-name,
-.candidate-name {
-  font-weight: 800;
-}
-
-.member-meta,
-.candidate-meta {
-  margin-top: 4px;
-  color: var(--sb-muted);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.candidate-card-list {
-  display: grid;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.candidate-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.75);
-}
-
-.candidate-card.is-assigned {
-  opacity: 0.65;
-}
-
-.candidate-card-main {
-  min-width: 0;
-}
-
-.candidate-card .candidate-name {
-  font-weight: 700;
-  font-size: 13px;
-}
-
-.candidate-card .candidate-meta {
-  margin-top: 2px;
-  font-size: 11px;
-  color: #64748b;
-}
-
-.assign-candidate-btn {
-  white-space: nowrap;
-}
-
-.candidate-card.is-conflict {
-  border-color: rgba(245, 158, 11, 0.45);
-  background: rgba(255, 251, 235, 0.9);
-}
-
-.candidate-warning {
-  margin-top: 6px;
-  padding: 5px 7px;
-  border-radius: 8px;
-  background: rgba(245, 158, 11, 0.14);
-  color: #92400e;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.5;
 }
 
 .empty-note {
@@ -561,206 +193,62 @@ select {
   line-height: 1.7;
 }
 
-.status-box {
-  margin-top: 18px;
-  padding: 16px 18px;
-  color: var(--sb-muted);
-  font-size: 14px;
-  line-height: 1.7;
-}
+/* ===== Common Cards ここまで ===== */
 
-.loading-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  display: grid;
-  place-items: center;
-  background: rgba(245, 245, 243, 0.72);
-  backdrop-filter: blur(6px);
-}
+/* ===== Toolbar ここから ===== */
 
-.loading-card {
+.shiftbuilder-toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 18px 22px;
-  border-radius: 18px;
-  background: #ffffff;
-  box-shadow: var(--sb-shadow);
-}
-
-.loading-spinner {
-  width: 22px;
-  height: 22px;
-  border: 3px solid #e5e2dc;
-  border-top-color: #111111;
-  border-radius: 999px;
-  animation: sb-spin 0.8s linear infinite;
-}
-
-.loading-text {
-  font-weight: 800;
-}
-
-@keyframes sb-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (max-width: 1100px) {
-  .info-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .quick-view-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .shiftbuilder-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .floating-panel {
-    position: static;
-  }
-}
-
-@media (max-width: 720px) {
-  .page {
-    padding: 18px;
-  }
-
-  .header {
-    flex-direction: column;
-  }
-
-  .header h1 {
-    font-size: 28px;
-  }
-
-  .header-actions {
-    width: 100%;
-  }
-
-  .header-actions button {
-    flex: 1;
-  }
-
-  .operator-card {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .info-grid,
-  .quick-view-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .shiftbuilder-toolbar {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .toolbar-group {
-    min-width: 0;
-  }
-
-  .toolbar-actions {
-    margin-left: 0;
-  }
-
-  .toolbar-actions button {
-    width: 100%;
-  }
-
-  .shift-table-panel,
-  .floating-panel,
-  .panel {
-    padding: 18px;
-  }
-
-  .candidate-card {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .assign-candidate-btn {
-    width: 100%;
-  }
-}
-
-/* ===== ShiftBuilder compact layout override ここから ===== */
-
-/* 開発確認用の大きい情報ブロックは通常画面では畳む */
-.operator-card,
-.panel {
-  display: none;
-}
-
-/* 全体余白を圧縮して、表に面積を渡す */
-.page {
-  width: min(1600px, 100%);
-  padding: 14px;
-}
-
-.header {
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.header h1 {
-  margin: 0;
-  font-size: 24px;
-}
-
-.subtitle {
-  display: none;
-}
-
-.beta-badge {
-  padding: 2px 7px;
-  font-size: 11px;
-}
-
-.header-actions {
-  gap: 8px;
-}
-
-.primary-button,
-.secondary-button {
-  min-height: 34px;
-  padding: 0 12px;
-  border-radius: 9px;
-  font-size: 13px;
-}
-
-/* フィルタを薄く・低くする */
-.shiftbuilder-toolbar {
-  align-items: center;
+  justify-content: flex-start;
+  gap: 16px;
   padding: 10px 12px;
   margin-bottom: 10px;
   border-radius: 12px;
 }
 
 .toolbar-group {
+  display: flex;
+  flex-direction: column;
   gap: 4px;
   min-width: 140px;
 }
 
-.field-label {
-  font-size: 11px;
+.toolbar-month-group {
+  min-width: 300px;
 }
 
-.field-input {
+.month-control-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.month-control-row .field-input {
+  min-width: 136px;
+}
+
+.month-nav-button {
   min-height: 34px;
-  padding: 0 9px;
-  border-radius: 9px;
-  font-size: 13px;
+  padding: 0 10px;
+  white-space: nowrap;
 }
 
-/* KPIを小型化 */
+.toolbar-actions {
+  margin-left: auto;
+}
+
+.toolbar-actions-inline {
+  margin-left: 0;
+  align-self: end;
+}
+
+/* ===== Toolbar ここまで ===== */
+
+/* ===== Quick View ここから ===== */
+
 .quick-view-grid {
+  display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 10px;
@@ -778,168 +266,63 @@ select {
 .quick-value {
   margin-top: 4px;
   font-size: 20px;
+  font-weight: 900;
+  letter-spacing: -0.04em;
 }
 
-/* 表を主役にする：右パネル常設をやめて横幅を確保 */
+/* ===== Quick View ここまで ===== */
+
+/* ===== Layout ここから ===== */
+
 .shiftbuilder-layout {
   display: grid;
   grid-template-columns: 1fr;
   gap: 10px;
+  align-items: start;
 }
 
 .shift-table-panel {
+  min-width: 0;
   padding: 12px;
   border-radius: 14px;
 }
 
 .section-heading-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
   margin-bottom: 8px;
 }
 
-.section-heading-row h2 {
+.section-heading-row h2,
+.shift-table-panel h2,
+.floating-panel h2 {
+  margin: 0;
   font-size: 18px;
+  letter-spacing: -0.03em;
 }
 
 .section-heading-row .hint {
   display: none;
 }
 
-/* 横軸を月初〜月末まで見やすくするため、日付セルを圧縮 */
+/* ===== Layout ここまで ===== */
+
+/* ===== Shift Table ここから ===== */
+
 .shift-table-scroll {
+  width: 100%;
+  max-height: 62vh;
+  overflow: auto;
+  border: 1px solid var(--sb-border);
   border-radius: 12px;
+  background: #ffffff;
 }
 
 .shift-table {
+  width: 100%;
   min-width: 1320px;
-  table-layout: fixed;
-}
-
-.shift-table th,
-.shift-table td {
-  min-width: 38px;
-  padding: 6px 5px;
-  font-size: 11px;
-}
-
-.shift-table th:first-child,
-.shift-table td:first-child {
-  min-width: 150px;
-  width: 150px;
-}
-
-.shift-table th {
-  font-size: 11px;
-}
-
-.shift-cell {
-  border-radius: 8px;
-}
-
-.shift-cell-status {
-  padding: 2px 5px;
-  font-size: 10px;
-}
-
-.shift-cell-count {
-  margin-top: 4px;
-  font-size: 14px;
-}
-
-.shift-cell-note {
-  display: none;
-}
-
-/* 案件名セルを圧縮 */
-.case-title,
-.case-name {
-  font-size: 12px;
-  line-height: 1.35;
-}
-
-/* 詳細パネルは表の下へ。常時右側固定にしない */
-.floating-panel {
-  position: static;
-  padding: 12px;
-  border-radius: 14px;
-}
-
-.floating-panel-header {
-  padding-bottom: 8px;
-  margin-bottom: 10px;
-}
-
-.floating-panel h2 {
-  font-size: 18px;
-}
-
-.floating-panel-body {
-  gap: 10px;
-}
-
-.detail-block {
-  padding: 10px;
-  border-radius: 12px;
-}
-
-.detail-block h3 {
-  margin-bottom: 6px;
-  font-size: 14px;
-}
-
-.member-item,
-.candidate-item,
-.member-card,
-.candidate-card {
-  padding: 8px 9px;
-  border-radius: 10px;
-}
-
-.candidate-card .candidate-name {
-  font-size: 12px;
-}
-
-.candidate-card .candidate-meta {
-  font-size: 10px;
-}
-
-.candidate-warning {
-  font-size: 10px;
-}
-
-/* ステータスボックスも控えめに */
-.status-box {
-  margin-top: 10px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  font-size: 12px;
-}
-
-/* 低い画面でも表を見やすくする */
-@media (min-width: 1000px) {
-  .shift-table-scroll {
-    max-height: 62vh;
-  }
-}
-
-/* さらに広い画面では31日分をより見やすく */
-@media (min-width: 1400px) {
-  .shift-table {
-    min-width: 100%;
-  }
-
-  .shift-table th:first-child,
-  .shift-table td:first-child {
-    min-width: 170px;
-    width: 170px;
-  }
-}
-
-/* ===== ShiftBuilder compact layout override ここまで ===== */
-
-/* ===== ShiftBuilder table alignment + saving state ここから ===== */
-
-/* 日付列の罫線とセル内表示を揃える */
-.shift-table {
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
@@ -949,62 +332,201 @@ select {
 .shift-table td {
   box-sizing: border-box;
   overflow: hidden;
-}
-
-/* 案件列以外の日付列を均等化 */
-.shift-table th:not(:first-child),
-.shift-table td:not(:first-child) {
-  width: 42px;
-  min-width: 42px;
-  max-width: 42px;
   padding: 4px;
+  border-right: 1px solid var(--sb-border);
+  border-bottom: 1px solid var(--sb-border);
+  text-align: left;
+  vertical-align: top;
+  font-size: 11px;
 }
 
-/* 案件列 */
+.shift-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f2f0ec;
+  color: var(--sb-muted);
+  font-size: 11px;
+  font-weight: 900;
+}
+
 .shift-table th:first-child,
 .shift-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
   width: 160px;
   min-width: 160px;
   max-width: 160px;
+  background: #ffffff;
 }
 
-/* td内のカードをセル幅ぴったりに寄せる */
+.shift-table th:first-child {
+  z-index: 3;
+  background: #f2f0ec;
+}
+
+.shift-table th:not(:first-child),
+.shift-table td:not(:first-child) {
+  width: 40px;
+  min-width: 40px;
+  max-width: 40px;
+}
+
+.shift-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.shift-table th:last-child,
+.shift-table td:last-child {
+  border-right: 0;
+}
+
+.table-weekday {
+  margin-top: 2px;
+  color: var(--sb-muted);
+  font-size: 10px;
+}
+
+.empty-cell {
+  padding: 28px !important;
+  color: var(--sb-muted);
+  text-align: center !important;
+}
+
+/* ===== Shift Table ここまで ===== */
+
+/* ===== Case Cell ここから ===== */
+
+.case-title,
+.case-name {
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 800;
+}
+
+.case-meta,
+.case-id {
+  margin-top: 3px;
+  color: var(--sb-muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+/* ===== Case Cell ここまで ===== */
+
+/* ===== Shift Cell ここから ===== */
+
 .shift-cell {
   width: 100%;
-  min-height: 58px;
+  min-height: 48px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 3px;
+  gap: 2px;
   padding: 4px 2px;
+  border: 0;
   border-radius: 8px;
+  cursor: pointer;
   box-shadow: none;
+  transition:
+    background 0.15s ease,
+    opacity 0.15s ease,
+    outline-color 0.15s ease;
 }
 
-/* hoverで列ズレっぽく見えないようにする */
 .shift-cell:hover {
   transform: none;
+  opacity: 0.88;
 }
 
-/* ステータス表示を縦長でも見やすく */
 .shift-cell-status {
-  width: 100%;
+  width: auto;
+  min-width: 20px;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
-  padding: 2px 3px;
-  font-size: 10px;
-  line-height: 1.2;
-  white-space: normal;
+  padding: 2px 5px;
+  border-radius: 999px;
+  white-space: nowrap;
   text-align: center;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.1;
 }
 
 .shift-cell-count {
   margin-top: 0;
-  font-size: 14px;
-  line-height: 1.1;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
 }
 
-/* 保存中セル */
+.shift-cell-note {
+  display: none;
+}
+
+/* 未アサイン */
+.shift-cell-unassigned {
+  background: #fff8dc;
+}
+
+.shift-cell-unassigned .shift-cell-status {
+  background: #ffeaa3;
+  color: #6b4d00;
+}
+
+/* 不足 */
+.shift-cell-shortage {
+  background: #fff0e8;
+}
+
+.shift-cell-shortage .shift-cell-status {
+  background: #ffd3bd;
+  color: #7b2f00;
+}
+
+/* 完了 */
+.shift-cell-completed {
+  background: #eef9ef;
+}
+
+.shift-cell-completed .shift-cell-status {
+  background: #c9efce;
+  color: #1d6b2c;
+}
+
+/* 対象外 */
+/* render-shift-table.js の button title が "対象外 0/0" になる前提 */
+.shift-cell-completed[title^="対象外"],
+.shift-cell-excluded {
+  background: #f1f1f1;
+}
+
+.shift-cell-completed[title^="対象外"] .shift-cell-status,
+.shift-cell-excluded .shift-cell-status {
+  background: #d9d9d9;
+  color: #555555;
+}
+
+.shift-cell-completed[title^="対象外"] .shift-cell-count,
+.shift-cell-excluded .shift-cell-count {
+  color: #444444;
+}
+
+/* 超過 */
+.shift-cell-over {
+  background: #f0edff;
+}
+
+.shift-cell-over .shift-cell-status {
+  background: #d7d0ff;
+  color: #3b287d;
+}
+
+/* 保存中 */
 .shift-cell-saving {
   position: relative;
   overflow: hidden;
@@ -1047,41 +569,249 @@ select {
   }
 }
 
-/* ===== ShiftBuilder table alignment + saving state ここまで ===== */
+/* ===== Shift Cell ここまで ===== */
 
-/* ===== ShiftBuilder month navigation ここから ===== */
+/* ===== Detail Panel ここから ===== */
 
-.toolbar-month-group {
-  min-width: 300px;
+.floating-panel {
+  position: static;
+  padding: 12px;
+  border-radius: 14px;
 }
 
-.month-control-row {
+.floating-panel-header {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--sb-border);
+  margin-bottom: 10px;
+}
+
+.floating-panel-body {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.detail-block {
+  padding: 10px;
+  border: 1px solid var(--sb-border);
+  border-radius: 12px;
+  background: var(--sb-surface-soft);
+}
+
+.detail-block h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+.member-list,
+.candidate-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.member-item,
+.candidate-item,
+.member-card {
+  padding: 8px 9px;
+  border: 1px solid var(--sb-border);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.member-card {
+  display: grid;
   gap: 6px;
 }
 
-.month-control-row .field-input {
-  min-width: 136px;
+.member-name,
+.candidate-name {
+  font-weight: 800;
 }
 
-.month-nav-button {
-  min-height: 34px;
-  padding: 0 10px;
+.member-meta,
+.candidate-meta {
+  margin-top: 4px;
+  color: var(--sb-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ===== Detail Panel ここまで ===== */
+
+/* ===== Candidate Cards ここから ===== */
+
+.candidate-card-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.candidate-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 9px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.candidate-card.is-assigned {
+  opacity: 0.65;
+}
+
+.candidate-card.is-conflict {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: rgba(255, 251, 235, 0.9);
+}
+
+.candidate-card-main {
+  min-width: 0;
+}
+
+.candidate-card .candidate-name {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.candidate-card .candidate-meta {
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 10px;
+}
+
+.candidate-warning {
+  margin-top: 6px;
+  padding: 5px 7px;
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.14);
+  color: #92400e;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.assign-candidate-btn {
   white-space: nowrap;
 }
 
-.toolbar-actions-inline {
-  margin-left: 0;
-  align-self: end;
+/* ===== Candidate Cards ここまで ===== */
+
+/* ===== Status / Loading ここから ===== */
+
+.status-box {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  color: var(--sb-muted);
+  font-size: 12px;
+  line-height: 1.7;
 }
 
-/* compact override との整合 */
-.shiftbuilder-toolbar {
-  justify-content: flex-start;
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  background: rgba(245, 245, 243, 0.72);
+  backdrop-filter: blur(6px);
+}
+
+.loading-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 22px;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: var(--sb-shadow);
+}
+
+.loading-spinner {
+  width: 22px;
+  height: 22px;
+  border: 3px solid #e5e2dc;
+  border-top-color: #111111;
+  border-radius: 999px;
+  animation: sb-spin 0.8s linear infinite;
+}
+
+.loading-text {
+  font-weight: 800;
+}
+
+@keyframes sb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ===== Status / Loading ここまで ===== */
+
+/* ===== Responsive ここから ===== */
+
+@media (min-width: 1400px) {
+  .shift-table {
+    min-width: 100%;
+  }
+
+  .shift-table th:first-child,
+  .shift-table td:first-child {
+    width: 170px;
+    min-width: 170px;
+    max-width: 170px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .quick-view-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .shiftbuilder-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .floating-panel {
+    position: static;
+  }
 }
 
 @media (max-width: 720px) {
+  .page {
+    padding: 18px;
+  }
+
+  .header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .header h1 {
+    font-size: 28px;
+  }
+
+  .header-actions {
+    width: 100%;
+  }
+
+  .header-actions button {
+    flex: 1;
+  }
+
+  .quick-view-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .shiftbuilder-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .toolbar-group,
   .toolbar-month-group {
     min-width: 0;
   }
@@ -1096,58 +826,31 @@ select {
     width: 100%;
   }
 
+  .toolbar-actions,
   .toolbar-actions-inline {
     align-self: stretch;
+    margin-left: 0;
+  }
+
+  .toolbar-actions button {
+    width: 100%;
+  }
+
+  .shift-table-panel,
+  .floating-panel {
+    padding: 18px;
+  }
+
+  .candidate-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .assign-candidate-btn {
+    width: 100%;
   }
 }
 
-/* ===== ShiftBuilder month navigation ここまで ===== */
+/* ===== Responsive ここまで ===== */
 
-/* ===== ShiftBuilder compact cell label override ここから ===== */
-
-.shift-cell {
-  min-height: 48px;
-  gap: 2px;
-}
-
-.shift-cell-status {
-  width: auto;
-  min-width: 20px;
-  max-width: 100%;
-  padding: 2px 5px;
-  white-space: nowrap;
-  line-height: 1.1;
-  font-size: 10px;
-}
-
-.shift-cell-count {
-  font-size: 13px;
-  line-height: 1;
-}
-
-.shift-table th:not(:first-child),
-.shift-table td:not(:first-child) {
-  width: 40px;
-  min-width: 40px;
-  max-width: 40px;
-}
-
-/* ===== ShiftBuilder compact cell label override ここまで ===== */
-
-/* ===== ShiftBuilder excluded cell color override ここから ===== */
-
-.shift-cell-completed:has(.shift-cell-status[title="対象外"]) {
-  background: #f1f1f1;
-}
-
-.shift-cell-completed:has(.shift-cell-status[title="対象外"]) .shift-cell-status {
-  background: #d9d9d9;
-  color: #555555;
-}
-
-.shift-cell-completed:has(.shift-cell-status[title="対象外"]) .shift-cell-count {
-  color: #444444;
-}
-
-/* ===== ShiftBuilder excluded cell color override ここまで ===== */
 /* ===== ShiftBuilder CSS ここまで ===== */
