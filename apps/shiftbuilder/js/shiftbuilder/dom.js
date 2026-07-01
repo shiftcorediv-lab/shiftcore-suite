@@ -29,6 +29,9 @@ export const elements = {
   shiftTableHead: document.getElementById("shiftTableHead"),
   shiftTableBody: document.getElementById("shiftTableBody"),
 
+  shiftDetailPanel: document.getElementById("shiftDetailPanel"),
+  closeDetailPanelBtn: document.getElementById("closeDetailPanelBtn"),
+
   selectedCellTitle: document.getElementById("selectedCellTitle"),
   selectedCellSummary: document.getElementById("selectedCellSummary"),
   assignedMembersList: document.getElementById("assignedMembersList"),
