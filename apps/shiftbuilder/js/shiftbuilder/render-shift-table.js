@@ -51,7 +51,7 @@ export function getCellStatus(cell) {
 }
 
 function getCompactStatusLabel(statusLabel) {
-  if (statusLabel === "対象外") return "外";
+  if (statusLabel === "対象外") return "×";
   if (statusLabel === "アサイン完了") return "完";
   if (statusLabel === "未アサイン") return "未";
   if (statusLabel === "不足") return "不足";
