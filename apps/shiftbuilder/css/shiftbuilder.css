@@ -498,13 +498,14 @@ select {
   transition:
     background 0.15s ease,
     opacity 0.15s ease,
-    outline-color 0.15s ease;
+    outline-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .shift-cell:hover {
   transform: none;
-  opacity: 0.88;
-  outline: 2px solid rgba(17, 17, 17, 0.14);
+  opacity: 0.94;
+  outline: 2px solid rgba(17, 17, 17, 0.18);
   outline-offset: -2px;
 }
 
@@ -535,24 +536,46 @@ select {
   display: none;
 }
 
-/* 未アサイン */
+/* 未アサイン：対応が必要なセルとして少し目立たせる */
 .shift-cell-unassigned {
-  background: #fff8dc;
+  background: #fff4bf;
+  outline: 1px solid rgba(217, 119, 6, 0.28);
+  outline-offset: -1px;
 }
 
 .shift-cell-unassigned .shift-cell-status {
-  background: #ffeaa3;
-  color: #6b4d00;
+  background: #facc15;
+  color: #5f3b00;
 }
 
-/* 不足 */
+.shift-cell-unassigned .shift-cell-count {
+  color: #7a4a00;
+}
+
+.shift-cell-unassigned:hover {
+  outline: 2px solid rgba(217, 119, 6, 0.55);
+  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.22);
+}
+
+/* 不足：最優先で気づくべきセル */
 .shift-cell-shortage {
-  background: #fff0e8;
+  background: #ffe4d6;
+  outline: 1px solid rgba(234, 88, 12, 0.36);
+  outline-offset: -1px;
 }
 
 .shift-cell-shortage .shift-cell-status {
-  background: #ffd3bd;
-  color: #7b2f00;
+  background: #fb923c;
+  color: #5f1f00;
+}
+
+.shift-cell-shortage .shift-cell-count {
+  color: #7c2d12;
+}
+
+.shift-cell-shortage:hover {
+  outline: 2px solid rgba(234, 88, 12, 0.65);
+  box-shadow: 0 0 0 2px rgba(251, 146, 60, 0.22);
 }
 
 /* 完了 */
@@ -582,21 +605,32 @@ select {
   color: #444444;
 }
 
-/* 超過 */
+/* 超過：異常値として分かるようにする */
 .shift-cell-over {
-  background: #f0edff;
+  background: #eee9ff;
+  outline: 1px solid rgba(109, 40, 217, 0.32);
+  outline-offset: -1px;
 }
 
 .shift-cell-over .shift-cell-status {
-  background: #d7d0ff;
-  color: #3b287d;
+  background: #c4b5fd;
+  color: #3b0764;
+}
+
+.shift-cell-over .shift-cell-count {
+  color: #4c1d95;
+}
+
+.shift-cell-over:hover {
+  outline: 2px solid rgba(109, 40, 217, 0.58);
+  box-shadow: 0 0 0 2px rgba(196, 181, 253, 0.24);
 }
 
 /* 保存中 */
 .shift-cell-saving {
   position: relative;
   overflow: hidden;
-  outline: 2px solid rgba(59, 130, 246, 0.35);
+  outline: 2px solid rgba(59, 130, 246, 0.45);
   outline-offset: -2px;
 }
 
@@ -773,6 +807,28 @@ select {
   color: var(--sb-text);
   font-size: 14px;
   font-weight: 900;
+}
+
+.cell-popover-assigned-summary {
+  display: grid;
+  gap: 3px;
+  padding: 7px 9px;
+  border: 1px solid var(--sb-border);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.cell-popover-assigned-label {
+  color: var(--sb-muted);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.cell-popover-assigned-names {
+  color: var(--sb-text);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.45;
 }
 
 .cell-popover-section {
