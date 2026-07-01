@@ -12,11 +12,45 @@ function getRequiredCount(cell) {
   return Number(cell?.required || 0);
 }
 
+function getAssignedMemberName(member) {
+  return (
+    member?.name ||
+    member?.displayName ||
+    member?.display_name ||
+    member?.user_name ||
+    member?.userName ||
+    member?.internal_user_id ||
+    member?.internalUserId ||
+    "氏名未設定"
+  );
+}
+
+function getAssignedMemberSummary(members, maxVisible = 2) {
+  const safeMembers = Array.isArray(members) ? members : [];
+
+  if (!safeMembers.length) {
+    return "";
+  }
+
+  const visibleNames = safeMembers
+    .slice(0, maxVisible)
+    .map((member) => getAssignedMemberName(member));
+
+  const hiddenCount = safeMembers.length - visibleNames.length;
+
+  if (hiddenCount <= 0) {
+    return visibleNames.join(" / ");
+  }
+
+  return `${visibleNames.join(" / ")} ほか${hiddenCount}名`;
+}
+
 function getCellSummary(found) {
   const { caseItem, dateItem, cell } = found;
   const status = getCellStatus(cell);
   const assignedCount = getAssignedCount(cell);
   const required = getRequiredCount(cell);
+  const assignedMembers = Array.isArray(cell?.assigned) ? cell.assigned : [];
 
   return {
     caseTitle: caseItem.title || "案件名未設定",
@@ -29,6 +63,7 @@ function getCellSummary(found) {
     statusNote: status.note,
     assignedCount,
     required,
+    assignedMemberSummary: getAssignedMemberSummary(assignedMembers),
     canAssign: required > 0
   };
 }
@@ -109,7 +144,7 @@ export function renderAssignedMembers(members, elements) {
 
     return `
       <div class="member-card ${isPending ? "is-pending" : ""}">
-        <div class="member-name">${escapeHtml(member.name || member.displayName || member.display_name || "氏名未設定")}</div>
+        <div class="member-name">${escapeHtml(getAssignedMemberName(member))}</div>
         <div class="member-meta">${escapeHtml(member.assignment_note || member.note || member.assignment_status || "メモなし")}</div>
         <button
           type="button"
@@ -171,6 +206,17 @@ export function renderCellPreviewPopover(found) {
         <span class="cell-popover-status">${escapeHtml(summary.statusLabel)}</span>
         <span class="cell-popover-count">${summary.assignedCount}/${summary.required}</span>
       </div>
+
+      ${
+        summary.assignedMemberSummary
+          ? `
+            <div class="cell-popover-assigned-summary">
+              <span class="cell-popover-assigned-label">アサイン済</span>
+              <span class="cell-popover-assigned-names">${escapeHtml(summary.assignedMemberSummary)}</span>
+            </div>
+          `
+          : ""
+      }
     </div>
   `;
 }
@@ -249,7 +295,7 @@ function renderAssignedMembersHtml(members) {
 
         return `
           <div class="member-card ${isPending ? "is-pending" : ""}">
-            <div class="member-name">${escapeHtml(member.name || member.displayName || member.display_name || "氏名未設定")}</div>
+            <div class="member-name">${escapeHtml(getAssignedMemberName(member))}</div>
             <div class="member-meta">${escapeHtml(member.assignment_note || member.note || member.assignment_status || "メモなし")}</div>
             <button
               type="button"
