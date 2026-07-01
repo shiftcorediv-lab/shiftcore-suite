@@ -1133,4 +1133,21 @@ select {
 }
 
 /* ===== ShiftBuilder compact cell label override ここまで ===== */
+
+/* ===== ShiftBuilder excluded cell color override ここから ===== */
+
+.shift-cell-completed:has(.shift-cell-status[title="対象外"]) {
+  background: #f1f1f1;
+}
+
+.shift-cell-completed:has(.shift-cell-status[title="対象外"]) .shift-cell-status {
+  background: #d9d9d9;
+  color: #555555;
+}
+
+.shift-cell-completed:has(.shift-cell-status[title="対象外"]) .shift-cell-count {
+  color: #444444;
+}
+
+/* ===== ShiftBuilder excluded cell color override ここまで ===== */
 /* ===== ShiftBuilder CSS ここまで ===== */
