@@ -593,6 +593,32 @@ function findShiftCell(caseId, date) {
   };
 }
 
+function openDetailPanel() {
+  elements.shiftDetailPanel?.classList.add("is-open");
+}
+
+function closeDetailPanel() {
+  elements.shiftDetailPanel?.classList.remove("is-open");
+
+  resetSelectedCell();
+
+  resetDetailPanel({
+    selectedCellTitle: elements.selectedCellTitle,
+    selectedCellSummary: elements.selectedCellSummary,
+    assignedMembersList: elements.assignedMembersList,
+    candidateList: elements.candidateList,
+    assignmentUserIdInput: elements.assignmentUserIdInput,
+    assignmentCandidateStatus: elements.assignmentCandidateStatus,
+    assignmentCandidateList: elements.assignmentCandidateList,
+    createAssignmentBtn: elements.createAssignmentBtn,
+    assignmentFormStatus: elements.assignmentFormStatus
+  });
+
+  renderAssignmentCandidateCards();
+
+  setStatus("セル選択を解除しました。");
+}
+
 function selectShiftCell(caseId, date) {
   const found = findShiftCell(caseId, date);
 
@@ -604,6 +630,7 @@ function selectShiftCell(caseId, date) {
   setSelectedCell(found);
 
   renderSelectedCell(found, {
+    openDetailPanel();
     selectedCellTitle: elements.selectedCellTitle,
     selectedCellSummary: elements.selectedCellSummary,
     assignedMembersList: elements.assignedMembersList,
@@ -696,6 +723,8 @@ async function loadMockShiftData(options = {}) {
   }
   
   setCurrentShiftData(shiftData);
+
+    elements.shiftDetailPanel?.classList.remove("is-open");
 
   if (preserveSelectedCell && selectedKey?.caseId && selectedKey?.date) {
     const restored = findShiftCell(selectedKey.caseId, selectedKey.date);
@@ -1102,6 +1131,10 @@ elements.prevMonthBtn?.addEventListener("click", () => {
 
 elements.nextMonthBtn?.addEventListener("click", () => {
   moveTargetMonth(1);
+});
+
+elements.closeDetailPanelBtn?.addEventListener("click", () => {
+  closeDetailPanel();
 });
 
 elements.assignmentCandidateList?.addEventListener("click", (event) => {
