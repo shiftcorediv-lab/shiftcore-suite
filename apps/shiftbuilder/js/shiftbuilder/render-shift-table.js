@@ -50,6 +50,16 @@ export function getCellStatus(cell) {
   };
 }
 
+function getCompactStatusLabel(statusLabel) {
+  if (statusLabel === "対象外") return "外";
+  if (statusLabel === "アサイン完了") return "完";
+  if (statusLabel === "未アサイン") return "未";
+  if (statusLabel === "不足") return "不足";
+  if (statusLabel === "超過") return "超過";
+
+  return statusLabel || "";
+}
+
 function hasSavingAssignment(cell) {
   if (!cell || !Array.isArray(cell.assigned)) {
     return false;
@@ -71,10 +81,13 @@ export function renderShiftTable(data, elements, handlers = {}) {
   const { shiftTableHead, shiftTableBody } = elements;
   const { onSelectCell } = handlers;
 
+  const dates = Array.isArray(data?.dates) ? data.dates : [];
+  const cases = Array.isArray(data?.cases) ? data.cases : [];
+
   shiftTableHead.innerHTML = `
     <tr>
       <th>案件</th>
-      ${data.dates
+      ${dates
         .map((dateItem) => {
           return `
             <th>
@@ -87,13 +100,28 @@ export function renderShiftTable(data, elements, handlers = {}) {
     </tr>
   `;
 
-  shiftTableBody.innerHTML = data.cases
+  if (cases.length === 0) {
+    const colspan = dates.length + 1;
+
+    shiftTableBody.innerHTML = `
+      <tr>
+        <td colspan="${colspan}" class="empty-cell">
+          対象月の案件データはありません。対象月・エリアを確認してください。
+        </td>
+      </tr>
+    `;
+
+    return;
+  }
+
+  shiftTableBody.innerHTML = cases
     .map((caseItem) => {
-      const dateCells = data.dates
+      const dateCells = dates
         .map((dateItem) => {
-          const cell = caseItem.cells[dateItem.date] || EMPTY_CELL;
+          const cell = caseItem.cells?.[dateItem.date] || EMPTY_CELL;
 
           const status = getCellStatus(cell);
+          const compactStatusLabel = getCompactStatusLabel(status.label);
           const assignedCount = Array.isArray(cell.assigned) ? cell.assigned.length : 0;
           const required = Number(cell.required || 0);
           const isSaving = hasSavingAssignment(cell);
@@ -113,8 +141,11 @@ export function renderShiftTable(data, elements, handlers = {}) {
                 class="${escapeHtml(shiftCellClass)}"
                 data-case-id="${escapeHtml(caseItem.caseId)}"
                 data-date="${escapeHtml(dateItem.date)}"
+                title="${escapeHtml(status.label)} ${assignedCount}/${required}"
               >
-                <span class="shift-cell-status">${escapeHtml(status.label)}</span>
+                <span class="shift-cell-status" title="${escapeHtml(status.label)}">
+                  ${escapeHtml(compactStatusLabel)}
+                </span>
                 <span class="shift-cell-count">${assignedCount}/${required}</span>
                 <span class="shift-cell-note">${escapeHtml(status.note)}</span>
               </button>
