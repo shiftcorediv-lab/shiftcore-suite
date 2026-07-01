@@ -171,12 +171,21 @@
       </section>
 
       <aside class="floating-panel" id="shiftDetailPanel">
-        <div class="floating-panel-header">
-          <div>
-            <div class="label">選択中のセル</div>
-            <h2 id="selectedCellTitle">未選択</h2>
-          </div>
-        </div>
+  <div class="floating-panel-header">
+    <div>
+      <div class="label">選択中のセル</div>
+      <h2 id="selectedCellTitle">未選択</h2>
+    </div>
+
+    <button
+      id="closeDetailPanelBtn"
+      type="button"
+      class="secondary-button detail-close-button"
+      aria-label="選択中セルの詳細を閉じる"
+    >
+      閉じる
+    </button>
+  </div>
 
         <div class="floating-panel-body">
           <p id="selectedCellSummary" class="hint">
