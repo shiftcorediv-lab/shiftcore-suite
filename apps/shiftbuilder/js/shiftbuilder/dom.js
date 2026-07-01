@@ -4,6 +4,8 @@ export const elements = {
   dashboardBtn: document.getElementById("dashboardBtn"),
   reloadBtn: document.getElementById("reloadBtn"),
   loadShiftDataBtn: document.getElementById("loadShiftDataBtn"),
+  prevMonthBtn: document.getElementById("prevMonthBtn"),
+  nextMonthBtn: document.getElementById("nextMonthBtn"),
 
   operatorText: document.getElementById("operatorText"),
   permissionText: document.getElementById("permissionText"),
@@ -34,7 +36,7 @@ export const elements = {
 
   assignmentCandidateStatus: document.getElementById("assignmentCandidateStatus"),
   assignmentCandidateList: document.getElementById("assignmentCandidateList"),
-  
+
   assignmentUserIdInput: document.getElementById("assignmentUserIdInput"),
   createAssignmentBtn: document.getElementById("createAssignmentBtn"),
   assignmentFormStatus: document.getElementById("assignmentFormStatus"),
