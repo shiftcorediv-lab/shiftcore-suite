@@ -77,21 +77,71 @@ function hasSavingAssignment(cell) {
   });
 }
 
+function normalizeWeekdayValue(dateItem) {
+  return String(dateItem?.weekday || "").trim();
+}
+
+function getDateColumnClass(dateItem) {
+  const weekday = normalizeWeekdayValue(dateItem);
+  const classes = ["shift-date-column"];
+
+  if (weekday === "土" || weekday.toLowerCase() === "sat") {
+    classes.push("shift-date-saturday");
+  }
+
+  if (weekday === "日" || weekday.toLowerCase() === "sun") {
+    classes.push("shift-date-sunday");
+  }
+
+  return classes.join(" ");
+}
+
+function getAgencyName(caseItem) {
+  return String(
+    caseItem?.client ||
+      caseItem?.agency ||
+      caseItem?.agency_name ||
+      caseItem?.agencyName ||
+      ""
+  ).trim();
+}
+
+function shouldInsertAgencyBreak(cases, index) {
+  if (index <= 0) {
+    return false;
+  }
+
+  const currentAgencyName = getAgencyName(cases[index]);
+  const previousAgencyName = getAgencyName(cases[index - 1]);
+
+  if (!currentAgencyName || !previousAgencyName) {
+    return false;
+  }
+
+  return currentAgencyName !== previousAgencyName;
+}
+
 export function renderShiftTable(data, elements, handlers = {}) {
   const { shiftTableHead, shiftTableBody } = elements;
-  const { onSelectCell } = handlers;
+  const {
+    onSelectCell,
+    onPreviewCell,
+    onLeaveCell
+  } = handlers;
 
   const dates = Array.isArray(data?.dates) ? data.dates : [];
   const cases = Array.isArray(data?.cases) ? data.cases : [];
 
   shiftTableHead.innerHTML = `
     <tr>
-      <th>案件</th>
+      <th class="case-header-cell">案件</th>
       ${dates
         .map((dateItem) => {
+          const dateColumnClass = getDateColumnClass(dateItem);
+
           return `
-            <th>
-              <div>${escapeHtml(dateItem.label)}</div>
+            <th class="${escapeHtml(dateColumnClass)}">
+              <div class="table-date-label">${escapeHtml(dateItem.label)}</div>
               <div class="table-weekday">${escapeHtml(dateItem.weekday)}</div>
             </th>
           `;
@@ -115,7 +165,11 @@ export function renderShiftTable(data, elements, handlers = {}) {
   }
 
   shiftTableBody.innerHTML = cases
-    .map((caseItem) => {
+    .map((caseItem, index) => {
+      const rowClass = shouldInsertAgencyBreak(cases, index)
+        ? "case-agency-break"
+        : "";
+
       const dateCells = dates
         .map((dateItem) => {
           const cell = caseItem.cells?.[dateItem.date] || EMPTY_CELL;
@@ -125,6 +179,7 @@ export function renderShiftTable(data, elements, handlers = {}) {
           const assignedCount = Array.isArray(cell.assigned) ? cell.assigned.length : 0;
           const required = Number(cell.required || 0);
           const isSaving = hasSavingAssignment(cell);
+          const dateColumnClass = getDateColumnClass(dateItem);
 
           const shiftCellClass = [
             "shift-cell",
@@ -135,7 +190,7 @@ export function renderShiftTable(data, elements, handlers = {}) {
             .join(" ");
 
           return `
-            <td>
+            <td class="${escapeHtml(dateColumnClass)}">
               <button
                 type="button"
                 class="${escapeHtml(shiftCellClass)}"
@@ -155,8 +210,8 @@ export function renderShiftTable(data, elements, handlers = {}) {
         .join("");
 
       return `
-        <tr>
-          <td>
+        <tr class="${escapeHtml(rowClass)}">
+          <td class="case-cell">
             <div class="case-title">${escapeHtml(caseItem.title)}</div>
             <div class="case-meta">${escapeHtml(caseItem.client)} / ${escapeHtml(caseItem.area)}</div>
             <div class="case-id">${escapeHtml(caseItem.caseId)}</div>
@@ -167,19 +222,47 @@ export function renderShiftTable(data, elements, handlers = {}) {
     })
     .join("");
 
-  bindShiftCellEvents(shiftTableBody, onSelectCell);
+  bindShiftCellEvents(shiftTableBody, {
+    onSelectCell,
+    onPreviewCell,
+    onLeaveCell
+  });
 }
 
-function bindShiftCellEvents(rootElement, onSelectCell) {
+function bindShiftCellEvents(rootElement, handlers = {}) {
+  const {
+    onSelectCell,
+    onPreviewCell,
+    onLeaveCell
+  } = handlers;
+
   const cells = rootElement.querySelectorAll(".shift-cell");
 
   cells.forEach((cellButton) => {
+    cellButton.addEventListener("mouseenter", () => {
+      const caseId = cellButton.dataset.caseId;
+      const date = cellButton.dataset.date;
+
+      if (typeof onPreviewCell === "function") {
+        onPreviewCell(caseId, date, cellButton);
+      }
+    });
+
+    cellButton.addEventListener("mouseleave", () => {
+      const caseId = cellButton.dataset.caseId;
+      const date = cellButton.dataset.date;
+
+      if (typeof onLeaveCell === "function") {
+        onLeaveCell(caseId, date, cellButton);
+      }
+    });
+
     cellButton.addEventListener("click", () => {
       const caseId = cellButton.dataset.caseId;
       const date = cellButton.dataset.date;
 
       if (typeof onSelectCell === "function") {
-        onSelectCell(caseId, date);
+        onSelectCell(caseId, date, cellButton);
       }
     });
   });
