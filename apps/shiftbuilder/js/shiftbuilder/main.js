@@ -284,6 +284,64 @@ function updatePendingAssignment(caseId, date, pendingAssignmentId, result) {
   return true;
 }
 
+function getSameDayAssignmentsForUser(internalUserId, selectedCell) {
+  const shiftData = getCurrentShiftData();
+
+  if (!shiftData || !selectedCell) {
+    return [];
+  }
+
+  const targetUserId = String(internalUserId || "");
+  const selectedCaseId = selectedCell.caseItem?.caseId || "";
+  const selectedDate = selectedCell.dateItem?.date || "";
+
+  if (!targetUserId || !selectedDate) {
+    return [];
+  }
+
+  const matches = [];
+
+  shiftData.cases.forEach((caseItem) => {
+    const cell = caseItem.cells?.[selectedDate];
+
+    if (!cell || !Array.isArray(cell.assigned)) {
+      return;
+    }
+
+    const isSelectedCell = String(caseItem.caseId || "") === String(selectedCaseId);
+
+    if (isSelectedCell) {
+      return;
+    }
+
+    cell.assigned.forEach((member) => {
+      const memberUserId = String(member.internal_user_id || member.internalUserId || "");
+
+      if (memberUserId !== targetUserId) {
+        return;
+      }
+
+      matches.push({
+        caseId: caseItem.caseId || "",
+        caseTitle: caseItem.title || caseItem.store_name || caseItem.caseId || "別案件",
+        date: selectedDate,
+        assignmentId: member.assignment_id || member.assignmentId || "",
+        displayName:
+          member.display_name ||
+          member.displayName ||
+          member.name ||
+          targetUserId
+      });
+    });
+  });
+
+  return matches;
+}
+
+function hasSameDayAssignmentForUser(internalUserId, selectedCell) {
+  return getSameDayAssignmentsForUser(internalUserId, selectedCell).length > 0;
+}
+
 function renderAssignmentCandidateCards() {
   if (!elements.assignmentCandidateList) {
     return;
@@ -309,7 +367,7 @@ function renderAssignmentCandidateCards() {
   }
 
   const assignedUserIds = Array.isArray(cell.assigned)
-    ? cell.assigned.map((member) => String(member.internal_user_id || ""))
+    ? cell.assigned.map((member) => String(member.internal_user_id || member.internalUserId || ""))
     : [];
 
   elements.assignmentCandidateList.innerHTML = assignmentCandidates.map((candidate) => {
@@ -331,10 +389,23 @@ function renderAssignmentCandidateCards() {
     const baseArea = candidate.base_area || "拠点未設定";
 
     const alreadyAssigned = assignedUserIds.includes(String(userId));
-    const buttonLabel = alreadyAssigned ? "アサイン済み" : "アサイン";
+    const sameDayAssignments = getSameDayAssignmentsForUser(userId, selectedCell);
+    const hasSameDayAssignment = sameDayAssignments.length > 0;
+
+    const warningText = hasSameDayAssignment
+      ? `同日別案件あり：${sameDayAssignments.map((item) => item.caseTitle).join(" / ")}`
+      : "";
+
+    const buttonLabel = alreadyAssigned
+      ? "アサイン済み"
+      : hasSameDayAssignment
+        ? "同日あり"
+        : "アサイン";
+
+    const isDisabled = alreadyAssigned || hasSameDayAssignment;
 
     return `
-      <div class="candidate-card ${alreadyAssigned ? "is-assigned" : ""}">
+      <div class="candidate-card ${alreadyAssigned ? "is-assigned" : ""} ${hasSameDayAssignment ? "is-conflict" : ""}">
         <div class="candidate-card-main">
           <div class="candidate-name">${escapeHtml(displayName)}</div>
           <div class="candidate-meta">
@@ -343,12 +414,17 @@ function renderAssignmentCandidateCards() {
           <div class="candidate-meta">
             ${escapeHtml(personType)} / ${escapeHtml(contractType)} / ${escapeHtml(baseArea)}
           </div>
+          ${
+            warningText
+              ? `<div class="candidate-warning">${escapeHtml(warningText)}</div>`
+              : ""
+          }
         </div>
         <button
           type="button"
           class="secondary-button assign-candidate-btn"
           data-internal-user-id="${escapeHtml(userId)}"
-          ${alreadyAssigned ? "disabled" : ""}
+          ${isDisabled ? "disabled" : ""}
         >
           ${escapeHtml(buttonLabel)}
         </button>
@@ -678,6 +754,26 @@ async function createAssignmentFromSelectedCell(internalUserId) {
     if (elements.assignmentCandidateStatus) {
       elements.assignmentCandidateStatus.textContent = "同じユーザーは重複アサインできません。";
     }
+    return;
+  }
+
+  if (hasSameDayAssignmentForUser(targetInternalUserId, selectedCell)) {
+    const sameDayAssignments = getSameDayAssignmentsForUser(
+      targetInternalUserId,
+      selectedCell
+    );
+
+    const caseTitles = sameDayAssignments
+      .map((item) => item.caseTitle)
+      .join(" / ");
+
+    setStatus(`このユーザーは同日に別案件へアサイン済みです：${caseTitles}`);
+
+    if (elements.assignmentCandidateStatus) {
+      elements.assignmentCandidateStatus.textContent =
+        `同日別案件あり：${caseTitles}`;
+    }
+
     return;
   }
 
