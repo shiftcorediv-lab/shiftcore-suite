@@ -17,7 +17,9 @@ import { renderSummary } from "./render-summary.js";
 import { renderShiftTable } from "./render-shift-table.js";
 import {
   renderSelectedCell,
-  resetDetailPanel
+  resetDetailPanel,
+  renderCellPreviewPopover,
+  renderCellActionPopover
 } from "./render-detail-panel.js";
 import {
   setCurrentSession,
@@ -32,6 +34,9 @@ import {
 import { elements } from "./dom.js";
 
 let assignmentCandidates = [];
+let activePopoverMode = "";
+let activePopoverKey = null;
+let activePopoverAnchor = null;
 
 function setStatus(message) {
   if (elements.statusBox) {
@@ -377,6 +382,303 @@ function hasSameDayAssignmentForUser(internalUserId, selectedCell) {
   return getSameDayAssignmentsForUser(internalUserId, selectedCell).length > 0;
 }
 
+function getOrCreateCellPopover() {
+  const existing = document.getElementById("shiftbuilderCellPopover");
+
+  if (existing) {
+    return existing;
+  }
+
+  const popover = document.createElement("div");
+  popover.id = "shiftbuilderCellPopover";
+  popover.className = "cell-popover";
+  popover.hidden = true;
+
+  popover.addEventListener("click", (event) => {
+    const closeButton = event.target.closest("[data-popover-action='close']");
+
+    if (closeButton) {
+      hideCellPopover({
+        resetSelection: true,
+        statusMessage: "セル選択を解除しました。"
+      });
+      return;
+    }
+
+    const assignButton = event.target.closest(".assign-candidate-btn");
+
+    if (assignButton) {
+      assignButton.disabled = true;
+      assignButton.textContent = "反映中...";
+
+      const internalUserId = assignButton.dataset.internalUserId || "";
+
+      createAssignmentFromSelectedCell(internalUserId);
+      return;
+    }
+
+    const archiveButton = event.target.closest(".archive-assignment-btn");
+
+    if (archiveButton) {
+      archiveButton.disabled = true;
+      archiveButton.textContent = "解除中...";
+
+      const assignmentId = archiveButton.dataset.assignmentId || "";
+
+      archiveAssignmentFromButton(assignmentId);
+    }
+  });
+
+  document.body.appendChild(popover);
+
+  return popover;
+}
+
+function getPopoverKey(caseId, date) {
+  return {
+    caseId: caseId || "",
+    date: date || ""
+  };
+}
+
+function isSamePopoverKey(keyA, keyB) {
+  return (
+    keyA?.caseId === keyB?.caseId &&
+    keyA?.date === keyB?.date
+  );
+}
+
+function setPopoverPosition(popover, anchorElement) {
+  if (!popover || !anchorElement) {
+    return;
+  }
+
+  const anchorRect = anchorElement.getBoundingClientRect();
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const gap = 8;
+  const margin = 10;
+
+  popover.style.visibility = "hidden";
+  popover.hidden = false;
+
+  const popoverRect = popover.getBoundingClientRect();
+  const popoverWidth = popoverRect.width || 360;
+  const popoverHeight = popoverRect.height || 220;
+
+  const rightSpace = viewportWidth - anchorRect.right;
+  const leftSpace = anchorRect.left;
+
+  let left =
+    rightSpace >= popoverWidth + gap + margin
+      ? anchorRect.right + gap
+      : anchorRect.left - popoverWidth - gap;
+
+  if (left < margin) {
+    left = margin;
+  }
+
+  if (left + popoverWidth > viewportWidth - margin) {
+    left = Math.max(margin, viewportWidth - popoverWidth - margin);
+  }
+
+  let top = anchorRect.top;
+
+  if (top + popoverHeight > viewportHeight - margin) {
+    top = viewportHeight - popoverHeight - margin;
+  }
+
+  if (top < margin) {
+    top = margin;
+  }
+
+  const placement = leftSpace > rightSpace ? "left" : "right";
+
+  popover.style.left = `${Math.round(left)}px`;
+  popover.style.top = `${Math.round(top)}px`;
+  popover.style.visibility = "";
+  popover.dataset.placement = placement;
+}
+
+function hideCellPopover(options = {}) {
+  const {
+    resetSelection = false,
+    statusMessage = ""
+  } = options;
+
+  const popover = document.getElementById("shiftbuilderCellPopover");
+
+  if (popover) {
+    popover.hidden = true;
+    popover.className = "cell-popover";
+    popover.innerHTML = "";
+    popover.removeAttribute("data-placement");
+  }
+
+  activePopoverMode = "";
+  activePopoverKey = null;
+  activePopoverAnchor = null;
+
+  if (resetSelection) {
+    resetSelectedCell();
+
+    resetDetailPanel({
+      selectedCellTitle: elements.selectedCellTitle,
+      selectedCellSummary: elements.selectedCellSummary,
+      assignedMembersList: elements.assignedMembersList,
+      candidateList: elements.candidateList,
+      assignmentUserIdInput: elements.assignmentUserIdInput,
+      assignmentCandidateStatus: elements.assignmentCandidateStatus,
+      assignmentCandidateList: elements.assignmentCandidateList,
+      createAssignmentBtn: elements.createAssignmentBtn,
+      assignmentFormStatus: elements.assignmentFormStatus
+    });
+
+    renderAssignmentCandidateCards();
+  }
+
+  if (statusMessage) {
+    setStatus(statusMessage);
+  }
+}
+
+function renderPreviewPopover(found, anchorElement) {
+  const popover = getOrCreateCellPopover();
+
+  popover.className = "cell-popover cell-popover-mode-preview";
+  popover.innerHTML = renderCellPreviewPopover(found);
+  popover.hidden = false;
+
+  activePopoverMode = "preview";
+  activePopoverKey = getSelectedCellKey(found);
+  activePopoverAnchor = anchorElement;
+
+  setPopoverPosition(popover, anchorElement);
+}
+
+function renderActionPopover(found, anchorElement) {
+  const popover = getOrCreateCellPopover();
+
+  popover.className = "cell-popover cell-popover-mode-action";
+  popover.innerHTML = renderCellActionPopover(found, assignmentCandidates);
+  popover.hidden = false;
+
+  activePopoverMode = "action";
+  activePopoverKey = getSelectedCellKey(found);
+  activePopoverAnchor = anchorElement;
+
+  applySameDayCandidateState(popover, found);
+  setPopoverPosition(popover, anchorElement);
+}
+
+function applySameDayCandidateState(popover, selectedCell) {
+  const buttons = popover.querySelectorAll(".assign-candidate-btn");
+
+  buttons.forEach((button) => {
+    const internalUserId = button.dataset.internalUserId || "";
+
+    if (!internalUserId || button.disabled) {
+      return;
+    }
+
+    const sameDayAssignments = getSameDayAssignmentsForUser(
+      internalUserId,
+      selectedCell
+    );
+
+    if (!sameDayAssignments.length) {
+      return;
+    }
+
+    const card = button.closest(".candidate-card");
+    const caseTitles = sameDayAssignments
+      .map((item) => item.caseTitle)
+      .join(" / ");
+
+    button.disabled = true;
+    button.textContent = "同日あり";
+
+    if (card) {
+      card.classList.add("is-conflict");
+
+      const warning = document.createElement("div");
+      warning.className = "candidate-warning";
+      warning.textContent = `同日別案件あり：${caseTitles}`;
+
+      const main = card.querySelector(".candidate-card-main");
+      if (main) {
+        main.appendChild(warning);
+      }
+    }
+  });
+}
+
+function findRenderedShiftCellButton(caseId, date) {
+  if (!elements.shiftTableBody) {
+    return null;
+  }
+
+  const escapedCaseId = CSS.escape(String(caseId || ""));
+  const escapedDate = CSS.escape(String(date || ""));
+
+  return elements.shiftTableBody.querySelector(
+    `.shift-cell[data-case-id="${escapedCaseId}"][data-date="${escapedDate}"]`
+  );
+}
+
+function refreshActiveActionPopover() {
+  if (activePopoverMode !== "action") {
+    return;
+  }
+
+  const selectedCell = getSelectedCell();
+
+  if (!selectedCell) {
+    hideCellPopover();
+    return;
+  }
+
+  const selectedKey = getSelectedCellKey(selectedCell);
+  const anchorElement =
+    findRenderedShiftCellButton(selectedKey.caseId, selectedKey.date) ||
+    activePopoverAnchor;
+
+  if (!anchorElement) {
+    hideCellPopover();
+    return;
+  }
+
+  renderActionPopover(selectedCell, anchorElement);
+}
+
+function previewShiftCell(caseId, date, anchorElement) {
+  if (activePopoverMode === "action") {
+    return;
+  }
+
+  const found = findShiftCell(caseId, date);
+
+  if (!found) {
+    return;
+  }
+
+  renderPreviewPopover(found, anchorElement);
+}
+
+function leaveShiftCell(caseId, date) {
+  if (activePopoverMode !== "preview") {
+    return;
+  }
+
+  const nextKey = getPopoverKey(caseId, date);
+
+  if (!isSamePopoverKey(activePopoverKey, nextKey)) {
+    return;
+  }
+
+  hideCellPopover();
+}
+
 function renderAssignmentCandidateCards() {
   if (!elements.assignmentCandidateList) {
     return;
@@ -491,7 +793,9 @@ function renderCurrentShiftView() {
       shiftTableBody: elements.shiftTableBody
     },
     {
-      onSelectCell: selectShiftCell
+      onSelectCell: selectShiftCell,
+      onPreviewCell: previewShiftCell,
+      onLeaveCell: leaveShiftCell
     }
   );
 
@@ -511,12 +815,14 @@ function renderCurrentShiftView() {
   }
 
   renderAssignmentCandidateCards();
+  refreshActiveActionPopover();
 }
 
 async function loadAssignmentCandidates(session) {
   if (!session || !session.isLoggedIn || !session.idToken) {
     assignmentCandidates = [];
     renderAssignmentCandidateCards();
+    refreshActiveActionPopover();
     return;
   }
 
@@ -556,6 +862,7 @@ async function loadAssignmentCandidates(session) {
     }
 
     renderAssignmentCandidateCards();
+    refreshActiveActionPopover();
   } catch (error) {
     console.error("[ShiftBuilder] assignment candidates error:", error);
 
@@ -567,6 +874,7 @@ async function loadAssignmentCandidates(session) {
     }
 
     renderAssignmentCandidateCards();
+    refreshActiveActionPopover();
   }
 }
 
@@ -594,32 +902,33 @@ function findShiftCell(caseId, date) {
 }
 
 function openDetailPanel() {
-  elements.shiftDetailPanel?.classList.add("is-open");
+  const selectedCell = getSelectedCell();
+
+  if (!selectedCell) {
+    return;
+  }
+
+  const selectedKey = getSelectedCellKey(selectedCell);
+  const anchorElement = findRenderedShiftCellButton(
+    selectedKey.caseId,
+    selectedKey.date
+  );
+
+  if (!anchorElement) {
+    return;
+  }
+
+  renderActionPopover(selectedCell, anchorElement);
 }
 
 function closeDetailPanel() {
-  elements.shiftDetailPanel?.classList.remove("is-open");
-
-  resetSelectedCell();
-
-  resetDetailPanel({
-    selectedCellTitle: elements.selectedCellTitle,
-    selectedCellSummary: elements.selectedCellSummary,
-    assignedMembersList: elements.assignedMembersList,
-    candidateList: elements.candidateList,
-    assignmentUserIdInput: elements.assignmentUserIdInput,
-    assignmentCandidateStatus: elements.assignmentCandidateStatus,
-    assignmentCandidateList: elements.assignmentCandidateList,
-    createAssignmentBtn: elements.createAssignmentBtn,
-    assignmentFormStatus: elements.assignmentFormStatus
+  hideCellPopover({
+    resetSelection: true,
+    statusMessage: "セル選択を解除しました。"
   });
-
-  renderAssignmentCandidateCards();
-
-  setStatus("セル選択を解除しました。");
 }
 
-function selectShiftCell(caseId, date) {
+function selectShiftCell(caseId, date, anchorElement) {
   const found = findShiftCell(caseId, date);
 
   if (!found) {
@@ -628,7 +937,6 @@ function selectShiftCell(caseId, date) {
   }
 
   setSelectedCell(found);
-  openDetailPanel();
 
   renderSelectedCell(found, {
     selectedCellTitle: elements.selectedCellTitle,
@@ -640,6 +948,8 @@ function selectShiftCell(caseId, date) {
     createAssignmentBtn: elements.createAssignmentBtn,
     assignmentFormStatus: elements.assignmentFormStatus
   });
+
+  renderActionPopover(found, anchorElement || findRenderedShiftCellButton(caseId, date));
 
   setStatus(`セルを選択しました：${found.caseItem.title} ${found.dateItem.label}`);
 
@@ -724,7 +1034,7 @@ async function loadMockShiftData(options = {}) {
 
   setCurrentShiftData(shiftData);
 
-  elements.shiftDetailPanel?.classList.remove("is-open");
+  hideCellPopover();
 
   if (preserveSelectedCell && selectedKey?.caseId && selectedKey?.date) {
     const restored = findShiftCell(selectedKey.caseId, selectedKey.date);
@@ -847,6 +1157,8 @@ async function createAssignmentFromSelectedCell(internalUserId) {
         `同日別案件あり：${caseTitles}`;
     }
 
+    refreshActiveActionPopover();
+
     return;
   }
 
@@ -940,6 +1252,8 @@ async function createAssignmentFromSelectedCell(internalUserId) {
     if (elements.assignmentCandidateStatus) {
       elements.assignmentCandidateStatus.textContent = "アサインを保存しました。";
     }
+
+    refreshActiveActionPopover();
   } catch (error) {
     console.error("[ShiftBuilder] create assignment error:", error);
 
@@ -960,6 +1274,8 @@ async function createAssignmentFromSelectedCell(internalUserId) {
     if (elements.assignmentCandidateStatus) {
       elements.assignmentCandidateStatus.textContent = error.message || String(error);
     }
+
+    refreshActiveActionPopover();
   }
 }
 
@@ -1038,6 +1354,8 @@ async function archiveAssignmentFromButton(assignmentId) {
     if (elements.assignmentCandidateStatus) {
       elements.assignmentCandidateStatus.textContent = "アサインを解除しました。";
     }
+
+    refreshActiveActionPopover();
   } catch (error) {
     console.error("[ShiftBuilder] archive assignment error:", error);
 
@@ -1058,6 +1376,8 @@ async function archiveAssignmentFromButton(assignmentId) {
     if (elements.assignmentCandidateStatus) {
       elements.assignmentCandidateStatus.textContent = error.message || String(error);
     }
+
+    refreshActiveActionPopover();
   }
 }
 
@@ -1166,6 +1486,52 @@ elements.assignedMembersList?.addEventListener("click", (event) => {
 
   archiveAssignmentFromButton(assignmentId);
 });
+
+document.addEventListener("click", (event) => {
+  const popover = document.getElementById("shiftbuilderCellPopover");
+
+  if (popover && popover.contains(event.target)) {
+    return;
+  }
+
+  if (event.target.closest(".shift-cell")) {
+    return;
+  }
+
+  if (activePopoverMode === "action") {
+    hideCellPopover({
+      resetSelection: true
+    });
+  }
+});
+
+window.addEventListener("resize", () => {
+  if (!activePopoverMode || !activePopoverAnchor) {
+    return;
+  }
+
+  const popover = document.getElementById("shiftbuilderCellPopover");
+
+  if (!popover || popover.hidden) {
+    return;
+  }
+
+  setPopoverPosition(popover, activePopoverAnchor);
+});
+
+window.addEventListener("scroll", () => {
+  if (!activePopoverMode || !activePopoverAnchor) {
+    return;
+  }
+
+  const popover = document.getElementById("shiftbuilderCellPopover");
+
+  if (!popover || popover.hidden) {
+    return;
+  }
+
+  setPopoverPosition(popover, activePopoverAnchor);
+}, true);
 
 init();
 
