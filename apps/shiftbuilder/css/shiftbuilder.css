@@ -539,6 +539,22 @@ select {
   white-space: nowrap;
 }
 
+.candidate-card.is-conflict {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: rgba(255, 251, 235, 0.9);
+}
+
+.candidate-warning {
+  margin-top: 6px;
+  padding: 5px 7px;
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.14);
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
 .empty-note {
   color: var(--sb-muted);
   font-size: 14px;
