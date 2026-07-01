@@ -690,4 +690,249 @@ select {
   }
 }
 
+/* ===== ShiftBuilder compact layout override ここから ===== */
+
+/* 開発確認用の大きい情報ブロックは通常画面では畳む */
+.operator-card,
+.panel {
+  display: none;
+}
+
+/* 全体余白を圧縮して、表に面積を渡す */
+.page {
+  width: min(1600px, 100%);
+  padding: 14px;
+}
+
+.header {
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.subtitle {
+  display: none;
+}
+
+.beta-badge {
+  padding: 2px 7px;
+  font-size: 11px;
+}
+
+.header-actions {
+  gap: 8px;
+}
+
+.primary-button,
+.secondary-button {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 9px;
+  font-size: 13px;
+}
+
+/* フィルタを薄く・低くする */
+.shiftbuilder-toolbar {
+  align-items: center;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border-radius: 12px;
+}
+
+.toolbar-group {
+  gap: 4px;
+  min-width: 140px;
+}
+
+.field-label {
+  font-size: 11px;
+}
+
+.field-input {
+  min-height: 34px;
+  padding: 0 9px;
+  border-radius: 9px;
+  font-size: 13px;
+}
+
+/* KPIを小型化 */
+.quick-view-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.quick-view-card {
+  padding: 10px 12px;
+  border-radius: 12px;
+}
+
+.quick-view-card .label {
+  font-size: 11px;
+}
+
+.quick-value {
+  margin-top: 4px;
+  font-size: 20px;
+}
+
+/* 表を主役にする：右パネル常設をやめて横幅を確保 */
+.shiftbuilder-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.shift-table-panel {
+  padding: 12px;
+  border-radius: 14px;
+}
+
+.section-heading-row {
+  margin-bottom: 8px;
+}
+
+.section-heading-row h2 {
+  font-size: 18px;
+}
+
+.section-heading-row .hint {
+  display: none;
+}
+
+/* 横軸を月初〜月末まで見やすくするため、日付セルを圧縮 */
+.shift-table-scroll {
+  border-radius: 12px;
+}
+
+.shift-table {
+  min-width: 1320px;
+  table-layout: fixed;
+}
+
+.shift-table th,
+.shift-table td {
+  min-width: 38px;
+  padding: 6px 5px;
+  font-size: 11px;
+}
+
+.shift-table th:first-child,
+.shift-table td:first-child {
+  min-width: 150px;
+  width: 150px;
+}
+
+.shift-table th {
+  font-size: 11px;
+}
+
+.shift-cell {
+  border-radius: 8px;
+}
+
+.shift-cell-status {
+  padding: 2px 5px;
+  font-size: 10px;
+}
+
+.shift-cell-count {
+  margin-top: 4px;
+  font-size: 14px;
+}
+
+.shift-cell-note {
+  display: none;
+}
+
+/* 案件名セルを圧縮 */
+.case-title,
+.case-name {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+/* 詳細パネルは表の下へ。常時右側固定にしない */
+.floating-panel {
+  position: static;
+  padding: 12px;
+  border-radius: 14px;
+}
+
+.floating-panel-header {
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+}
+
+.floating-panel h2 {
+  font-size: 18px;
+}
+
+.floating-panel-body {
+  gap: 10px;
+}
+
+.detail-block {
+  padding: 10px;
+  border-radius: 12px;
+}
+
+.detail-block h3 {
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+
+.member-item,
+.candidate-item,
+.member-card,
+.candidate-card {
+  padding: 8px 9px;
+  border-radius: 10px;
+}
+
+.candidate-card .candidate-name {
+  font-size: 12px;
+}
+
+.candidate-card .candidate-meta {
+  font-size: 10px;
+}
+
+.candidate-warning {
+  font-size: 10px;
+}
+
+/* ステータスボックスも控えめに */
+.status-box {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+/* 低い画面でも表を見やすくする */
+@media (min-width: 1000px) {
+  .shift-table-scroll {
+    max-height: 62vh;
+  }
+}
+
+/* さらに広い画面では31日分をより見やすく */
+@media (min-width: 1400px) {
+  .shift-table {
+    min-width: 100%;
+  }
+
+  .shift-table th:first-child,
+  .shift-table td:first-child {
+    min-width: 170px;
+    width: 170px;
+  }
+}
+
+/* ===== ShiftBuilder compact layout override ここまで ===== */
 /* ===== ShiftBuilder CSS ここまで ===== */
