@@ -808,7 +808,7 @@ async function createAssignmentFromSelectedCell(internalUserId) {
   setStatus(`アサインを反映しました：${caseItem.title} ${dateItem.label} / ${targetInternalUserId}`);
 
   if (elements.assignmentCandidateStatus) {
-    elements.assignmentCandidateStatus.textContent = "保存中...";
+    elements.assignmentCandidateStatus.textContent = "";
   }
 
   try {
@@ -933,7 +933,7 @@ async function archiveAssignmentFromButton(assignmentId) {
   setStatus(`アサイン解除を反映しました：${assignmentId}`);
 
   if (elements.assignmentCandidateStatus) {
-    elements.assignmentCandidateStatus.textContent = "解除を保存中...";
+    elements.assignmentCandidateStatus.textContent = "";
   }
 
   try {
