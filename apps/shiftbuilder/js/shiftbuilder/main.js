@@ -1110,18 +1110,15 @@ async function createAssignmentFromSelectedCell(internalUserId) {
     return;
   }
 
-  if (Number(cell.required || 0) <= 0) {
+    const canAssignWithoutCaseDate =
+    cell.assignable_without_case_date === true ||
+    cell.flexible_assignment === true ||
+    cell.is_days_mode === true;
+
+  if (Number(cell.required || 0) <= 0 && !canAssignWithoutCaseDate) {
     setStatus("必要枠のないセルにはアサイン作成できません。");
     if (elements.assignmentCandidateStatus) {
       elements.assignmentCandidateStatus.textContent = "必要枠のないセルにはアサイン作成できません。";
-    }
-    return;
-  }
-
-  if (!cell.case_date_id) {
-    setStatus("case_date_id がないため、アサイン作成できません。");
-    if (elements.assignmentCandidateStatus) {
-      elements.assignmentCandidateStatus.textContent = "case_date_id がないセルです。";
     }
     return;
   }
@@ -1219,7 +1216,7 @@ async function createAssignmentFromSelectedCell(internalUserId) {
       targetMonth: targetMonth,
       area: caseItem.area || elements.areaSelect?.value || "all",
       caseId: caseId,
-      caseDateId: cell.case_date_id,
+      caseDateId: cell.case_date_id || "",
       workDate: workDate,
       internalUserId: targetInternalUserId,
       assignmentNote: "ShiftBuilder画面から作成"
