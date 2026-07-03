@@ -2,6 +2,14 @@ import { MODULE_NAME_MAP } from "./config.js";
 import { moduleList } from "./dom.js";
 import { openModule } from "./navigation.js";
 
+const OPENABLE_MODULE_CODES = [
+  "pmo",
+  "account",
+  "account_console",
+  "shift",
+  "shiftbuilder"
+];
+
 function canShowModule(moduleCode, user) {
   const role = String(user?.role || "").trim().toLowerCase();
 
@@ -32,6 +40,10 @@ function normalizeVisibleModules(modules) {
   return uniqueModules;
 }
 
+function canOpenModule(moduleCode) {
+  return OPENABLE_MODULE_CODES.includes(moduleCode);
+}
+
 export function renderModules(modules, user, setStatus) {
   moduleList.innerHTML = "";
 
@@ -57,7 +69,7 @@ export function renderModules(modules, user, setStatus) {
 
     const button = document.createElement("button");
 
-    if (moduleCode === "pmo" || moduleCode === "account" || moduleCode === "account_console") {
+    if (canOpenModule(moduleCode)) {
       button.textContent = "開く";
       button.addEventListener("click", () => openModule(moduleCode, setStatus));
     } else {
