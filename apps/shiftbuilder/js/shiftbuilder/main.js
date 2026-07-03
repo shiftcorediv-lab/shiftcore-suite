@@ -8,6 +8,7 @@ import {
   getShiftBuilderMonthData,
   createShiftBuilderAssignment,
   archiveShiftBuilderAssignment,
+  replaceShiftBuilderAssignment,
   getShiftBuilderAssignmentCandidates
 } from "./api.js";
 import { mockShiftData } from "./mock-data.js";
@@ -1408,7 +1409,8 @@ async function replaceAssignmentFromSelectedCell(internalUserId, replaceAssignme
       elements.targetMonthInput?.value ||
       getNextMonthValue();
 
-    createResult = await createShiftBuilderAssignment(session.idToken, {
+    createResult = await replaceShiftBuilderAssignment(session.idToken, {
+      replaceAssignmentId: targetReplaceAssignmentId,
       targetMonth: targetMonth,
       area: caseItem.area || elements.areaSelect?.value || "all",
       caseId: caseId,
@@ -1418,27 +1420,16 @@ async function replaceAssignmentFromSelectedCell(internalUserId, replaceAssignme
       assignmentNote: "ShiftBuilder画面から入れ替え"
     });
 
-    console.log("[ShiftBuilder] replace create assignment result:", createResult);
+    console.log("[ShiftBuilder] replace assignment result:", createResult);
 
     if (!createResult || createResult.success !== true) {
-      throw new Error(createResult?.message || "入れ替え先アサインの作成に失敗しました");
+      throw new Error(createResult?.message || "アサイン入れ替えに失敗しました");
     }
 
     const createdAssignmentId = extractAssignmentIdFromResult(createResult);
 
     if (!createdAssignmentId) {
-      throw new Error("入れ替え先アサインの assignment_id を取得できませんでした");
-    }
-
-    const archiveResult = await archiveShiftBuilderAssignment(
-      session.idToken,
-      targetReplaceAssignmentId
-    );
-
-    console.log("[ShiftBuilder] replace archive assignment result:", archiveResult);
-
-    if (!archiveResult || archiveResult.success !== true) {
-      throw new Error(archiveResult?.message || "入れ替え元アサインの解除に失敗しました");
+      throw new Error("入れ替え後アサインの assignment_id を取得できませんでした");
     }
 
     const updated = updatePendingAssignment(
