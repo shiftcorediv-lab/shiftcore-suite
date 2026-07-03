@@ -1181,16 +1181,13 @@ input[type="time"] {
 
         row.innerHTML = `
           <div class="date-row-title">${item.work_date}</div>
-          <div class="grid two">
-            <div>
-              <label>必要数</label>
-              <input type="text" value="1人分" readonly>
-              <p class="hint">複数名必要な場合は、同条件で作成する件数を増やしてください。</p>
-            </div>
-            <div>
-              <label>日別メモ</label>
-              <input type="text" value="${escapeHtml(item.memo)}" data-date-index="${index}" data-field="memo">
-            </div>
+          <p class="hint">
+            この日は1案件につき1人分として作成されます。
+            複数名必要な場合は、上の「同条件で作成する件数」を増やしてください。
+          </p>
+          <div>
+            <label>日別メモ</label>
+            <input type="text" value="${escapeHtml(item.memo)}" data-date-index="${index}" data-field="memo">
           </div>
         `;
 
