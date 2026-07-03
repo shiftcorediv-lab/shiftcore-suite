@@ -5,7 +5,7 @@ import {
   organizationText,
   statusBox
 } from "./dom.js";
-import { renderModules } from "./modules.js";
+import { renderModules } from "./modules.js?v=20260703_1505";
 
 export function setStatus(message) {
   statusBox.textContent = message;
