@@ -683,12 +683,14 @@ input[type="time"] {
      * setupDefaultDates ここから
      ****************************************************/
     function setupDefaultDates() {
-      const now = new Date();
-      const yyyy = now.getFullYear();
-      const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const now = new Date();
+  const targetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-      document.getElementById('targetMonth').value = `${yyyy}-${mm}`;
-    }
+  const yyyy = targetDate.getFullYear();
+  const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
+
+  document.getElementById('targetMonth').value = `${yyyy}-${mm}`;
+}
     /****************************************************
      * setupDefaultDates ここまで
      ****************************************************/
