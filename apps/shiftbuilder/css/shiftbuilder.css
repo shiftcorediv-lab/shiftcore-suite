@@ -478,6 +478,91 @@ select {
   line-height: 1.35;
 }
 
+.case-fulfillment-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 5px;
+  min-height: 17px;
+}
+
+.case-fulfillment-badge {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 7px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.case-fulfillment-badge-unfilled {
+  border-color: rgba(217, 119, 6, 0.28);
+  background: #fff4bf;
+  color: #7a4a00;
+}
+
+.case-fulfillment-badge-fulfilled {
+  border-color: rgba(22, 101, 52, 0.22);
+  background: #dcfce7;
+  color: #166534;
+}
+
+.case-fulfillment-badge-overfilled {
+  border-color: rgba(109, 40, 217, 0.26);
+  background: #ede9fe;
+  color: #4c1d95;
+}
+
+.case-fulfillment-fulfilled .case-cell {
+  background: #f7fff8;
+}
+
+.case-fulfillment-fulfilled .case-title::before {
+  content: "✓";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-right: 4px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  vertical-align: 1px;
+}
+
+.case-fulfillment-overfilled .case-cell {
+  background: #fbf8ff;
+}
+
+.case-fulfillment-overfilled .case-title::before {
+  content: "!";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-right: 4px;
+  border-radius: 999px;
+  background: #ede9fe;
+  color: #4c1d95;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  vertical-align: 1px;
+}
+
 /* ===== Case Cell ここまで ===== */
 
 /* ===== Shift Cell ここから ===== */
