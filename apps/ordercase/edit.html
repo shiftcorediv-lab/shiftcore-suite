@@ -591,9 +591,12 @@
      * 初期化 ここから
      ****************************************************/
     document.addEventListener('DOMContentLoaded', async () => {
+      showLoading('画面を準備中...');
+
       try {
         renderOrderCaseHeader('', '案件編集');
 
+        showLoading('権限を確認中...');
         await requireEditablePermissionForEditPage();
 
         setupLinks();
@@ -602,6 +605,7 @@
         await loadEditPageData();
 
       } catch (error) {
+        hideLoading();
         console.error(error);
         setMessage('読み込みエラー: ' + error.message, 'error');
         disableEditForm();
