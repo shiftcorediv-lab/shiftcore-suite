@@ -79,6 +79,22 @@ export async function archiveShiftBuilderAssignment(idToken, assignmentId) {
 }
 // ===== アサイン解除ここまで =====
 
+// ===== アサイン入れ替えここから =====
+export async function replaceShiftBuilderAssignment(idToken, params = {}) {
+  return postToShiftBuilderApi("shiftBuilderReplaceAssignment", {
+    idToken: idToken,
+    replaceAssignmentId: params.replaceAssignmentId || params.replace_assignment_id || "",
+    targetMonth: params.targetMonth || "",
+    area: params.area || "",
+    caseId: params.caseId || "",
+    caseDateId: params.caseDateId || "",
+    workDate: params.workDate || "",
+    internalUserId: params.internalUserId || "",
+    assignmentNote: params.assignmentNote || ""
+  });
+}
+// ===== アサイン入れ替えここまで =====
+
 // ===== アサイン候補者取得ここから =====
 export async function getShiftBuilderAssignmentCandidates(idToken, params = {}) {
   return postToShiftBuilderApi("shiftBuilderGetAssignmentCandidates", {
