@@ -69,12 +69,101 @@ function getAssignedMemberSummary(members, maxVisible = 2) {
   return `${visibleNames.join(" / ")} ほか${hiddenCount}名`;
 }
 
+function isDaysModeCell(cell, caseItem) {
+  return (
+    cell?.is_days_mode === true ||
+    cell?.input_mode === "days" ||
+    caseItem?.input_mode === "days" ||
+    caseItem?.inputMode === "days"
+  );
+}
+
+function getRequestedDays(caseItem, cell) {
+  const value =
+    caseItem?.requested_days ??
+    caseItem?.requestedDays ??
+    cell?.requested_days ??
+    0;
+
+  const number = Number(value);
+
+  return Number.isFinite(number) ? number : 0;
+}
+
+function getAssignedDateCount(caseItem) {
+  const cells = caseItem?.cells || {};
+  let assignedDateCount = 0;
+
+  Object.keys(cells).forEach((dateKey) => {
+    const cell = cells[dateKey] || {};
+    const assignedCount = getAssignedCount(cell);
+
+    if (assignedCount > 0) {
+      assignedDateCount++;
+    }
+  });
+
+  return assignedDateCount;
+}
+
+function isDaysModeCaseFulfilled(caseItem, cell) {
+  const requestedDays = getRequestedDays(caseItem, cell);
+
+  if (requestedDays <= 0) {
+    return false;
+  }
+
+  return getAssignedDateCount(caseItem) >= requestedDays;
+}
+
+function getCandidateActionMode(found) {
+  const { caseItem, cell } = found;
+  const assignedCount = getAssignedCount(cell);
+  const required = getRequiredCount(cell);
+  const isDaysMode = isDaysModeCell(cell, caseItem);
+  const isCurrentCellAssigned = assignedCount > 0;
+
+  if (required <= 0 && !cell?.assignable_without_case_date) {
+    return {
+      mode: "blocked",
+      message: "必要枠のないセルにはアサインできません。"
+    };
+  }
+
+  if (isCurrentCellAssigned && required > 0 && assignedCount >= required) {
+    return {
+      mode: "replace",
+      message: "このセルは充足済みです。候補者カードから入れ替えできます。"
+    };
+  }
+
+  if (isDaysMode && isDaysModeCaseFulfilled(caseItem, cell)) {
+    if (isCurrentCellAssigned) {
+      return {
+        mode: "replace",
+        message: "この日数指定案件は充足済みです。既存アサインの入れ替えのみ可能です。"
+      };
+    }
+
+    return {
+      mode: "blocked",
+      message: "この日数指定案件は充足済みです。未アサイン日への追加はできません。"
+    };
+  }
+
+  return {
+    mode: "assign",
+    message: "候補者カードの「アサイン」で、このセルに追加できます。"
+  };
+}
+
 function getCellSummary(found) {
   const { caseItem, dateItem, cell } = found;
   const status = getCellStatus(cell);
   const assignedCount = getAssignedCount(cell);
   const required = getRequiredCount(cell);
   const assignedMembers = Array.isArray(cell?.assigned) ? cell.assigned : [];
+  const candidateAction = getCandidateActionMode(found);
 
   return {
     caseTitle: caseItem.title || "案件名未設定",
@@ -88,7 +177,8 @@ function getCellSummary(found) {
     assignedCount,
     required,
     assignedMemberSummary: getAssignedMemberSummary(assignedMembers),
-    canAssign: required > 0
+    canAssign: candidateAction.mode === "assign",
+    candidateAction
   };
 }
 
@@ -125,21 +215,15 @@ export function renderSelectedCell(found, elements) {
   });
 
   if (createAssignmentBtn) {
-    createAssignmentBtn.disabled = !summary.canAssign;
+    createAssignmentBtn.disabled = summary.candidateAction.mode !== "assign";
   }
 
   if (assignmentFormStatus) {
-    assignmentFormStatus.textContent =
-      summary.canAssign
-        ? "候補者カードの「アサイン」で追加できます。"
-        : "必要枠のないセルにはアサイン作成できません。";
+    assignmentFormStatus.textContent = summary.candidateAction.message;
   }
 
   if (assignmentCandidateStatus) {
-    assignmentCandidateStatus.textContent =
-      summary.canAssign
-        ? "候補者カードの「アサイン」で、このセルに追加できます。"
-        : "必要枠のないセルにはアサインできません。";
+    assignmentCandidateStatus.textContent = summary.candidateAction.message;
   }
 }
 
@@ -267,9 +351,13 @@ export function renderCellActionPopover(found, assignmentCandidates = []) {
       <div class="cell-popover-section">
         <div class="cell-popover-section-title">アサイン候補者</div>
         ${
-          summary.canAssign
-            ? renderAssignmentCandidatesHtml(assignmentCandidates, assignedMembers)
-            : `<div class="empty-note">必要枠のないセルにはアサインできません。</div>`
+          summary.candidateAction.mode === "blocked"
+            ? `<div class="empty-note">${escapeHtml(summary.candidateAction.message)}</div>`
+            : renderAssignmentCandidatesHtml(
+                assignmentCandidates,
+                assignedMembers,
+                summary.candidateAction.mode
+              )
         }
       </div>
     </div>
@@ -330,14 +418,15 @@ function renderAssignedMemberCardHtml(member) {
   `;
 }
 
-function renderAssignmentCandidatesHtml(candidates, assignedMembers) {
+function renderAssignmentCandidatesHtml(candidates, assignedMembers, actionMode = "assign") {
   if (!Array.isArray(candidates) || !candidates.length) {
     return `<div class="empty-note">候補者がいません。</div>`;
   }
 
-  const assignedUserIds = Array.isArray(assignedMembers)
-    ? assignedMembers.map((member) => String(member.internal_user_id || member.internalUserId || ""))
-    : [];
+  const safeAssignedMembers = Array.isArray(assignedMembers) ? assignedMembers : [];
+  const assignedUserIds = safeAssignedMembers.map((member) => {
+    return String(member.internal_user_id || member.internalUserId || "");
+  });
 
   return `
     <div class="candidate-card-list">
@@ -360,7 +449,9 @@ function renderAssignmentCandidatesHtml(candidates, assignedMembers) {
         const baseArea = candidate.base_area || "拠点未設定";
         const alreadyAssigned = assignedUserIds.includes(String(userId));
 
-        const buttonLabel = alreadyAssigned ? "アサイン済み" : "アサイン";
+        const candidateActions = actionMode === "replace"
+          ? renderReplacementCandidateButtons(userId, alreadyAssigned, safeAssignedMembers)
+          : renderAssignCandidateButton(userId, alreadyAssigned);
 
         return `
           <div class="candidate-card ${alreadyAssigned ? "is-assigned" : ""}">
@@ -374,19 +465,83 @@ function renderAssignmentCandidatesHtml(candidates, assignedMembers) {
               </div>
             </div>
 
-            <button
-              type="button"
-              class="secondary-button assign-candidate-btn"
-              data-internal-user-id="${escapeHtml(userId)}"
-              ${alreadyAssigned ? "disabled" : ""}
-            >
-              ${escapeHtml(buttonLabel)}
-            </button>
+            <div class="candidate-card-actions">
+              ${candidateActions}
+            </div>
           </div>
         `;
       }).join("")}
     </div>
   `;
+}
+
+function renderAssignCandidateButton(userId, alreadyAssigned) {
+  const buttonLabel = alreadyAssigned ? "アサイン済み" : "アサイン";
+
+  return `
+    <button
+      type="button"
+      class="secondary-button assign-candidate-btn"
+      data-internal-user-id="${escapeHtml(userId)}"
+      ${alreadyAssigned ? "disabled" : ""}
+    >
+      ${escapeHtml(buttonLabel)}
+    </button>
+  `;
+}
+
+function renderReplacementCandidateButtons(userId, alreadyAssigned, assignedMembers) {
+  if (alreadyAssigned) {
+    return `
+      <button
+        type="button"
+        class="secondary-button assign-candidate-btn"
+        data-internal-user-id="${escapeHtml(userId)}"
+        disabled
+      >
+        アサイン済み
+      </button>
+    `;
+  }
+
+  const replaceableMembers = assignedMembers.filter((member) => {
+    return getAssignmentId(member) && !isPendingAssignedMember(member);
+  });
+
+  if (!replaceableMembers.length) {
+    return `
+      <button
+        type="button"
+        class="secondary-button assign-candidate-btn"
+        data-internal-user-id="${escapeHtml(userId)}"
+        disabled
+      >
+        入れ替え不可
+      </button>
+    `;
+  }
+
+  return replaceableMembers
+    .map((member) => {
+      const assignmentId = getAssignmentId(member);
+      const memberName = getAssignedMemberName(member);
+      const buttonLabel =
+        replaceableMembers.length === 1
+          ? "入れ替え"
+          : `${memberName}と入替`;
+
+      return `
+        <button
+          type="button"
+          class="secondary-button assign-candidate-btn replace-candidate-btn"
+          data-internal-user-id="${escapeHtml(userId)}"
+          data-replace-assignment-id="${escapeHtml(assignmentId)}"
+        >
+          ${escapeHtml(buttonLabel)}
+        </button>
+      `;
+    })
+    .join("");
 }
 
 export function resetDetailPanel(elements) {
