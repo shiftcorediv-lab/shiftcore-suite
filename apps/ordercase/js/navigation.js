@@ -5,6 +5,15 @@
 
 
 /****************************************************
+ * 定数 ここから
+ ****************************************************/
+const ORDERCASE_DASHBOARD_URL = '../account-console/dashboard.html';
+/****************************************************
+ * 定数 ここまで
+ ****************************************************/
+
+
+/****************************************************
  * renderOrderCaseHeader ここから
  * 共通ヘッダーを描画
  ****************************************************/
@@ -25,6 +34,11 @@ function renderOrderCaseHeader(activePage, subtitle) {
       key: 'cases',
       label: '案件一覧',
       href: './cases.html'
+    },
+    {
+      key: 'dashboard',
+      label: 'Dashboardへ戻る',
+      href: ORDERCASE_DASHBOARD_URL
     }
   ];
 
