@@ -70,47 +70,47 @@
     </section>
 
     <section class="shiftbuilder-toolbar">
-  <div class="toolbar-group toolbar-month-group">
-    <label class="field-label" for="targetMonthInput">対象月</label>
+      <div class="toolbar-group toolbar-month-group">
+        <label class="field-label" for="targetMonthInput">対象月</label>
 
-    <div class="month-control-row">
-      <input id="targetMonthInput" type="month" class="field-input" />
+        <div class="month-control-row">
+          <input id="targetMonthInput" type="month" class="field-input" />
 
-      <button id="prevMonthBtn" type="button" class="secondary-button month-nav-button">
-        前月
-      </button>
+          <button id="prevMonthBtn" type="button" class="secondary-button month-nav-button">
+            前月
+          </button>
 
-      <button id="nextMonthBtn" type="button" class="secondary-button month-nav-button">
-        翌月
-      </button>
-    </div>
-  </div>
+          <button id="nextMonthBtn" type="button" class="secondary-button month-nav-button">
+            翌月
+          </button>
+        </div>
+      </div>
 
-  <div class="toolbar-group">
-    <label class="field-label" for="areaSelect">エリア</label>
-    <select id="areaSelect" class="field-input">
-      <option value="all">全エリア</option>
-      <option value="fukuoka">福岡</option>
-      <option value="kitakyushu">北九州</option>
-      <option value="kumamoto">熊本</option>
-      <option value="saga">佐賀</option>
-      <option value="nagasaki">長崎</option>
-      <option value="oita">大分</option>
-      <option value="miyazaki">宮崎</option>
-      <option value="kagoshima">鹿児島</option>
-    </select>
-  </div>
+      <div class="toolbar-group">
+        <label class="field-label" for="areaSelect">エリア</label>
+        <select id="areaSelect" class="field-input">
+          <option value="all">全エリア</option>
+          <option value="fukuoka">福岡</option>
+          <option value="kitakyushu">北九州</option>
+          <option value="kumamoto">熊本</option>
+          <option value="saga">佐賀</option>
+          <option value="nagasaki">長崎</option>
+          <option value="oita">大分</option>
+          <option value="miyazaki">宮崎</option>
+          <option value="kagoshima">鹿児島</option>
+        </select>
+      </div>
 
-  <div class="toolbar-actions toolbar-actions-inline">
-    <button id="loadShiftDataBtn" type="button" class="primary-button">
-      シフト表を表示
-    </button>
-  </div>
-</section>
+      <div class="toolbar-actions toolbar-actions-inline">
+        <button id="loadShiftDataBtn" type="button" class="primary-button">
+          シフト表を表示
+        </button>
+      </div>
+    </section>
 
     <section class="quick-view-grid" aria-label="クイックビュー">
       <div class="quick-view-card">
-        <div class="label">必要枠</div>
+        <div class="label">必要アサイン</div>
         <div id="requiredTotalText" class="quick-value">-</div>
       </div>
 
@@ -120,7 +120,7 @@
       </div>
 
       <div class="quick-view-card">
-        <div class="label">不足</div>
+        <div class="label">未充足</div>
         <div id="shortageTotalText" class="quick-value">-</div>
       </div>
 
@@ -130,12 +130,12 @@
       </div>
 
       <div class="quick-view-card">
-        <div class="label">未アサインセル</div>
+        <div class="label">未アサイン</div>
         <div id="unassignedCellText" class="quick-value">-</div>
       </div>
 
       <div class="quick-view-card">
-        <div class="label">超過セル</div>
+        <div class="label">超過</div>
         <div id="overCellText" class="quick-value">-</div>
       </div>
     </section>
@@ -171,21 +171,21 @@
       </section>
 
       <aside class="floating-panel" id="shiftDetailPanel">
-  <div class="floating-panel-header">
-    <div>
-      <div class="label">選択中のセル</div>
-      <h2 id="selectedCellTitle">未選択</h2>
-    </div>
+        <div class="floating-panel-header">
+          <div>
+            <div class="label">選択中のセル</div>
+            <h2 id="selectedCellTitle">未選択</h2>
+          </div>
 
-    <button
-      id="closeDetailPanelBtn"
-      type="button"
-      class="secondary-button detail-close-button"
-      aria-label="選択中セルの詳細を閉じる"
-    >
-      閉じる
-    </button>
-  </div>
+          <button
+            id="closeDetailPanelBtn"
+            type="button"
+            class="secondary-button detail-close-button"
+            aria-label="選択中セルの詳細を閉じる"
+          >
+            閉じる
+          </button>
+        </div>
 
         <div class="floating-panel-body">
           <p id="selectedCellSummary" class="hint">
