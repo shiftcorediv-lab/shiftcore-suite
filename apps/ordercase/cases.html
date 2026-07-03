@@ -420,7 +420,7 @@
         <div>
           <label for="statusFilter">ステータス</label>
           <select id="statusFilter">
-            <option value="">すべて</option>
+            <option value="">通常案件</option>
             <option value="received">受付済み</option>
             <option value="checking">確認中</option>
             <option value="confirmed">確定</option>
@@ -456,12 +456,14 @@
      * 状態 ここから
      ****************************************************/
     const state = {
-  cases: [],
-  caseTypes: [],
-  permission: ''
-};
+      cases: [],
+      caseTypes: [],
+      permission: ''
+    };
 
     let searchTimer = null;
+
+    const HIDDEN_IN_DEFAULT_STATUSES = ['cancelled', 'archived'];
     /****************************************************
      * 状態 ここまで
      ****************************************************/
@@ -553,7 +555,7 @@
 
         state.permission = json.permission || '';
         state.caseTypes = json.data.case_types || [];
-        state.cases = json.data.cases || [];
+        state.cases = filterCasesForDefaultList(json.data.cases || []);
 
         applyPermissionView();
         
@@ -572,6 +574,26 @@
     }
     /****************************************************
      * loadListPageData ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * filterCasesForDefaultList ここから
+     * ステータス未指定時はキャンセル・アーカイブを通常一覧から除外する
+     ****************************************************/
+    function filterCasesForDefaultList(cases) {
+      const selectedStatus = document.getElementById('statusFilter').value;
+
+      if (selectedStatus) {
+        return cases;
+      }
+
+      return cases.filter(item => {
+        return !HIDDEN_IN_DEFAULT_STATUSES.includes(String(item.status || ''));
+      });
+    }
+    /****************************************************
+     * filterCasesForDefaultList ここまで
      ****************************************************/
 
     
@@ -822,21 +844,21 @@
      * API・検索条件 ここから
      ****************************************************/
     function getListFilters() {
-  const forceRefreshFromUrl = getQueryParam('force_refresh');
-  const forceRefreshFromStorage = sessionStorage.getItem('ordercase_force_list_refresh');
+      const forceRefreshFromUrl = getQueryParam('force_refresh');
+      const forceRefreshFromStorage = sessionStorage.getItem('ordercase_force_list_refresh');
 
-  if (forceRefreshFromStorage === '1') {
-    sessionStorage.removeItem('ordercase_force_list_refresh');
-  }
+      if (forceRefreshFromStorage === '1') {
+        sessionStorage.removeItem('ordercase_force_list_refresh');
+      }
 
-  return {
-    keyword: document.getElementById('keyword').value.trim(),
-    target_month: document.getElementById('targetMonthFilter').value,
-    status: document.getElementById('statusFilter').value,
-    case_type: document.getElementById('caseTypeFilter').value,
-    force_refresh: forceRefreshFromUrl === '1' || forceRefreshFromStorage === '1' ? '1' : ''
-  };
-}
+      return {
+        keyword: document.getElementById('keyword').value.trim(),
+        target_month: document.getElementById('targetMonthFilter').value,
+        status: document.getElementById('statusFilter').value,
+        case_type: document.getElementById('caseTypeFilter').value,
+        force_refresh: forceRefreshFromUrl === '1' || forceRefreshFromStorage === '1' ? '1' : ''
+      };
+    }
     /****************************************************
      * API・検索条件 ここまで
      ****************************************************/
