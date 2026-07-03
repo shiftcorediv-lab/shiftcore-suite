@@ -121,6 +121,82 @@ function shouldInsertAgencyBreak(cases, index) {
   return currentAgencyName !== previousAgencyName;
 }
 
+function getFulfillmentStatus(caseItem) {
+  return String(
+    caseItem?.fulfillment_status ||
+      caseItem?.fulfillmentStatus ||
+      ""
+  ).trim() || "unfilled";
+}
+
+function getFulfillmentBadgeLabel(caseItem) {
+  return String(
+    caseItem?.fulfillment_badge_label ||
+      caseItem?.fulfillmentBadgeLabel ||
+      ""
+  ).trim();
+}
+
+function getFulfillmentDetailLabel(caseItem) {
+  return String(
+    caseItem?.fulfillment_label ||
+      caseItem?.fulfillmentLabel ||
+      ""
+  ).trim();
+}
+
+function getFulfillmentBadgeText(caseItem) {
+  const badgeLabel = getFulfillmentBadgeLabel(caseItem);
+  const status = getFulfillmentStatus(caseItem);
+
+  if (badgeLabel) {
+    return badgeLabel;
+  }
+
+  if (status === "fulfilled") {
+    return "充足";
+  }
+
+  if (status === "overfilled") {
+    return "超過";
+  }
+
+  return "未充足";
+}
+
+function getFulfillmentClass(caseItem) {
+  const status = getFulfillmentStatus(caseItem);
+
+  if (status === "fulfilled") {
+    return "case-fulfillment-fulfilled";
+  }
+
+  if (status === "overfilled") {
+    return "case-fulfillment-overfilled";
+  }
+
+  return "case-fulfillment-unfilled";
+}
+
+function renderFulfillmentBadge(caseItem) {
+  const status = getFulfillmentStatus(caseItem);
+  const badgeText = getFulfillmentBadgeText(caseItem);
+  const detailLabel = getFulfillmentDetailLabel(caseItem);
+
+  const title = detailLabel
+    ? `${badgeText} / ${detailLabel}`
+    : badgeText;
+
+  return `
+    <span
+      class="case-fulfillment-badge case-fulfillment-badge-${escapeHtml(status)}"
+      title="${escapeHtml(title)}"
+    >
+      ${escapeHtml(badgeText)}
+    </span>
+  `;
+}
+
 export function renderShiftTable(data, elements, handlers = {}) {
   const { shiftTableHead, shiftTableBody } = elements;
   const {
@@ -166,9 +242,14 @@ export function renderShiftTable(data, elements, handlers = {}) {
 
   shiftTableBody.innerHTML = cases
     .map((caseItem, index) => {
-      const rowClass = shouldInsertAgencyBreak(cases, index)
-        ? "case-agency-break"
-        : "";
+      const rowClasses = [
+        shouldInsertAgencyBreak(cases, index) ? "case-agency-break" : "",
+        getFulfillmentClass(caseItem)
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      const fulfillmentBadge = renderFulfillmentBadge(caseItem);
 
       const dateCells = dates
         .map((dateItem) => {
@@ -210,10 +291,13 @@ export function renderShiftTable(data, elements, handlers = {}) {
         .join("");
 
       return `
-        <tr class="${escapeHtml(rowClass)}">
+        <tr class="${escapeHtml(rowClasses)}">
           <td class="case-cell">
             <div class="case-title">${escapeHtml(caseItem.title)}</div>
             <div class="case-meta">${escapeHtml(caseItem.client)} / ${escapeHtml(caseItem.area)}</div>
+            <div class="case-fulfillment-row">
+              ${fulfillmentBadge}
+            </div>
             <div class="case-id">${escapeHtml(caseItem.caseId)}</div>
           </td>
           ${dateCells}
