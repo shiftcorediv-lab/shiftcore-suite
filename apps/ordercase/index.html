@@ -457,32 +457,34 @@ input[type="time"] {
     </section>
 
     <section>
-      <h2>必要人数・必要枠</h2>
+      <h2>必要人数・作成件数</h2>
 
       <p class="hint">
-        「必要枠数」は、稼働ライン・ブース・売り場面の数です。<br>
-        例：出張販売1ブースに2人必要な場合は「必要枠数 1」「1枠あたり人数 2」になります。
+        ShiftBuilderでは、1案件を1人分・1列として扱います。<br>
+        同じ条件で複数名必要な場合は、同条件の案件を人数分作成します。
       </p>
 
       <div class="grid three">
         <div>
+          <label for="sameConditionCount">同条件で作成する件数</label>
+          <input id="sameConditionCount" type="number" min="1" max="20" value="1" />
+          <p class="hint">例：同月・同店舗で3名必要なら 3</p>
+        </div>
+
+        <div>
           <label for="requiredLines">必要枠数</label>
-          <input id="requiredLines" type="number" min="1" value="1" />
-          <p class="hint">例：1ブースなら 1、2ブースなら 2</p>
+          <input id="requiredLines" type="number" min="1" value="1" readonly />
+          <p class="hint">1案件1人分のため 1 固定</p>
         </div>
 
         <div>
-          <label for="peoplePerLine">1枠あたり人数</label>
-          <input id="peoplePerLine" type="number" min="1" value="1" />
-          <p class="hint">例：1ブースに2人なら 2</p>
-        </div>
-
-        <div>
-          <label for="requiredPeople">必要人数</label>
-          <input id="requiredPeople" type="number" readonly />
-          <p class="hint">必要枠数 × 1枠あたり人数で自動計算</p>
+          <label for="requiredPeople">1案件あたり必要人数</label>
+          <input id="requiredPeople" type="number" value="1" readonly />
+          <p class="hint">1案件 = 1人分</p>
         </div>
       </div>
+
+      <input id="peoplePerLine" type="hidden" value="1" />
     </section>
 
     <section id="datesSection">
@@ -684,11 +686,9 @@ input[type="time"] {
         'inputMode',
         'storeArea',
         'workArea',
-        'requiredLines',
-        'peoplePerLine',
+        'sameConditionCount',
         'requestedDays',
-        'workLocation'
-      ].forEach(id => {
+        'workLocation'      ].forEach(id => {
         const el = document.getElementById(id);
         if (el) {
           el.addEventListener('input', handleInputChange);
@@ -1144,8 +1144,8 @@ input[type="time"] {
       } else {
         state.selectedDates.push({
           work_date: date,
-          required_lines: Number(document.getElementById('requiredLines').value || 1),
-          people_per_line: Number(document.getElementById('peoplePerLine').value || 1),
+          required_lines: 1,
+          people_per_line: 1,
           memo: ''
         });
       }
@@ -1181,14 +1181,11 @@ input[type="time"] {
 
         row.innerHTML = `
           <div class="date-row-title">${item.work_date}</div>
-          <div class="grid three">
+          <div class="grid two">
             <div>
-              <label>必要枠数</label>
-              <input type="number" min="1" value="${item.required_lines}" data-date-index="${index}" data-field="required_lines">
-            </div>
-            <div>
-              <label>1枠あたり人数</label>
-              <input type="number" min="1" value="${item.people_per_line}" data-date-index="${index}" data-field="people_per_line">
+              <label>必要数</label>
+              <input type="text" value="1人分" readonly>
+              <p class="hint">複数名必要な場合は、同条件で作成する件数を増やしてください。</p>
             </div>
             <div>
               <label>日別メモ</label>
@@ -1197,7 +1194,7 @@ input[type="time"] {
           </div>
         `;
 
-        row.querySelectorAll('input').forEach(input => {
+        row.querySelectorAll('input[data-field="memo"]').forEach(input => {
           input.addEventListener('input', updateDateDetail);
         });
 
@@ -1217,11 +1214,16 @@ input[type="time"] {
       const field = event.target.dataset.field;
       const value = event.target.value;
 
-      if (field === 'required_lines' || field === 'people_per_line') {
-        state.selectedDates[index][field] = Number(value || 1);
-      } else {
-        state.selectedDates[index][field] = value;
+      if (!state.selectedDates[index]) {
+        return;
       }
+
+      if (field === 'memo') {
+        state.selectedDates[index].memo = value;
+      }
+
+      state.selectedDates[index].required_lines = 1;
+      state.selectedDates[index].people_per_line = 1;
 
       updateSummary();
     }
@@ -1266,9 +1268,9 @@ input[type="time"] {
      * updateRequiredPeople ここから
      ****************************************************/
     function updateRequiredPeople() {
-      const lines = Number(document.getElementById('requiredLines').value || 1);
-      const people = Number(document.getElementById('peoplePerLine').value || 1);
-      document.getElementById('requiredPeople').value = lines * people;
+      document.getElementById('requiredLines').value = 1;
+      document.getElementById('peoplePerLine').value = 1;
+      document.getElementById('requiredPeople').value = 1;
     }
     /****************************************************
      * updateRequiredPeople ここまで
@@ -1298,12 +1300,17 @@ input[type="time"] {
         }
 
         const createdCaseId = json.data.case_id;
+        const createdCount = Number(json.data.created_count || 1);
 
-sessionStorage.setItem('ordercase_force_list_refresh', '1');
+        sessionStorage.setItem('ordercase_force_list_refresh', '1');
 
-clearFormAfterSubmit();
-        
-        setMessage(`登録完了：${createdCaseId}　続けて登録できます。`, 'success');
+        clearFormAfterSubmit();
+
+        if (createdCount > 1) {
+          setMessage(`登録完了：${createdCount}件作成しました。代表ID：${createdCaseId}　続けて登録できます。`, 'success');
+        } else {
+          setMessage(`登録完了：${createdCaseId}　続けて登録できます。`, 'success');
+        }
 
         scrollToPageTop();
 
@@ -1328,6 +1335,7 @@ clearFormAfterSubmit();
     function buildPayload() {
       const inputMode = document.getElementById('inputMode').value;
       const storeArea = document.getElementById('storeArea').value;
+      const sameConditionCount = Number(document.getElementById('sameConditionCount').value || 1);
 
       return {
         target_month: document.getElementById('targetMonth').value,
@@ -1350,8 +1358,9 @@ clearFormAfterSubmit();
 
         requested_days: inputMode === 'days' ? document.getElementById('requestedDays').value : '',
 
-        required_lines: Number(document.getElementById('requiredLines').value || 1),
-        people_per_line: Number(document.getElementById('peoplePerLine').value || 1),
+        required_lines: 1,
+        people_per_line: 1,
+        same_condition_count: sameConditionCount,
         required_skill: document.getElementById('requiredSkill').value || 'any',
 
         amount: document.getElementById('amount').value,
@@ -1366,7 +1375,14 @@ clearFormAfterSubmit();
         created_by: '画面登録',
         created_by_email: '',
 
-        case_dates: inputMode === 'dates' ? state.selectedDates : []
+        case_dates: inputMode === 'dates'
+          ? state.selectedDates.map(item => ({
+              work_date: item.work_date,
+              required_lines: 1,
+              people_per_line: 1,
+              memo: item.memo || ''
+            }))
+          : []
       };
     }
     /****************************************************
@@ -1383,6 +1399,13 @@ clearFormAfterSubmit();
       if (!payload.agency_name) throw new Error('代理店名を入力してください。');
       if (!payload.store_name) throw new Error('連携店舗を入力してください。');
       if (!payload.store_area) throw new Error('連携店舗エリアを選択してください。');
+            if (!Number.isFinite(payload.same_condition_count) || payload.same_condition_count < 1) {
+        throw new Error('同条件で作成する件数は1以上で入力してください。');
+      }
+
+      if (payload.same_condition_count > 20) {
+        throw new Error('同条件で作成する件数は20件以下で入力してください。');
+      }
 
       if (payload.input_mode === 'dates' && payload.case_dates.length === 0) {
         throw new Error('日付指定の場合、日付を1つ以上選択してください。');
@@ -1416,6 +1439,7 @@ clearFormAfterSubmit();
       document.getElementById('requiredLines').value = 1;
       document.getElementById('peoplePerLine').value = 1;
       document.getElementById('requiredPeople').value = 1;
+      document.getElementById('sameConditionCount').value = 1;
 
       document.getElementById('requestedDays').value = '';
 
@@ -1451,9 +1475,7 @@ clearFormAfterSubmit();
      ****************************************************/
     function updateSummary() {
       const mode = document.getElementById('inputMode').value;
-      const lines = Number(document.getElementById('requiredLines').value || 1);
-      const ppl = Number(document.getElementById('peoplePerLine').value || 1);
-      const people = lines * ppl;
+      const sameConditionCount = Number(document.getElementById('sameConditionCount').value || 1);
 
       const dateText = mode === 'dates'
         ? `選択日数：${state.selectedDates.length}日`
@@ -1462,7 +1484,8 @@ clearFormAfterSubmit();
       document.getElementById('summaryBox').innerHTML = `
         入力方式：${mode === 'dates' ? '日付指定' : '日数指定'}<br>
         ${dateText}<br>
-        必要数：${lines}枠 × ${ppl}人 = ${people}人
+        1案件あたり：1人分<br>
+        作成件数：${sameConditionCount}件
       `;
     }
     /****************************************************
