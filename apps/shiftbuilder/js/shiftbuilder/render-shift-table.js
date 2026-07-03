@@ -121,57 +121,128 @@ function shouldInsertAgencyBreak(cases, index) {
   return currentAgencyName !== previousAgencyName;
 }
 
-function getFulfillmentStatus(caseItem) {
+function getCaseInputMode(caseItem) {
   return String(
-    caseItem?.fulfillment_status ||
-      caseItem?.fulfillmentStatus ||
-      ""
-  ).trim() || "unfilled";
-}
-
-function getFulfillmentBadgeLabel(caseItem) {
-  return String(
-    caseItem?.fulfillment_badge_label ||
-      caseItem?.fulfillmentBadgeLabel ||
+    caseItem?.input_mode ||
+      caseItem?.inputMode ||
       ""
   ).trim();
 }
 
-function getFulfillmentDetailLabel(caseItem) {
-  return String(
-    caseItem?.fulfillment_label ||
-      caseItem?.fulfillmentLabel ||
-      ""
-  ).trim();
+function getCaseRequestedDays(caseItem) {
+  const value =
+    caseItem?.requested_days ??
+    caseItem?.requestedDays ??
+    0;
+
+  const number = Number(value);
+
+  return Number.isFinite(number) ? number : 0;
 }
 
-function getFulfillmentBadgeText(caseItem) {
-  const badgeLabel = getFulfillmentBadgeLabel(caseItem);
-  const status = getFulfillmentStatus(caseItem);
+function buildLiveCaseFulfillment(caseItem) {
+  const inputMode = getCaseInputMode(caseItem);
+  const isDaysMode = inputMode === "days";
+  const cells = caseItem?.cells || {};
 
-  if (badgeLabel) {
-    return badgeLabel;
+  if (isDaysMode) {
+    return buildLiveDaysModeFulfillment(caseItem, cells);
   }
 
-  if (status === "fulfilled") {
-    return "充足";
+  return buildLiveDatesModeFulfillment(cells);
+}
+
+function buildLiveDaysModeFulfillment(caseItem, cells) {
+  const requiredTotal = getCaseRequestedDays(caseItem);
+  let assignedDateCount = 0;
+  let sameDayOverTotal = 0;
+
+  Object.keys(cells || {}).forEach((dateKey) => {
+    const cell = cells[dateKey] || {};
+    const assignedCount = Array.isArray(cell.assigned) ? cell.assigned.length : 0;
+
+    if (assignedCount > 0) {
+      assignedDateCount++;
+    }
+
+    if (assignedCount > 1) {
+      sameDayOverTotal += assignedCount - 1;
+    }
+  });
+
+  const remainingTotal = Math.max(requiredTotal - assignedDateCount, 0);
+  const overDaysTotal = Math.max(assignedDateCount - requiredTotal, 0);
+  const overTotal = overDaysTotal + sameDayOverTotal;
+
+  let status = "unfilled";
+  let badgeLabel = `あと${remainingTotal}日`;
+
+  if (requiredTotal <= 0) {
+    status = "unfilled";
+    badgeLabel = "日数未設定";
+  } else if (sameDayOverTotal > 0) {
+    status = "overfilled";
+    badgeLabel = `同日超過${sameDayOverTotal}`;
+  } else if (overDaysTotal > 0) {
+    status = "overfilled";
+    badgeLabel = `超過${overDaysTotal}日`;
+  } else if (remainingTotal === 0) {
+    status = "fulfilled";
+    badgeLabel = "充足";
   }
 
-  if (status === "overfilled") {
-    return "超過";
+  return {
+    status,
+    badgeLabel,
+    detailLabel: `日数指定：${assignedDateCount}/${requiredTotal}日`
+  };
+}
+
+function buildLiveDatesModeFulfillment(cells) {
+  let requiredTotal = 0;
+  let assignedTotal = 0;
+
+  Object.keys(cells || {}).forEach((dateKey) => {
+    const cell = cells[dateKey] || {};
+    const requiredCount = Number(cell.required || 0);
+    const assignedCount = Array.isArray(cell.assigned) ? cell.assigned.length : 0;
+
+    requiredTotal += Number.isFinite(requiredCount) ? requiredCount : 0;
+    assignedTotal += assignedCount;
+  });
+
+  const remainingTotal = Math.max(requiredTotal - assignedTotal, 0);
+  const overTotal = Math.max(assignedTotal - requiredTotal, 0);
+
+  let status = "unfilled";
+  let badgeLabel = `あと${remainingTotal}枠`;
+
+  if (requiredTotal <= 0) {
+    status = "unfilled";
+    badgeLabel = "必要数未設定";
+  } else if (overTotal > 0) {
+    status = "overfilled";
+    badgeLabel = `超過${overTotal}枠`;
+  } else if (remainingTotal === 0) {
+    status = "fulfilled";
+    badgeLabel = "充足";
   }
 
-  return "未充足";
+  return {
+    status,
+    badgeLabel,
+    detailLabel: `日付指定：${assignedTotal}/${requiredTotal}枠`
+  };
 }
 
 function getFulfillmentClass(caseItem) {
-  const status = getFulfillmentStatus(caseItem);
+  const fulfillment = buildLiveCaseFulfillment(caseItem);
 
-  if (status === "fulfilled") {
+  if (fulfillment.status === "fulfilled") {
     return "case-fulfillment-fulfilled";
   }
 
-  if (status === "overfilled") {
+  if (fulfillment.status === "overfilled") {
     return "case-fulfillment-overfilled";
   }
 
@@ -179,20 +250,18 @@ function getFulfillmentClass(caseItem) {
 }
 
 function renderFulfillmentBadge(caseItem) {
-  const status = getFulfillmentStatus(caseItem);
-  const badgeText = getFulfillmentBadgeText(caseItem);
-  const detailLabel = getFulfillmentDetailLabel(caseItem);
+  const fulfillment = buildLiveCaseFulfillment(caseItem);
 
-  const title = detailLabel
-    ? `${badgeText} / ${detailLabel}`
-    : badgeText;
+  const title = fulfillment.detailLabel
+    ? `${fulfillment.badgeLabel} / ${fulfillment.detailLabel}`
+    : fulfillment.badgeLabel;
 
   return `
     <span
-      class="case-fulfillment-badge case-fulfillment-badge-${escapeHtml(status)}"
+      class="case-fulfillment-badge case-fulfillment-badge-${escapeHtml(fulfillment.status)}"
       title="${escapeHtml(title)}"
     >
-      ${escapeHtml(badgeText)}
+      ${escapeHtml(fulfillment.badgeLabel)}
     </span>
   `;
 }
