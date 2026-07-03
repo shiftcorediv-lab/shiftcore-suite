@@ -14,5 +14,6 @@ export const MODULE_NAME_MAP = {
   account: "アカウント基盤",
   account_console: "Account Console",
   pmo: "希望休回収 / PMO",
-  shift: "シフト作成 / 公開"
+  shift: "シフト作成 / ShiftBuilder",
+  shiftbuilder: "シフト作成 / ShiftBuilder"
 };
