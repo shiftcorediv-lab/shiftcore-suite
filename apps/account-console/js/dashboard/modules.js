@@ -2,18 +2,18 @@ import { MODULE_NAME_MAP } from "./config.js";
 import { moduleList } from "./dom.js";
 import { openModule } from "./navigation.js";
 
-const OPENABLE_MODULE_CODES = [
-  "pmo",
-  "account",
-  "account_console",
-  "shift",
-  "shiftbuilder",
-  "ordercase",
-  "order_case"
-];
+const OPENABLE_MODULE_MAP = {
+  pmo: true,
+  account: true,
+  account_console: true,
+  shift: true,
+  shiftbuilder: true,
+  ordercase: true,
+  order_case: true
+};
 
 function canShowModule(moduleCode, user) {
-  const role = String(user?.role || "").trim().toLowerCase();
+  const role = String((user && user.role) || "").trim().toLowerCase();
 
   if (moduleCode === "account") {
     return role === "admin" || role === "developer" || role === "dev";
@@ -26,24 +26,8 @@ function canShowModule(moduleCode, user) {
   return true;
 }
 
-function normalizeVisibleModules(modules) {
-  if (!Array.isArray(modules)) {
-    return [];
-  }
-
-  const uniqueModules = [];
-
-  modules.forEach((moduleCode) => {
-    if (!uniqueModules.includes(moduleCode)) {
-      uniqueModules.push(moduleCode);
-    }
-  });
-
-  return uniqueModules;
-}
-
 function canOpenModule(moduleCode) {
-  return OPENABLE_MODULE_CODES.includes(moduleCode);
+  return OPENABLE_MODULE_MAP[moduleCode] === true;
 }
 
 export function renderModules(modules, user, setStatus) {
@@ -53,31 +37,51 @@ export function renderModules(modules, user, setStatus) {
 
   moduleList.innerHTML = "";
 
-  const visibleModules = normalizeVisibleModules(modules)
-    .filter((moduleCode) => canShowModule(moduleCode, user));
+  const sourceModules = Array.isArray(modules) ? modules : [];
+  const visibleModules = [];
+
+  sourceModules.forEach(function(moduleCode) {
+    const normalizedModuleCode = String(moduleCode || "").trim();
+
+    if (!normalizedModuleCode) {
+      return;
+    }
+
+    if (visibleModules.includes(normalizedModuleCode)) {
+      return;
+    }
+
+    if (!canShowModule(normalizedModuleCode, user)) {
+      return;
+    }
+
+    visibleModules.push(normalizedModuleCode);
+  });
 
   if (visibleModules.length === 0) {
     moduleList.innerHTML = "<div class='module-card'><div class='module-card-title'>利用可能モジュールなし</div></div>";
     return;
   }
 
-  visibleModules.forEach((moduleCode) => {
+  visibleModules.forEach(function(moduleCode) {
     const card = document.createElement("div");
+    const title = document.createElement("div");
+    const code = document.createElement("div");
+    const button = document.createElement("button");
+
     card.className = "module-card";
 
-    const title = document.createElement("div");
     title.className = "module-card-title";
     title.textContent = MODULE_NAME_MAP[moduleCode] || moduleCode;
 
-    const code = document.createElement("div");
     code.className = "module-card-code";
     code.textContent = "module_code: " + moduleCode;
 
-    const button = document.createElement("button");
-
     if (canOpenModule(moduleCode)) {
       button.textContent = "開く";
-      button.addEventListener("click", () => openModule(moduleCode, setStatus));
+      button.addEventListener("click", function() {
+        openModule(moduleCode, setStatus);
+      });
     } else {
       button.textContent = "準備中";
       button.disabled = true;
@@ -86,6 +90,7 @@ export function renderModules(modules, user, setStatus) {
     card.appendChild(title);
     card.appendChild(code);
     card.appendChild(button);
+
     moduleList.appendChild(card);
   });
 }
