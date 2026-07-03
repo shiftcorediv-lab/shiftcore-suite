@@ -605,9 +605,12 @@ input[type="time"] {
      * 初期化 ここから
      ****************************************************/
     document.addEventListener('DOMContentLoaded', async () => {
+      showLoading('画面を準備中...');
+
       try {
         renderOrderCaseHeader('index', '案件登録フォーム v1');
 
+        showLoading('権限を確認中...');
         await requireEditablePermissionForEntryPage();
 
         setupDefaultDates();
@@ -621,6 +624,7 @@ input[type="time"] {
         updateSummary();
 
       } catch (error) {
+        hideLoading();
         console.error(error);
         setMessage('初期化エラー: ' + error.message, 'error');
         disableEntryForm();
@@ -683,14 +687,14 @@ input[type="time"] {
      * setupDefaultDates ここから
      ****************************************************/
     function setupDefaultDates() {
-  const now = new Date();
-  const targetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      const now = new Date();
+      const targetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-  const yyyy = targetDate.getFullYear();
-  const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
+      const yyyy = targetDate.getFullYear();
+      const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
 
-  document.getElementById('targetMonth').value = `${yyyy}-${mm}`;
-}
+      document.getElementById('targetMonth').value = `${yyyy}-${mm}`;
+    }
     /****************************************************
      * setupDefaultDates ここまで
      ****************************************************/
