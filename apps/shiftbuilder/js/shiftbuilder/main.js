@@ -1455,7 +1455,7 @@ async function replaceAssignmentFromSelectedCell(internalUserId, replaceAssignme
     }
 
     refreshActiveActionPopover();
-  } catch (error) {
+    } catch (error) {
     console.error("[ShiftBuilder] replace assignment error:", error);
 
     const found = findShiftCell(caseId, workDate);
@@ -1468,6 +1468,17 @@ async function replaceAssignmentFromSelectedCell(internalUserId, replaceAssignme
       }
 
       renderCurrentShiftView();
+    }
+
+    try {
+      await loadMockShiftData({
+        reloadCandidates: true,
+        silent: true,
+        preserveSelectedCell: true,
+        suppressStatus: true
+      });
+    } catch (reloadError) {
+      console.error("[ShiftBuilder] replace failure reload error:", reloadError);
     }
 
     setStatus(error.message || String(error));
