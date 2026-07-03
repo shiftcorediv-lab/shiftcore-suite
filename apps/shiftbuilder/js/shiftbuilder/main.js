@@ -409,11 +409,18 @@ function getOrCreateCellPopover() {
 
     if (assignButton) {
       assignButton.disabled = true;
-      assignButton.textContent = "反映中...";
 
       const internalUserId = assignButton.dataset.internalUserId || "";
+      const replaceAssignmentId = assignButton.dataset.replaceAssignmentId || "";
 
-      createAssignmentFromSelectedCell(internalUserId);
+      if (replaceAssignmentId) {
+        assignButton.textContent = "入替中...";
+        replaceAssignmentFromSelectedCell(internalUserId, replaceAssignmentId);
+      } else {
+        assignButton.textContent = "反映中...";
+        createAssignmentFromSelectedCell(internalUserId);
+      }
+
       return;
     }
 
@@ -1276,6 +1283,212 @@ async function createAssignmentFromSelectedCell(internalUserId) {
   }
 }
 
+async function replaceAssignmentFromSelectedCell(internalUserId, replaceAssignmentId) {
+  const selectedCell = getSelectedCell();
+
+  if (!selectedCell) {
+    setStatus("入れ替えにはセル選択が必要です。");
+    return;
+  }
+
+  const { caseItem, dateItem, cell } = selectedCell;
+  const targetInternalUserId = String(internalUserId || "").trim();
+  const targetReplaceAssignmentId = String(replaceAssignmentId || "").trim();
+
+  if (!targetInternalUserId || !targetReplaceAssignmentId) {
+    setStatus("入れ替え対象または候補者を取得できませんでした。");
+    if (elements.assignmentCandidateStatus) {
+      elements.assignmentCandidateStatus.textContent = "入れ替え対象または候補者を取得できませんでした。";
+    }
+    return;
+  }
+
+  const previousAssigned = Array.isArray(cell.assigned)
+    ? [...cell.assigned]
+    : [];
+
+  const replaceIndex = previousAssigned.findIndex((member) => {
+    return String(member.assignment_id || member.assignmentId || "") === targetReplaceAssignmentId;
+  });
+
+  if (replaceIndex < 0) {
+    setStatus("入れ替え対象のアサインが見つかりませんでした。");
+    if (elements.assignmentCandidateStatus) {
+      elements.assignmentCandidateStatus.textContent = "入れ替え対象のアサインが見つかりませんでした。";
+    }
+    return;
+  }
+
+  const alreadyAssigned = previousAssigned.some((member) => {
+    return String(member.internal_user_id || member.internalUserId || "") === targetInternalUserId;
+  });
+
+  if (alreadyAssigned) {
+    setStatus("このユーザーはすでに選択セルにアサイン済みです。");
+    if (elements.assignmentCandidateStatus) {
+      elements.assignmentCandidateStatus.textContent = "同じユーザーには入れ替えできません。";
+    }
+    return;
+  }
+
+  if (hasSameDayAssignmentForUser(targetInternalUserId, selectedCell)) {
+    const sameDayAssignments = getSameDayAssignmentsForUser(
+      targetInternalUserId,
+      selectedCell
+    );
+
+    const caseTitles = sameDayAssignments
+      .map((item) => item.caseTitle)
+      .join(" / ");
+
+    setStatus(`このユーザーは同日に別案件へアサイン済みです：${caseTitles}`);
+
+    if (elements.assignmentCandidateStatus) {
+      elements.assignmentCandidateStatus.textContent =
+        `同日別案件あり：${caseTitles}`;
+    }
+
+    refreshActiveActionPopover();
+
+    return;
+  }
+
+  const caseId = caseItem.caseId;
+  const workDate = dateItem.date;
+  const pendingAssignmentId = createPendingAssignmentId();
+
+  const optimisticMember = buildAssignedMemberFromCandidate(
+    targetInternalUserId,
+    null,
+    pendingAssignmentId
+  );
+
+  optimisticMember.assignment_status = "saving";
+  optimisticMember.assignment_note = "入れ替え保存中...";
+  optimisticMember.note = "入れ替え保存中...";
+  optimisticMember.is_pending = true;
+  optimisticMember.isPending = true;
+
+  cell.assigned = previousAssigned.map((member, index) => {
+    return index === replaceIndex ? optimisticMember : member;
+  });
+
+  setSelectedCell({
+    caseItem,
+    dateItem,
+    cell
+  });
+
+  renderCurrentShiftView();
+
+  setStatus(`入れ替えを反映しました：${caseItem.title} ${dateItem.label} / ${targetInternalUserId}`);
+
+  if (elements.assignmentCandidateStatus) {
+    elements.assignmentCandidateStatus.textContent = "入れ替えを保存中です。";
+  }
+
+  let createResult = null;
+
+  try {
+    let session = getCurrentSession();
+
+    if (!session || !session.isLoggedIn || !session.idToken) {
+      session = await requireShiftBuilderSession();
+      setCurrentSession(session);
+    }
+
+    if (!session.isLoggedIn) {
+      renderNoLogin(session);
+      return;
+    }
+
+    const shiftData = getCurrentShiftData();
+    const targetMonth =
+      shiftData?.month ||
+      elements.targetMonthInput?.value ||
+      getNextMonthValue();
+
+    createResult = await createShiftBuilderAssignment(session.idToken, {
+      targetMonth: targetMonth,
+      area: caseItem.area || elements.areaSelect?.value || "all",
+      caseId: caseId,
+      caseDateId: cell.case_date_id || "",
+      workDate: workDate,
+      internalUserId: targetInternalUserId,
+      assignmentNote: "ShiftBuilder画面から入れ替え"
+    });
+
+    console.log("[ShiftBuilder] replace create assignment result:", createResult);
+
+    if (!createResult || createResult.success !== true) {
+      throw new Error(createResult?.message || "入れ替え先アサインの作成に失敗しました");
+    }
+
+    const createdAssignmentId = extractAssignmentIdFromResult(createResult);
+
+    if (!createdAssignmentId) {
+      throw new Error("入れ替え先アサインの assignment_id を取得できませんでした");
+    }
+
+    const archiveResult = await archiveShiftBuilderAssignment(
+      session.idToken,
+      targetReplaceAssignmentId
+    );
+
+    console.log("[ShiftBuilder] replace archive assignment result:", archiveResult);
+
+    if (!archiveResult || archiveResult.success !== true) {
+      throw new Error(archiveResult?.message || "入れ替え元アサインの解除に失敗しました");
+    }
+
+    const updated = updatePendingAssignment(
+      caseId,
+      workDate,
+      pendingAssignmentId,
+      createResult
+    );
+
+    if (!updated) {
+      await loadMockShiftData({
+        reloadCandidates: false,
+        silent: true,
+        preserveSelectedCell: true,
+        suppressStatus: true
+      });
+    }
+
+    setStatus(`入れ替えを保存しました：${caseItem.title} ${dateItem.label} / ${targetInternalUserId}`);
+
+    if (elements.assignmentCandidateStatus) {
+      elements.assignmentCandidateStatus.textContent = "入れ替えを保存しました。";
+    }
+
+    refreshActiveActionPopover();
+  } catch (error) {
+    console.error("[ShiftBuilder] replace assignment error:", error);
+
+    const found = findShiftCell(caseId, workDate);
+
+    if (found?.cell) {
+      found.cell.assigned = previousAssigned;
+
+      if (isSelectedCellKey(caseId, workDate)) {
+        setSelectedCell(found);
+      }
+
+      renderCurrentShiftView();
+    }
+
+    setStatus(error.message || String(error));
+
+    if (elements.assignmentCandidateStatus) {
+      elements.assignmentCandidateStatus.textContent = error.message || String(error);
+    }
+
+    refreshActiveActionPopover();
+  }
+}
+
 async function archiveAssignmentFromButton(assignmentId) {
   if (!assignmentId) {
     setStatus("解除対象の assignment_id が取得できませんでした。");
@@ -1462,11 +1675,17 @@ elements.assignmentCandidateList?.addEventListener("click", (event) => {
   }
 
   button.disabled = true;
-  button.textContent = "反映中...";
 
   const internalUserId = button.dataset.internalUserId || "";
+  const replaceAssignmentId = button.dataset.replaceAssignmentId || "";
 
-  createAssignmentFromSelectedCell(internalUserId);
+  if (replaceAssignmentId) {
+    button.textContent = "入替中...";
+    replaceAssignmentFromSelectedCell(internalUserId, replaceAssignmentId);
+  } else {
+    button.textContent = "反映中...";
+    createAssignmentFromSelectedCell(internalUserId);
+  }
 });
 
 elements.assignedMembersList?.addEventListener("click", (event) => {
