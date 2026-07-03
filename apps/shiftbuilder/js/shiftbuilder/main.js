@@ -988,7 +988,7 @@ async function loadMockShiftData(options = {}) {
 
     if (!session.isLoggedIn) {
       renderNoLogin(session);
-      return;
+      throw new Error("ログイン状態を確認できなかったため、入れ替えを保存できませんでした。");
     }
 
     setCurrentSession(session);
