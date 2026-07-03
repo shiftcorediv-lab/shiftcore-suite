@@ -44,6 +44,40 @@ async function buildParamsWithAuth_(params) {
  * buildParamsWithAuth_ ここまで
  ****************************************************/
 
+/****************************************************
+ * parseApiJsonResponse_ ここから
+ * APIレスポンスをJSONとして解析する
+ * JSONでない場合は原因調査しやすい情報を出す
+ ****************************************************/
+async function parseApiJsonResponse_(res, context) {
+  const text = await res.text();
+
+  let json;
+
+  try {
+    json = JSON.parse(text);
+  } catch (error) {
+    console.error('OrderCase API non-JSON response', {
+      context: context || '',
+      status: res.status,
+      statusText: res.statusText,
+      url: res.url,
+      responseText: text
+    });
+
+    throw new Error(
+      'APIの返答がJSONではありません。status=' +
+      res.status +
+      ' / ' +
+      text.slice(0, 220)
+    );
+  }
+
+  return json;
+}
+/****************************************************
+ * parseApiJsonResponse_ ここまで
+ ****************************************************/
 
 /****************************************************
  * fetchApiJsonWithParams ここから
@@ -53,17 +87,8 @@ async function fetchApiJsonWithParams(action, params, options = {}) {
   const url = buildApiUrlWithParams(action, paramsWithAuth);
 
   const res = await fetch(url, options);
-  const text = await res.text();
 
-  let json;
-
-  try {
-    json = JSON.parse(text);
-  } catch (error) {
-    throw new Error('APIの返答がJSONではありません: ' + text.slice(0, 120));
-  }
-
-  return json;
+  return parseApiJsonResponse_(res, action);
 }
 /****************************************************
  * fetchApiJsonWithParams ここまで
@@ -100,17 +125,7 @@ async function postCreateCase(payload) {
     })
   });
 
-  const text = await res.text();
-
-  let json;
-
-  try {
-    json = JSON.parse(text);
-  } catch (error) {
-    throw new Error('APIの返答がJSONではありません: ' + text.slice(0, 120));
-  }
-
-  return json;
+  return parseApiJsonResponse_(res, 'createCase');
 }
 /****************************************************
  * postCreateCase ここまで
@@ -141,17 +156,7 @@ async function postUpdateCase(payload) {
     })
   });
 
-  const text = await res.text();
-
-  let json;
-
-  try {
-    json = JSON.parse(text);
-  } catch (error) {
-    throw new Error('APIの返答がJSONではありません: ' + text.slice(0, 120));
-  }
-
-  return json;
+  return parseApiJsonResponse_(res, 'updateCase');
 }
 /****************************************************
  * postUpdateCase ここまで
