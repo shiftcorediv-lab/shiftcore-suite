@@ -789,9 +789,7 @@ function renderCurrentShiftView() {
     requiredTotalText: elements.requiredTotalText,
     assignedTotalText: elements.assignedTotalText,
     shortageTotalText: elements.shortageTotalText,
-    completionRateText: elements.completionRateText,
-    unassignedCellText: elements.unassignedCellText,
-    overCellText: elements.overCellText
+    completionRateText: elements.completionRateText
   });
 
   renderShiftTable(
@@ -1653,16 +1651,20 @@ elements.reloadBtn?.addEventListener("click", () => {
   window.location.reload();
 });
 
-elements.loadShiftDataBtn?.addEventListener("click", () => {
-  loadMockShiftData();
-});
-
 elements.prevMonthBtn?.addEventListener("click", () => {
   moveTargetMonth(-1);
 });
 
 elements.nextMonthBtn?.addEventListener("click", () => {
   moveTargetMonth(1);
+});
+
+elements.targetMonthInput?.addEventListener("change", () => {
+  loadMockShiftData();
+});
+
+elements.areaSelect?.addEventListener("change", () => {
+  loadMockShiftData();
 });
 
 elements.closeDetailPanelBtn?.addEventListener("click", () => {
