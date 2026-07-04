@@ -4,8 +4,6 @@ export function calculateSummary(data) {
   let requiredTotal = 0;
   let assignedTotal = 0;
   let shortageTotal = 0;
-  let unassignedCellCount = 0;
-  let overCellCount = 0;
 
   data.cases.forEach((caseItem) => {
     data.dates.forEach((dateItem) => {
@@ -24,14 +22,6 @@ export function calculateSummary(data) {
       if (assignedCount < required) {
         shortageTotal += required - assignedCount;
       }
-
-      if (required > 0 && assignedCount === 0) {
-        unassignedCellCount += 1;
-      }
-
-      if (assignedCount > required) {
-        overCellCount += 1;
-      }
     });
   });
 
@@ -44,9 +34,7 @@ export function calculateSummary(data) {
     requiredTotal,
     assignedTotal,
     shortageTotal,
-    completionRate,
-    unassignedCellCount,
-    overCellCount
+    completionRate
   };
 }
 
@@ -57,8 +45,6 @@ export function renderSummary(data, elements) {
   elements.assignedTotalText.textContent = `${summary.assignedTotal}`;
   elements.shortageTotalText.textContent = `${summary.shortageTotal}`;
   elements.completionRateText.textContent = `${summary.completionRate}%`;
-  elements.unassignedCellText.textContent = `${summary.unassignedCellCount}`;
-  elements.overCellText.textContent = `${summary.overCellCount}`;
 }
 
 // ===== ShiftBuilder render-summary.js ここまで =====
