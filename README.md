@@ -40,4 +40,4 @@ Git履歴の統合は行いません。
 | Account Console | https://shiftcorediv-lab.github.io/shiftcore-suite/apps/account-console/ |
 | ShiftBuilder | https://shiftcorediv-lab.github.io/shiftcore-suite/apps/shiftbuilder/ |
 <!-- redeploy: 2026-07-03-ordercase-cases -->
-　　
+　　　
