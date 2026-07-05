@@ -1306,4 +1306,30 @@ select {
 
 /* ===== Responsive ここまで ===== */
 
+.shift-cell-assigned-names {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-width: 100%;
+  margin-top: 2px;
+  overflow: hidden;
+  line-height: 1.15;
+}
+
+.shift-cell-assigned-name,
+.shift-cell-assigned-more {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shift-cell:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
 /* ===== ShiftBuilder CSS ここまで ===== */
