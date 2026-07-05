@@ -634,6 +634,23 @@ function findRenderedShiftCellButton(caseId, date) {
   );
 }
 
+function focusFirstShiftCell() {
+  const firstCell = elements.shiftTableBody?.querySelector(".shift-cell");
+
+  if (!firstCell) {
+    setStatus("フォーカスできるシフトセルがありません。");
+    return;
+  }
+
+  firstCell.focus();
+  firstCell.scrollIntoView({
+    block: "nearest",
+    inline: "nearest"
+  });
+
+  setStatus("シフト表の先頭セルへ移動しました。");
+}
+
 function refreshActiveActionPopover() {
   if (activePopoverMode !== "action") {
     return;
@@ -1722,6 +1739,27 @@ document.addEventListener("click", (event) => {
     hideCellPopover({
       resetSelection: true
     });
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  const target = event.target;
+  const tagName = String(target?.tagName || "").toLowerCase();
+  const isTypingTarget =
+    tagName === "input" ||
+    tagName === "select" ||
+    tagName === "textarea" ||
+    target?.isContentEditable === true;
+
+  if (event.key === "Escape" && activePopoverMode === "action") {
+    event.preventDefault();
+    closeDetailPanel();
+    return;
+  }
+
+  if (!isTypingTarget && event.key.toLowerCase() === "s") {
+    event.preventDefault();
+    focusFirstShiftCell();
   }
 });
 
