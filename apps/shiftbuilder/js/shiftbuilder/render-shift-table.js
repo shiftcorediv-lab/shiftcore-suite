@@ -271,7 +271,8 @@ export function renderShiftTable(data, elements, handlers = {}) {
   const {
     onSelectCell,
     onPreviewCell,
-    onLeaveCell
+    onLeaveCell,
+    onCloseCell
   } = handlers;
 
   const dates = Array.isArray(data?.dates) ? data.dates : [];
@@ -378,7 +379,83 @@ export function renderShiftTable(data, elements, handlers = {}) {
   bindShiftCellEvents(shiftTableBody, {
     onSelectCell,
     onPreviewCell,
-    onLeaveCell
+    onLeaveCell,
+    onCloseCell
+  });
+}
+
+function getShiftCellMatrix(rootElement) {
+  return Array.from(rootElement.querySelectorAll("tr")).map((row) => {
+    return Array.from(row.querySelectorAll(".shift-cell"));
+  }).filter((rowCells) => rowCells.length > 0);
+}
+
+function findCellPosition(matrix, targetButton) {
+  for (let rowIndex = 0; rowIndex < matrix.length; rowIndex++) {
+    const colIndex = matrix[rowIndex].indexOf(targetButton);
+
+    if (colIndex >= 0) {
+      return {
+        rowIndex,
+        colIndex
+      };
+    }
+  }
+
+  return null;
+}
+
+function focusShiftCellByPosition(rootElement, currentButton, rowOffset, colOffset) {
+  const matrix = getShiftCellMatrix(rootElement);
+  const currentPosition = findCellPosition(matrix, currentButton);
+
+  if (!currentPosition) {
+    return;
+  }
+
+  const nextRowIndex = Math.min(
+    Math.max(currentPosition.rowIndex + rowOffset, 0),
+    matrix.length - 1
+  );
+
+  const nextRow = matrix[nextRowIndex] || [];
+  const nextColIndex = Math.min(
+    Math.max(currentPosition.colIndex + colOffset, 0),
+    nextRow.length - 1
+  );
+
+  const nextButton = nextRow[nextColIndex];
+
+  if (!nextButton) {
+    return;
+  }
+
+  nextButton.focus();
+  nextButton.scrollIntoView({
+    block: "nearest",
+    inline: "nearest"
+  });
+}
+
+function focusRowEdgeCell(rootElement, currentButton, direction) {
+  const matrix = getShiftCellMatrix(rootElement);
+  const currentPosition = findCellPosition(matrix, currentButton);
+
+  if (!currentPosition) {
+    return;
+  }
+
+  const row = matrix[currentPosition.rowIndex] || [];
+  const nextButton = direction === "start" ? row[0] : row[row.length - 1];
+
+  if (!nextButton) {
+    return;
+  }
+
+  nextButton.focus();
+  nextButton.scrollIntoView({
+    block: "nearest",
+    inline: "nearest"
   });
 }
 
@@ -386,7 +463,8 @@ function bindShiftCellEvents(rootElement, handlers = {}) {
   const {
     onSelectCell,
     onPreviewCell,
-    onLeaveCell
+    onLeaveCell,
+    onCloseCell
   } = handlers;
 
   const cells = rootElement.querySelectorAll(".shift-cell");
@@ -407,6 +485,69 @@ function bindShiftCellEvents(rootElement, handlers = {}) {
 
       if (typeof onLeaveCell === "function") {
         onLeaveCell(caseId, date, cellButton);
+      }
+    });
+
+    cellButton.addEventListener("focus", () => {
+      const caseId = cellButton.dataset.caseId;
+      const date = cellButton.dataset.date;
+
+      if (typeof onPreviewCell === "function") {
+        onPreviewCell(caseId, date, cellButton);
+      }
+    });
+
+    cellButton.addEventListener("blur", () => {
+      const caseId = cellButton.dataset.caseId;
+      const date = cellButton.dataset.date;
+
+      if (typeof onLeaveCell === "function") {
+        onLeaveCell(caseId, date, cellButton);
+      }
+    });
+
+    cellButton.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        focusShiftCellByPosition(rootElement, cellButton, -1, 0);
+        return;
+      }
+
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        focusShiftCellByPosition(rootElement, cellButton, 1, 0);
+        return;
+      }
+
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        focusShiftCellByPosition(rootElement, cellButton, 0, -1);
+        return;
+      }
+
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        focusShiftCellByPosition(rootElement, cellButton, 0, 1);
+        return;
+      }
+
+      if (event.key === "Home") {
+        event.preventDefault();
+        focusRowEdgeCell(rootElement, cellButton, "start");
+        return;
+      }
+
+      if (event.key === "End") {
+        event.preventDefault();
+        focusRowEdgeCell(rootElement, cellButton, "end");
+        return;
+      }
+
+      if (event.key === "Escape") {
+        if (typeof onCloseCell === "function") {
+          event.preventDefault();
+          onCloseCell();
+        }
       }
     });
 
