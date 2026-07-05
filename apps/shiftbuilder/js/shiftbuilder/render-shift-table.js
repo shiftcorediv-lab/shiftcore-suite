@@ -77,6 +77,47 @@ function hasSavingAssignment(cell) {
   });
 }
 
+function getAssignedMemberNames(cell) {
+  if (!cell || !Array.isArray(cell.assigned)) {
+    return [];
+  }
+
+  return cell.assigned
+    .map((member) => {
+      return String(
+        member.display_name ||
+          member.displayName ||
+          member.name ||
+          member.internal_user_id ||
+          member.internalUserId ||
+          ""
+      ).trim();
+    })
+    .filter(Boolean);
+}
+
+function renderAssignedMemberNames(cell) {
+  const names = getAssignedMemberNames(cell);
+
+  if (!names.length) {
+    return "";
+  }
+
+  const visibleNames = names.slice(0, 2);
+  const hiddenCount = names.length - visibleNames.length;
+
+  return `
+    <span class="shift-cell-assigned-names">
+      ${visibleNames.map((name) => `<span class="shift-cell-assigned-name">${escapeHtml(name)}</span>`).join("")}
+      ${
+        hiddenCount > 0
+          ? `<span class="shift-cell-assigned-more">+${hiddenCount}</span>`
+          : ""
+      }
+    </span>
+  `;
+}
+
 function normalizeWeekdayValue(dateItem) {
   return String(dateItem?.weekday || "").trim();
 }
@@ -353,6 +394,7 @@ export function renderShiftTable(data, elements, handlers = {}) {
                   ${escapeHtml(compactStatusLabel)}
                 </span>
                 <span class="shift-cell-count">${assignedCount}/${required}</span>
+                ${renderAssignedMemberNames(cell)}
                 <span class="shift-cell-note">${escapeHtml(status.note)}</span>
               </button>
             </td>
