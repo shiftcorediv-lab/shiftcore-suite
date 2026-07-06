@@ -411,9 +411,15 @@ export function renderShiftTable(data, elements, handlers = {}) {
                     ? renderAssignedMemberNames(cell)
                     : `<span class="shift-cell-count">${assignedCount}/${required}</span>`
                 }
-                <span class="shift-cell-note">${escapeHtml(status.note)}</span>
-                  }
+              >
+                <span class="shift-cell-status" title="${escapeHtml(status.label)}">
+                  ${escapeHtml(compactStatusLabel)}
                 </span>
+                ${
+                  status.key === SHIFT_CELL_STATUS.COMPLETED && assignedCount > 0
+                    ? renderAssignedMemberNames(cell)
+                    : `<span class="shift-cell-count">${assignedCount}/${required}</span>`
+                }
                 <span class="shift-cell-note">${escapeHtml(status.note)}</span>
               </button>
             </td>
