@@ -96,6 +96,18 @@ function getAssignedMemberNames(cell) {
     .filter(Boolean);
 }
 
+function getShortAssignedMemberName(name) {
+  const normalizedName = String(name || "").replace(/\s+/g, "").trim();
+
+  if (!normalizedName) {
+    return "";
+  }
+
+  return normalizedName.length > 3
+    ? normalizedName.slice(0, 3)
+    : normalizedName;
+}
+
 function renderAssignedMemberNames(cell) {
   const names = getAssignedMemberNames(cell);
 
@@ -103,12 +115,13 @@ function renderAssignedMemberNames(cell) {
     return "";
   }
 
-  const visibleNames = names.slice(0, 2);
-  const hiddenCount = names.length - visibleNames.length;
+  const firstName = names[0];
+  const shortName = getShortAssignedMemberName(firstName);
+  const hiddenCount = names.length - 1;
 
   return `
-    <span class="shift-cell-assigned-names">
-      ${visibleNames.map((name) => `<span class="shift-cell-assigned-name">${escapeHtml(name)}</span>`).join("")}
+    <span class="shift-cell-assigned-names" title="${escapeHtml(names.join(" / "))}">
+      <span class="shift-cell-assigned-name">${escapeHtml(shortName)}</span>
       ${
         hiddenCount > 0
           ? `<span class="shift-cell-assigned-more">+${hiddenCount}</span>`
@@ -390,11 +403,16 @@ export function renderShiftTable(data, elements, handlers = {}) {
                 data-date="${escapeHtml(dateItem.date)}"
                 title="${escapeHtml(status.label)} ${assignedCount}/${required}"
               >
-                <span class="shift-cell-status" title="${escapeHtml(status.label)}">
-                  ${escapeHtml(compactStatusLabel)}
+                <span class="shift-cell-main-row">
+                  <span class="shift-cell-status" title="${escapeHtml(status.label)}">
+                    ${escapeHtml(compactStatusLabel)}
+                  </span>
+                  ${
+                    status.key === SHIFT_CELL_STATUS.COMPLETED && assignedCount > 0
+                      ? renderAssignedMemberNames(cell)
+                      : `<span class="shift-cell-count">${assignedCount}/${required}</span>`
+                  }
                 </span>
-                <span class="shift-cell-count">${assignedCount}/${required}</span>
-                ${renderAssignedMemberNames(cell)}
                 <span class="shift-cell-note">${escapeHtml(status.note)}</span>
               </button>
             </td>
