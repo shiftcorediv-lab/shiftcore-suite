@@ -522,7 +522,8 @@ select {
 }
 
 .case-fulfillment-fulfilled .case-cell {
-  background: #f7fff8;
+  background: #f2fbf4;
+  box-shadow: inset 4px 0 0 rgba(34, 197, 94, 0.55);
 }
 
 .case-fulfillment-fulfilled .case-title::before {
@@ -1334,20 +1335,24 @@ select {
   outline-offset: 2px;
 }
 
-.shift-table tbody tr.case-fulfillment-fulfilled > td {
-  background-color: #f0fbf2 !important;
+/* 充足済み案件内の未アサインは、対応必要ではなく余地として弱く見せる */
+.shift-table tbody tr.case-fulfillment-fulfilled .shift-cell-unassigned {
+  background: #eef3ef;
+  outline: 1px solid rgba(34, 197, 94, 0.14);
+  outline-offset: -1px;
 }
 
-.shift-table tbody tr.case-fulfillment-fulfilled > td.shift-date-saturday {
-  background-color: #eef8f5 !important;
+.shift-table tbody tr.case-fulfillment-fulfilled .shift-cell-unassigned .shift-cell-status {
+  background: #d8eadc;
+  color: #2f6b3a;
 }
 
-.shift-table tbody tr.case-fulfillment-fulfilled > td.shift-date-sunday {
-  background-color: #fff4f4 !important;
+.shift-table tbody tr.case-fulfillment-fulfilled .shift-cell-unassigned .shift-cell-count {
+  color: #526458;
 }
 
-.shift-table tbody tr.case-fulfillment-fulfilled > td.case-cell {
-  background-color: #e8f7ec !important;
+.shift-table tbody tr.case-fulfillment-fulfilled .shift-cell-unassigned:hover {
+  outline: 2px solid rgba(34, 197, 94, 0.28);
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.08);
 }
-
 /* ===== ShiftBuilder CSS ここまで ===== */
