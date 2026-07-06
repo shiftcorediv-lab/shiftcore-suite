@@ -1306,34 +1306,25 @@ select {
 
 /* ===== Responsive ここまで ===== */
 
-.shift-cell-main-row {
-  display: flex;
-  max-width: 100%;
-  min-width: 0;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  overflow: hidden;
-}
-
 .shift-cell-assigned-names {
-  display: inline-flex;
-  min-width: 0;
+  display: block;
+  width: 100%;
   max-width: 100%;
-  align-items: center;
-  gap: 1px;
+  margin-top: 0;
   overflow: hidden;
+  text-align: center;
   line-height: 1;
 }
 
 .shift-cell-assigned-name,
 .shift-cell-assigned-more {
-  display: inline-block;
+  display: block;
   max-width: 100%;
   overflow: hidden;
+  color: #111111;
   font-size: 11px;
   font-weight: 900;
-  line-height: 1;
+  line-height: 1.05;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1341,6 +1332,22 @@ select {
 .shift-cell:focus-visible {
   outline: 2px solid currentColor;
   outline-offset: 2px;
+}
+
+.shift-table tbody tr.case-fulfillment-fulfilled > td {
+  background-color: #f0fbf2 !important;
+}
+
+.shift-table tbody tr.case-fulfillment-fulfilled > td.shift-date-saturday {
+  background-color: #eef8f5 !important;
+}
+
+.shift-table tbody tr.case-fulfillment-fulfilled > td.shift-date-sunday {
+  background-color: #fff4f4 !important;
+}
+
+.shift-table tbody tr.case-fulfillment-fulfilled > td.case-cell {
+  background-color: #e8f7ec !important;
 }
 
 /* ===== ShiftBuilder CSS ここまで ===== */
