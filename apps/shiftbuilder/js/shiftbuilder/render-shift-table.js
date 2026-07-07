@@ -404,34 +404,45 @@ export function renderShiftTable(data, elements, handlers = {}) {
             .join(" ");
 
           return `
+
             <td class="${escapeHtml(dateColumnClass)}">
+
               <button
+
                 type="button"
+
                 class="${escapeHtml(shiftCellClass)}"
+
                 data-case-id="${escapeHtml(caseItem.caseId)}"
+
                 data-date="${escapeHtml(dateItem.date)}"
+
                 title="${escapeHtml(status.label)} ${assignedCount}/${required}"
+
               >
+
                 <span class="shift-cell-status" title="${escapeHtml(status.label)}">
+
                   ${escapeHtml(compactStatusLabel)}
+
                 </span>
+
                 ${
+
                   status.key === SHIFT_CELL_STATUS.COMPLETED && assignedCount > 0
+
                     ? renderAssignedMemberNames(cell)
+
                     : `<span class="shift-cell-count">${assignedCount}/${required}</span>`
+
                 }
-              >
-                <span class="shift-cell-status" title="${escapeHtml(status.label)}">
-                  ${escapeHtml(compactStatusLabel)}
-                </span>
-                ${
-                  status.key === SHIFT_CELL_STATUS.COMPLETED && assignedCount > 0
-                    ? renderAssignedMemberNames(cell)
-                    : `<span class="shift-cell-count">${assignedCount}/${required}</span>`
-                }
+
                 <span class="shift-cell-note">${escapeHtml(status.note)}</span>
+
               </button>
+
             </td>
+
           `;
         })
         .join("");
