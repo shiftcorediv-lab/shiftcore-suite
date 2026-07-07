@@ -375,6 +375,9 @@ export function renderShiftTable(data, elements, handlers = {}) {
 
       const fulfillmentBadge = renderFulfillmentBadge(caseItem);
 
+      const caseFulfillment = buildLiveCaseFulfillment(caseItem);
+      const isDaysModeCase = getCaseInputMode(caseItem) === "days";
+      
       const dateCells = dates
         .map((dateItem) => {
           const cell = caseItem.cells?.[dateItem.date] || EMPTY_CELL;
@@ -386,9 +389,15 @@ export function renderShiftTable(data, elements, handlers = {}) {
           const isSaving = hasSavingAssignment(cell);
           const dateColumnClass = getDateColumnClass(dateItem);
 
+          const isFulfilledDaysModeUnassigned =
+            isDaysModeCase &&
+            caseFulfillment.status === "fulfilled" &&
+            status.key === SHIFT_CELL_STATUS.UNASSIGNED;
+
           const shiftCellClass = [
             "shift-cell",
             `shift-cell-${status.key}`,
+            isFulfilledDaysModeUnassigned ? "shift-cell-unassigned-fulfilled-days" : "",
             isSaving ? "shift-cell-saving" : ""
           ]
             .filter(Boolean)
