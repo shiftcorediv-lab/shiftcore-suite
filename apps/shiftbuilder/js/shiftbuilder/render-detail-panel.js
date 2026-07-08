@@ -418,6 +418,84 @@ function renderAssignedMemberCardHtml(member) {
   `;
 }
 
+function normalizeCandidateText(value) {
+  return String(value || "").trim();
+}
+
+function candidateHasSameDayConflict(candidate) {
+  const textValues = [
+    candidate?.group,
+    candidate?.reason,
+    candidate?.status,
+    candidate?.candidate_status,
+    candidate?.candidateStatus,
+    candidate?.availability_status,
+    candidate?.availabilityStatus,
+    candidate?.conflict_reason,
+    candidate?.conflictReason
+  ]
+    .map(normalizeCandidateText)
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    candidate?.has_same_day_assignment === true ||
+    candidate?.hasSameDayAssignment === true ||
+    candidate?.same_day_assigned === true ||
+    candidate?.sameDayAssigned === true ||
+    candidate?.is_same_day_conflict === true ||
+    candidate?.isSameDayConflict === true ||
+    textValues.includes("同日") ||
+    textValues.includes("同じ日") ||
+    textValues.toLowerCase().includes("same day")
+  );
+}
+
+function getCandidateSortRank(candidate, alreadyAssigned) {
+  if (alreadyAssigned) {
+    return 40;
+  }
+
+  if (candidateHasSameDayConflict(candidate)) {
+    return 30;
+  }
+
+  return 10;
+}
+
+function sortAssignmentCandidates(candidates, assignedUserIds) {
+  return [...candidates].sort((a, b) => {
+    const aUserId = String(a?.internal_user_id || "");
+    const bUserId = String(b?.internal_user_id || "");
+
+    const aAlreadyAssigned = assignedUserIds.includes(aUserId);
+    const bAlreadyAssigned = assignedUserIds.includes(bUserId);
+
+    const aRank = getCandidateSortRank(a, aAlreadyAssigned);
+    const bRank = getCandidateSortRank(b, bAlreadyAssigned);
+
+    if (aRank !== bRank) {
+      return aRank - bRank;
+    }
+
+    const aName = normalizeCandidateText(
+      a?.display_name ||
+        a?.displayName ||
+        a?.name ||
+        aUserId
+    );
+
+    const bName = normalizeCandidateText(
+      b?.display_name ||
+        b?.displayName ||
+        b?.name ||
+        bUserId
+    );
+
+    return aName.localeCompare(bName, "ja");
+  });
+}
+
 function renderAssignmentCandidatesHtml(candidates, assignedMembers, actionMode = "assign") {
   if (!Array.isArray(candidates) || !candidates.length) {
     return `<div class="empty-note">候補者がいません。</div>`;
@@ -428,9 +506,11 @@ function renderAssignmentCandidatesHtml(candidates, assignedMembers, actionMode 
     return String(member.internal_user_id || member.internalUserId || "");
   });
 
+  const sortedCandidates = sortAssignmentCandidates(candidates, assignedUserIds);
+  
   return `
     <div class="candidate-card-list">
-      ${candidates.map((candidate) => {
+      ${sortedCandidates.map((candidate) => {
         const userId = candidate.internal_user_id || "";
         const displayName =
           candidate.display_name ||
@@ -448,13 +528,14 @@ function renderAssignmentCandidatesHtml(candidates, assignedMembers, actionMode 
         const contractType = candidate.contract_type || "契約未設定";
         const baseArea = candidate.base_area || "拠点未設定";
         const alreadyAssigned = assignedUserIds.includes(String(userId));
+        const hasSameDayConflict = candidateHasSameDayConflict(candidate);
 
         const candidateActions = actionMode === "replace"
           ? renderReplacementCandidateButtons(userId, alreadyAssigned, safeAssignedMembers)
           : renderAssignCandidateButton(userId, alreadyAssigned);
 
         return `
-          <div class="candidate-card ${alreadyAssigned ? "is-assigned" : ""}">
+          <div class="candidate-card ${alreadyAssigned ? "is-assigned" : ""} ${hasSameDayConflict ? "is-conflict" : ""}">
             <div class="candidate-card-main">
               <div class="candidate-name">${escapeHtml(displayName)}</div>
               <div class="candidate-meta">
