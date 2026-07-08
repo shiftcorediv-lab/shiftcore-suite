@@ -446,18 +446,60 @@ function candidateHasSameDayConflict(candidate) {
     candidate?.is_same_day_conflict === true ||
     candidate?.isSameDayConflict === true ||
     textValues.includes("同日") ||
+    textValues.includes("同日あり") ||
+    textValues.includes("同日別案件") ||
     textValues.includes("同じ日") ||
     textValues.toLowerCase().includes("same day")
   );
 }
 
+function candidateLooksUnavailable(candidate) {
+  const textValues = [
+    candidate?.group,
+    candidate?.reason,
+    candidate?.status,
+    candidate?.candidate_status,
+    candidate?.candidateStatus,
+    candidate?.availability_status,
+    candidate?.availabilityStatus,
+    candidate?.assign_status,
+    candidate?.assignStatus,
+    candidate?.button_label,
+    candidate?.buttonLabel,
+    candidate?.action_label,
+    candidate?.actionLabel,
+    candidate?.disabled_reason,
+    candidate?.disabledReason
+  ]
+    .map(normalizeCandidateText)
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    candidate?.disabled === true ||
+    candidate?.is_disabled === true ||
+    candidate?.isDisabled === true ||
+    candidate?.can_assign === false ||
+    candidate?.canAssign === false ||
+    candidate?.assignable === false ||
+    textValues.includes("アサイン済") ||
+    textValues.includes("同日あり") ||
+    textValues.includes("同日別案件") ||
+    textValues.includes("不可")
+  );
+}
+
 function getCandidateSortRank(candidate, alreadyAssigned) {
   if (alreadyAssigned) {
-    return 40;
+    return 90;
   }
 
   if (candidateHasSameDayConflict(candidate)) {
-    return 30;
+    return 80;
+  }
+
+  if (candidateLooksUnavailable(candidate)) {
+    return 70;
   }
 
   return 10;
