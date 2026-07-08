@@ -1335,4 +1335,25 @@ select {
   outline-offset: 2px;
 }
 
+/* 日数指定案件が充足済みの場合、残りの未アサイン日は対応不要寄りとして弱める */
+.shift-cell-unassigned-fulfilled-days {
+  background: #f0f0ee;
+  outline: 1px solid rgba(120, 120, 120, 0.18);
+  outline-offset: -1px;
+}
+
+.shift-cell-unassigned-fulfilled-days .shift-cell-status {
+  background: #d8d8d5;
+  color: #555555;
+}
+
+.shift-cell-unassigned-fulfilled-days .shift-cell-count {
+  color: #555555;
+}
+
+.shift-cell-unassigned-fulfilled-days:hover {
+  outline: 2px solid rgba(120, 120, 120, 0.32);
+  box-shadow: 0 0 0 2px rgba(120, 120, 120, 0.08);
+}
+
 /* ===== ShiftBuilder CSS ここまで ===== */
