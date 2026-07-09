@@ -490,6 +490,12 @@ function candidateLooksUnavailable(candidate) {
 }
 
 function getCandidateSortRank(candidate, alreadyAssigned) {
+  const uiSortRank = Number(candidate?.uiState?.sortRank);
+
+  if (Number.isFinite(uiSortRank)) {
+    return uiSortRank;
+  }
+
   if (alreadyAssigned) {
     return 90;
   }
@@ -569,12 +575,22 @@ function renderAssignmentCandidatesHtml(candidates, assignedMembers, actionMode 
         const personType = candidate.person_type || "区分未設定";
         const contractType = candidate.contract_type || "契約未設定";
         const baseArea = candidate.base_area || "拠点未設定";
-        const alreadyAssigned = assignedUserIds.includes(String(userId));
-        const hasSameDayConflict = candidateHasSameDayConflict(candidate);
+        const uiState = candidate.uiState || {};
+        const alreadyAssigned =
+          uiState.alreadyAssigned === true ||
+          assignedUserIds.includes(String(userId));
+        const hasSameDayConflict =
+          uiState.hasSameDayAssignment === true ||
+          candidateHasSameDayConflict(candidate);
+        const warningText =
+          uiState.warningText ||
+          candidate.conflict_reason ||
+          candidate.conflictReason ||
+          "";
 
         const candidateActions = actionMode === "replace"
-          ? renderReplacementCandidateButtons(userId, alreadyAssigned, safeAssignedMembers)
-          : renderAssignCandidateButton(userId, alreadyAssigned);
+          ? renderReplacementCandidateButtons(userId, alreadyAssigned, safeAssignedMembers, uiState)
+          : renderAssignCandidateButton(userId, alreadyAssigned, uiState);
 
         return `
           <div class="candidate-card ${alreadyAssigned ? "is-assigned" : ""} ${hasSameDayConflict ? "is-conflict" : ""}">
@@ -586,6 +602,11 @@ function renderAssignmentCandidatesHtml(candidates, assignedMembers, actionMode 
               <div class="candidate-meta">
                 ${escapeHtml(personType)} / ${escapeHtml(contractType)} / ${escapeHtml(baseArea)}
               </div>
+              ${
+                warningText
+                  ? `<div class="candidate-warning">${escapeHtml(warningText)}</div>`
+                  : ""
+              }
             </div>
 
             <div class="candidate-card-actions">
@@ -598,22 +619,25 @@ function renderAssignmentCandidatesHtml(candidates, assignedMembers, actionMode 
   `;
 }
 
-function renderAssignCandidateButton(userId, alreadyAssigned) {
-  const buttonLabel = alreadyAssigned ? "アサイン済み" : "アサイン";
+function renderAssignCandidateButton(userId, alreadyAssigned, uiState = {}) {
+  const isDisabled = uiState.disabled === true || alreadyAssigned;
+  const buttonLabel =
+    uiState.buttonLabel ||
+    (alreadyAssigned ? "アサイン済み" : "アサイン");
 
   return `
     <button
       type="button"
       class="secondary-button assign-candidate-btn"
       data-internal-user-id="${escapeHtml(userId)}"
-      ${alreadyAssigned ? "disabled" : ""}
+      ${isDisabled ? "disabled" : ""}
     >
       ${escapeHtml(buttonLabel)}
     </button>
   `;
 }
 
-function renderReplacementCandidateButtons(userId, alreadyAssigned, assignedMembers) {
+function renderReplacementCandidateButtons(userId, alreadyAssigned, assignedMembers, uiState = {}) {
   if (alreadyAssigned) {
     return `
       <button
@@ -627,6 +651,19 @@ function renderReplacementCandidateButtons(userId, alreadyAssigned, assignedMemb
     `;
   }
 
+  if (uiState.disabled === true) {
+    return `
+      <button
+        type="button"
+        class="secondary-button assign-candidate-btn"
+        data-internal-user-id="${escapeHtml(userId)}"
+        disabled
+      >
+        ${escapeHtml(uiState.buttonLabel || "選択不可")}
+      </button>
+    `;
+  }
+  
   const replaceableMembers = assignedMembers.filter((member) => {
     return getAssignmentId(member) && !isPendingAssignedMember(member);
   });
