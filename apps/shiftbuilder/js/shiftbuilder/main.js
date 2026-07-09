@@ -504,6 +504,10 @@ function getOrCreateCellPopover() {
     }
   });
 
+  popover.addEventListener("keydown", (event) => {
+    handleActionPopoverKeydown(event, popover);
+  });
+  
   document.body.appendChild(popover);
 
   return popover;
@@ -527,7 +531,7 @@ function setPopoverPosition(popover, anchorElement) {
   if (!popover || !anchorElement) {
     return;
   }
-
+  
   const anchorRect = anchorElement.getBoundingClientRect();
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
@@ -573,6 +577,118 @@ function setPopoverPosition(popover, anchorElement) {
   popover.style.top = `${Math.round(top)}px`;
   popover.style.visibility = "";
   popover.dataset.placement = placement;
+}
+
+function getActionPopoverButtons(popover) {
+  if (!popover) {
+    return [];
+  }
+
+  return Array.from(
+    popover.querySelectorAll(
+      ".cell-popover-close-btn, .archive-assignment-btn:not(:disabled), .assign-candidate-btn:not(:disabled)"
+    )
+  ).filter((button) => {
+    return button instanceof HTMLButtonElement && !button.disabled;
+  });
+}
+
+function focusActionPopoverContainer(popover) {
+  if (!popover) {
+    return;
+  }
+
+  popover.setAttribute("tabindex", "-1");
+
+  requestAnimationFrame(() => {
+    if (!popover.hidden) {
+      popover.focus({
+        preventScroll: true
+      });
+    }
+  });
+}
+
+function focusPopoverButton(popover, nextIndex) {
+  const buttons = getActionPopoverButtons(popover);
+
+  if (!buttons.length) {
+    return;
+  }
+
+  const safeIndex = Math.min(
+    Math.max(nextIndex, 0),
+    buttons.length - 1
+  );
+
+  buttons[safeIndex].focus({
+    preventScroll: true
+  });
+}
+
+function movePopoverButtonFocus(popover, currentElement, offset) {
+  const buttons = getActionPopoverButtons(popover);
+
+  if (!buttons.length) {
+    return;
+  }
+
+  const currentIndex = buttons.indexOf(currentElement);
+
+  if (currentIndex < 0) {
+    focusPopoverButton(popover, offset >= 0 ? 0 : buttons.length - 1);
+    return;
+  }
+
+  const nextIndex = Math.min(
+    Math.max(currentIndex + offset, 0),
+    buttons.length - 1
+  );
+
+  focusPopoverButton(popover, nextIndex);
+}
+
+function handleActionPopoverKeydown(event, popover) {
+  if (!popover || activePopoverMode !== "action") {
+    return;
+  }
+
+  const target = event.target;
+
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeDetailPanel();
+    return;
+  }
+
+  if (event.key === "ArrowDown" || event.key === "ArrowRight") {
+    event.preventDefault();
+    movePopoverButtonFocus(popover, target, 1);
+    return;
+  }
+
+  if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
+    event.preventDefault();
+    movePopoverButtonFocus(popover, target, -1);
+    return;
+  }
+
+  if (event.key === "Home") {
+    event.preventDefault();
+    focusPopoverButton(popover, 0);
+    return;
+  }
+
+  if (event.key === "End") {
+    const buttons = getActionPopoverButtons(popover);
+
+    if (!buttons.length) {
+      return;
+    }
+
+    event.preventDefault();
+    focusPopoverButton(popover, buttons.length - 1);
+  }
 }
 
 function hideCellPopover(options = {}) {
@@ -647,6 +763,7 @@ function renderActionPopover(found, anchorElement) {
   activePopoverAnchor = anchorElement;
 
   setPopoverPosition(popover, anchorElement);
+  focusActionPopoverContainer(popover);
 }
 
 function applySameDayCandidateState(popover, selectedCell) {
