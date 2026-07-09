@@ -694,8 +694,11 @@ function handleActionPopoverKeydown(event, popover) {
 function hideCellPopover(options = {}) {
   const {
     resetSelection = false,
-    statusMessage = ""
+    statusMessage = "",
+    restoreFocus = false
   } = options;
+
+  const focusKey = restoreFocus ? activePopoverKey : null;
 
   const popover = document.getElementById("shiftbuilderCellPopover");
 
@@ -730,6 +733,21 @@ function hideCellPopover(options = {}) {
 
   if (statusMessage) {
     setStatus(statusMessage);
+  }
+
+  if (restoreFocus && focusKey?.caseId && focusKey?.date) {
+    requestAnimationFrame(() => {
+      const cellButton = findRenderedShiftCellButton(
+        focusKey.caseId,
+        focusKey.date
+      );
+
+      if (cellButton) {
+        cellButton.focus({
+          preventScroll: true
+        });
+      }
+    });
   }
 }
 
@@ -1134,7 +1152,8 @@ function openDetailPanel() {
 function closeDetailPanel() {
   hideCellPopover({
     resetSelection: true,
-    statusMessage: "セル選択を解除しました。"
+    statusMessage: "セル選択を解除しました。",
+    restoreFocus: true
   });
 }
 
@@ -1924,7 +1943,8 @@ document.addEventListener("click", (event) => {
 
   if (activePopoverMode === "action") {
     hideCellPopover({
-      resetSelection: true
+      resetSelection: true,
+      restoreFocus: true
     });
   }
 });
