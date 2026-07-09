@@ -383,6 +383,73 @@ function hasSameDayAssignmentForUser(internalUserId, selectedCell) {
   return getSameDayAssignmentsForUser(internalUserId, selectedCell).length > 0;
 }
 
+function normalizeAssignmentCandidatesForCell(candidates, selectedCell) {
+  const safeCandidates = Array.isArray(candidates) ? candidates : [];
+  const assignedMembers = Array.isArray(selectedCell?.cell?.assigned)
+    ? selectedCell.cell.assigned
+    : [];
+
+  const assignedUserIds = assignedMembers.map((member) => {
+    return String(member.internal_user_id || member.internalUserId || "");
+  });
+
+  return safeCandidates.map((candidate) => {
+    const userId = String(
+      candidate.internal_user_id ||
+        candidate.internalUserId ||
+        ""
+    );
+
+    const alreadyAssigned = assignedUserIds.includes(userId);
+    const sameDayAssignments = getSameDayAssignmentsForUser(userId, selectedCell);
+    const hasSameDayAssignment = sameDayAssignments.length > 0;
+
+    const sameDayCaseTitles = sameDayAssignments
+      .map((item) => item.caseTitle)
+      .filter(Boolean)
+      .join(" / ");
+
+    let sortRank = 10;
+    let buttonLabel = "アサイン";
+    let disabled = false;
+    let warningText = "";
+
+    if (hasSameDayAssignment) {
+      sortRank = 80;
+      buttonLabel = "同日あり";
+      disabled = true;
+      warningText = sameDayCaseTitles
+        ? `同日別案件あり：${sameDayCaseTitles}`
+        : "同日別案件あり";
+    }
+
+    if (alreadyAssigned) {
+      sortRank = 90;
+      buttonLabel = "アサイン済み";
+      disabled = true;
+      warningText = "";
+    }
+
+    return {
+      ...candidate,
+      has_same_day_assignment: hasSameDayAssignment,
+      hasSameDayAssignment: hasSameDayAssignment,
+      same_day_assignments: sameDayAssignments,
+      sameDayAssignments: sameDayAssignments,
+      conflict_reason: warningText,
+      conflictReason: warningText,
+      uiState: {
+        alreadyAssigned,
+        hasSameDayAssignment,
+        disabled,
+        buttonLabel,
+        warningText,
+        sortRank
+      }
+    };
+  });
+}
+
 function getOrCreateCellPopover() {
   const existing = document.getElementById("shiftbuilderCellPopover");
 
@@ -566,16 +633,19 @@ function renderPreviewPopover(found, anchorElement) {
 
 function renderActionPopover(found, anchorElement) {
   const popover = getOrCreateCellPopover();
+  const normalizedAssignmentCandidates = normalizeAssignmentCandidatesForCell(
+    assignmentCandidates,
+    found
+  );
 
   popover.className = "cell-popover cell-popover-mode-action";
-  popover.innerHTML = renderCellActionPopover(found, assignmentCandidates);
+  popover.innerHTML = renderCellActionPopover(found, normalizedAssignmentCandidates);
   popover.hidden = false;
 
   activePopoverMode = "action";
   activePopoverKey = getSelectedCellKey(found);
   activePopoverAnchor = anchorElement;
 
-  applySameDayCandidateState(popover, found);
   setPopoverPosition(popover, anchorElement);
 }
 
