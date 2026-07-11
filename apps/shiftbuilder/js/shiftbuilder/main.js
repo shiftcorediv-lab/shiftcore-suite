@@ -468,7 +468,7 @@ function getOrCreateCellPopover() {
     if (closeButton) {
       hideCellPopover({
         resetSelection: true,
-        statusMessage: "セル選択を解除しました。"
+        statusMessage: "セル選択を解除しました。",
         restoreFocus: true,
       });
       return;
