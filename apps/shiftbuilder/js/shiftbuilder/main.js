@@ -469,6 +469,7 @@ function getOrCreateCellPopover() {
       hideCellPopover({
         resetSelection: true,
         statusMessage: "セル選択を解除しました。"
+        restoreFocus: true,
       });
       return;
     }
@@ -593,6 +594,33 @@ function getActionPopoverButtons(popover) {
   });
 }
 
+function getPrimaryCandidateButton(popover) {
+  if (!popover) {
+    return null;
+  }
+
+  const button = popover.querySelector(
+    ".assign-candidate-btn:not(:disabled)"
+  );
+
+  return button instanceof HTMLButtonElement ? button : null;
+}
+
+function focusPopoverElement(element) {
+  if (!(element instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  element.focus({
+    preventScroll: true
+  });
+
+  element.scrollIntoView({
+    block: "nearest",
+    inline: "nearest"
+  });
+}
+
 function focusActionPopoverContainer(popover) {
   if (!popover) {
     return;
@@ -601,11 +629,20 @@ function focusActionPopoverContainer(popover) {
   popover.setAttribute("tabindex", "-1");
 
   requestAnimationFrame(() => {
-    if (!popover.hidden) {
-      popover.focus({
-        preventScroll: true
-      });
+    if (popover.hidden) {
+      return;
     }
+
+    const primaryCandidateButton = getPrimaryCandidateButton(popover);
+
+    if (primaryCandidateButton) {
+      focusPopoverElement(primaryCandidateButton);
+      return;
+    }
+
+    popover.focus({
+      preventScroll: true
+    });
   });
 }
 
@@ -621,9 +658,7 @@ function focusPopoverButton(popover, nextIndex) {
     buttons.length - 1
   );
 
-  buttons[safeIndex].focus({
-    preventScroll: true
-  });
+  focusPopoverElement(buttons[safeIndex]);
 }
 
 function movePopoverButtonFocus(popover, currentElement, offset) {
@@ -784,47 +819,6 @@ function renderActionPopover(found, anchorElement) {
   focusActionPopoverContainer(popover);
 }
 
-function applySameDayCandidateState(popover, selectedCell) {
-  const buttons = popover.querySelectorAll(".assign-candidate-btn");
-
-  buttons.forEach((button) => {
-    const internalUserId = button.dataset.internalUserId || "";
-
-    if (!internalUserId || button.disabled) {
-      return;
-    }
-
-    const sameDayAssignments = getSameDayAssignmentsForUser(
-      internalUserId,
-      selectedCell
-    );
-
-    if (!sameDayAssignments.length) {
-      return;
-    }
-
-    const card = button.closest(".candidate-card");
-    const caseTitles = sameDayAssignments
-      .map((item) => item.caseTitle)
-      .join(" / ");
-
-    button.disabled = true;
-    button.textContent = "同日あり";
-
-    if (card) {
-      card.classList.add("is-conflict");
-
-      const warning = document.createElement("div");
-      warning.className = "candidate-warning";
-      warning.textContent = `同日別案件あり：${caseTitles}`;
-
-      const main = card.querySelector(".candidate-card-main");
-      if (main) {
-        main.appendChild(warning);
-      }
-    }
-  });
-}
 
 function findRenderedShiftCellButton(caseId, date) {
   if (!elements.shiftTableBody) {
