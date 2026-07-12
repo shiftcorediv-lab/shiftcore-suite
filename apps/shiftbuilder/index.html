@@ -69,57 +69,59 @@
       </div>
     </section>
 
-    <section class="shiftbuilder-toolbar">
-      <div class="toolbar-group toolbar-month-group">
-        <label class="field-label" for="targetMonthInput">対象月</label>
+    <section class="shiftbuilder-overview" aria-label="表示条件とサマリー">
+      <div class="shiftbuilder-toolbar">
+        <div class="toolbar-group toolbar-month-group">
+          <label class="field-label" for="targetMonthInput">対象月</label>
 
-        <div class="month-control-row">
-          <input id="targetMonthInput" type="month" class="field-input" />
+          <div class="month-control-row">
+            <input id="targetMonthInput" type="month" class="field-input" />
 
-          <button id="prevMonthBtn" type="button" class="secondary-button month-nav-button">
-            前月
-          </button>
+            <button id="prevMonthBtn" type="button" class="secondary-button month-nav-button">
+              前月
+            </button>
 
-          <button id="nextMonthBtn" type="button" class="secondary-button month-nav-button">
-            翌月
-          </button>
+            <button id="nextMonthBtn" type="button" class="secondary-button month-nav-button">
+              翌月
+            </button>
+          </div>
+        </div>
+
+        <div class="toolbar-group">
+          <label class="field-label" for="areaSelect">エリア</label>
+          <select id="areaSelect" class="field-input">
+            <option value="all">全エリア</option>
+            <option value="fukuoka">福岡</option>
+            <option value="kitakyushu">北九州</option>
+            <option value="kumamoto">熊本</option>
+            <option value="saga">佐賀</option>
+            <option value="nagasaki">長崎</option>
+            <option value="oita">大分</option>
+            <option value="miyazaki">宮崎</option>
+            <option value="kagoshima">鹿児島</option>
+          </select>
         </div>
       </div>
 
-      <div class="toolbar-group">
-        <label class="field-label" for="areaSelect">エリア</label>
-        <select id="areaSelect" class="field-input">
-          <option value="all">全エリア</option>
-          <option value="fukuoka">福岡</option>
-          <option value="kitakyushu">北九州</option>
-          <option value="kumamoto">熊本</option>
-          <option value="saga">佐賀</option>
-          <option value="nagasaki">長崎</option>
-          <option value="oita">大分</option>
-          <option value="miyazaki">宮崎</option>
-          <option value="kagoshima">鹿児島</option>
-        </select>
-      </div>
-    </section>
-
-    <section class="quick-view-grid" aria-label="クイックビュー">
-      <div class="quick-view-card">
-        <div class="label">アサイン済 / 必要</div>
-        <div class="quick-value">
-          <span id="assignedTotalText">-</span>
-          <span> / </span>
-          <span id="requiredTotalText">-</span>
+      <div class="quick-view-grid" role="group" aria-label="クイックビュー">
+        <div class="quick-view-card">
+          <div class="label">アサイン済 / 必要</div>
+          <div class="quick-value">
+            <span id="assignedTotalText">-</span>
+            <span> / </span>
+            <span id="requiredTotalText">-</span>
+          </div>
         </div>
-      </div>
 
-      <div class="quick-view-card">
-        <div class="label">不足アサイン数</div>
-        <div id="shortageTotalText" class="quick-value">-</div>
-      </div>
+        <div class="quick-view-card">
+          <div class="label">不足アサイン数</div>
+          <div id="shortageTotalText" class="quick-value">-</div>
+        </div>
 
-      <div class="quick-view-card">
-        <div class="label">充足率</div>
-        <div id="completionRateText" class="quick-value">-</div>
+        <div class="quick-view-card">
+          <div class="label">充足率</div>
+          <div id="completionRateText" class="quick-value">-</div>
+        </div>
       </div>
     </section>
 
