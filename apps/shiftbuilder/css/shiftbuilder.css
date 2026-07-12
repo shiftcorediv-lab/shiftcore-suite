@@ -159,8 +159,7 @@ select {
 
 .operator-card,
 .panel,
-.shiftbuilder-toolbar,
-.quick-view-card,
+.shiftbuilder-overview,
 .shift-table-panel,
 .floating-panel,
 .status-box {
@@ -197,14 +196,17 @@ select {
 
 /* ===== Toolbar ここから ===== */
 
+.shiftbuilder-overview {
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
 .shiftbuilder-toolbar {
   display: flex;
   align-items: center;
   justify-content: flex-start;
   gap: 16px;
-  padding: 10px 12px;
-  margin-bottom: 10px;
-  border-radius: 12px;
+  padding: 12px 14px;
 }
 
 .toolbar-group {
@@ -250,13 +252,17 @@ select {
 .quick-view-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: 10px;
+  background: var(--sb-surface-soft);
+  border-top: 1px solid var(--sb-border);
 }
 
 .quick-view-card {
-  padding: 10px 12px;
-  border-radius: 12px;
+  min-width: 0;
+  padding: 12px 14px;
+}
+
+.quick-view-card + .quick-view-card {
+  border-left: 1px solid var(--sb-border);
 }
 
 .quick-view-card .label {
@@ -1244,6 +1250,11 @@ select {
 
   .quick-view-grid {
     grid-template-columns: 1fr;
+  }
+
+  .quick-view-card + .quick-view-card {
+    border-top: 1px solid var(--sb-border);
+    border-left: 0;
   }
 
   .shiftbuilder-toolbar {
