@@ -240,10 +240,18 @@ function buildLiveDaysModeFulfillment(caseItem, cells) {
     badgeLabel = "充足";
   }
 
+  const rate = requiredTotal > 0
+    ? Math.round((assignedDateCount / requiredTotal) * 100)
+    : null;
+
   return {
     status,
     badgeLabel,
-    detailLabel: `日数指定：${assignedDateCount}/${requiredTotal}日`
+    detailLabel: `日数指定：${assignedDateCount}/${requiredTotal}日`,
+    currentTotal: assignedDateCount,
+    requiredTotal,
+    rate,
+    barRate: rate === null ? 0 : Math.min(rate, 100)
   };
 }
 
@@ -277,10 +285,18 @@ function buildLiveDatesModeFulfillment(cells) {
     badgeLabel = "充足";
   }
 
+  const rate = requiredTotal > 0
+    ? Math.round((assignedTotal / requiredTotal) * 100)
+    : null;
+
   return {
     status,
     badgeLabel,
-    detailLabel: `日付指定：${assignedTotal}/${requiredTotal}枠`
+    detailLabel: `日付指定：${assignedTotal}/${requiredTotal}枠`,
+    currentTotal: assignedTotal,
+    requiredTotal,
+    rate,
+    barRate: rate === null ? 0 : Math.min(rate, 100)
   };
 }
 
@@ -312,6 +328,26 @@ function renderFulfillmentBadge(caseItem) {
     >
       ${escapeHtml(fulfillment.badgeLabel)}
     </span>
+  `;
+}
+
+function renderFulfillmentGauge(fulfillment) {
+  const hasTarget = fulfillment.requiredTotal > 0 && fulfillment.rate !== null;
+  const rateLabel = hasTarget ? `${fulfillment.rate}%` : "目標未設定";
+  const trackClass = hasTarget
+    ? "row-fulfillment-track"
+    : "row-fulfillment-track is-unknown";
+
+  return `
+    <div class="row-fulfillment" aria-label="${escapeHtml(`${fulfillment.currentTotal}/${fulfillment.requiredTotal}、${rateLabel}`)}">
+      <div class="row-fulfillment-labels">
+        <span>${fulfillment.currentTotal}/${fulfillment.requiredTotal}</span>
+        <span>${escapeHtml(rateLabel)}</span>
+      </div>
+      <div class="${trackClass}" aria-hidden="true">
+        ${hasTarget ? `<span style="width: ${fulfillment.barRate}%"></span>` : ""}
+      </div>
+    </div>
   `;
 }
 
@@ -371,6 +407,7 @@ export function renderShiftTable(data, elements, handlers = {}) {
       const fulfillmentBadge = renderFulfillmentBadge(caseItem);
 
       const caseFulfillment = buildLiveCaseFulfillment(caseItem);
+      const fulfillmentGauge = renderFulfillmentGauge(caseFulfillment);
       const isDaysModeCase = getCaseInputMode(caseItem) === "days";
       
       const dateCells = dates
@@ -451,6 +488,7 @@ export function renderShiftTable(data, elements, handlers = {}) {
               ${fulfillmentBadge}
             </div>
             <div class="case-id">${escapeHtml(caseItem.caseId)}</div>
+            ${fulfillmentGauge}
           </td>
           ${dateCells}
         </tr>

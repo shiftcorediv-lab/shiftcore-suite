@@ -7,7 +7,7 @@
   <title>ShiftBuilder β版 | ShiftCore</title>
 
   <link rel="stylesheet" href="../../shared/css/shiftcore-ui.css" />
-  <link rel="stylesheet" href="./css/shiftbuilder.css" />
+  <link rel="stylesheet" href="./css/shiftbuilder.css?v=20260714-personnel-axis-2" />
 </head>
 
 <body>
@@ -125,19 +125,61 @@
       </div>
     </section>
 
+    <details id="shiftbuilderHowto" class="howto-panel">
+      <summary>
+        <span>ShiftBuilderの使い方</span>
+        <span class="howto-shortcut"><kbd>H</kbd> で開閉</span>
+      </summary>
+      <div class="howto-content">
+        <div>
+          <h2>案件軸</h2>
+          <p>案件ごとの必要枠と配置状況を確認します。行のゲージは、必要枠に対するアサイン済み人数です。セルを選ぶと候補者の確認とアサイン操作ができます。</p>
+        </div>
+        <div>
+          <h2>人員軸</h2>
+          <p>実際のアサインを人員ごとに確認します。空欄は「未配置」であり、勤務可能を意味しません。現段階の人員軸は読み取り専用です。</p>
+        </div>
+      </div>
+    </details>
+
+    <div class="axis-tabs" role="tablist" aria-label="表示軸">
+      <button
+        id="caseAxisTab"
+        type="button"
+        class="axis-tab is-active"
+        role="tab"
+        aria-selected="true"
+        aria-controls="shiftTablePanel"
+        data-axis="case"
+      >
+        案件軸
+      </button>
+      <button
+        id="personnelAxisTab"
+        type="button"
+        class="axis-tab"
+        role="tab"
+        aria-selected="false"
+        aria-controls="shiftTablePanel"
+        data-axis="personnel"
+      >
+        人員軸
+      </button>
+    </div>
+
     <section class="shiftbuilder-layout">
-      <section class="shift-table-panel">
+      <section id="shiftTablePanel" class="shift-table-panel" role="tabpanel">
         <div class="section-heading-row">
           <div>
-            <h2>案件 × 日付</h2>
-            <p class="hint">
+            <h2 id="shiftTableTitle">案件 × 日付</h2>
+            <p id="shiftTableHint" class="hint">
               v1-1では、案件ごとの必要人数とアサイン状況を日別に確認します。
             </p>
           </div>
         </div>
 
         <div class="shift-table-scroll">
-          <table class="shift-table">
+          <table id="shiftTable" class="shift-table">
             <thead id="shiftTableHead">
               <tr>
                 <th>案件</th>
@@ -205,6 +247,6 @@
     </section>
   </main>
 
-  <script type="module" src="./js/shiftbuilder/main.js"></script>
+  <script type="module" src="./js/shiftbuilder/main.js?v=20260714-personnel-axis-2"></script>
 </body>
 </html>

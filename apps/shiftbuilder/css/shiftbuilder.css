@@ -160,6 +160,8 @@ select {
 .operator-card,
 .panel,
 .shiftbuilder-overview,
+.howto-panel,
+.axis-tabs,
 .shift-table-panel,
 .floating-panel,
 .status-box {
@@ -281,6 +283,118 @@ select {
 
 /* ===== Quick View ここまで ===== */
 
+/* ===== How-to / Axis Tabs ここから ===== */
+
+.howto-panel {
+  margin-bottom: 10px;
+  border-radius: 12px;
+}
+
+.howto-panel summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 900;
+  list-style: none;
+}
+
+.howto-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.howto-panel summary::before {
+  content: "▶";
+  margin-right: -4px;
+  color: var(--sb-muted);
+  font-size: 10px;
+}
+
+.howto-panel[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.howto-panel summary > span:first-child {
+  margin-right: auto;
+}
+
+.howto-shortcut {
+  color: var(--sb-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.howto-shortcut kbd {
+  display: inline-flex;
+  min-width: 22px;
+  min-height: 22px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--sb-border-strong);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  background: var(--sb-surface-soft);
+  color: var(--sb-text);
+  font: inherit;
+  font-weight: 900;
+}
+
+.howto-content {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding: 0 14px 14px 36px;
+  border-top: 1px solid var(--sb-border);
+}
+
+.howto-content h2 {
+  margin: 12px 0 4px;
+  font-size: 13px;
+}
+
+.howto-content p {
+  margin: 0;
+  color: var(--sb-muted);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.axis-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 10px;
+  border-radius: 12px;
+}
+
+.axis-tab {
+  min-width: 88px;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--sb-muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.axis-tab.is-active {
+  background: var(--sb-primary);
+  color: var(--sb-primary-text);
+}
+
+.axis-tab:focus-visible {
+  outline: 3px solid rgba(17, 17, 17, 0.22);
+  outline-offset: 2px;
+}
+
+/* ===== How-to / Axis Tabs ここまで ===== */
+
 /* ===== Layout ここから ===== */
 
 .shiftbuilder-layout {
@@ -364,9 +478,9 @@ select {
   position: sticky;
   left: 0;
   z-index: 1;
-  width: 160px;
-  min-width: 160px;
-  max-width: 160px;
+  width: 190px;
+  min-width: 190px;
+  max-width: 190px;
   background: #ffffff;
 }
 
@@ -573,7 +687,142 @@ select {
   vertical-align: 1px;
 }
 
+.row-fulfillment {
+  margin-top: 8px;
+}
+
+.row-fulfillment-labels {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--sb-muted);
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.row-fulfillment-track {
+  height: 5px;
+  margin-top: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8e5df;
+}
+
+.row-fulfillment-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #65a76d;
+}
+
+.row-fulfillment-track.is-unknown {
+  background: repeating-linear-gradient(
+    135deg,
+    #e8e5df 0,
+    #e8e5df 5px,
+    #f7f7f5 5px,
+    #f7f7f5 10px
+  );
+}
+
 /* ===== Case Cell ここまで ===== */
+
+/* ===== Personnel Axis ここから ===== */
+
+.shift-table.personnel-axis-table {
+  min-width: 0;
+}
+
+.shift-table.personnel-axis-table th:first-child,
+.shift-table.personnel-axis-table td:first-child {
+  width: 220px;
+  min-width: 220px;
+  max-width: 220px;
+}
+
+.shift-table.personnel-axis-table th:not(:first-child),
+.shift-table.personnel-axis-table td:not(:first-child) {
+  width: 90px;
+  min-width: 90px;
+  max-width: 90px;
+}
+
+.personnel-cell {
+  background: #ffffff;
+}
+
+.personnel-name {
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.personnel-meta {
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--sb-muted);
+  font-size: 9px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.personnel-shift-cell {
+  min-height: 62px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px;
+  border-radius: 8px;
+  background: #eef9ef;
+  color: #1d6b2c;
+  text-align: left;
+}
+
+.personnel-shift-cell-empty {
+  align-items: center;
+  background: #f3f2ef;
+  color: #a09b92;
+}
+
+.personnel-shift-cell.is-conflict {
+  background: #ffe4d6;
+  color: #7c2d12;
+  outline: 1px solid rgba(234, 88, 12, 0.36);
+  outline-offset: -1px;
+}
+
+.personnel-shift-status {
+  display: inline-flex;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: #fb923c;
+  color: #5f1f00;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.personnel-shift-case {
+  width: 100%;
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.personnel-shift-more {
+  color: inherit;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+/* ===== Personnel Axis ここまで ===== */
 
 /* ===== Shift Cell ここから ===== */
 
@@ -1213,9 +1462,9 @@ select {
 
   .shift-table th:first-child,
   .shift-table td:first-child {
-    width: 170px;
-    min-width: 170px;
-    max-width: 170px;
+    width: 200px;
+    min-width: 200px;
+    max-width: 200px;
   }
 }
 
@@ -1267,6 +1516,19 @@ select {
   .quick-view-card + .quick-view-card {
     border-top: 1px solid var(--sb-border);
     border-left: 0;
+  }
+
+  .howto-content {
+    grid-template-columns: 1fr;
+    padding-left: 14px;
+  }
+
+  .axis-tabs {
+    width: 100%;
+  }
+
+  .axis-tab {
+    flex: 1;
   }
 
   .shiftbuilder-toolbar {

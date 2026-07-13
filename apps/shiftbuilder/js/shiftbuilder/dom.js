@@ -3,7 +3,6 @@
 export const elements = {
   dashboardBtn: document.getElementById("dashboardBtn"),
   reloadBtn: document.getElementById("reloadBtn"),
-  loadShiftDataBtn: document.getElementById("loadShiftDataBtn"),
   prevMonthBtn: document.getElementById("prevMonthBtn"),
   nextMonthBtn: document.getElementById("nextMonthBtn"),
 
@@ -23,8 +22,13 @@ export const elements = {
   assignedTotalText: document.getElementById("assignedTotalText"),
   shortageTotalText: document.getElementById("shortageTotalText"),
   completionRateText: document.getElementById("completionRateText"),
-  unassignedCellText: document.getElementById("unassignedCellText"),
-  overCellText: document.getElementById("overCellText"),
+
+  shiftbuilderHowto: document.getElementById("shiftbuilderHowto"),
+  caseAxisTab: document.getElementById("caseAxisTab"),
+  personnelAxisTab: document.getElementById("personnelAxisTab"),
+  shiftTable: document.getElementById("shiftTable"),
+  shiftTableTitle: document.getElementById("shiftTableTitle"),
+  shiftTableHint: document.getElementById("shiftTableHint"),
 
   shiftTableHead: document.getElementById("shiftTableHead"),
   shiftTableBody: document.getElementById("shiftTableBody"),

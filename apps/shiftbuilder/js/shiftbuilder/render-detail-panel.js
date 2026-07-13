@@ -1,7 +1,7 @@
 // ===== ShiftBuilder render-detail-panel.js ここから =====
 
 import { escapeHtml } from "./utils.js";
-import { getCellStatus } from "./render-shift-table.js";
+import { getCellStatus } from "./render-shift-table.js?v=20260714-personnel-axis-2";
 import { CANDIDATE_GROUP_CLASSES } from "./constants.js";
 
 function getAssignedCount(cell) {

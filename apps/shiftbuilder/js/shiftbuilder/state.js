@@ -4,7 +4,8 @@ const state = {
   currentSession: null,
   currentUser: null,
   currentShiftData: null,
-  selectedCell: null
+  selectedCell: null,
+  activeAxis: "case"
 };
 
 export function getState() {
@@ -45,6 +46,14 @@ export function getSelectedCell() {
 
 export function resetSelectedCell() {
   state.selectedCell = null;
+}
+
+export function setActiveAxis(axis) {
+  state.activeAxis = axis === "personnel" ? "personnel" : "case";
+}
+
+export function getActiveAxis() {
+  return state.activeAxis;
 }
 
 // ===== ShiftBuilder state.js ここまで =====

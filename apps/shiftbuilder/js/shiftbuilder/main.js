@@ -9,34 +9,39 @@ import {
   archiveShiftBuilderAssignment,
   replaceShiftBuilderAssignment,
   getShiftBuilderAssignmentCandidates
-} from "./api.js";
+} from "./api.js?v=20260714-personnel-axis-2";
 import { mockShiftData } from "./mock-data.js";
 import { escapeHtml } from "./utils.js";
 import { getPermissionLabel, canEdit } from "./permissions.js";
-import { renderSummary } from "./render-summary.js";
-import { renderShiftTable } from "./render-shift-table.js";
+import { renderSummary } from "./render-summary.js?v=20260714-personnel-axis-2";
+import { renderShiftTable } from "./render-shift-table.js?v=20260714-personnel-axis-2";
+import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20260714-personnel-axis-2";
+import { renderPersonnelTable } from "./render-personnel-table.js?v=20260714-personnel-axis-2";
 import {
   renderSelectedCell,
   resetDetailPanel,
   renderCellPreviewPopover,
   renderCellActionPopover
-} from "./render-detail-panel.js";
+} from "./render-detail-panel.js?v=20260714-personnel-axis-2";
 import {
   setCurrentSession,
   setCurrentUser,
   setCurrentShiftData,
   getCurrentShiftData,
   getCurrentSession,
+  getActiveAxis,
   getSelectedCell,
+  setActiveAxis,
   setSelectedCell,
   resetSelectedCell
-} from "./state.js";
-import { elements } from "./dom.js";
+} from "./state.js?v=20260714-personnel-axis-2";
+import { elements } from "./dom.js?v=20260714-personnel-axis-2";
 
 let assignmentCandidates = [];
 let activePopoverMode = "";
 let activePopoverKey = null;
 let activePopoverAnchor = null;
+const IS_DEMO_MODE = new URLSearchParams(window.location.search).get("demo") === "1";
 
 function setStatus(message) {
   if (elements.statusBox) {
@@ -113,7 +118,7 @@ function moveTargetMonth(offset) {
   const currentValue = elements.targetMonthInput.value || getNextMonthValue();
   elements.targetMonthInput.value = shiftMonthValue(currentValue, offset);
 
-  loadMockShiftData();
+  loadShiftData();
 }
 
 function createPendingAssignmentId() {
@@ -1024,22 +1029,44 @@ function renderCurrentShiftView() {
     completionRateText: elements.completionRateText
   });
 
-  renderShiftTable(
-    shiftData,
-    {
+  const activeAxis = getActiveAxis();
+
+  syncAxisControls(activeAxis);
+
+  if (activeAxis === "personnel") {
+    const personnelViewModel = buildPersonnelAxisViewModel(
+      shiftData,
+      assignmentCandidates
+    );
+
+    if (elements.shiftTable) {
+      elements.shiftTable.style.minWidth = `${220 + personnelViewModel.dates.length * 90}px`;
+    }
+
+    renderPersonnelTable(personnelViewModel, {
       shiftTableHead: elements.shiftTableHead,
       shiftTableBody: elements.shiftTableBody
-    },
-    {
-      onSelectCell: selectShiftCell,
-      onPreviewCell: previewShiftCell,
-      onLeaveCell: leaveShiftCell
-    }
-  );
+    });
+  } else {
+    elements.shiftTable?.style.removeProperty("min-width");
+
+    renderShiftTable(
+      shiftData,
+      {
+        shiftTableHead: elements.shiftTableHead,
+        shiftTableBody: elements.shiftTableBody
+      },
+      {
+        onSelectCell: selectShiftCell,
+        onPreviewCell: previewShiftCell,
+        onLeaveCell: leaveShiftCell
+      }
+    );
+  }
 
   const selectedCell = getSelectedCell();
 
-  if (selectedCell) {
+  if (activeAxis === "case" && selectedCell) {
     renderSelectedCell(selectedCell, {
       selectedCellTitle: elements.selectedCellTitle,
       selectedCellSummary: elements.selectedCellSummary,
@@ -1053,7 +1080,43 @@ function renderCurrentShiftView() {
   }
 
   renderAssignmentCandidateCards();
-  refreshActiveActionPopover();
+  if (activeAxis === "case") {
+    refreshActiveActionPopover();
+  }
+}
+
+function syncAxisControls(axis) {
+  const isPersonnelAxis = axis === "personnel";
+
+  elements.caseAxisTab?.classList.toggle("is-active", !isPersonnelAxis);
+  elements.personnelAxisTab?.classList.toggle("is-active", isPersonnelAxis);
+  elements.caseAxisTab?.setAttribute("aria-selected", String(!isPersonnelAxis));
+  elements.personnelAxisTab?.setAttribute("aria-selected", String(isPersonnelAxis));
+  elements.shiftTable?.classList.toggle("personnel-axis-table", isPersonnelAxis);
+
+  if (elements.shiftTableTitle) {
+    elements.shiftTableTitle.textContent = isPersonnelAxis
+      ? "人員 × 日付"
+      : "案件 × 日付";
+  }
+
+  if (elements.shiftTableHint) {
+    elements.shiftTableHint.textContent = isPersonnelAxis
+      ? "実際のアサインを人員ごとに表示します。未配置は勤務可能を意味しません。"
+      : "案件ごとの必要人数とアサイン状況を日別に確認します。";
+  }
+}
+
+function switchAxis(axis) {
+  const nextAxis = axis === "personnel" ? "personnel" : "case";
+
+  if (nextAxis === "personnel") {
+    hideCellPopover({ resetSelection: true });
+  }
+
+  setActiveAxis(nextAxis);
+  syncAxisControls(nextAxis);
+  renderCurrentShiftView();
 }
 
 async function loadAssignmentCandidates(session, resultPromise = null) {
@@ -1061,6 +1124,10 @@ async function loadAssignmentCandidates(session, resultPromise = null) {
     assignmentCandidates = [];
     renderAssignmentCandidateCards();
     refreshActiveActionPopover();
+
+    if (getActiveAxis() === "personnel") {
+      renderCurrentShiftView();
+    }
     return;
   }
 
@@ -1101,6 +1168,10 @@ async function loadAssignmentCandidates(session, resultPromise = null) {
 
     renderAssignmentCandidateCards();
     refreshActiveActionPopover();
+
+    if (getActiveAxis() === "personnel") {
+      renderCurrentShiftView();
+    }
   } catch (error) {
     console.error("[ShiftBuilder] assignment candidates error:", error);
 
@@ -1113,6 +1184,10 @@ async function loadAssignmentCandidates(session, resultPromise = null) {
 
     renderAssignmentCandidateCards();
     refreshActiveActionPopover();
+
+    if (getActiveAxis() === "personnel") {
+      renderCurrentShiftView();
+    }
   }
 }
 
@@ -1195,7 +1270,7 @@ function selectShiftCell(caseId, date, anchorElement) {
   renderAssignmentCandidateCards();
 }
 
-async function loadMockShiftData(options = {}) {
+async function loadShiftData(options = {}) {
   const reloadCandidates = options.reloadCandidates !== false;
   const silent = options.silent === true;
   const preserveSelectedCell = options.preserveSelectedCell === true;
@@ -1208,47 +1283,64 @@ async function loadMockShiftData(options = {}) {
     getNextMonthValue();
 
   let apiResult = null;
-  let shiftDataSource = "mock";
+  const shiftDataSource = IS_DEMO_MODE ? "demo" : "api";
   let candidateRequest = null;
 
   try {
     if (!silent) {
-      setLoading(true, "ShiftBuilder月次データAPIを確認中...");
+      setLoading(
+        true,
+        IS_DEMO_MODE
+          ? "ShiftBuilderデモデータを準備中..."
+          : "ShiftBuilder月次データAPIを確認中..."
+      );
     }
 
-    const session = options.session || await requireShiftBuilderSession();
-
-    if (!session.isLoggedIn) {
-      renderNoLogin(session);
-      throw new Error("ログイン状態を確認できなかったため、入れ替えを保存できませんでした。");
-    }
-
-    setCurrentSession(session);
-
-    // Candidate loading is independent of the month data request, so start it first.
-    candidateRequest = reloadCandidates
-      ? getShiftBuilderAssignmentCandidates(session.idToken, {
-          targetMonth: selectedMonth,
+    if (IS_DEMO_MODE) {
+      apiResult = {
+        success: true,
+        data: {
+          ...mockShiftData,
+          month: selectedMonth,
           area: selectedArea
-        })
-      : null;
+        }
+      };
+    } else {
+      const session = options.session || await requireShiftBuilderSession();
 
-    apiResult = await getShiftBuilderMonthData(session.idToken, {
-      targetMonth: selectedMonth,
-      area: selectedArea
-    });
+      if (!session.isLoggedIn) {
+        renderNoLogin(session);
+        return;
+      }
 
-    console.log("[ShiftBuilder] month data API result:", apiResult);
+      setCurrentSession(session);
 
-    if (!apiResult || apiResult.success !== true) {
-      throw new Error(apiResult?.message || "月次シフトデータAPIの取得に失敗しました");
+      // 月次データと候補者は独立しているため、実データ時だけ並列で取得する。
+      candidateRequest = reloadCandidates
+        ? getShiftBuilderAssignmentCandidates(session.idToken, {
+            targetMonth: selectedMonth,
+            area: selectedArea
+          })
+        : null;
+
+      apiResult = await getShiftBuilderMonthData(session.idToken, {
+        targetMonth: selectedMonth,
+        area: selectedArea
+      });
+
+      console.log("[ShiftBuilder] month data API result:", apiResult);
+
+      if (!apiResult || apiResult.success !== true) {
+        throw new Error(apiResult?.message || "月次シフトデータAPIの取得に失敗しました");
+      }
     }
   } catch (error) {
     console.error("[ShiftBuilder] month data API error:", error);
 
     if (!suppressStatus) {
-      setStatus(`月次データAPI確認エラー：${error.message || String(error)} / 仮データ表示に切り替えます。`);
+      setStatus(`月次データAPI確認エラー：${error.message || String(error)}`);
     }
+    return;
   } finally {
     if (!silent) {
       setLoading(false);
@@ -1257,30 +1349,29 @@ async function loadMockShiftData(options = {}) {
 
   const apiData = apiResult?.data;
 
-  let shiftData = null;
-
   const hasValidApiData =
     apiData &&
     Array.isArray(apiData.dates) &&
     Array.isArray(apiData.cases);
 
-  if (hasValidApiData) {
-    shiftData = {
-      ...apiData,
-      month: apiData.month || selectedMonth,
-      area: apiData.area || selectedArea
-    };
-    shiftDataSource = "api";
-  } else {
-    shiftData = {
-      ...mockShiftData,
-      month: selectedMonth,
-      area: selectedArea
-    };
-    shiftDataSource = "mock";
+  if (!hasValidApiData) {
+    if (!suppressStatus) {
+      setStatus("月次データAPIの応答形式が不正なため、シフト表を更新できませんでした。");
+    }
+    return;
   }
 
+  const shiftData = {
+    ...apiData,
+    month: apiData.month || selectedMonth,
+    area: apiData.area || selectedArea
+  };
+
   setCurrentShiftData(shiftData);
+
+  if (reloadCandidates) {
+    assignmentCandidates = [];
+  }
 
   hideCellPopover();
 
@@ -1325,14 +1416,18 @@ async function loadMockShiftData(options = {}) {
       }
     } else {
       setStatus(
-        "月次データAPIから有効なデータを取得できなかったため、仮データを表示しています。"
+        "デモモードのサンプルデータを表示しています。実データの確認には使用しないでください。"
       );
     }
   }
 
   const currentSession = getCurrentSession();
 
-  if (reloadCandidates && currentSession?.isLoggedIn) {
+  if (
+    reloadCandidates &&
+    shiftDataSource === "api" &&
+    currentSession?.isLoggedIn
+  ) {
     await loadAssignmentCandidates(currentSession, candidateRequest);
   } else {
     renderAssignmentCandidateCards();
@@ -1484,7 +1579,7 @@ async function createAssignmentFromSelectedCell(internalUserId) {
     );
 
     if (!updated) {
-      await loadMockShiftData({
+      await loadShiftData({
         reloadCandidates: false,
         silent: true,
         preserveSelectedCell: true,
@@ -1680,7 +1775,7 @@ async function replaceAssignmentFromSelectedCell(internalUserId, replaceAssignme
     );
 
     if (!updated) {
-      await loadMockShiftData({
+      await loadShiftData({
         reloadCandidates: false,
         silent: true,
         preserveSelectedCell: true,
@@ -1711,7 +1806,7 @@ async function replaceAssignmentFromSelectedCell(internalUserId, replaceAssignme
     }
 
     try {
-      await loadMockShiftData({
+      await loadShiftData({
         reloadCandidates: true,
         silent: true,
         preserveSelectedCell: true,
@@ -1836,6 +1931,7 @@ async function archiveAssignmentFromButton(assignmentId) {
 async function init() {
   try {
     initializeFilters();
+    syncAxisControls(getActiveAxis());
 
     setLoading(true, "ログイン状態を確認中...");
     setStatus("ログイン状態を確認中...");
@@ -1848,6 +1944,9 @@ async function init() {
 
     if (!session.isLoggedIn) {
       renderNoLogin(session);
+      if (IS_DEMO_MODE) {
+        await loadShiftData({ reloadCandidates: false });
+      }
       return;
     }
 
@@ -1856,7 +1955,7 @@ async function init() {
     setLoading(true, "ShiftBuilderデータを読み込み中...");
     const [currentUserResult] = await Promise.all([
       getCurrentShiftBuilderUser(session.idToken),
-      loadMockShiftData({ session })
+      loadShiftData({ session })
     ]);
 
     elements.apiStatusText.textContent = "接続OK";
@@ -1899,11 +1998,19 @@ elements.nextMonthBtn?.addEventListener("click", () => {
 });
 
 elements.targetMonthInput?.addEventListener("change", () => {
-  loadMockShiftData();
+  loadShiftData();
 });
 
 elements.areaSelect?.addEventListener("change", () => {
-  loadMockShiftData();
+  loadShiftData();
+});
+
+elements.caseAxisTab?.addEventListener("click", () => {
+  switchAxis("case");
+});
+
+elements.personnelAxisTab?.addEventListener("click", () => {
+  switchAxis("personnel");
 });
 
 elements.closeDetailPanelBtn?.addEventListener("click", () => {
@@ -1944,6 +2051,31 @@ elements.assignedMembersList?.addEventListener("click", (event) => {
   const assignmentId = button.dataset.assignmentId || "";
 
   archiveAssignmentFromButton(assignmentId);
+});
+
+document.addEventListener("keydown", (event) => {
+  const target = event.target;
+  const isEditing =
+    target instanceof HTMLElement &&
+    (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+
+  if (
+    event.key.toLowerCase() !== "h" ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.altKey ||
+    event.repeat ||
+    isEditing
+  ) {
+    return;
+  }
+
+  if (!elements.shiftbuilderHowto) {
+    return;
+  }
+
+  event.preventDefault();
+  elements.shiftbuilderHowto.open = !elements.shiftbuilderHowto.open;
 });
 
 document.addEventListener("click", (event) => {
