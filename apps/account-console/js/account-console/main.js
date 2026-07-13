@@ -90,8 +90,10 @@ async function init() {
     setOperator(currentResult.user);
     renderCurrentUserPermission(currentResult.user);
 
-    await loadUsers("ユーザー名簿を取得中...");
-    await loadLogs("変更履歴を取得中...");
+    await Promise.all([
+      loadUsers("ユーザー名簿を取得中..."),
+      loadLogs("変更履歴を取得中...")
+    ]);
 
     clearUserForm();
     setStatus("Account Consoleを読み込みました");

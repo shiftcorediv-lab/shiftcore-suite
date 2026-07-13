@@ -1828,15 +1828,15 @@ async function init() {
 
     setStatus(`Firebaseログイン確認OK：${session.email}`);
 
-    setLoading(true, "ShiftBuilder APIを確認中...");
-    const pingResult = await pingShiftBuilderApi();
+    setLoading(true, "ShiftBuilder APIと権限を確認中...");
+    const [pingResult, currentUserResult] = await Promise.all([
+      pingShiftBuilderApi(),
+      getCurrentShiftBuilderUser(session.idToken)
+    ]);
 
     console.log("[ShiftBuilder] ping result:", pingResult);
 
     elements.apiStatusText.textContent = "接続OK";
-
-    setLoading(true, "ShiftBuilder権限を確認中...");
-    const currentUserResult = await getCurrentShiftBuilderUser(session.idToken);
 
     setCurrentUser(normalizeCurrentUser(currentUserResult));
 

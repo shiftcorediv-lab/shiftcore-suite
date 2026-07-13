@@ -17,7 +17,13 @@ export function getShiftCoreAuth() {
 
 export function waitForShiftCoreAuthState() {
   return new Promise((resolve) => {
-    onAuthStateChanged(auth, async (user) => {
+    let settled = false;
+    let unsubscribe = () => {};
+    unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (settled) return;
+      settled = true;
+      unsubscribe();
+
       if (!user) {
         resolve({
           isLoggedIn: false,
