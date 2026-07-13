@@ -3,8 +3,8 @@
 body {
   margin: 0;
   font-family: sans-serif;
-  background: #f5f6f8;
-  color: #333;
+  background: #f5f5f3;
+  color: #252525;
 }
 
 .container {
@@ -15,9 +15,9 @@ body {
 
 .card {
   background: #fff;
-  border-radius: 16px;
+  border-radius: 8px;
   padding: 20px;
-  box-shadow: 0 4px 16px rgba(0,0,0,.08);
+  box-shadow: 0 12px 32px rgba(0,0,0,.08);
   margin-bottom: 16px;
 }
 
@@ -65,7 +65,7 @@ label {
 
 .info-box {
   padding: 14px;
-  border-radius: 12px;
+  border-radius: 8px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   min-height: 52px;
@@ -107,7 +107,7 @@ label {
 button {
   width: 100%;
   border: none;
-  border-radius: 12px;
+  border-radius: 8px;
   font-size: 16px;
   cursor: pointer;
   padding: 16px;
@@ -115,12 +115,12 @@ button {
 }
 
 .submit-btn {
-  background: #5c6bc0;
+  background: #252525;
   color: #fff;
 }
 
 .manage-btn {
-  background: #3949ab;
+  background: #4d6d61;
   color: #fff;
 }
 
@@ -207,12 +207,7 @@ button:disabled {
 }
 
 @media (max-width: 480px) {
-  h1 {
-    font-size: 24px;
-  }
-
   .card {
     padding: 16px;
-    border-radius: 14px;
   }
 }

@@ -1,4 +1,4 @@
-import { PMO_V2_URL, PMO_ADMIN_URL, DASHBOARD_URL, PORTAL_ALLOWED_ROLES } from "./config.js";
+import { PMO_APPLY_URL, PMO_ADMIN_URL, DASHBOARD_URL, PORTAL_ALLOWED_ROLES } from "./config.js";
 
 export function canManagePmo(currentUser) {
   const role = String(currentUser?.role || "").trim().toLowerCase();
@@ -6,7 +6,7 @@ export function canManagePmo(currentUser) {
 }
 
 export function buildPmoApplyUrl(currentUser) {
-  const targetUrl = new URL(PMO_V2_URL);
+  const targetUrl = new URL(PMO_APPLY_URL, window.location.href);
 
   targetUrl.searchParams.set("from", "shiftcore");
   targetUrl.searchParams.set("module", "pmo");

@@ -7,46 +7,6 @@ body {
   color: #252525;
 }
 
-.app-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 8px 0 18px;
-}
-
-.app-header h1 {
-  margin: 0;
-  font-size: 30px;
-  line-height: 1.2;
-  text-align: left;
-}
-
-.subtitle {
-  margin: 6px 0 0;
-  color: #6f6c67;
-  font-size: 14px;
-}
-
-.header-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.secondary-button {
-  width: auto;
-  border: none;
-  border-radius: 8px;
-  background: #eceae7;
-  color: #252525;
-  padding: 12px 14px;
-  font-size: 14px;
-  font-weight: bold;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
 .container {
   max-width: 760px;
   margin: 0 auto;
@@ -311,9 +271,6 @@ textarea {
 }
 
 @media (max-width: 480px) {
-  .app-header { align-items: stretch; }
-  .app-header h1 { font-size: 24px; }
-  .header-actions { margin-left: auto; }
   .card { padding: 16px; }
   .day-cell { font-size: 14px; }
   .month-title { font-size: 18px; }
