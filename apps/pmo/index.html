@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Pick My Off</title>
+  <link rel="preconnect" href="https://script.google.com" />
+  <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin />
   <link rel="stylesheet" href="./css/pmo.css" />
 </head>
 <body>
@@ -12,9 +14,21 @@
     ブラウザメニューから「外部ブラウザで開く」を選択してください。
   </div>
 
-  <div class="container" id="mainFormArea">
+  <div class="container">
+    <header class="app-header">
+      <div>
+        <h1>Pick My Off</h1>
+        <p class="subtitle">希望休回収</p>
+      </div>
+
+      <div class="header-actions">
+        <button class="secondary-button" id="dashboardBtn" type="button">Dashboardへ戻る</button>
+      </div>
+    </header>
+
+    <div id="mainFormArea">
     <div class="card">
-      <h1>Pick My Off<br>希望休回収ツール</h1>
+      <h2>提出者情報</h2>
       <div class="description">
         ShiftCore連携でログイン済みの状態です。翌月の希望休を提出してください。
       </div>
@@ -85,7 +99,7 @@
     </div>
   </div>
 
-  <div class="container" id="completeScreen">
+  <div id="completeScreen">
     <div class="card">
       <div class="complete-icon">✅</div>
       <div class="complete-title">送信完了</div>
@@ -93,6 +107,7 @@
       <div class="complete-detail" id="completeDetail"></div>
       <button class="submit-btn mt-16" id="backToFormBtn" type="button">入力画面へ戻る</button>
     </div>
+  </div>
   </div>
 
   <script type="module" src="./js/main.js"></script>

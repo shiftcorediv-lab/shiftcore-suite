@@ -35,6 +35,15 @@ export async function getCurrentAccountConsoleUser(idToken) {
 // ===== 現在ユーザー確認ここまで =====
 
 
+// ===== 初期表示データ取得ここから =====
+export async function getAccountConsoleBootstrap(idToken) {
+  return postToAccountApi("accountConsoleGetBootstrap", {
+    idToken: idToken
+  });
+}
+// ===== 初期表示データ取得ここまで =====
+
+
 // ===== ユーザー一覧取得ここから =====
 export async function listAccountUsers(idToken) {
   return postToAccountApi("accountConsoleListUsers", {

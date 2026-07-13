@@ -3,8 +3,10 @@ import {
   clearSelectionBtn,
   backToFormBtn,
   submitBtn,
-  lineWarningBanner
+  lineWarningBanner,
+  dashboardBtn
 } from "./dom.js";
+import { DASHBOARD_URL } from "./config.js";
 import {
   currentUser,
   setCurrentUser,
@@ -80,6 +82,10 @@ backToFormBtn.addEventListener("click", () => {
   backToFormView();
   showMainMessage("", "");
   updateSubmitButtonState();
+});
+
+dashboardBtn.addEventListener("click", () => {
+  window.location.href = DASHBOARD_URL;
 });
 
 submitBtn.addEventListener("click", async () => {
