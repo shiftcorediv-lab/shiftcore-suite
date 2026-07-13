@@ -8,7 +8,7 @@ export const firebaseConfig = {
 };
 
 export const LOGIN_PAGE_URL = "./index.html";
-export const PMO_V2_URL = "https://shiftcorediv-lab.github.io/pickmyoff_v2_front/";
+export const PMO_APPLY_URL = "../pmo/";
 
 export const MODULE_NAME_MAP = {
   account: "アカウント基盤",

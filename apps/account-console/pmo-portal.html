@@ -4,17 +4,26 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PMO Portal</title>
+  <link rel="stylesheet" href="../../shared/css/pmo-header.css" />
   <link rel="stylesheet" href="./css/pmo-portal.css" />
 </head>
 <body>
-  <div id="developerMetaArea" class="developer-meta" style="display: none;"></div>
-
   <div class="container">
-    <div class="card compact-card">
-      <h1>PMO</h1>
-      <div class="description">
-        希望休の申請または管理を選択してください。
+    <header class="pmo-header">
+      <div>
+        <h1 class="pmo-header-title">PMO</h1>
+        <p class="pmo-header-subtitle">希望休メニュー</p>
       </div>
+
+      <div class="pmo-header-actions">
+        <button class="pmo-dashboard-button" id="backToDashboardBtn" type="button">Dashboardへ戻る</button>
+      </div>
+    </header>
+
+    <div id="developerMetaArea" class="developer-meta" style="display: none;"></div>
+
+    <div class="card compact-card">
+      <h2>ログイン情報</h2>
 
       <div class="info-compact-grid info-compact-grid-3">
         <div class="info-compact-item">
@@ -47,12 +56,9 @@
       </div>
     </div>
 
-    <div class="card">
-      <button class="clear-btn" id="backToDashboardBtn" type="button">ダッシュボードへ戻る</button>
-      <div class="message" id="messageBox"></div>
-    </div>
+    <div class="message" id="messageBox"></div>
   </div>
 
-  <script type="module" src="./js/pmo-portal/main.js?v=2"></script>
+  <script type="module" src="./js/pmo-portal/main.js?v=3"></script>
 </body>
 </html>

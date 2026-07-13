@@ -1,4 +1,4 @@
-import { LOGIN_PAGE_URL, PMO_V2_URL } from "./config.js";
+import { LOGIN_PAGE_URL, PMO_APPLY_URL } from "./config.js";
 import { getStoredUser } from "./storage.js";
 
 const PMO_PORTAL_URL = "./pmo-portal.html";
@@ -12,7 +12,7 @@ export function goToLogin() {
 }
 
 export function buildPmoFallbackUrl(storedUser) {
-  const targetUrl = new URL(PMO_V2_URL);
+  const targetUrl = new URL(PMO_APPLY_URL, window.location.href);
 
   targetUrl.searchParams.set("from", "shiftcore");
   targetUrl.searchParams.set("module", "pmo");
@@ -97,11 +97,6 @@ export function openModule(moduleCode, setStatus) {
   if (moduleCode === "pmo") {
     if (shouldUsePmoPortal(storedUser)) {
       window.location.href = buildPmoPortalUrl(storedUser);
-      return;
-    }
-
-    if (storedUser.pmoV2Url) {
-      window.location.href = storedUser.pmoV2Url;
       return;
     }
 
