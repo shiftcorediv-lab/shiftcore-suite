@@ -3,7 +3,6 @@
 import { DASHBOARD_URL } from "./config.js";
 import { requireShiftBuilderSession, getLoginUrl } from "./auth.js";
 import {
-  pingShiftBuilderApi,
   getCurrentShiftBuilderUser,
   getShiftBuilderMonthData,
   createShiftBuilderAssignment,
@@ -1200,7 +1199,7 @@ async function loadMockShiftData(options = {}) {
       setLoading(true, "ShiftBuilder月次データAPIを確認中...");
     }
 
-    const session = await requireShiftBuilderSession();
+    const session = options.session || await requireShiftBuilderSession();
 
     if (!session.isLoggedIn) {
       renderNoLogin(session);
@@ -1837,13 +1836,11 @@ async function init() {
 
     setStatus(`Firebaseログイン確認OK：${session.email}`);
 
-    setLoading(true, "ShiftBuilder APIと権限を確認中...");
-    const [pingResult, currentUserResult] = await Promise.all([
-      pingShiftBuilderApi(),
-      getCurrentShiftBuilderUser(session.idToken)
+    setLoading(true, "ShiftBuilderデータを読み込み中...");
+    const [currentUserResult] = await Promise.all([
+      getCurrentShiftBuilderUser(session.idToken),
+      loadMockShiftData({ session })
     ]);
-
-    console.log("[ShiftBuilder] ping result:", pingResult);
 
     elements.apiStatusText.textContent = "接続OK";
 
@@ -1853,7 +1850,6 @@ async function init() {
 
     renderUser(currentUserResult);
 
-    await loadMockShiftData();
   } catch (error) {
     console.error("[ShiftBuilder] init error:", error);
 

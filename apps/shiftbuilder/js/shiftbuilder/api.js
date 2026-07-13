@@ -2,6 +2,75 @@
 
 import { SHIFTBUILDER_API_URL } from "./config.js";
 
+const READ_CACHE_PREFIX = "shiftbuilder-read-v1";
+const READ_CACHE_TTL_MS = 60 * 1000;
+
+function getTokenSubject(idToken) {
+  try {
+    const encodedPayload = idToken.split(".")[1]
+      .replace(/-/g, "+")
+      .replace(/_/g, "/");
+    const payload = encodedPayload.padEnd(
+      encodedPayload.length + (4 - encodedPayload.length % 4) % 4,
+      "="
+    );
+    const decoded = JSON.parse(atob(payload));
+    return decoded.user_id || decoded.sub || "anonymous";
+  } catch (error) {
+    return "anonymous";
+  }
+}
+
+function buildReadCacheKey(idToken, action, params = {}) {
+  return [
+    READ_CACHE_PREFIX,
+    getTokenSubject(idToken),
+    action,
+    params.targetMonth || "",
+    params.area || "all"
+  ].join(":");
+}
+
+function readCachedResult(cacheKey) {
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(cacheKey) || "null");
+
+    if (!cached || Date.now() - cached.savedAt > READ_CACHE_TTL_MS) {
+      sessionStorage.removeItem(cacheKey);
+      return null;
+    }
+
+    return cached.result;
+  } catch (error) {
+    return null;
+  }
+}
+
+function writeCachedResult(cacheKey, result) {
+  try {
+    sessionStorage.setItem(cacheKey, JSON.stringify({
+      savedAt: Date.now(),
+      result: result
+    }));
+  } catch (error) {
+    // Cache failures must never block the API response.
+  }
+}
+
+function clearReadCache(idToken) {
+  const userPrefix = `${READ_CACHE_PREFIX}:${getTokenSubject(idToken)}:`;
+
+  try {
+    Object.keys(sessionStorage).forEach((key) => {
+      if (key.startsWith(userPrefix)) {
+        sessionStorage.removeItem(key);
+      }
+    });
+  } catch (error) {
+    // Cache failures must never block a mutation.
+  }
+}
+
 
 // ===== API共通POSTここから =====
 async function postToShiftBuilderApi(action, body = {}) {
@@ -28,6 +97,39 @@ async function postToShiftBuilderApi(action, body = {}) {
 }
 // ===== API共通POSTここまで =====
 
+async function postCachedRead(action, idToken, body = {}) {
+  const cacheKey = buildReadCacheKey(idToken, action, body);
+  const cached = readCachedResult(cacheKey);
+
+  if (cached) {
+    return cached;
+  }
+
+  const result = await postToShiftBuilderApi(action, {
+    ...body,
+    idToken: idToken
+  });
+
+  if (result && (result.success === true || result.ok === true)) {
+    writeCachedResult(cacheKey, result);
+  }
+
+  return result;
+}
+
+async function postMutation(action, idToken, body = {}) {
+  const result = await postToShiftBuilderApi(action, {
+    ...body,
+    idToken: idToken
+  });
+
+  if (result && (result.success === true || result.ok === true)) {
+    clearReadCache(idToken);
+  }
+
+  return result;
+}
+
 
 // ===== 疎通確認ここから =====
 export async function pingShiftBuilderApi() {
@@ -38,17 +140,14 @@ export async function pingShiftBuilderApi() {
 
 // ===== 現在ユーザー取得ここから =====
 export async function getCurrentShiftBuilderUser(idToken) {
-  return postToShiftBuilderApi("shiftBuilderGetCurrentUser", {
-    idToken: idToken
-  });
+  return postCachedRead("shiftBuilderGetCurrentUser", idToken);
 }
 // ===== 現在ユーザー取得ここまで =====
 
 
 // ===== 月次シフトデータ取得ここから =====
 export async function getShiftBuilderMonthData(idToken, params = {}) {
-  return postToShiftBuilderApi("shiftBuilderGetMonthData", {
-    idToken: idToken,
+  return postCachedRead("shiftBuilderGetMonthData", idToken, {
     targetMonth: params.targetMonth || "",
     area: params.area || "all"
   });
@@ -57,8 +156,7 @@ export async function getShiftBuilderMonthData(idToken, params = {}) {
 
 // ===== アサイン作成ここから =====
 export async function createShiftBuilderAssignment(idToken, params = {}) {
-  return postToShiftBuilderApi("shiftBuilderCreateAssignment", {
-    idToken: idToken,
+  return postMutation("shiftBuilderCreateAssignment", idToken, {
     targetMonth: params.targetMonth || "",
     area: params.area || "",
     caseId: params.caseId || "",
@@ -72,8 +170,7 @@ export async function createShiftBuilderAssignment(idToken, params = {}) {
 
 // ===== アサイン解除ここから =====
 export async function archiveShiftBuilderAssignment(idToken, assignmentId) {
-  return postToShiftBuilderApi("shiftBuilderArchiveAssignment", {
-    idToken: idToken,
+  return postMutation("shiftBuilderArchiveAssignment", idToken, {
     assignmentId: assignmentId
   });
 }
@@ -81,8 +178,7 @@ export async function archiveShiftBuilderAssignment(idToken, assignmentId) {
 
 // ===== アサイン入れ替えここから =====
 export async function replaceShiftBuilderAssignment(idToken, params = {}) {
-  return postToShiftBuilderApi("shiftBuilderReplaceAssignment", {
-    idToken: idToken,
+  return postMutation("shiftBuilderReplaceAssignment", idToken, {
     replaceAssignmentId: params.replaceAssignmentId || params.replace_assignment_id || "",
     targetMonth: params.targetMonth || "",
     area: params.area || "",
@@ -97,8 +193,7 @@ export async function replaceShiftBuilderAssignment(idToken, params = {}) {
 
 // ===== アサイン候補者取得ここから =====
 export async function getShiftBuilderAssignmentCandidates(idToken, params = {}) {
-  return postToShiftBuilderApi("shiftBuilderGetAssignmentCandidates", {
-    idToken: idToken,
+  return postCachedRead("shiftBuilderGetAssignmentCandidates", idToken, {
     targetMonth: params.targetMonth || "",
     area: params.area || "all"
   });
