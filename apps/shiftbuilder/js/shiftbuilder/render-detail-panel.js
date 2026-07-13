@@ -13,6 +13,14 @@ function getRequiredCount(cell) {
 }
 
 function getAssignedMemberName(member) {
+  const familyName = String(member?.family_name || member?.familyName || "").trim();
+  const givenName = String(member?.given_name || member?.givenName || "").trim();
+  const fullName = [familyName, givenName].filter(Boolean).join(" ");
+
+  if (fullName) {
+    return fullName;
+  }
+
   return (
     member?.name ||
     member?.displayName ||
