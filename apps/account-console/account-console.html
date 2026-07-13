@@ -97,8 +97,19 @@
         <form id="userForm" class="form">
           <input type="hidden" id="internalUserIdInput">
 
+          <div class="name-fields">
+            <label>
+              姓
+              <input id="familyNameInput" type="text" autocomplete="family-name">
+            </label>
+            <label>
+              名
+              <input id="givenNameInput" type="text" autocomplete="given-name">
+            </label>
+          </div>
+
           <label>
-            氏名 / 登録名
+            氏名 / 登録名（既存）
             <input id="nameInput" type="text" autocomplete="off">
           </label>
 

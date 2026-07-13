@@ -9,6 +9,8 @@ import {
   editorTitle,
   selectedUserIdText,
   internalUserIdInput,
+  familyNameInput,
+  givenNameInput,
   nameInput,
   displayNameInput,
   employeeCodeInput,
@@ -95,6 +97,8 @@ const SHIFTBUILDER_PERMISSION_LABELS = {
 
 const FIELD_LABELS = {
   internal_user_id: "内部ユーザーID",
+  family_name: "姓",
+  given_name: "名",
   name: "氏名 / 登録名",
   display_name: "表示名",
   employee_code: "アカウントコード",
@@ -338,6 +342,8 @@ export function clearUserForm() {
   selectedUserIdText.textContent = "新規作成";
 
   internalUserIdInput.value = "";
+  familyNameInput.value = "";
+  givenNameInput.value = "";
   nameInput.value = "";
   displayNameInput.value = "";
   employeeCodeInput.value = "";
@@ -371,6 +377,8 @@ export function fillUserForm(user) {
   selectedUserIdText.textContent = text(user.internal_user_id) || "IDなし";
 
   internalUserIdInput.value = text(user.internal_user_id);
+  familyNameInput.value = text(user.family_name);
+  givenNameInput.value = text(user.given_name);
   nameInput.value = text(user.name);
   displayNameInput.value = text(user.display_name);
   employeeCodeInput.value = text(user.employee_code);
@@ -407,6 +415,8 @@ export function collectUserForm() {
 
   return {
     internal_user_id: text(internalUserIdInput.value),
+    family_name: text(familyNameInput.value),
+    given_name: text(givenNameInput.value),
     name: text(nameInput.value),
     display_name: text(displayNameInput.value),
     employee_code: text(employeeCodeInput.value),

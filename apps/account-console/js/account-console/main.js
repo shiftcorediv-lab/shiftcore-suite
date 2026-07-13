@@ -157,8 +157,19 @@ async function saveUser(event) {
   const user = collectUserForm();
 
   try {
+    const hasFamilyName = Boolean(user.family_name);
+    const hasGivenName = Boolean(user.given_name);
+
+    if (hasFamilyName !== hasGivenName) {
+      throw new Error("姓と名は両方入力してください");
+    }
+
+    if (!user.name && hasFamilyName && hasGivenName) {
+      user.name = `${user.family_name}${user.given_name}`;
+    }
+
     if (!user.name) {
-      throw new Error("氏名を入力してください");
+      throw new Error("氏名、または姓と名を入力してください");
     }
 
     if (!user.email) {

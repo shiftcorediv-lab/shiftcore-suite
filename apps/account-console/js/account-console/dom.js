@@ -21,6 +21,8 @@ export const selectedUserIdText = document.getElementById("selectedUserIdText");
 export const userForm = document.getElementById("userForm");
 
 export const internalUserIdInput = document.getElementById("internalUserIdInput");
+export const familyNameInput = document.getElementById("familyNameInput");
+export const givenNameInput = document.getElementById("givenNameInput");
 export const nameInput = document.getElementById("nameInput");
 export const displayNameInput = document.getElementById("displayNameInput");
 export const employeeCodeInput = document.getElementById("employeeCodeInput");

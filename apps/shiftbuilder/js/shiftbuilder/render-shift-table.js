@@ -84,7 +84,10 @@ function getAssignedMemberNames(cell) {
 
   return cell.assigned
     .map((member) => {
-      return String(
+      const familyName = String(member.family_name || member.familyName || "").trim();
+      const givenName = String(member.given_name || member.givenName || "").trim();
+      const fullName = [familyName, givenName].filter(Boolean).join(" ");
+      const fallbackName = String(
         member.display_name ||
           member.displayName ||
           member.name ||
@@ -92,20 +95,13 @@ function getAssignedMemberNames(cell) {
           member.internalUserId ||
           ""
       ).trim();
+
+      return {
+        label: familyName || fallbackName,
+        fullName: fullName || fallbackName
+      };
     })
-    .filter(Boolean);
-}
-
-function getShortAssignedMemberName(name) {
-  const normalizedName = String(name || "").replace(/\s+/g, "").trim();
-
-  if (!normalizedName) {
-    return "";
-  }
-
-  return normalizedName.length > 3
-    ? normalizedName.slice(0, 3)
-    : normalizedName;
+    .filter((member) => member.fullName);
 }
 
 function renderAssignedMemberNames(cell) {
@@ -116,12 +112,11 @@ function renderAssignedMemberNames(cell) {
   }
 
   const firstName = names[0];
-  const shortName = getShortAssignedMemberName(firstName);
   const hiddenCount = names.length - 1;
 
   return `
-    <span class="shift-cell-assigned-names" title="${escapeHtml(names.join(" / "))}">
-      <span class="shift-cell-assigned-name">${escapeHtml(shortName)}</span>
+    <span class="shift-cell-assigned-names" title="${escapeHtml(names.map((member) => member.fullName).join(" / "))}">
+      <span class="shift-cell-assigned-name">${escapeHtml(firstName.label)}</span>
       ${
         hiddenCount > 0
           ? `<span class="shift-cell-assigned-more">+${hiddenCount}</span>`

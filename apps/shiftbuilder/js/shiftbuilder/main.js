@@ -252,6 +252,18 @@ function buildAssignedMemberFromCandidate(internalUserId, result, pendingAssignm
     name: displayName,
     display_name: displayName,
     displayName: displayName,
+    family_name:
+      assignment?.family_name ||
+      assignment?.familyName ||
+      candidate?.family_name ||
+      candidate?.familyName ||
+      "",
+    given_name:
+      assignment?.given_name ||
+      assignment?.givenName ||
+      candidate?.given_name ||
+      candidate?.givenName ||
+      "",
     account_code:
       assignment?.account_code ||
       candidate?.account_code ||
@@ -932,7 +944,12 @@ function renderAssignmentCandidateCards() {
 
   elements.assignmentCandidateList.innerHTML = assignmentCandidates.map((candidate) => {
     const userId = candidate.internal_user_id || "";
+    const separatedName = [
+      candidate.family_name || candidate.familyName || "",
+      candidate.given_name || candidate.givenName || ""
+    ].filter(Boolean).join(" ");
     const displayName =
+      separatedName ||
       candidate.display_name ||
       candidate.displayName ||
       candidate.name ||
