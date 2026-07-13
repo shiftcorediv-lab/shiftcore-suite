@@ -154,6 +154,15 @@ export async function getShiftBuilderMonthData(idToken, params = {}) {
 }
 // ===== 月次シフトデータ取得ここまで =====
 
+// ===== 初期表示統合取得ここから =====
+export async function getShiftBuilderBootstrap(idToken, params = {}) {
+  return postCachedRead("shiftBuilderBootstrap", idToken, {
+    targetMonth: params.targetMonth || "",
+    area: params.area || "all"
+  });
+}
+// ===== 初期表示統合取得ここまで =====
+
 // ===== アサイン作成ここから =====
 export async function createShiftBuilderAssignment(idToken, params = {}) {
   return postMutation("shiftBuilderCreateAssignment", idToken, {

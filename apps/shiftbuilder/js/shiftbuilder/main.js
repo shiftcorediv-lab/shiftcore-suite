@@ -3,8 +3,7 @@
 import { DASHBOARD_URL } from "./config.js";
 import { requireShiftBuilderSession, getLoginUrl } from "./auth.js";
 import {
-  getCurrentShiftBuilderUser,
-  getShiftBuilderMonthData,
+  getShiftBuilderBootstrap,
   createShiftBuilderAssignment,
   archiveShiftBuilderAssignment,
   replaceShiftBuilderAssignment,
@@ -1208,18 +1207,15 @@ async function loadMockShiftData(options = {}) {
 
     setCurrentSession(session);
 
-    // Candidate loading is independent of the month data request, so start it first.
-    candidateRequest = reloadCandidates
-      ? getShiftBuilderAssignmentCandidates(session.idToken, {
+    const bootstrapRequest = options.bootstrapResult
+      ? Promise.resolve(options.bootstrapResult)
+      : getShiftBuilderBootstrap(session.idToken, {
           targetMonth: selectedMonth,
           area: selectedArea
-        })
-      : null;
+        });
 
-    apiResult = await getShiftBuilderMonthData(session.idToken, {
-      targetMonth: selectedMonth,
-      area: selectedArea
-    });
+    candidateRequest = reloadCandidates ? bootstrapRequest : null;
+    apiResult = await bootstrapRequest;
 
     console.log("[ShiftBuilder] month data API result:", apiResult);
 
@@ -1837,10 +1833,21 @@ async function init() {
     setStatus(`Firebaseログイン確認OK：${session.email}`);
 
     setLoading(true, "ShiftBuilderデータを読み込み中...");
-    const [currentUserResult] = await Promise.all([
-      getCurrentShiftBuilderUser(session.idToken),
-      loadMockShiftData({ session })
-    ]);
+    const selectedArea = elements.areaSelect?.value || "all";
+    const selectedMonth = elements.targetMonthInput?.value || getNextMonthValue();
+    const currentUserResult = await getShiftBuilderBootstrap(session.idToken, {
+      targetMonth: selectedMonth,
+      area: selectedArea
+    });
+
+    if (!currentUserResult || currentUserResult.success !== true) {
+      throw new Error(currentUserResult?.message || "ShiftBuilderデータの取得に失敗しました");
+    }
+
+    await loadMockShiftData({
+      session,
+      bootstrapResult: currentUserResult
+    });
 
     elements.apiStatusText.textContent = "接続OK";
 
