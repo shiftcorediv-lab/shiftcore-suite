@@ -1,5 +1,6 @@
 export const mainFormArea = document.getElementById("mainFormArea");
 export const completeScreen = document.getElementById("completeScreen");
+export const dashboardBtn = document.getElementById("dashboardBtn");
 
 export const userNameBox = document.getElementById("userNameBox");
 export const employeeCodeBox = document.getElementById("employeeCodeBox");

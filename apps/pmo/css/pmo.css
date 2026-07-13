@@ -7,6 +7,46 @@ body {
   color: #252525;
 }
 
+.app-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0 18px;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.2;
+  text-align: left;
+}
+
+.subtitle {
+  margin: 6px 0 0;
+  color: #6f6c67;
+  font-size: 14px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.secondary-button {
+  width: auto;
+  border: none;
+  border-radius: 8px;
+  background: #eceae7;
+  color: #252525;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: bold;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
 .container {
   max-width: 760px;
   margin: 0 auto;
@@ -15,7 +55,7 @@ body {
 
 .card {
   background: #fff;
-  border-radius: 18px;
+  border-radius: 8px;
   padding: 20px;
   box-shadow: 0 12px 32px rgba(0,0,0,.08);
   margin-bottom: 16px;
@@ -49,7 +89,7 @@ label {
 
 textarea, button {
   width: 100%;
-  border-radius: 12px;
+  border-radius: 8px;
   font-size: 16px;
 }
 
@@ -72,7 +112,7 @@ textarea {
 
 .info-box {
   padding: 14px;
-  border-radius: 12px;
+  border-radius: 8px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   min-height: 52px;
@@ -128,7 +168,7 @@ textarea {
 .day-cell {
   aspect-ratio: 1 / 1;
   border: 1px solid #d9dee5;
-  border-radius: 12px;
+  border-radius: 8px;
   background: #fff;
   cursor: pointer;
   display: flex;
@@ -163,7 +203,7 @@ textarea {
 
 .selected-list {
   padding: 12px;
-  border-radius: 12px;
+  border-radius: 8px;
   background: #fafafa;
   border: 1px solid #e3e7eb;
   min-height: 54px;
@@ -225,7 +265,7 @@ textarea {
 
 .danger-box {
   padding: 14px;
-  border-radius: 12px;
+  border-radius: 8px;
   background: #fff1f1;
   border: 1px solid #ffc9c9;
   color: #c62828;
@@ -258,7 +298,7 @@ textarea {
 .complete-detail {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  border-radius: 8px;
   padding: 14px;
   font-size: 14px;
   line-height: 1.7;
@@ -271,9 +311,11 @@ textarea {
 }
 
 @media (max-width: 480px) {
-  h1 { font-size: 24px; }
-  .card { padding: 16px; border-radius: 14px; }
-  .day-cell { font-size: 14px; border-radius: 10px; }
+  .app-header { align-items: stretch; }
+  .app-header h1 { font-size: 24px; }
+  .header-actions { margin-left: auto; }
+  .card { padding: 16px; }
+  .day-cell { font-size: 14px; }
   .month-title { font-size: 18px; }
   .button-row { grid-template-columns: 1fr; }
 }

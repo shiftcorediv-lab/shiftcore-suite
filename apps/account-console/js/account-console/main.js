@@ -1,7 +1,7 @@
 import { DASHBOARD_URL, SIGNUP_ADMIN_URL } from "./config.js";
 import { requireAccountConsoleSession } from "./auth.js";
 import {
-  getCurrentAccountConsoleUser,
+  getAccountConsoleBootstrap,
   listAccountUsers,
   createAccountUser,
   updateAccountUser,
@@ -74,26 +74,24 @@ async function init() {
 
     idToken = session.idToken;
 
-    showLoading("Account Console権限を確認中...");
-    setStatus("Account Console権限を確認中...");
+    showLoading("Account Consoleを読み込み中...");
+    setStatus("Account Consoleを読み込み中...");
 
-    const currentResult = await getCurrentAccountConsoleUser(idToken);
+    const bootstrapResult = await getAccountConsoleBootstrap(idToken);
 
-    if (!isOkResult(currentResult)) {
-      setPermissionError(currentResult.message || "Account Consoleの利用権限がありません");
-      setStatus(JSON.stringify(currentResult, null, 2));
+    if (!isOkResult(bootstrapResult)) {
+      setPermissionError(bootstrapResult.message || "Account Consoleの利用権限がありません");
+      setStatus(JSON.stringify(bootstrapResult, null, 2));
       hideLoading();
       return;
     }
 
-    currentUser = currentResult.user;
-    setOperator(currentResult.user);
-    renderCurrentUserPermission(currentResult.user);
-
-    await Promise.all([
-      loadUsers("ユーザー名簿を取得中..."),
-      loadLogs("変更履歴を取得中...")
-    ]);
+    currentUser = bootstrapResult.user;
+    allUsers = Array.isArray(bootstrapResult.users) ? bootstrapResult.users : [];
+    setOperator(currentUser);
+    renderCurrentUserPermission(currentUser);
+    renderCurrentUsers();
+    renderLogs(Array.isArray(bootstrapResult.logs) ? bootstrapResult.logs : []);
 
     clearUserForm();
     setStatus("Account Consoleを読み込みました");
