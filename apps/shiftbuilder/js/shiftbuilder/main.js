@@ -1040,7 +1040,7 @@ function renderCurrentShiftView() {
   refreshActiveActionPopover();
 }
 
-async function loadAssignmentCandidates(session) {
+async function loadAssignmentCandidates(session, resultPromise = null) {
   if (!session || !session.isLoggedIn || !session.idToken) {
     assignmentCandidates = [];
     renderAssignmentCandidateCards();
@@ -1063,10 +1063,10 @@ async function loadAssignmentCandidates(session) {
       elements.assignmentCandidateStatus.textContent = "候補者を取得中...";
     }
 
-    const result = await getShiftBuilderAssignmentCandidates(session.idToken, {
+    const result = await (resultPromise || getShiftBuilderAssignmentCandidates(session.idToken, {
       targetMonth: targetMonth,
       area: area
-    });
+    }));
 
     console.log("[ShiftBuilder] assignment candidates result:", result);
 
@@ -1193,6 +1193,7 @@ async function loadMockShiftData(options = {}) {
 
   let apiResult = null;
   let shiftDataSource = "mock";
+  let candidateRequest = null;
 
   try {
     if (!silent) {
@@ -1207,6 +1208,14 @@ async function loadMockShiftData(options = {}) {
     }
 
     setCurrentSession(session);
+
+    // Candidate loading is independent of the month data request, so start it first.
+    candidateRequest = reloadCandidates
+      ? getShiftBuilderAssignmentCandidates(session.idToken, {
+          targetMonth: selectedMonth,
+          area: selectedArea
+        })
+      : null;
 
     apiResult = await getShiftBuilderMonthData(session.idToken, {
       targetMonth: selectedMonth,
@@ -1308,7 +1317,7 @@ async function loadMockShiftData(options = {}) {
   const currentSession = getCurrentSession();
 
   if (reloadCandidates && currentSession?.isLoggedIn) {
-    await loadAssignmentCandidates(currentSession);
+    await loadAssignmentCandidates(currentSession, candidateRequest);
   } else {
     renderAssignmentCandidateCards();
   }

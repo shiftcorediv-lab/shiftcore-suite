@@ -15,8 +15,8 @@
 body {
   margin: 0;
   font-family: sans-serif;
-  background: #f5f6f8;
-  color: #333;
+  background: #f5f5f3;
+  color: #252525;
 }
 
 main {
@@ -40,10 +40,10 @@ main {
  ****************************************************/
 header {
   background: #ffffff;
-  color: #333;
+  color: #252525;
   padding: 18px 16px;
-  border-bottom: 1px solid #e2e8f0;
-  box-shadow: 0 2px 10px rgba(0,0,0,.04);
+  border-bottom: 1px solid #e4e1dc;
+  box-shadow: 0 12px 32px rgba(0,0,0,.08);
 }
 
 header h1 {
@@ -72,27 +72,27 @@ header p {
   display: inline-block;
   padding: 8px 12px;
   border-radius: 999px;
-  color: #2e7d32;
+  color: #252525;
   text-decoration: none;
   font-size: 13px;
   font-weight: bold;
-  background: #f0fff4;
-  border: 1px solid #b7ebc6;
+  background: #eceae7;
+  border: 1px solid #e4e1dc;
 }
 
 .nav-link.active {
-  background: #4caf50;
+  background: #252525;
   color: #fff;
-  border-color: #4caf50;
+  border-color: #252525;
 }
 
 .nav-link:hover {
   text-decoration: none;
-  background: #e4f8e9;
+  background: #e2dfdb;
 }
 
 .nav-link.active:hover {
-  background: #43a047;
+  background: #3b3b3b;
 }
 /****************************************************
  * ヘッダー・ナビ ここまで
@@ -109,8 +109,8 @@ section,
 .toolbar,
 .empty {
   background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 4px 16px rgba(0,0,0,.08);
+  border-radius: 18px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.08);
   border: none;
 }
 
