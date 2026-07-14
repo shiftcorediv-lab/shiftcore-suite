@@ -43,39 +43,95 @@ function renderPersonnelGauge(person) {
   `;
 }
 
-function renderPersonnelDateCell(assignments) {
+function renderPersonnelDateCell(person, dateItem, assignments, consecutiveWorkAlert = null) {
   if (!assignments.length) {
     return `
-      <div
+      <button
+        type="button"
         class="personnel-shift-cell personnel-shift-cell-empty"
+        data-person-id="${escapeHtml(person.id)}"
+        data-date="${escapeHtml(dateItem.date)}"
         title="未配置（勤務可否は未確認）"
         aria-label="未配置。勤務可否は未確認"
       >
         —
-      </div>
+      </button>
     `;
   }
 
   const isConflict = assignments.length > 1;
   const caseNames = assignments.map((assignment) => assignment.caseTitle);
-  const title = isConflict
-    ? `同日重複：${caseNames.join(" / ")}`
-    : caseNames[0];
+  const title = [
+    isConflict ? `同日重複：${caseNames.join(" / ")}` : caseNames[0],
+    consecutiveWorkAlert?.message || ""
+  ].filter(Boolean).join(" / ");
+  const alertClass = consecutiveWorkAlert
+    ? `is-consecutive-${consecutiveWorkAlert.level}`
+    : "";
 
   return `
-    <div
-      class="personnel-shift-cell ${isConflict ? "is-conflict" : "is-assigned"}"
+    <button
+      type="button"
+      class="personnel-shift-cell ${isConflict ? "is-conflict" : "is-assigned"} ${alertClass}"
+      data-person-id="${escapeHtml(person.id)}"
+      data-date="${escapeHtml(dateItem.date)}"
       title="${escapeHtml(title)}"
       aria-label="${escapeHtml(title)}"
     >
       ${isConflict ? '<span class="personnel-shift-status">重複</span>' : ""}
+      ${consecutiveWorkAlert ? `<span class="personnel-shift-status">連勤${consecutiveWorkAlert.consecutiveDays}日</span>` : ""}
       <span class="personnel-shift-case">${escapeHtml(caseNames[0])}</span>
       ${assignments.length > 1 ? `<span class="personnel-shift-more">+${assignments.length - 1}</span>` : ""}
-    </div>
+    </button>
   `;
 }
 
-export function renderPersonnelTable(viewModel, elements) {
+function bindPersonnelCellEvents(rootElement, onSelectCell) {
+  const cells = rootElement.querySelectorAll(".personnel-shift-cell");
+
+  function moveFocus(currentButton, rowOffset, columnOffset) {
+    const matrix = Array.from(rootElement.querySelectorAll("tr"))
+      .map((row) => Array.from(row.querySelectorAll(".personnel-shift-cell")))
+      .filter((rowCells) => rowCells.length > 0);
+    const rowIndex = matrix.findIndex((row) => row.includes(currentButton));
+    const columnIndex = rowIndex >= 0 ? matrix[rowIndex].indexOf(currentButton) : -1;
+
+    if (rowIndex < 0 || columnIndex < 0) {
+      return;
+    }
+
+    const nextRow = matrix[Math.min(Math.max(rowIndex + rowOffset, 0), matrix.length - 1)];
+    const nextButton = nextRow?.[Math.min(Math.max(columnIndex + columnOffset, 0), nextRow.length - 1)];
+
+    nextButton?.focus();
+    nextButton?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+
+  cells.forEach((cellButton) => {
+    cellButton.addEventListener("click", () => {
+      onSelectCell?.(cellButton.dataset.personId || "", cellButton.dataset.date || "", cellButton);
+    });
+
+    cellButton.addEventListener("keydown", (event) => {
+      const offsets = {
+        ArrowUp: [-1, 0],
+        ArrowDown: [1, 0],
+        ArrowLeft: [0, -1],
+        ArrowRight: [0, 1]
+      };
+      const offset = offsets[event.key];
+
+      if (!offset) {
+        return;
+      }
+
+      event.preventDefault();
+      moveFocus(cellButton, offset[0], offset[1]);
+    });
+  });
+}
+
+export function renderPersonnelTable(viewModel, elements, handlers = {}) {
   const dates = Array.isArray(viewModel?.dates) ? viewModel.dates : [];
   const people = Array.isArray(viewModel?.people) ? viewModel.people : [];
 
@@ -111,10 +167,11 @@ export function renderPersonnelTable(viewModel, elements) {
       const dateCells = dates
         .map((dateItem) => {
           const assignments = person.assignmentsByDate[dateItem.date] || [];
+          const consecutiveWorkAlert = person.consecutiveAlertsByDate?.[dateItem.date] || null;
 
           return `
             <td class="${escapeHtml(getDateColumnClass(dateItem))}">
-              ${renderPersonnelDateCell(assignments)}
+              ${renderPersonnelDateCell(person, dateItem, assignments, consecutiveWorkAlert)}
             </td>
           `;
         })
@@ -132,6 +189,8 @@ export function renderPersonnelTable(viewModel, elements) {
       `;
     })
     .join("");
+
+  bindPersonnelCellEvents(elements.shiftTableBody, handlers.onSelectCell);
 }
 
 // ===== ShiftBuilder render-personnel-table.js ここまで =====

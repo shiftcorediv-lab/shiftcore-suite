@@ -7,7 +7,7 @@
   <title>ShiftBuilder β版 | ShiftCore</title>
 
   <link rel="stylesheet" href="../../shared/css/shiftcore-ui.css" />
-  <link rel="stylesheet" href="./css/shiftbuilder.css?v=20260714-density-1" />
+  <link rel="stylesheet" href="./css/shiftbuilder.css?v=20260714-workflow-1" />
 </head>
 
 <body>
@@ -127,7 +127,7 @@
 
     <details id="shiftbuilderHowto" class="howto-panel" open>
       <summary>
-        <span>操作ガイド：セル選択 → 矢印で移動 → Enterで詳細</span>
+        <span>操作ガイド</span>
         <span class="howto-shortcut"><kbd>H</kbd> で開閉</span>
       </summary>
       <div class="howto-content">
@@ -144,31 +144,6 @@
       </div>
     </details>
 
-    <div class="axis-tabs" role="tablist" aria-label="表示軸">
-      <button
-        id="caseAxisTab"
-        type="button"
-        class="axis-tab is-active"
-        role="tab"
-        aria-selected="true"
-        aria-controls="shiftTablePanel"
-        data-axis="case"
-      >
-        案件軸
-      </button>
-      <button
-        id="personnelAxisTab"
-        type="button"
-        class="axis-tab"
-        role="tab"
-        aria-selected="false"
-        aria-controls="shiftTablePanel"
-        data-axis="personnel"
-      >
-        人員軸
-      </button>
-    </div>
-
     <section class="shiftbuilder-layout">
       <section id="shiftTablePanel" class="shift-table-panel" role="tabpanel">
         <div class="section-heading-row">
@@ -177,6 +152,34 @@
             <p id="shiftTableHint" class="hint">
               v1-1では、案件ごとの必要人数とアサイン状況を日別に確認します。
             </p>
+          </div>
+          <div class="axis-tabs" role="tablist" aria-label="表示軸">
+            <button
+              id="caseAxisTab"
+              type="button"
+              class="axis-tab is-active"
+              role="tab"
+              aria-selected="true"
+              aria-controls="shiftTablePanel"
+              aria-keyshortcuts="1"
+              title="1キーで案件軸へ切り替え"
+              data-axis="case"
+            >
+              案件軸 <kbd>1</kbd>
+            </button>
+            <button
+              id="personnelAxisTab"
+              type="button"
+              class="axis-tab"
+              role="tab"
+              aria-selected="false"
+              aria-controls="shiftTablePanel"
+              aria-keyshortcuts="2"
+              title="2キーで人員軸へ切り替え"
+              data-axis="personnel"
+            >
+              人員軸 <kbd>2</kbd>
+            </button>
           </div>
         </div>
 
@@ -249,6 +252,6 @@
     </section>
   </main>
 
-  <script type="module" src="./js/shiftbuilder/main.js?v=20260714-density-1"></script>
+  <script type="module" src="./js/shiftbuilder/main.js?v=20260714-workflow-1"></script>
 </body>
 </html>

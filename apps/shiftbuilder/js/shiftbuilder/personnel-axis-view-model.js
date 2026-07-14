@@ -1,5 +1,7 @@
 // ===== ShiftBuilder personnel-axis-view-model.js ここから =====
 
+import { getConsecutiveWorkAlert } from "./consecutive-work-alert.js";
+
 function firstValue(source, keys) {
   for (const key of keys) {
     const value = source?.[key];
@@ -69,7 +71,12 @@ function mergePerson(current, incoming) {
   };
 }
 
-export function buildPersonnelAxisViewModel(shiftData, candidates = []) {
+export function buildPersonnelAxisViewModel(
+  shiftData,
+  candidates = [],
+  previousMonthData = null,
+  isPreviousMonthDataAvailable = false
+) {
   const dates = Array.isArray(shiftData?.dates) ? shiftData.dates : [];
   const cases = Array.isArray(shiftData?.cases) ? shiftData.cases : [];
   const peopleById = new Map();
@@ -137,6 +144,19 @@ export function buildPersonnelAxisViewModel(shiftData, candidates = []) {
         assignedDaysCount: assignedDates.length,
         assignmentCount,
         conflictDaysCount,
+        consecutiveAlertsByDate: isPreviousMonthDataAvailable
+          ? Object.fromEntries(
+              assignedDates.map((date) => [
+                date,
+                getConsecutiveWorkAlert({
+                  previousMonthData,
+                  currentMonthData: shiftData,
+                  internalUserId: person.id,
+                  workDate: date
+                })
+              ])
+            )
+          : {},
         targetDays: null
       };
     })

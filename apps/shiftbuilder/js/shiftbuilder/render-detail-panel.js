@@ -1,7 +1,7 @@
 // ===== ShiftBuilder render-detail-panel.js ここから =====
 
 import { escapeHtml } from "./utils.js";
-import { getCellStatus } from "./render-shift-table.js?v=20260714-density-1";
+import { getCellStatus } from "./render-shift-table.js?v=20260714-workflow-1";
 import { CANDIDATE_GROUP_CLASSES } from "./constants.js";
 
 function getAssignedCount(cell) {
@@ -595,13 +595,14 @@ function renderAssignmentCandidatesHtml(candidates, assignedMembers, actionMode 
           candidate.conflict_reason ||
           candidate.conflictReason ||
           "";
+        const consecutiveAlertLevel = uiState.consecutiveWorkAlert?.level || "";
 
         const candidateActions = actionMode === "replace"
           ? renderReplacementCandidateButtons(userId, alreadyAssigned, safeAssignedMembers, uiState)
           : renderAssignCandidateButton(userId, alreadyAssigned, uiState);
 
         return `
-          <div class="candidate-card ${alreadyAssigned ? "is-assigned" : ""} ${hasSameDayConflict ? "is-conflict" : ""}">
+          <div class="candidate-card ${alreadyAssigned ? "is-assigned" : ""} ${hasSameDayConflict ? "is-conflict" : ""} ${consecutiveAlertLevel ? `is-consecutive-${escapeHtml(consecutiveAlertLevel)}` : ""}">
             <div class="candidate-card-main">
               <div class="candidate-name">${escapeHtml(displayName)}</div>
               <div class="candidate-meta">

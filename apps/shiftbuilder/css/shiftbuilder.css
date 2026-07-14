@@ -413,7 +413,7 @@ select {
   display: inline-flex;
   gap: 4px;
   padding: 4px;
-  margin-bottom: 10px;
+  margin: 0;
   border-radius: 12px;
 }
 
@@ -428,6 +428,16 @@ select {
   cursor: pointer;
   font-size: 13px;
   font-weight: 900;
+}
+
+.axis-tab kbd {
+  margin-left: 4px;
+  padding: 1px 4px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  font: inherit;
+  font-size: 10px;
+  line-height: 1.1;
 }
 
 .axis-tab.is-active {
@@ -459,7 +469,7 @@ select {
 
 .section-heading-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 8px;
@@ -843,6 +853,7 @@ select {
 }
 
 .personnel-shift-cell {
+  width: 100%;
   min-height: 34px;
   display: flex;
   flex-direction: column;
@@ -850,10 +861,17 @@ select {
   justify-content: center;
   gap: 1px;
   padding: 2px;
+  border: 0;
   border-radius: 5px;
   background: #eef9ef;
   color: #1d6b2c;
   text-align: left;
+  cursor: pointer;
+}
+
+.personnel-shift-cell:focus-visible {
+  outline: 3px solid rgba(17, 17, 17, 0.35);
+  outline-offset: 1px;
 }
 
 .personnel-shift-cell-empty {
@@ -866,6 +884,23 @@ select {
   background: #ffe4d6;
   color: #7c2d12;
   outline: 1px solid rgba(234, 88, 12, 0.36);
+  outline-offset: -1px;
+}
+
+.personnel-shift-cell.is-consecutive-warning {
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.personnel-shift-cell.is-consecutive-notice {
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.personnel-shift-cell.is-consecutive-critical {
+  background: #fef2f2;
+  color: #991b1b;
+  outline: 1px solid rgba(220, 38, 38, 0.36);
   outline-offset: -1px;
 }
 
@@ -1442,6 +1477,26 @@ select {
   background: rgba(255, 251, 235, 0.9);
 }
 
+.candidate-card.is-consecutive-warning {
+  border-color: rgba(245, 158, 11, 0.75);
+  background: rgba(255, 251, 235, 0.9);
+}
+
+.candidate-card.is-consecutive-notice {
+  border-color: rgba(234, 179, 8, 0.65);
+  background: rgba(254, 252, 232, 0.9);
+}
+
+.candidate-card.is-consecutive-critical {
+  border-color: rgba(220, 38, 38, 0.7);
+  background: rgba(254, 242, 242, 0.92);
+}
+
+.candidate-card.is-consecutive-critical .candidate-warning {
+  background: rgba(220, 38, 38, 0.12);
+  color: #991b1b;
+}
+
 .candidate-card-main {
   min-width: 0;
 }
@@ -1603,6 +1658,11 @@ select {
 
   .axis-tabs {
     width: 100%;
+  }
+
+  .section-heading-row {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .axis-tab {

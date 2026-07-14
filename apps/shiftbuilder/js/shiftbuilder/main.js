@@ -9,20 +9,21 @@ import {
   archiveShiftBuilderAssignment,
   replaceShiftBuilderAssignment,
   getShiftBuilderAssignmentCandidates
-} from "./api.js?v=20260714-density-1";
+} from "./api.js?v=20260714-workflow-1";
 import { mockShiftData } from "./mock-data.js";
 import { escapeHtml } from "./utils.js";
 import { getPermissionLabel, canEdit } from "./permissions.js";
-import { renderSummary } from "./render-summary.js?v=20260714-density-1";
-import { renderShiftTable } from "./render-shift-table.js?v=20260714-density-1";
-import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20260714-density-1";
-import { renderPersonnelTable } from "./render-personnel-table.js?v=20260714-density-1";
+import { renderSummary } from "./render-summary.js?v=20260714-workflow-1";
+import { renderShiftTable } from "./render-shift-table.js?v=20260714-workflow-1";
+import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20260714-workflow-1";
+import { renderPersonnelTable } from "./render-personnel-table.js?v=20260714-workflow-1";
+import { getConsecutiveWorkAlert } from "./consecutive-work-alert.js?v=20260714-workflow-1";
 import {
   renderSelectedCell,
   resetDetailPanel,
   renderCellPreviewPopover,
   renderCellActionPopover
-} from "./render-detail-panel.js?v=20260714-density-1";
+} from "./render-detail-panel.js?v=20260714-workflow-1";
 import {
   setCurrentSession,
   setCurrentUser,
@@ -34,10 +35,12 @@ import {
   setActiveAxis,
   setSelectedCell,
   resetSelectedCell
-} from "./state.js?v=20260714-density-1";
-import { elements } from "./dom.js?v=20260714-density-1";
+} from "./state.js?v=20260714-workflow-1";
+import { elements } from "./dom.js?v=20260714-workflow-1";
 
 let assignmentCandidates = [];
+let previousMonthShiftData = null;
+let isPreviousMonthDataAvailable = false;
 let activePopoverMode = "";
 let activePopoverKey = null;
 let activePopoverAnchor = null;
@@ -229,7 +232,7 @@ function initializeFilters() {
 
 function findCandidateByInternalUserId(internalUserId) {
   return assignmentCandidates.find((candidate) => {
-    return String(candidate.internal_user_id || "") === String(internalUserId || "");
+    return String(candidate.internal_user_id || candidate.internalUserId || "") === String(internalUserId || "");
   }) || null;
 }
 
@@ -451,6 +454,14 @@ function normalizeAssignmentCandidatesForCell(candidates, selectedCell) {
       .map((item) => item.caseTitle)
       .filter(Boolean)
       .join(" / ");
+    const consecutiveWorkAlert = isPreviousMonthDataAvailable
+      ? getConsecutiveWorkAlert({
+          previousMonthData: previousMonthShiftData,
+          currentMonthData: getCurrentShiftData(),
+          internalUserId: userId,
+          workDate: selectedCell?.dateItem?.date
+        })
+      : null;
 
     let sortRank = 10;
     let buttonLabel = "アサイン";
@@ -473,6 +484,15 @@ function normalizeAssignmentCandidatesForCell(candidates, selectedCell) {
       warningText = "";
     }
 
+    if (!alreadyAssigned && (consecutiveWorkAlert || !isPreviousMonthDataAvailable)) {
+      warningText = [
+        warningText,
+        consecutiveWorkAlert?.message || "前月末からの連勤を確認できません"
+      ]
+        .filter(Boolean)
+        .join(" / ");
+    }
+
     return {
       ...candidate,
       has_same_day_assignment: hasSameDayAssignment,
@@ -487,7 +507,8 @@ function normalizeAssignmentCandidatesForCell(candidates, selectedCell) {
         disabled,
         buttonLabel,
         warningText,
-        sortRank
+        sortRank,
+        consecutiveWorkAlert
       }
     };
   });
@@ -533,6 +554,19 @@ function getOrCreateCellPopover() {
         createAssignmentFromSelectedCell(internalUserId);
       }
 
+      return;
+    }
+
+    const personnelAssignButton = event.target.closest(".personnel-assign-option-btn");
+
+    if (personnelAssignButton) {
+      personnelAssignButton.disabled = true;
+      personnelAssignButton.textContent = "反映中...";
+      createPersonnelAxisAssignment(
+        personnelAssignButton.dataset.caseId || "",
+        personnelAssignButton.dataset.date || "",
+        personnelAssignButton.dataset.personId || ""
+      );
       return;
     }
 
@@ -877,7 +911,9 @@ function findRenderedShiftCellButton(caseId, date) {
 }
 
 function focusFirstShiftCell() {
-  const firstCell = elements.shiftTableBody?.querySelector(".shift-cell");
+  const firstCell = elements.shiftTableBody?.querySelector(
+    ".shift-cell, .personnel-shift-cell"
+  );
 
   if (!firstCell) {
     setStatus("フォーカスできるシフトセルがありません。");
@@ -891,6 +927,95 @@ function focusFirstShiftCell() {
   });
 
   setStatus("シフト表の先頭セルへ移動しました。");
+}
+
+function getPersonnelAssignmentOptions(internalUserId, workDate) {
+  const candidate = findCandidateByInternalUserId(internalUserId);
+  const shiftData = getCurrentShiftData();
+
+  if (!candidate || !shiftData || hasSameDayAssignmentForUser(internalUserId, {
+    dateItem: { date: workDate }
+  })) {
+    return [];
+  }
+
+  return shiftData.cases.flatMap((caseItem) => {
+    const cell = caseItem.cells?.[workDate];
+    const required = Number(cell?.required || 0);
+    const assignedCount = Array.isArray(cell?.assigned) ? cell.assigned.length : 0;
+
+    if (!cell || required <= assignedCount) {
+      return [];
+    }
+
+    return [{
+      caseId: caseItem.caseId,
+      title: caseItem.title || caseItem.caseId || "案件名未設定",
+      client: caseItem.client || "",
+      area: caseItem.area || "",
+      assignedCount,
+      required
+    }];
+  });
+}
+
+function openPersonnelAssignmentPopover(internalUserId, workDate, anchorElement) {
+  const candidate = findCandidateByInternalUserId(internalUserId);
+  const options = getPersonnelAssignmentOptions(internalUserId, workDate);
+  const consecutiveWorkAlert = isPreviousMonthDataAvailable
+    ? getConsecutiveWorkAlert({
+        previousMonthData: previousMonthShiftData,
+        currentMonthData: getCurrentShiftData(),
+        internalUserId,
+        workDate
+      })
+    : null;
+  const popover = getOrCreateCellPopover();
+  const displayName = candidate?.display_name || candidate?.displayName || candidate?.name || internalUserId;
+
+  popover.className = "cell-popover cell-popover-mode-action";
+  popover.innerHTML = `
+    <div class="cell-popover-header">
+      <div>
+        <div class="cell-popover-title">${escapeHtml(displayName)} / ${escapeHtml(workDate)}</div>
+        <div class="cell-popover-meta">人員軸から案件を選んでアサインします。</div>
+      </div>
+      <button type="button" class="cell-popover-close" data-popover-action="close" aria-label="閉じる">×</button>
+    </div>
+    ${consecutiveWorkAlert ? `<div class="candidate-warning">${escapeHtml(consecutiveWorkAlert.message)}</div>` : ""}
+    ${!isPreviousMonthDataAvailable ? '<div class="candidate-warning">前月末からの連勤を確認できません</div>' : ""}
+    <div class="candidate-card-list">
+      ${options.length ? options.map((option) => `
+        <button
+          type="button"
+          class="secondary-button personnel-assign-option-btn"
+          data-person-id="${escapeHtml(internalUserId)}"
+          data-case-id="${escapeHtml(option.caseId)}"
+          data-date="${escapeHtml(workDate)}"
+        >
+          ${escapeHtml(option.title)}（${option.assignedCount}/${option.required}）
+        </button>
+      `).join("") : '<div class="empty-note">この人員を追加できる未充足案件はありません。</div>'}
+    </div>
+  `;
+  popover.hidden = false;
+  activePopoverMode = "personnel";
+  activePopoverKey = `${internalUserId}:${workDate}`;
+  activePopoverAnchor = anchorElement;
+  setPopoverPosition(popover, anchorElement);
+}
+
+async function createPersonnelAxisAssignment(caseId, workDate, internalUserId) {
+  const found = findShiftCell(caseId, workDate);
+
+  if (!found) {
+    setStatus("選択した案件セルを取得できませんでした。");
+    return;
+  }
+
+  hideCellPopover({ resetSelection: false });
+  setSelectedCell(found);
+  await createAssignmentFromSelectedCell(internalUserId);
 }
 
 function refreshActiveActionPopover() {
@@ -974,7 +1099,12 @@ function renderAssignmentCandidateCards() {
     ? cell.assigned.map((member) => String(member.internal_user_id || member.internalUserId || ""))
     : [];
 
-  elements.assignmentCandidateList.innerHTML = assignmentCandidates.map((candidate) => {
+  const normalizedCandidates = normalizeAssignmentCandidatesForCell(
+    assignmentCandidates,
+    selectedCell
+  );
+
+  elements.assignmentCandidateList.innerHTML = normalizedCandidates.map((candidate) => {
     const userId = candidate.internal_user_id || "";
     const separatedName = [
       candidate.family_name || candidate.familyName || "",
@@ -1001,9 +1131,9 @@ function renderAssignmentCandidateCards() {
     const sameDayAssignments = getSameDayAssignmentsForUser(userId, selectedCell);
     const hasSameDayAssignment = sameDayAssignments.length > 0;
 
-    const warningText = hasSameDayAssignment
+    const warningText = candidate.uiState?.warningText || (hasSameDayAssignment
       ? `同日別案件あり：${sameDayAssignments.map((item) => item.caseTitle).join(" / ")}`
-      : "";
+      : "");
 
     const buttonLabel = alreadyAssigned
       ? "アサイン済み"
@@ -1012,9 +1142,10 @@ function renderAssignmentCandidateCards() {
         : "アサイン";
 
     const isDisabled = alreadyAssigned || hasSameDayAssignment;
+    const consecutiveAlertLevel = candidate.uiState?.consecutiveWorkAlert?.level || "";
 
     return `
-      <div class="candidate-card ${alreadyAssigned ? "is-assigned" : ""} ${hasSameDayAssignment ? "is-conflict" : ""}">
+      <div class="candidate-card ${alreadyAssigned ? "is-assigned" : ""} ${hasSameDayAssignment ? "is-conflict" : ""} ${consecutiveAlertLevel ? `is-consecutive-${escapeHtml(consecutiveAlertLevel)}` : ""}">
         <div class="candidate-card-main">
           <div class="candidate-name">${escapeHtml(displayName)}</div>
           <div class="candidate-meta">
@@ -1063,7 +1194,9 @@ function renderCurrentShiftView() {
   if (activeAxis === "personnel") {
     const personnelViewModel = buildPersonnelAxisViewModel(
       shiftData,
-      assignmentCandidates
+      assignmentCandidates,
+      previousMonthShiftData,
+      isPreviousMonthDataAvailable
     );
 
     if (elements.shiftTable) {
@@ -1073,6 +1206,8 @@ function renderCurrentShiftView() {
     renderPersonnelTable(personnelViewModel, {
       shiftTableHead: elements.shiftTableHead,
       shiftTableBody: elements.shiftTableBody
+    }, {
+      onSelectCell: openPersonnelAssignmentPopover
     });
   } else {
     elements.shiftTable?.style.removeProperty("min-width");
@@ -1312,6 +1447,7 @@ async function loadShiftData(options = {}) {
   let apiResult = null;
   const shiftDataSource = IS_DEMO_MODE ? "demo" : "api";
   let candidateRequest = null;
+  let previousMonthRequest = null;
 
   try {
     if (!silent) {
@@ -1349,6 +1485,11 @@ async function loadShiftData(options = {}) {
             area: selectedArea
           })
         : null;
+
+      previousMonthRequest = getShiftBuilderMonthData(session.idToken, {
+        targetMonth: shiftMonthValue(selectedMonth, -1),
+        area: selectedArea
+      });
 
       apiResult = await getShiftBuilderMonthData(session.idToken, {
         targetMonth: selectedMonth,
@@ -1393,6 +1534,33 @@ async function loadShiftData(options = {}) {
     month: apiData.month || selectedMonth,
     area: apiData.area || selectedArea
   };
+
+  previousMonthShiftData = null;
+  isPreviousMonthDataAvailable = false;
+
+  if (previousMonthRequest) {
+    try {
+      const previousMonthResult = await previousMonthRequest;
+      const previousMonthData = previousMonthResult?.data;
+
+      if (
+        previousMonthResult?.success === true &&
+        Array.isArray(previousMonthData?.dates) &&
+        Array.isArray(previousMonthData?.cases)
+      ) {
+        previousMonthShiftData = {
+          ...previousMonthData,
+          month: previousMonthData.month || shiftMonthValue(selectedMonth, -1),
+          area: previousMonthData.area || selectedArea
+        };
+        isPreviousMonthDataAvailable = true;
+      } else {
+        console.warn("[ShiftBuilder] previous month data was unavailable for consecutive-work alerts:", previousMonthResult);
+      }
+    } catch (error) {
+      console.warn("[ShiftBuilder] previous month data request failed for consecutive-work alerts:", error);
+    }
+  }
 
   setCurrentShiftData(shiftData);
 
@@ -2106,6 +2274,27 @@ document.addEventListener("keydown", (event) => {
   elements.shiftbuilderHowto.open = !elements.shiftbuilderHowto.open;
 });
 
+document.addEventListener("keydown", (event) => {
+  const target = event.target;
+  const isEditing =
+    target instanceof HTMLElement &&
+    (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+
+  if (
+    isEditing ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.altKey ||
+    event.repeat ||
+    !["1", "2"].includes(event.key)
+  ) {
+    return;
+  }
+
+  event.preventDefault();
+  switchAxis(event.key === "1" ? "case" : "personnel");
+});
+
 document.addEventListener("click", (event) => {
   const popover = document.getElementById("shiftbuilderCellPopover");
 
@@ -2113,11 +2302,11 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  if (event.target.closest(".shift-cell")) {
+  if (event.target.closest(".shift-cell, .personnel-shift-cell")) {
     return;
   }
 
-  if (activePopoverMode === "action") {
+  if (activePopoverMode === "action" || activePopoverMode === "personnel") {
     hideCellPopover({
       resetSelection: true,
       restoreFocus: true
