@@ -530,6 +530,14 @@ function getOrCreateCellPopover() {
     const closeButton = event.target.closest("[data-popover-action='close']");
 
     if (closeButton) {
+      if (activePopoverMode === "personnel") {
+        const anchorElement = activePopoverAnchor;
+
+        hideCellPopover();
+        anchorElement?.focus({ preventScroll: true });
+        return;
+      }
+
       hideCellPopover({
         resetSelection: true,
         statusMessage: "セル選択を解除しました。",
