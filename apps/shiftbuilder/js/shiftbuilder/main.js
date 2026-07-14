@@ -664,7 +664,7 @@ function getActionPopoverButtons(popover) {
 
   return Array.from(
     popover.querySelectorAll(
-      ".cell-popover-close-btn, .archive-assignment-btn:not(:disabled), .assign-candidate-btn:not(:disabled)"
+      ".cell-popover-close-btn, .cell-popover-close, .archive-assignment-btn:not(:disabled), .assign-candidate-btn:not(:disabled), .personnel-assign-option-btn:not(:disabled)"
     )
   ).filter((button) => {
     return button instanceof HTMLButtonElement && !button.disabled;
@@ -677,7 +677,7 @@ function getPrimaryCandidateButton(popover) {
   }
 
   const button = popover.querySelector(
-    ".assign-candidate-btn:not(:disabled)"
+    ".assign-candidate-btn:not(:disabled), .personnel-assign-option-btn:not(:disabled)"
   );
 
   return button instanceof HTMLButtonElement ? button : null;
@@ -761,7 +761,7 @@ function movePopoverButtonFocus(popover, currentElement, offset) {
 }
 
 function handleActionPopoverKeydown(event, popover) {
-  if (!popover || activePopoverMode !== "action") {
+  if (!popover || !["action", "personnel"].includes(activePopoverMode)) {
     return;
   }
 
@@ -769,6 +769,15 @@ function handleActionPopoverKeydown(event, popover) {
 
   if (event.key === "Escape") {
     event.preventDefault();
+
+    if (activePopoverMode === "personnel") {
+      const anchorElement = activePopoverAnchor;
+
+      hideCellPopover();
+      anchorElement?.focus({ preventScroll: true });
+      return;
+    }
+
     closeDetailPanel();
     return;
   }
@@ -1003,6 +1012,7 @@ function openPersonnelAssignmentPopover(internalUserId, workDate, anchorElement)
   activePopoverKey = `${internalUserId}:${workDate}`;
   activePopoverAnchor = anchorElement;
   setPopoverPosition(popover, anchorElement);
+  focusActionPopoverContainer(popover);
 }
 
 async function createPersonnelAxisAssignment(caseId, workDate, internalUserId) {

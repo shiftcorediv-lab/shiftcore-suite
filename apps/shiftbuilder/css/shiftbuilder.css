@@ -411,6 +411,9 @@ select {
 
 .axis-tabs {
   display: inline-flex;
+  flex: 0 0 auto;
+  min-height: 48px;
+  align-items: center;
   gap: 4px;
   padding: 4px;
   margin: 0;
@@ -418,9 +421,13 @@ select {
 }
 
 .axis-tab {
-  min-width: 88px;
-  min-height: 34px;
-  padding: 0 14px;
+  width: 126px;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
   border: 0;
   border-radius: 9px;
   background: transparent;
@@ -431,7 +438,8 @@ select {
 }
 
 .axis-tab kbd {
-  margin-left: 4px;
+  min-width: 18px;
+  margin: 0;
   padding: 1px 4px;
   border: 1px solid currentColor;
   border-radius: 4px;
