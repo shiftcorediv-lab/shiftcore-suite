@@ -35,7 +35,7 @@ function renderPersonnelGauge(person) {
   return `
     <div class="row-fulfillment" aria-label="${escapeHtml(`配置 ${person.assignedDaysCount}日、目標未設定`)}">
       <div class="row-fulfillment-labels">
-        <span>配置 ${person.assignedDaysCount}日</span>
+        <span>配置 ${person.assignedDaysCount}日 / ${person.assignmentCount}件${person.conflictDaysCount ? ` / 重複${person.conflictDaysCount}日` : ""}</span>
         <span>目標未設定</span>
       </div>
       <div class="row-fulfillment-track is-unknown" aria-hidden="true"></div>

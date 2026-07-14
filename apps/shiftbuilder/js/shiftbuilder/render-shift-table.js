@@ -339,15 +339,16 @@ function renderFulfillmentGauge(fulfillment) {
     : "row-fulfillment-track is-unknown";
 
   return `
-    <div class="row-fulfillment" aria-label="${escapeHtml(`${fulfillment.currentTotal}/${fulfillment.requiredTotal}、${rateLabel}`)}">
-      <div class="row-fulfillment-labels">
-        <span>${fulfillment.currentTotal}/${fulfillment.requiredTotal}</span>
-        <span>${escapeHtml(rateLabel)}</span>
-      </div>
-      <div class="${trackClass}" aria-hidden="true">
+    <span
+      class="case-row-gauge"
+      title="${escapeHtml(`${fulfillment.currentTotal}/${fulfillment.requiredTotal}、${rateLabel}`)}"
+      aria-label="${escapeHtml(`${fulfillment.currentTotal}/${fulfillment.requiredTotal}、${rateLabel}`)}"
+    >
+      <span class="${trackClass}" aria-hidden="true">
         ${hasTarget ? `<span style="width: ${fulfillment.barRate}%"></span>` : ""}
-      </div>
-    </div>
+      </span>
+      <span>${fulfillment.currentTotal}/${fulfillment.requiredTotal}</span>
+    </span>
   `;
 }
 
@@ -486,9 +487,9 @@ export function renderShiftTable(data, elements, handlers = {}) {
             <div class="case-meta">${escapeHtml(caseItem.client)} / ${escapeHtml(caseItem.area)}</div>
             <div class="case-fulfillment-row">
               ${fulfillmentBadge}
+              <span class="case-id">${escapeHtml(caseItem.caseId)}</span>
+              ${fulfillmentGauge}
             </div>
-            <div class="case-id">${escapeHtml(caseItem.caseId)}</div>
-            ${fulfillmentGauge}
           </td>
           ${dateCells}
         </tr>

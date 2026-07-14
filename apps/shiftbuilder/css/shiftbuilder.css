@@ -343,23 +343,70 @@ select {
 }
 
 .howto-content {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  display: block;
   padding: 0 14px 14px 36px;
   border-top: 1px solid var(--sb-border);
 }
 
-.howto-content h2 {
-  margin: 12px 0 4px;
-  font-size: 13px;
+.howto-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
 }
 
-.howto-content p {
+.howto-steps li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--sb-surface-soft);
+}
+
+.howto-steps kbd,
+.howto-axis-notes kbd {
+  flex: 0 0 auto;
+  padding: 2px 5px;
+  border: 1px solid var(--sb-border-strong);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: #ffffff;
+  color: var(--sb-text);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.howto-steps span {
+  min-width: 0;
+  color: var(--sb-muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.howto-steps strong {
+  display: block;
+  color: var(--sb-text);
+  font-size: 11px;
+}
+
+.howto-axis-notes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.howto-axis-notes p {
   margin: 0;
   color: var(--sb-muted);
-  font-size: 12px;
-  line-height: 1.65;
+  font-size: 10px;
+  line-height: 1.5;
 }
 
 .axis-tabs {
@@ -595,19 +642,28 @@ select {
 
 .case-meta,
 .case-id {
-  margin-top: 3px;
+  margin-top: 1px;
   color: var(--sb-muted);
-  font-size: 10px;
-  line-height: 1.35;
+  font-size: 9px;
+  line-height: 1.2;
 }
 
 .case-fulfillment-row {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 5px;
-  min-height: 17px;
+  flex-wrap: nowrap;
+  gap: 3px;
+  margin-top: 2px;
+  min-height: 14px;
+}
+
+.case-fulfillment-row .case-id {
+  min-width: 0;
+  max-width: 78px;
+  margin-top: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .case-fulfillment-badge {
@@ -615,13 +671,13 @@ select {
   max-width: 100%;
   align-items: center;
   justify-content: center;
-  padding: 2px 7px;
+  padding: 1px 5px;
   border: 1px solid transparent;
   border-radius: 999px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 900;
   line-height: 1.25;
 }
@@ -688,7 +744,7 @@ select {
 }
 
 .row-fulfillment {
-  margin-top: 8px;
+  margin-top: 3px;
 }
 
 .row-fulfillment-labels {
@@ -702,8 +758,8 @@ select {
 }
 
 .row-fulfillment-track {
-  height: 5px;
-  margin-top: 4px;
+  height: 3px;
+  margin-top: 2px;
   overflow: hidden;
   border-radius: 999px;
   background: #e8e5df;
@@ -726,26 +782,44 @@ select {
   );
 }
 
+.case-row-gauge {
+  min-width: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+  color: var(--sb-muted);
+  font-size: 8px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.case-row-gauge .row-fulfillment-track {
+  width: 24px;
+  flex: 0 0 24px;
+  margin-top: 0;
+}
+
 /* ===== Case Cell ここまで ===== */
 
 /* ===== Personnel Axis ここから ===== */
 
 .shift-table.personnel-axis-table {
-  min-width: 0;
+  min-width: 1224px;
 }
 
 .shift-table.personnel-axis-table th:first-child,
 .shift-table.personnel-axis-table td:first-child {
-  width: 220px;
-  min-width: 220px;
-  max-width: 220px;
+  width: 170px;
+  min-width: 170px;
+  max-width: 170px;
 }
 
 .shift-table.personnel-axis-table th:not(:first-child),
 .shift-table.personnel-axis-table td:not(:first-child) {
-  width: 90px;
-  min-width: 90px;
-  max-width: 90px;
+  width: 34px;
+  min-width: 34px;
+  max-width: 34px;
 }
 
 .personnel-cell {
@@ -769,14 +843,14 @@ select {
 }
 
 .personnel-shift-cell {
-  min-height: 62px;
+  min-height: 34px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
-  gap: 3px;
-  padding: 6px;
-  border-radius: 8px;
+  gap: 1px;
+  padding: 2px;
+  border-radius: 5px;
   background: #eef9ef;
   color: #1d6b2c;
   text-align: left;
@@ -797,11 +871,11 @@ select {
 
 .personnel-shift-status {
   display: inline-flex;
-  padding: 2px 5px;
+  padding: 1px 3px;
   border-radius: 999px;
   background: #fb923c;
   color: #5f1f00;
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 900;
 }
 
@@ -809,7 +883,7 @@ select {
   width: 100%;
   display: -webkit-box;
   overflow: hidden;
-  font-size: 10px;
+  font-size: 8px;
   font-weight: 900;
   line-height: 1.25;
   -webkit-box-orient: vertical;
@@ -828,15 +902,15 @@ select {
 
 .shift-cell {
   width: 100%;
-  min-height: 48px;
+  min-height: 34px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 2px;
-  padding: 4px 2px;
+  gap: 1px;
+  padding: 2px 1px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
   box-shadow: none;
   transition:
@@ -860,18 +934,18 @@ select {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 2px 5px;
+  padding: 1px 4px;
   border-radius: 999px;
   white-space: nowrap;
   text-align: center;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 900;
   line-height: 1.1;
 }
 
 .shift-cell-count {
   margin-top: 0;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 900;
   line-height: 1;
 }
@@ -1519,8 +1593,12 @@ select {
   }
 
   .howto-content {
-    grid-template-columns: 1fr;
     padding-left: 14px;
+  }
+
+  .howto-steps,
+  .howto-axis-notes {
+    grid-template-columns: 1fr;
   }
 
   .axis-tabs {

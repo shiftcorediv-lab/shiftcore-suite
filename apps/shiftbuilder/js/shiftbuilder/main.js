@@ -9,20 +9,20 @@ import {
   archiveShiftBuilderAssignment,
   replaceShiftBuilderAssignment,
   getShiftBuilderAssignmentCandidates
-} from "./api.js?v=20260714-personnel-axis-2";
+} from "./api.js?v=20260714-density-1";
 import { mockShiftData } from "./mock-data.js";
 import { escapeHtml } from "./utils.js";
 import { getPermissionLabel, canEdit } from "./permissions.js";
-import { renderSummary } from "./render-summary.js?v=20260714-personnel-axis-2";
-import { renderShiftTable } from "./render-shift-table.js?v=20260714-personnel-axis-2";
-import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20260714-personnel-axis-2";
-import { renderPersonnelTable } from "./render-personnel-table.js?v=20260714-personnel-axis-2";
+import { renderSummary } from "./render-summary.js?v=20260714-density-1";
+import { renderShiftTable } from "./render-shift-table.js?v=20260714-density-1";
+import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20260714-density-1";
+import { renderPersonnelTable } from "./render-personnel-table.js?v=20260714-density-1";
 import {
   renderSelectedCell,
   resetDetailPanel,
   renderCellPreviewPopover,
   renderCellActionPopover
-} from "./render-detail-panel.js?v=20260714-personnel-axis-2";
+} from "./render-detail-panel.js?v=20260714-density-1";
 import {
   setCurrentSession,
   setCurrentUser,
@@ -34,14 +34,41 @@ import {
   setActiveAxis,
   setSelectedCell,
   resetSelectedCell
-} from "./state.js?v=20260714-personnel-axis-2";
-import { elements } from "./dom.js?v=20260714-personnel-axis-2";
+} from "./state.js?v=20260714-density-1";
+import { elements } from "./dom.js?v=20260714-density-1";
 
 let assignmentCandidates = [];
 let activePopoverMode = "";
 let activePopoverKey = null;
 let activePopoverAnchor = null;
 const IS_DEMO_MODE = new URLSearchParams(window.location.search).get("demo") === "1";
+const HOWTO_OPEN_STORAGE_KEY = "shiftbuilder-howto-open";
+
+function initializeHowto() {
+  if (!elements.shiftbuilderHowto) {
+    return;
+  }
+
+  let savedState = null;
+
+  try {
+    savedState = window.localStorage.getItem(HOWTO_OPEN_STORAGE_KEY);
+  } catch (error) {
+    console.warn("[ShiftBuilder] how-to state could not be restored:", error);
+  }
+
+  elements.shiftbuilderHowto.open = savedState === null ? true : savedState === "true";
+  elements.shiftbuilderHowto.addEventListener("toggle", () => {
+    try {
+      window.localStorage.setItem(
+        HOWTO_OPEN_STORAGE_KEY,
+        String(elements.shiftbuilderHowto.open)
+      );
+    } catch (error) {
+      console.warn("[ShiftBuilder] how-to state could not be saved:", error);
+    }
+  });
+}
 
 function setStatus(message) {
   if (elements.statusBox) {
@@ -1040,7 +1067,7 @@ function renderCurrentShiftView() {
     );
 
     if (elements.shiftTable) {
-      elements.shiftTable.style.minWidth = `${220 + personnelViewModel.dates.length * 90}px`;
+      elements.shiftTable.style.minWidth = `${170 + personnelViewModel.dates.length * 34}px`;
     }
 
     renderPersonnelTable(personnelViewModel, {
@@ -1930,6 +1957,7 @@ async function archiveAssignmentFromButton(assignmentId) {
 
 async function init() {
   try {
+    initializeHowto();
     initializeFilters();
     syncAxisControls(getActiveAxis());
 

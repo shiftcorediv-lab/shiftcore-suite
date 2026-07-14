@@ -128,11 +128,15 @@ export function buildPersonnelAxisViewModel(shiftData, candidates = []) {
         (total, date) => total + person.assignmentsByDate[date].length,
         0
       );
+      const conflictDaysCount = assignedDates.filter(
+        (date) => person.assignmentsByDate[date].length > 1
+      ).length;
 
       return {
         ...person,
         assignedDaysCount: assignedDates.length,
         assignmentCount,
+        conflictDaysCount,
         targetDays: null
       };
     })
