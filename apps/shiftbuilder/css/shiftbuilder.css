@@ -412,7 +412,8 @@ select {
 .axis-tabs {
   display: inline-flex;
   flex: 0 0 auto;
-  min-height: 42px;
+  height: 42px;
+  box-sizing: border-box;
   align-items: center;
   gap: 4px;
   padding: 4px;
@@ -421,13 +422,15 @@ select {
 }
 
 .axis-tab {
-  min-width: 104px;
-  min-height: 34px;
+  width: auto;
+  min-width: 0;
+  height: 34px;
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: flex-start !important;
   gap: 4px;
-  padding: 0 12px;
+  padding: 0 10px;
   border: 0;
   border-radius: 9px;
   background: transparent;
