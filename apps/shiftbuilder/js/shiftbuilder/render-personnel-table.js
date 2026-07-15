@@ -26,7 +26,10 @@ function renderPersonMeta(person) {
   ];
 
   return `
-    <div class="personnel-meta">${escapeHtml(accountCode)} / ${escapeHtml(person.id)}</div>
+    <div class="personnel-identity">
+      <div class="personnel-name" title="${escapeHtml(person.displayName)}">${escapeHtml(person.displayName)}</div>
+      <div class="personnel-account">${escapeHtml(accountCode)} / ${escapeHtml(person.id)}</div>
+    </div>
     <div class="personnel-meta">${escapeHtml(attributes.join(" / "))}</div>
   `;
 }
@@ -180,7 +183,6 @@ export function renderPersonnelTable(viewModel, elements, handlers = {}) {
       return `
         <tr>
           <td class="personnel-cell">
-            <div class="personnel-name">${escapeHtml(person.displayName)}</div>
             ${renderPersonMeta(person)}
             ${renderPersonnelGauge(person)}
           </td>
