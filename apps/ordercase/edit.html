@@ -356,6 +356,12 @@
         </div>
 
         <div>
+          <label for="shiftcoreDisplayName">シフトコア表示用省略名称</label>
+          <input id="shiftcoreDisplayName" maxlength="24" placeholder="例：池袋8月1" />
+          <p class="hint">ShiftBuilderの人員×日付セルに表示します。正式な案件情報は変更しません。</p>
+        </div>
+
+        <div>
           <label for="status">ステータス</label>
           <select id="status">
             <option value="received">受付済み</option>
@@ -1064,6 +1070,7 @@
       setValue('caseId', item.case_id);
       setValue('targetMonth', item.target_month);
       setValue('caseType', item.case_type);
+      setValue('shiftcoreDisplayName', item.shiftcore_display_name);
       setValue('status', item.status);
       setValue('inputMode', item.input_mode);
       setValue('replyDeadline', item.reply_deadline);
@@ -1214,6 +1221,7 @@ setTimeout(() => {
 
         target_month: document.getElementById('targetMonth').value,
         case_type: document.getElementById('caseType').value,
+        shiftcore_display_name: document.getElementById('shiftcoreDisplayName').value.trim(),
         status: document.getElementById('status').value,
         input_mode: document.getElementById('inputMode').value,
         reply_deadline: document.getElementById('replyDeadline').value,
@@ -1269,6 +1277,7 @@ if (payload.change_type !== 'status_change' && !payload.change_memo) {
 
       if (!payload.target_month) throw new Error('対象月を入力してください。');
       if (!payload.case_type) throw new Error('案件種別を選択してください。');
+      if (!payload.shiftcore_display_name) throw new Error('シフトコア表示用省略名称を入力してください。');
       if (!payload.input_mode) throw new Error('入力方式を選択してください。');
       if (!payload.agency_name) throw new Error('代理店名を入力してください。');
       if (!payload.store_name) throw new Error('連携店舗を入力してください。');

@@ -373,6 +373,12 @@ input[type="time"] {
         </div>
 
         <div>
+          <label for="shiftcoreDisplayName">シフトコア表示用省略名称</label>
+          <input id="shiftcoreDisplayName" maxlength="24" placeholder="例：池袋8月1" />
+          <p class="hint">ShiftBuilderの人員×日付セルに表示します。正式な案件情報は変更しません。</p>
+        </div>
+
+        <div>
           <label for="inputMode">入力方式</label>
           <select id="inputMode">
             <option value="dates">日付指定</option>
@@ -1344,6 +1350,7 @@ input[type="time"] {
         reply_deadline: document.getElementById('replyDeadline').value,
 
         case_type: document.getElementById('caseType').value,
+        shiftcore_display_name: document.getElementById('shiftcoreDisplayName').value.trim(),
         input_mode: inputMode,
 
         agency_name: document.getElementById('agencyName').value.trim(),
@@ -1397,6 +1404,7 @@ input[type="time"] {
     function validatePayload(payload) {
       if (!payload.target_month) throw new Error('対象月を入力してください。');
       if (!payload.case_type) throw new Error('案件種別を選択してください。');
+      if (!payload.shiftcore_display_name) throw new Error('シフトコア表示用省略名称を入力してください。');
       if (!payload.agency_name) throw new Error('代理店名を入力してください。');
       if (!payload.store_name) throw new Error('連携店舗を入力してください。');
       if (!payload.store_area) throw new Error('連携店舗エリアを選択してください。');
@@ -1429,6 +1437,7 @@ input[type="time"] {
     function clearFormAfterSubmit() {
       document.getElementById('agencyName').value = '';
       document.getElementById('storeName').value = '';
+      document.getElementById('shiftcoreDisplayName').value = '';
       document.getElementById('replyDeadline').value = '';
 
       document.getElementById('workLocation').value = '';

@@ -115,6 +115,10 @@ export function buildPersonnelAxisViewModel(
         dateAssignments.push({
           caseId: String(caseItem.caseId || ""),
           caseTitle: String(caseItem.title || caseItem.caseId || "案件名未設定"),
+          caseDisplayTitle: firstValue(caseItem, [
+            "shiftcore_display_name",
+            "shiftcoreDisplayName"
+          ]) || String(caseItem.title || caseItem.caseId || "案件名未設定"),
           client: String(caseItem.client || ""),
           area: String(caseItem.area || ""),
           assignmentId: firstValue(member, ["assignment_id", "assignmentId"])

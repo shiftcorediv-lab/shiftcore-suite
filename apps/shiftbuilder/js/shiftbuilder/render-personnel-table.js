@@ -64,6 +64,9 @@ function renderPersonnelDateCell(person, dateItem, assignments, consecutiveWorkA
 
   const isConflict = assignments.length > 1;
   const caseNames = assignments.map((assignment) => assignment.caseTitle);
+  const caseDisplayNames = assignments.map(
+    (assignment) => assignment.caseDisplayTitle || assignment.caseTitle
+  );
   const title = [
     isConflict ? `同日重複：${caseNames.join(" / ")}` : caseNames[0],
     consecutiveWorkAlert?.message || ""
@@ -81,10 +84,14 @@ function renderPersonnelDateCell(person, dateItem, assignments, consecutiveWorkA
       title="${escapeHtml(title)}"
       aria-label="${escapeHtml(title)}"
     >
-      ${isConflict ? '<span class="personnel-shift-status">重複</span>' : ""}
-      ${consecutiveWorkAlert ? `<span class="personnel-shift-status">連勤${consecutiveWorkAlert.consecutiveDays}日</span>` : ""}
-      <span class="personnel-shift-case">${escapeHtml(caseNames[0])}</span>
-      ${assignments.length > 1 ? `<span class="personnel-shift-more">+${assignments.length - 1}</span>` : ""}
+      <span class="personnel-shift-statuses">
+        ${isConflict ? '<span class="personnel-shift-status" title="同日重複">重</span>' : ""}
+        ${consecutiveWorkAlert ? `<span class="personnel-shift-status" title="連勤${consecutiveWorkAlert.consecutiveDays}日">連${consecutiveWorkAlert.consecutiveDays}</span>` : ""}
+      </span>
+      <span class="personnel-shift-label-row">
+        <span class="personnel-shift-case">${escapeHtml(caseDisplayNames[0])}</span>
+        ${assignments.length > 1 ? `<span class="personnel-shift-more">+${assignments.length - 1}</span>` : ""}
+      </span>
     </button>
   `;
 }

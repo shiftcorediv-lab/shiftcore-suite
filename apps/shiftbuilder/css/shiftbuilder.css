@@ -898,7 +898,9 @@ select {
 
 .personnel-shift-cell {
   width: 100%;
+  height: 34px;
   min-height: 34px;
+  max-height: 34px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -909,6 +911,7 @@ select {
   border-radius: 5px;
   background: #eef9ef;
   color: #1d6b2c;
+  overflow: hidden;
   text-align: left;
   cursor: pointer;
 }
@@ -958,18 +961,35 @@ select {
   font-weight: 900;
 }
 
-.personnel-shift-case {
+.personnel-shift-statuses {
+  min-height: 0;
+  display: flex;
+  max-width: 100%;
+  gap: 1px;
+  overflow: hidden;
+}
+
+.personnel-shift-label-row {
   width: 100%;
-  display: -webkit-box;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.personnel-shift-case {
+  min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
   font-size: 8px;
   font-weight: 900;
   line-height: 1.25;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .personnel-shift-more {
+  flex: 0 0 auto;
   color: inherit;
   font-size: 9px;
   font-weight: 900;
