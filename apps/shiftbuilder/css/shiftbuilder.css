@@ -900,9 +900,7 @@ select {
 .personnel-shift-cell {
   position: relative;
   width: 100%;
-  height: 34px;
-  min-height: 34px;
-  max-height: 34px;
+  min-height: 48px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -978,12 +976,13 @@ select {
   width: 100%;
   min-width: 0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 1px;
 }
 
 .personnel-shift-cell.has-status .personnel-shift-label-row {
-  padding-right: 15px;
+  padding-right: 0;
+  padding-top: 12px;
 }
 
 .personnel-shift-case {
@@ -992,10 +991,13 @@ select {
   overflow: hidden;
   font-size: 8px;
   font-weight: 900;
-  line-height: 1.25;
+  display: -webkit-box;
+  line-height: 1.1;
   letter-spacing: -0.3px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  word-break: break-all;
 }
 
 .personnel-shift-more {
