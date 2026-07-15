@@ -15,8 +15,8 @@ import { escapeHtml } from "./utils.js";
 import { getPermissionLabel, canEdit } from "./permissions.js";
 import { renderSummary } from "./render-summary.js?v=20260714-workflow-1";
 import { renderShiftTable } from "./render-shift-table.js?v=20260714-workflow-1";
-import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20260714-workflow-1";
-import { renderPersonnelTable } from "./render-personnel-table.js?v=20260714-workflow-1";
+import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20260715-personnel-actions-1";
+import { renderPersonnelTable } from "./render-personnel-table.js?v=20260715-personnel-actions-1";
 import { getConsecutiveWorkAlert } from "./consecutive-work-alert.js?v=20260714-workflow-1";
 import {
   renderSelectedCell,
@@ -578,6 +578,19 @@ function getOrCreateCellPopover() {
       return;
     }
 
+    const personnelArchiveButton = event.target.closest(".personnel-archive-option-btn");
+
+    if (personnelArchiveButton) {
+      personnelArchiveButton.disabled = true;
+      personnelArchiveButton.textContent = "解除中...";
+      archivePersonnelAxisAssignment(
+        personnelArchiveButton.dataset.caseId || "",
+        personnelArchiveButton.dataset.date || "",
+        personnelArchiveButton.dataset.assignmentId || ""
+      );
+      return;
+    }
+
     const archiveButton = event.target.closest(".archive-assignment-btn");
 
     if (archiveButton) {
@@ -672,7 +685,7 @@ function getActionPopoverButtons(popover) {
 
   return Array.from(
     popover.querySelectorAll(
-      ".cell-popover-close-btn, .cell-popover-close, .archive-assignment-btn:not(:disabled), .assign-candidate-btn:not(:disabled), .personnel-assign-option-btn:not(:disabled)"
+      ".cell-popover-close-btn, .cell-popover-close, .archive-assignment-btn:not(:disabled), .assign-candidate-btn:not(:disabled), .personnel-assign-option-btn:not(:disabled), .personnel-archive-option-btn:not(:disabled)"
     )
   ).filter((button) => {
     return button instanceof HTMLButtonElement && !button.disabled;
@@ -976,9 +989,42 @@ function getPersonnelAssignmentOptions(internalUserId, workDate) {
   });
 }
 
+function getPersonnelExistingAssignments(internalUserId, workDate) {
+  const shiftData = getCurrentShiftData();
+  const targetUserId = String(internalUserId || "");
+
+  if (!shiftData || !targetUserId || !workDate) {
+    return [];
+  }
+
+  return shiftData.cases.flatMap((caseItem) => {
+    const cell = caseItem.cells?.[workDate];
+
+    if (!Array.isArray(cell?.assigned)) {
+      return [];
+    }
+
+    return cell.assigned
+      .filter((member) => {
+        return String(member.internal_user_id || member.internalUserId || "") === targetUserId;
+      })
+      .map((member) => ({
+        caseId: caseItem.caseId || "",
+        title:
+          caseItem.shiftcore_display_name ||
+          caseItem.title ||
+          caseItem.caseId ||
+          "案件名未設定",
+        assignmentId: member.assignment_id || member.assignmentId || ""
+      }))
+      .filter((assignment) => Boolean(assignment.assignmentId));
+  });
+}
+
 function openPersonnelAssignmentPopover(internalUserId, workDate, anchorElement) {
   const candidate = findCandidateByInternalUserId(internalUserId);
   const options = getPersonnelAssignmentOptions(internalUserId, workDate);
+  const existingAssignments = getPersonnelExistingAssignments(internalUserId, workDate);
   const consecutiveWorkAlert = isPreviousMonthDataAvailable
     ? getConsecutiveWorkAlert({
         previousMonthData: previousMonthShiftData,
@@ -995,12 +1041,29 @@ function openPersonnelAssignmentPopover(internalUserId, workDate, anchorElement)
     <div class="cell-popover-header">
       <div>
         <div class="cell-popover-title">${escapeHtml(displayName)} / ${escapeHtml(workDate)}</div>
-        <div class="cell-popover-meta">人員軸から案件を選んでアサインします。</div>
+        <div class="cell-popover-meta">案件の追加・解除を行えます。</div>
       </div>
       <button type="button" class="cell-popover-close" data-popover-action="close" aria-label="閉じる">×</button>
     </div>
     ${consecutiveWorkAlert ? `<div class="candidate-warning">${escapeHtml(consecutiveWorkAlert.message)}</div>` : ""}
     ${!isPreviousMonthDataAvailable ? '<div class="candidate-warning">前月末からの連勤を確認できません</div>' : ""}
+    ${existingAssignments.length ? `
+      <div class="cell-popover-section-title">配置済み</div>
+      <div class="candidate-card-list">
+        ${existingAssignments.map((assignment) => `
+          <button
+            type="button"
+            class="secondary-button personnel-archive-option-btn"
+            data-case-id="${escapeHtml(assignment.caseId)}"
+            data-date="${escapeHtml(workDate)}"
+            data-assignment-id="${escapeHtml(assignment.assignmentId)}"
+          >
+            ${escapeHtml(assignment.title)} を解除
+          </button>
+        `).join("")}
+      </div>
+    ` : ""}
+    <div class="cell-popover-section-title">追加できる案件</div>
     <div class="candidate-card-list">
       ${options.length ? options.map((option) => `
         <button
@@ -1021,6 +1084,19 @@ function openPersonnelAssignmentPopover(internalUserId, workDate, anchorElement)
   activePopoverAnchor = anchorElement;
   setPopoverPosition(popover, anchorElement);
   focusActionPopoverContainer(popover);
+}
+
+async function archivePersonnelAxisAssignment(caseId, workDate, assignmentId) {
+  const found = findShiftCell(caseId, workDate);
+
+  if (!found) {
+    setStatus("解除対象の案件セルを取得できませんでした。");
+    return;
+  }
+
+  hideCellPopover({ resetSelection: false });
+  setSelectedCell(found);
+  await archiveAssignmentFromButton(assignmentId);
 }
 
 async function createPersonnelAxisAssignment(caseId, workDate, internalUserId) {
@@ -1218,7 +1294,7 @@ function renderCurrentShiftView() {
     );
 
     if (elements.shiftTable) {
-      elements.shiftTable.style.minWidth = `${170 + personnelViewModel.dates.length * 34}px`;
+      elements.shiftTable.style.minWidth = `${170 + personnelViewModel.dates.length * 40}px`;
     }
 
     renderPersonnelTable(personnelViewModel, {

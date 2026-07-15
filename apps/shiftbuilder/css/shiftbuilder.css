@@ -826,7 +826,7 @@ select {
 /* ===== Personnel Axis ここから ===== */
 
 .shift-table.personnel-axis-table {
-  min-width: 1224px;
+  min-width: 1410px;
 }
 
 .shift-table.personnel-axis-table th:first-child,
@@ -838,9 +838,10 @@ select {
 
 .shift-table.personnel-axis-table th:not(:first-child),
 .shift-table.personnel-axis-table td:not(:first-child) {
-  width: 34px;
-  min-width: 34px;
-  max-width: 34px;
+  width: 40px;
+  min-width: 40px;
+  max-width: 40px;
+  padding: 1px;
 }
 
 .personnel-cell {
@@ -897,6 +898,7 @@ select {
 }
 
 .personnel-shift-cell {
+  position: relative;
   width: 100%;
   height: 34px;
   min-height: 34px;
@@ -905,8 +907,7 @@ select {
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
-  gap: 1px;
-  padding: 2px;
+  padding: 1px;
   border: 0;
   border-radius: 5px;
   background: #eef9ef;
@@ -953,20 +954,24 @@ select {
 
 .personnel-shift-status {
   display: inline-flex;
-  padding: 1px 3px;
+  align-items: center;
+  min-height: 11px;
+  padding: 0 2px;
   border-radius: 999px;
   background: #fb923c;
   color: #5f1f00;
-  font-size: 8px;
+  font-size: 7px;
+  line-height: 1;
   font-weight: 900;
 }
 
 .personnel-shift-statuses {
-  min-height: 0;
+  position: absolute;
+  top: 1px;
+  right: 1px;
   display: flex;
-  max-width: 100%;
   gap: 1px;
-  overflow: hidden;
+  pointer-events: none;
 }
 
 .personnel-shift-label-row {
@@ -977,6 +982,10 @@ select {
   gap: 1px;
 }
 
+.personnel-shift-cell.has-status .personnel-shift-label-row {
+  padding-right: 15px;
+}
+
 .personnel-shift-case {
   min-width: 0;
   flex: 1 1 auto;
@@ -984,6 +993,7 @@ select {
   font-size: 8px;
   font-weight: 900;
   line-height: 1.25;
+  letter-spacing: -0.3px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

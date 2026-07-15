@@ -74,20 +74,23 @@ function renderPersonnelDateCell(person, dateItem, assignments, consecutiveWorkA
   const alertClass = consecutiveWorkAlert
     ? `is-consecutive-${consecutiveWorkAlert.level}`
     : "";
+  const statusBadges = [
+    isConflict ? '<span class="personnel-shift-status" title="同日重複">重</span>' : "",
+    consecutiveWorkAlert
+      ? `<span class="personnel-shift-status" title="連勤${consecutiveWorkAlert.consecutiveDays}日">${consecutiveWorkAlert.consecutiveDays}連</span>`
+      : ""
+  ].filter(Boolean).join("");
 
   return `
     <button
       type="button"
-      class="personnel-shift-cell ${isConflict ? "is-conflict" : "is-assigned"} ${alertClass}"
+      class="personnel-shift-cell ${isConflict ? "is-conflict" : "is-assigned"} ${alertClass} ${statusBadges ? "has-status" : ""}"
       data-person-id="${escapeHtml(person.id)}"
       data-date="${escapeHtml(dateItem.date)}"
       title="${escapeHtml(title)}"
       aria-label="${escapeHtml(title)}"
     >
-      <span class="personnel-shift-statuses">
-        ${isConflict ? '<span class="personnel-shift-status" title="同日重複">重</span>' : ""}
-        ${consecutiveWorkAlert ? `<span class="personnel-shift-status" title="連勤${consecutiveWorkAlert.consecutiveDays}日">連${consecutiveWorkAlert.consecutiveDays}</span>` : ""}
-      </span>
+      <span class="personnel-shift-statuses" aria-hidden="true">${statusBadges}</span>
       <span class="personnel-shift-label-row">
         <span class="personnel-shift-case">${escapeHtml(caseDisplayNames[0])}</span>
         ${assignments.length > 1 ? `<span class="personnel-shift-more">+${assignments.length - 1}</span>` : ""}
