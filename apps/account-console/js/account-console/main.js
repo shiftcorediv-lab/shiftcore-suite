@@ -14,6 +14,7 @@ import {
   newUserBtn,
   searchInput,
   userForm,
+  contractTypeInput,
   clearFormBtn,
   loadLogsBtn,
   saveUserBtn
@@ -31,6 +32,7 @@ import {
   collectUserForm,
   renderLogs,
   buildSaveConfirmMessage,
+  updateClassificationMigrationHint,
   showLoading,
   hideLoading,
   setLogsLoading
@@ -153,7 +155,6 @@ function findUserById(userId) {
 async function saveUser(event) {
   event.preventDefault();
 
-  const beforeUser = selectedUser ? { ...selectedUser } : null;
   const user = collectUserForm();
 
   try {
@@ -176,7 +177,7 @@ async function saveUser(event) {
       throw new Error("メールを入力してください");
     }
 
-    const confirmMessage = buildSaveConfirmMessage(beforeUser, user);
+    const confirmMessage = buildSaveConfirmMessage(user);
     const confirmed = window.confirm(confirmMessage);
 
     if (!confirmed) {
@@ -338,6 +339,10 @@ clearFormBtn.addEventListener("click", () => {
 
 searchInput.addEventListener("input", () => {
   renderCurrentUsers();
+});
+
+contractTypeInput.addEventListener("change", () => {
+  updateClassificationMigrationHint();
 });
 
 userForm.addEventListener("submit", saveUser);

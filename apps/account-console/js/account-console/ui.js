@@ -17,6 +17,10 @@ import {
   emailInput,
   phoneInput,
   roleInput,
+  affiliationTypeInput,
+  contractTypeInput,
+  gradeRoleInput,
+  classificationMigrationHint,
   organizationInput,
   departmentInput,
   positionInput,
@@ -28,6 +32,7 @@ import {
   shiftbuilderPermissionInput,
   memoInput,
   authProviderText,
+  legacyPersonTypeText,
   authUidText,
   createdAtText,
   updatedAtText,
@@ -70,6 +75,22 @@ const WORK_STATUS_LABELS = {
   unavailable: "稼働対象外"
 };
 
+const AFFILIATION_TYPE_LABELS = {
+  another_member: "Anotherメンバー",
+  external_member: "外部メンバー"
+};
+
+const CONTRACT_TYPE_LABELS = {
+  regular_employee: "正社員",
+  contract_employee: "契約社員",
+  part_time: "アルバイト",
+  intern: "インターン",
+  freelance: "フリーランス",
+  alliance: "アライアンス",
+  outsourced: "旧：委託（要再分類）",
+  none: "旧：未設定"
+};
+
 const MODULE_LABELS = {
   account: "アカウント基盤",
   account_console: "Account Console",
@@ -105,6 +126,10 @@ const FIELD_LABELS = {
   email: "メール",
   phone: "電話番号",
   role: "アカウント種別",
+  person_type: "旧人員区分",
+  affiliation_type: "所属区分",
+  contract_type: "契約区分",
+  grade_role: "等級・役割",
   organization_id: "所属ID / 所属名",
   department: "部署",
   position: "役職",
@@ -211,6 +236,14 @@ function displayValueByField(field, value) {
     return labelFromMap(raw, WORK_STATUS_LABELS, raw);
   }
 
+  if (key === "affiliation_type") {
+    return labelFromMap(raw, AFFILIATION_TYPE_LABELS, raw);
+  }
+
+  if (key === "contract_type") {
+    return labelFromMap(raw, CONTRACT_TYPE_LABELS, raw);
+  }
+
   if (key === "allowed_modules") {
     return modulesTextForDisplay(raw);
   }
@@ -230,6 +263,46 @@ function makeTd(value) {
   const td = document.createElement("td");
   td.textContent = text(value) || "-";
   return td;
+}
+
+function inferredAffiliationType(user) {
+  const personType = text(user.person_type);
+
+  if (personType === "internal") {
+    return "another_member";
+  }
+
+  if (personType === "alliance_individual" || personType === "alliance_company_member") {
+    return "external_member";
+  }
+
+  return "";
+}
+
+function affiliationTypeOf(user) {
+  return text(user.affiliation_type) || inferredAffiliationType(user);
+}
+
+function migrationStatusText(user) {
+  if (text(user.contract_type) === "outsourced") {
+    return "要再分類";
+  }
+
+  if (!text(user.affiliation_type) && !inferredAffiliationType(user)) {
+    return "所属区分を確認";
+  }
+
+  return "";
+}
+
+export function updateClassificationMigrationHint() {
+  if (!classificationMigrationHint) {
+    return;
+  }
+
+  classificationMigrationHint.textContent = text(contractTypeInput.value) === "outsourced"
+    ? "旧 outsourced はフリーランスへ自動変換していません。実態を確認して所属区分と契約区分を再分類してください。"
+    : "";
 }
 // ===== テキスト整形ここまで =====
 
@@ -251,6 +324,14 @@ export function filterUsers(users, keyword) {
       user.phone,
       user.role,
       labelFromMap(user.role, ROLE_LABELS, ""),
+      user.person_type,
+      user.affiliation_type,
+      affiliationTypeOf(user),
+      labelFromMap(affiliationTypeOf(user), AFFILIATION_TYPE_LABELS, ""),
+      user.contract_type,
+      labelFromMap(user.contract_type, CONTRACT_TYPE_LABELS, ""),
+      user.grade_role,
+      migrationStatusText(user),
       user.organization_id,
       user.department,
       user.position,
@@ -282,7 +363,7 @@ export function renderUsers(users, selectedUserId, onSelectUser) {
   if (!users.length) {
     const tr = document.createElement("tr");
     const td = document.createElement("td");
-    td.colSpan = 12;
+    td.colSpan = 16;
     td.textContent = "表示できるアカウントがありません";
     tr.appendChild(td);
     userTableBody.appendChild(tr);
@@ -301,6 +382,22 @@ export function renderUsers(users, selectedUserId, onSelectUser) {
     tr.appendChild(makeTd(user.employee_code));
     tr.appendChild(makeTd(user.email));
     tr.appendChild(makeTd(labelFromMap(user.role, ROLE_LABELS, "-")));
+    tr.appendChild(makeTd(labelFromMap(affiliationTypeOf(user), AFFILIATION_TYPE_LABELS, "未設定")));
+    tr.appendChild(makeTd(labelFromMap(user.contract_type, CONTRACT_TYPE_LABELS, "未設定")));
+    tr.appendChild(makeTd(user.grade_role));
+
+    const migrationStatus = migrationStatusText(user);
+    const migrationTd = document.createElement("td");
+    if (migrationStatus) {
+      const migrationPill = document.createElement("span");
+      migrationPill.className = "migration-pill";
+      migrationPill.textContent = migrationStatus;
+      migrationTd.appendChild(migrationPill);
+    } else {
+      migrationTd.textContent = "-";
+    }
+    tr.appendChild(migrationTd);
+
     tr.appendChild(makeTd(user.department));
     tr.appendChild(makeTd(user.position));
     tr.appendChild(makeTd(user.base_area));
@@ -350,6 +447,10 @@ export function clearUserForm() {
   emailInput.value = "";
   phoneInput.value = "";
   roleInput.value = "member";
+  affiliationTypeInput.value = "";
+  contractTypeInput.value = "";
+  gradeRoleInput.value = "";
+  updateClassificationMigrationHint();
   organizationInput.value = "";
   departmentInput.value = "";
   positionInput.value = "";
@@ -366,6 +467,7 @@ export function clearUserForm() {
   });
 
   authProviderText.textContent = "-";
+  legacyPersonTypeText.textContent = "-";
   authUidText.textContent = "-";
   createdAtText.textContent = "-";
   updatedAtText.textContent = "-";
@@ -385,6 +487,10 @@ export function fillUserForm(user) {
   emailInput.value = text(user.email);
   phoneInput.value = text(user.phone);
   roleInput.value = text(user.role) || "member";
+  affiliationTypeInput.value = affiliationTypeOf(user);
+  contractTypeInput.value = text(user.contract_type);
+  gradeRoleInput.value = text(user.grade_role);
+  updateClassificationMigrationHint();
   organizationInput.value = text(user.organization_id);
   departmentInput.value = text(user.department);
   positionInput.value = text(user.position);
@@ -403,6 +509,7 @@ export function fillUserForm(user) {
   });
 
   authProviderText.textContent = text(user.auth_provider) || "-";
+  legacyPersonTypeText.textContent = text(user.person_type) || "-";
   authUidText.textContent = text(user.auth_uid) || "-";
   createdAtText.textContent = text(user.created_at) || "-";
   updatedAtText.textContent = text(user.updated_at) || "-";
@@ -423,6 +530,9 @@ export function collectUserForm() {
     email: text(emailInput.value),
     phone: text(phoneInput.value),
     role: text(roleInput.value),
+    affiliation_type: text(affiliationTypeInput.value),
+    contract_type: text(contractTypeInput.value),
+    grade_role: text(gradeRoleInput.value),
     organization_id: text(organizationInput.value),
     department: text(departmentInput.value),
     position: text(positionInput.value),
@@ -487,6 +597,9 @@ export function buildSaveConfirmMessage(user) {
   const allowedModules = user?.allowed_modules || "-";
   const ordercasePermission = user?.ordercase_permission || "なし";
   const shiftbuilderPermission = user?.shiftbuilder_permission || "なし";
+  const affiliationType = labelFromMap(user?.affiliation_type, AFFILIATION_TYPE_LABELS, "未設定");
+  const contractType = labelFromMap(user?.contract_type, CONTRACT_TYPE_LABELS, "未設定");
+  const gradeRole = user?.grade_role || "未設定";
 
   return [
     "以下の内容で保存します。",
@@ -494,6 +607,9 @@ export function buildSaveConfirmMessage(user) {
     `氏名：${name}`,
     `メール：${email}`,
     `アカウントコード：${employeeCode}`,
+    `所属区分：${affiliationType}`,
+    `契約区分：${contractType}`,
+    `等級・役割：${gradeRole}`,
     `利用可能機能：${allowedModules}`,
     `OrderCase権限：${ordercasePermission}`,
     `ShiftBuilder権限：${shiftbuilderPermission}`,

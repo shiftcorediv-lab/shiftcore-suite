@@ -313,9 +313,17 @@ function buildAssignedMemberFromCandidate(internalUserId, result, pendingAssignm
       assignment?.person_type ||
       candidate?.person_type ||
       "",
+    affiliation_type:
+      assignment?.affiliation_type ||
+      candidate?.affiliation_type ||
+      "",
     contract_type:
       assignment?.contract_type ||
       candidate?.contract_type ||
+      "",
+    grade_role:
+      assignment?.grade_role ||
+      candidate?.grade_role ||
       "",
     assignment_status: isPending ? "saving" : "assigned",
     assignment_note: isPending ? "保存中..." : "ShiftBuilder画面から作成",
@@ -1217,8 +1225,9 @@ function renderAssignmentCandidateCards() {
       candidate.employee_code ||
       "";
 
-    const personType = candidate.person_type || "区分未設定";
+    const affiliationType = candidate.affiliation_type || "所属未設定";
     const contractType = candidate.contract_type || "契約未設定";
+    const gradeRole = candidate.grade_role || "等級・役割未設定";
     const baseArea = candidate.base_area || "拠点未設定";
 
     const alreadyAssigned = assignedUserIds.includes(String(userId));
@@ -1246,7 +1255,7 @@ function renderAssignmentCandidateCards() {
             ${escapeHtml(accountCode || "社員コードなし")} / ${escapeHtml(userId)}
           </div>
           <div class="candidate-meta">
-            ${escapeHtml(personType)} / ${escapeHtml(contractType)} / ${escapeHtml(baseArea)}
+            ${escapeHtml(affiliationType)} / ${escapeHtml(contractType)} / ${escapeHtml(gradeRole)} / ${escapeHtml(baseArea)}
           </div>
           ${
             warningText

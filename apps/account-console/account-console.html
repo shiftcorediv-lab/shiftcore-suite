@@ -39,7 +39,7 @@
     </section>
 
     <section class="toolbar">
-      <input id="searchInput" type="search" placeholder="氏名 / 表示名 / メール / アカウントコード / 所属 / 部署 / 役職 / エリア / 権限で検索">
+      <input id="searchInput" type="search" placeholder="氏名 / メール / 所属区分 / 契約区分 / 等級・役割 / 所属 / 部署 / 権限で検索">
       <button id="newUserBtn" class="primary-button">アカウント追加</button>
       <button id="reloadBtn" class="secondary-button">再読み込み</button>
     </section>
@@ -74,6 +74,10 @@
                 <th>アカウントコード</th>
                 <th>メール</th>
                 <th>アカウント種別</th>
+                <th>所属区分</th>
+                <th>契約区分</th>
+                <th>等級・役割</th>
+                <th>区分移行</th>
                 <th>部署</th>
                 <th>役職</th>
                 <th>担当エリア</th>
@@ -144,6 +148,41 @@
               <option value="agency">代理店</option>
             </select>
           </label>
+
+          <fieldset>
+            <legend>人員区分</legend>
+
+            <label>
+              所属区分
+              <select id="affiliationTypeInput">
+                <option value="">未設定（移行対象）</option>
+                <option value="another_member">Anotherメンバー</option>
+                <option value="external_member">外部メンバー</option>
+              </select>
+            </label>
+
+            <label>
+              契約区分
+              <select id="contractTypeInput">
+                <option value="">未設定</option>
+                <option value="regular_employee">正社員</option>
+                <option value="contract_employee">契約社員</option>
+                <option value="part_time">アルバイト</option>
+                <option value="intern">インターン</option>
+                <option value="freelance">フリーランス</option>
+                <option value="alliance">アライアンス</option>
+                <option value="outsourced">旧：委託（要再分類）</option>
+                <option value="none">旧：未設定</option>
+              </select>
+            </label>
+
+            <label>
+              等級・役割
+              <input id="gradeRoleInput" type="text" autocomplete="off" placeholder="例：プロ">
+            </label>
+
+            <p id="classificationMigrationHint" class="field-note"></p>
+          </fieldset>
 
           <label>
             所属ID / 所属名
@@ -249,6 +288,7 @@
           </label>
 
           <div class="readonly-box">
+            <div><strong>旧人員区分：</strong><span id="legacyPersonTypeText">-</span></div>
             <div><strong>認証プロバイダ：</strong><span id="authProviderText">-</span></div>
             <div><strong>認証UID：</strong><span id="authUidText">-</span></div>
             <div><strong>作成：</strong><span id="createdAtText">-</span></div>

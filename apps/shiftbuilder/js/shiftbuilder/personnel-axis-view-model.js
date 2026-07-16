@@ -48,7 +48,9 @@ function normalizePerson(source = {}) {
       "employeeCode"
     ]),
     personType: firstValue(source, ["person_type", "personType"]),
+    affiliationType: firstValue(source, ["affiliation_type", "affiliationType"]),
     contractType: firstValue(source, ["contract_type", "contractType"]),
+    gradeRole: firstValue(source, ["grade_role", "gradeRole"]),
     baseArea: firstValue(source, ["base_area", "baseArea", "area"])
   };
 }
@@ -66,7 +68,9 @@ function mergePerson(current, incoming) {
         : incoming.displayName,
     accountCode: current.accountCode || incoming.accountCode,
     personType: current.personType || incoming.personType,
+    affiliationType: current.affiliationType || incoming.affiliationType,
     contractType: current.contractType || incoming.contractType,
+    gradeRole: current.gradeRole || incoming.gradeRole,
     baseArea: current.baseArea || incoming.baseArea
   };
 }

@@ -580,8 +580,9 @@ function renderAssignmentCandidatesHtml(candidates, assignedMembers, actionMode 
           candidate.employee_code ||
           "";
 
-        const personType = candidate.person_type || "区分未設定";
+        const affiliationType = candidate.affiliation_type || "所属未設定";
         const contractType = candidate.contract_type || "契約未設定";
+        const gradeRole = candidate.grade_role || "等級・役割未設定";
         const baseArea = candidate.base_area || "拠点未設定";
         const uiState = candidate.uiState || {};
         const alreadyAssigned =
@@ -609,7 +610,7 @@ function renderAssignmentCandidatesHtml(candidates, assignedMembers, actionMode 
                 ${escapeHtml(accountCode || "社員コードなし")} / ${escapeHtml(userId)}
               </div>
               <div class="candidate-meta">
-                ${escapeHtml(personType)} / ${escapeHtml(contractType)} / ${escapeHtml(baseArea)}
+                ${escapeHtml(affiliationType)} / ${escapeHtml(contractType)} / ${escapeHtml(gradeRole)} / ${escapeHtml(baseArea)}
               </div>
               ${
                 warningText
