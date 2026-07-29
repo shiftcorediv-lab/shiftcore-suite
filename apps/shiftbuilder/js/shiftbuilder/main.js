@@ -703,30 +703,47 @@ function getActionPopoverButtons(popover) {
   });
 }
 
-function rememberActionPopoverFocus(button) {
+function describeActionPopoverFocus(button) {
   if (!(button instanceof HTMLButtonElement)) {
-    pendingActionPopoverFocus = null;
-    return;
+    return null;
   }
 
   if (button.classList.contains("assign-candidate-btn")) {
-    pendingActionPopoverFocus = {
+    return {
       kind: "assign",
       internalUserId: button.dataset.internalUserId || "",
       replaceAssignmentId: button.dataset.replaceAssignmentId || ""
     };
-    return;
   }
 
   if (button.classList.contains("archive-assignment-btn")) {
-    pendingActionPopoverFocus = {
+    return {
       kind: "archive",
       assignmentId: button.dataset.assignmentId || ""
     };
-    return;
   }
 
-  pendingActionPopoverFocus = null;
+  return null;
+}
+
+function rememberActionPopoverFocus(button) {
+  pendingActionPopoverFocus = describeActionPopoverFocus(button);
+}
+
+function getFocusedActionPopoverTarget() {
+  const popover = document.getElementById("shiftbuilderCellPopover");
+  const activeElement = document.activeElement;
+
+  if (
+    !popover ||
+    popover.hidden ||
+    !(activeElement instanceof HTMLButtonElement) ||
+    !popover.contains(activeElement)
+  ) {
+    return null;
+  }
+
+  return describeActionPopoverFocus(activeElement);
 }
 
 function restoreActionPopoverFocus(focusTarget, fallbackCellKey) {
@@ -1205,7 +1222,8 @@ function refreshActiveActionPopover() {
   }
 
   const selectedKey = getSelectedCellKey(selectedCell);
-  const focusTarget = pendingActionPopoverFocus;
+  // 先行保存が完了しても、現在操作中の別セルの候補ボタンを優先して復元する。
+  const focusTarget = getFocusedActionPopoverTarget() || pendingActionPopoverFocus;
   pendingActionPopoverFocus = null;
   const anchorElement =
     findRenderedShiftCellButton(selectedKey.caseId, selectedKey.date) ||
