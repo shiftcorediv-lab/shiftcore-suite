@@ -44,6 +44,7 @@ let isPreviousMonthDataAvailable = false;
 let activePopoverMode = "";
 let activePopoverKey = null;
 let activePopoverAnchor = null;
+let pendingActionPopoverFocus = null;
 const IS_DEMO_MODE = new URLSearchParams(window.location.search).get("demo") === "1";
 const HOWTO_OPEN_STORAGE_KEY = "shiftbuilder-howto-open";
 
@@ -557,6 +558,7 @@ function getOrCreateCellPopover() {
     const assignButton = event.target.closest(".assign-candidate-btn");
 
     if (assignButton) {
+      rememberActionPopoverFocus(assignButton);
       assignButton.disabled = true;
 
       const internalUserId = assignButton.dataset.internalUserId || "";
@@ -602,6 +604,7 @@ function getOrCreateCellPopover() {
     const archiveButton = event.target.closest(".archive-assignment-btn");
 
     if (archiveButton) {
+      rememberActionPopoverFocus(archiveButton);
       archiveButton.disabled = true;
       archiveButton.textContent = "解除中...";
 
@@ -697,6 +700,75 @@ function getActionPopoverButtons(popover) {
     )
   ).filter((button) => {
     return button instanceof HTMLButtonElement && !button.disabled;
+  });
+}
+
+function rememberActionPopoverFocus(button) {
+  if (!(button instanceof HTMLButtonElement)) {
+    pendingActionPopoverFocus = null;
+    return;
+  }
+
+  if (button.classList.contains("assign-candidate-btn")) {
+    pendingActionPopoverFocus = {
+      kind: "assign",
+      internalUserId: button.dataset.internalUserId || "",
+      replaceAssignmentId: button.dataset.replaceAssignmentId || ""
+    };
+    return;
+  }
+
+  if (button.classList.contains("archive-assignment-btn")) {
+    pendingActionPopoverFocus = {
+      kind: "archive",
+      assignmentId: button.dataset.assignmentId || ""
+    };
+    return;
+  }
+
+  pendingActionPopoverFocus = null;
+}
+
+function restoreActionPopoverFocus(focusTarget, fallbackCellKey) {
+  requestAnimationFrame(() => {
+    const popover = document.getElementById("shiftbuilderCellPopover");
+
+    if (popover && !popover.hidden && focusTarget) {
+      const nextButton = getActionPopoverButtons(popover).find((button) => {
+        if (focusTarget.kind === "assign") {
+          return (
+            button.classList.contains("assign-candidate-btn") &&
+            (button.dataset.internalUserId || "") === focusTarget.internalUserId &&
+            (button.dataset.replaceAssignmentId || "") === focusTarget.replaceAssignmentId
+          );
+        }
+
+        return (
+          focusTarget.kind === "archive" &&
+          button.classList.contains("archive-assignment-btn") &&
+          (button.dataset.assignmentId || "") === focusTarget.assignmentId
+        );
+      });
+
+      if (nextButton) {
+        focusPopoverElement(nextButton);
+        return;
+      }
+
+      const primaryButton = getPrimaryCandidateButton(popover);
+
+      if (primaryButton) {
+        focusPopoverElement(primaryButton);
+        return;
+      }
+    }
+
+    if (fallbackCellKey?.caseId && fallbackCellKey?.date) {
+      findRenderedShiftCellButton(
+        fallbackCellKey.caseId,
+        fallbackCellKey.date
+      )?.focus({ preventScroll: true });
+    }
   });
 }
 
@@ -1133,6 +1205,8 @@ function refreshActiveActionPopover() {
   }
 
   const selectedKey = getSelectedCellKey(selectedCell);
+  const focusTarget = pendingActionPopoverFocus;
+  pendingActionPopoverFocus = null;
   const anchorElement =
     findRenderedShiftCellButton(selectedKey.caseId, selectedKey.date) ||
     activePopoverAnchor;
@@ -1143,6 +1217,10 @@ function refreshActiveActionPopover() {
   }
 
   renderActionPopover(selectedCell, anchorElement);
+
+  if (focusTarget) {
+    restoreActionPopoverFocus(focusTarget, selectedKey);
+  }
 }
 
 function previewShiftCell(caseId, date, anchorElement) {
