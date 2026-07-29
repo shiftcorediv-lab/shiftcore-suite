@@ -12,7 +12,7 @@
     <div class="card">
       <h1>利用申請</h1>
       <div class="description">
-        ShiftCore の利用申請を行います。
+        Account Console の利用申請を行います。
       </div>
 
       <label>ログイン中メールアドレス</label>
@@ -20,21 +20,30 @@
     </div>
 
     <div class="card">
-      <label for="applicantNameInput">氏名</label>
-      <input type="text" id="applicantNameInput" class="text-box" placeholder="例：山田 太郎" />
+      <div class="name-grid">
+        <div>
+          <label for="familyNameInput">姓</label>
+          <input type="text" id="familyNameInput" class="text-box" autocomplete="family-name" placeholder="例：山田" />
+        </div>
+        <div>
+          <label for="givenNameInput">名</label>
+          <input type="text" id="givenNameInput" class="text-box" autocomplete="given-name" placeholder="例：太郎" />
+        </div>
+      </div>
 
-      <label for="applicantTypeSelect" class="mt-12">申請区分</label>
+      <label for="applicantTypeSelect" class="mt-12">アカウント種別</label>
       <select id="applicantTypeSelect" class="select-box">
         <option value="">選択してください</option>
-        <option value="employee">弊社社員</option>
-        <option value="partner_individual">協力個人</option>
-        <option value="partner_company_admin">協力会社代表</option>
+        <option value="employee">弊社内人員</option>
+        <option value="partner_individual">アライアンス個人</option>
+        <option value="partner_company_admin">アライアンス法人 管理者</option>
       </select>
 
-      <label for="companyNameInput" class="mt-12">会社名 / 所属名</label>
-      <input type="text" id="companyNameInput" class="text-box" placeholder="例：株式会社○○ / ○○事業部 / 屋号名" />
+      <label for="companyNameInput" class="mt-12">所属ID / 所属名</label>
+      <input type="text" id="companyNameInput" class="text-box" placeholder="例：internal / ORG-001 / 所属名" />
+      <div class="hint">アライアンスの場合は、会社名・屋号・所属名を入力してください。</div>
 
-      <label for="phoneInput" class="mt-12">業務連絡可能な電話番号</label>
+      <label for="phoneInput" class="mt-12">電話番号</label>
       <input type="text" id="phoneInput" class="text-box" placeholder="例：09012345678" />
       <div class="hint">承認連絡や確認事項の連絡先として使用します。</div>
 

@@ -1,5 +1,6 @@
 import {
-  applicantNameInput,
+  familyNameInput,
+  givenNameInput,
   applicantTypeSelect,
   companyNameInput,
   phoneInput,
@@ -22,9 +23,13 @@ function getLoggedInEmail() {
 }
 
 function buildPayload(email) {
+  const familyName = familyNameInput.value.trim();
+  const givenName = givenNameInput.value.trim();
+
   return {
     applicantEmail: email,
-    applicantName: applicantNameInput.value.trim(),
+    // 申請APIは従来どおり applicantName だけを受け取るため、入力は分けつつ送信時に連結する。
+    applicantName: `${familyName}${givenName}`,
     applicantType: applicantTypeSelect.value,
     companyName: companyNameInput.value.trim(),
     phone: phoneInput.value.trim(),
@@ -37,12 +42,12 @@ function validatePayload(payload) {
     return "ログイン中メールアドレスを取得できていません";
   }
 
-  if (!payload.applicantName) {
-    return "氏名を入力してください";
+  if (!familyNameInput.value.trim() || !givenNameInput.value.trim()) {
+    return "姓と名を入力してください";
   }
 
   if (!payload.applicantType) {
-    return "申請区分を選択してください";
+    return "アカウント種別を選択してください";
   }
 
   if (!payload.phone) {
@@ -77,7 +82,8 @@ submitBtn.addEventListener("click", async () => {
     }
 
     showMessage("利用申請を受け付けました", "success");
-    applicantNameInput.disabled = true;
+    familyNameInput.disabled = true;
+    givenNameInput.disabled = true;
     applicantTypeSelect.disabled = true;
     companyNameInput.disabled = true;
     phoneInput.disabled = true;

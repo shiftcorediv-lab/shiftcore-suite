@@ -1,6 +1,7 @@
 export const emailBox = document.getElementById("emailBox");
 
-export const applicantNameInput = document.getElementById("applicantNameInput");
+export const familyNameInput = document.getElementById("familyNameInput");
+export const givenNameInput = document.getElementById("givenNameInput");
 export const applicantTypeSelect = document.getElementById("applicantTypeSelect");
 export const companyNameInput = document.getElementById("companyNameInput");
 export const phoneInput = document.getElementById("phoneInput");
