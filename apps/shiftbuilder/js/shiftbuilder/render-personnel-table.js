@@ -46,6 +46,17 @@ function renderPersonnelGauge(person) {
   `;
 }
 
+function renderPersonnelDataAttributes(person) {
+  return [
+    `data-display-name="${escapeHtml(person.displayName || "")}"`,
+    `data-account-code="${escapeHtml(person.accountCode || "")}"`,
+    `data-affiliation-type="${escapeHtml(person.affiliationType || "")}"`,
+    `data-contract-type="${escapeHtml(person.contractType || "")}"`,
+    `data-grade-role="${escapeHtml(person.gradeRole || "")}"`,
+    `data-base-area="${escapeHtml(person.baseArea || "")}"`
+  ].join(" ");
+}
+
 function renderPersonnelDateCell(person, dateItem, assignments, consecutiveWorkAlert = null) {
   if (!assignments.length) {
     return `
@@ -54,6 +65,7 @@ function renderPersonnelDateCell(person, dateItem, assignments, consecutiveWorkA
         class="personnel-shift-cell personnel-shift-cell-empty"
         data-person-id="${escapeHtml(person.id)}"
         data-date="${escapeHtml(dateItem.date)}"
+        ${renderPersonnelDataAttributes(person)}
         title="未配置（勤務可否は未確認）"
         aria-label="未配置。勤務可否は未確認"
       >
@@ -87,6 +99,7 @@ function renderPersonnelDateCell(person, dateItem, assignments, consecutiveWorkA
       class="personnel-shift-cell ${isConflict ? "is-conflict" : "is-assigned"} ${alertClass} ${statusBadges ? "has-status" : ""}"
       data-person-id="${escapeHtml(person.id)}"
       data-date="${escapeHtml(dateItem.date)}"
+      ${renderPersonnelDataAttributes(person)}
       title="${escapeHtml(title)}"
       aria-label="${escapeHtml(title)}"
     >
@@ -99,7 +112,13 @@ function renderPersonnelDateCell(person, dateItem, assignments, consecutiveWorkA
   `;
 }
 
-function bindPersonnelCellEvents(rootElement, onSelectCell) {
+function bindPersonnelCellEvents(rootElement, handlers = {}) {
+  const {
+    onSelectCell,
+    onPreviewCell,
+    onLeaveCell,
+    onCloseCell
+  } = handlers;
   const cells = rootElement.querySelectorAll(".personnel-shift-cell");
 
   function moveFocus(currentButton, rowOffset, columnOffset) {
@@ -120,9 +139,39 @@ function bindPersonnelCellEvents(rootElement, onSelectCell) {
     nextButton?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
 
+  function focusRowEdge(currentButton, direction) {
+    const row = currentButton.closest("tr");
+    const rowCells = Array.from(row?.querySelectorAll(".personnel-shift-cell") || []);
+    const nextButton = direction === "start"
+      ? rowCells[0]
+      : rowCells[rowCells.length - 1];
+
+    nextButton?.focus();
+    nextButton?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+
   cells.forEach((cellButton) => {
+    const personId = cellButton.dataset.personId || "";
+    const date = cellButton.dataset.date || "";
+
+    cellButton.addEventListener("mouseenter", () => {
+      onPreviewCell?.(personId, date, cellButton);
+    });
+
+    cellButton.addEventListener("mouseleave", () => {
+      onLeaveCell?.(personId, date);
+    });
+
+    cellButton.addEventListener("focus", () => {
+      onPreviewCell?.(personId, date, cellButton);
+    });
+
+    cellButton.addEventListener("blur", () => {
+      onLeaveCell?.(personId, date);
+    });
+
     cellButton.addEventListener("click", () => {
-      onSelectCell?.(cellButton.dataset.personId || "", cellButton.dataset.date || "", cellButton);
+      onSelectCell?.(personId, date, cellButton);
     });
 
     cellButton.addEventListener("keydown", (event) => {
@@ -134,12 +183,22 @@ function bindPersonnelCellEvents(rootElement, onSelectCell) {
       };
       const offset = offsets[event.key];
 
-      if (!offset) {
+      if (offset) {
+        event.preventDefault();
+        moveFocus(cellButton, offset[0], offset[1]);
         return;
       }
 
-      event.preventDefault();
-      moveFocus(cellButton, offset[0], offset[1]);
+      if (event.key === "Home" || event.key === "End") {
+        event.preventDefault();
+        focusRowEdge(cellButton, event.key === "Home" ? "start" : "end");
+        return;
+      }
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseCell?.();
+      }
     });
   });
 }
@@ -202,7 +261,7 @@ export function renderPersonnelTable(viewModel, elements, handlers = {}) {
     })
     .join("");
 
-  bindPersonnelCellEvents(elements.shiftTableBody, handlers.onSelectCell);
+  bindPersonnelCellEvents(elements.shiftTableBody, handlers);
 }
 
 // ===== ShiftBuilder render-personnel-table.js ここまで =====

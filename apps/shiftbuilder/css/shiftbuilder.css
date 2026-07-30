@@ -920,6 +920,11 @@ select {
   outline-offset: 1px;
 }
 
+.personnel-shift-cell:hover {
+  outline: 2px solid rgba(17, 17, 17, 0.2);
+  outline-offset: 1px;
+}
+
 .personnel-shift-cell-empty {
   align-items: center;
   background: #f3f2ef;

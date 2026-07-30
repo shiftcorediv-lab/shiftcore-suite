@@ -314,6 +314,59 @@ export function renderCellPreviewPopover(found) {
   `;
 }
 
+export function renderPersonnelCellPreviewPopover(context = {}) {
+  const assignments = Array.isArray(context.assignments)
+    ? context.assignments
+    : [];
+  const statusLabel = assignments.length > 1
+    ? "同日重複"
+    : assignments.length === 1
+      ? "配置済み"
+      : "未配置";
+  const assignmentSummary = assignments
+    .map((assignment) => assignment.title || assignment.caseId || "案件名未設定")
+    .join(" / ");
+  const attributes = [
+    context.accountCode || "コード未設定",
+    context.affiliationType || "所属未設定",
+    context.contractType || "契約未設定",
+    context.gradeRole || "等級・役割未設定",
+    context.baseArea || "拠点未設定"
+  ];
+
+  return `
+    <div class="cell-popover-preview">
+      <div class="cell-popover-kicker">${escapeHtml(context.dateLabel || context.date || "日付未設定")}</div>
+
+      <div class="cell-popover-title">${escapeHtml(context.displayName || context.internalUserId || "氏名未設定")}</div>
+
+      <div class="cell-popover-meta">${escapeHtml(attributes.join(" / "))}</div>
+
+      <div class="cell-popover-summary-row">
+        <span class="cell-popover-status">${escapeHtml(statusLabel)}</span>
+        <span class="cell-popover-count">${assignments.length}件</span>
+      </div>
+
+      ${
+        assignmentSummary
+          ? `
+            <div class="cell-popover-assigned-summary">
+              <span class="cell-popover-assigned-label">アサイン済</span>
+              <span class="cell-popover-assigned-names">${escapeHtml(assignmentSummary)}</span>
+            </div>
+          `
+          : ""
+      }
+
+      ${
+        context.consecutiveWorkAlert?.message
+          ? `<div class="candidate-warning">${escapeHtml(context.consecutiveWorkAlert.message)}</div>`
+          : ""
+      }
+    </div>
+  `;
+}
+
 export function renderCellActionPopover(found, assignmentCandidates = []) {
   const { cell } = found;
   const summary = getCellSummary(found);

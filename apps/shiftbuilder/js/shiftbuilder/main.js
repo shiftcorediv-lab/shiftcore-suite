@@ -16,14 +16,15 @@ import { getPermissionLabel, canEdit } from "./permissions.js";
 import { renderSummary } from "./render-summary.js?v=20260714-workflow-1";
 import { renderShiftTable } from "./render-shift-table.js?v=20260714-workflow-1";
 import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20260715-personnel-actions-1";
-import { renderPersonnelTable } from "./render-personnel-table.js?v=20260715-personnel-actions-1";
+import { renderPersonnelTable } from "./render-personnel-table.js?v=20260729-personnel-preview-1";
 import { getConsecutiveWorkAlert } from "./consecutive-work-alert.js?v=20260714-workflow-1";
 import {
   renderSelectedCell,
   resetDetailPanel,
   renderCellPreviewPopover,
+  renderPersonnelCellPreviewPopover,
   renderCellActionPopover
-} from "./render-detail-panel.js?v=20260714-workflow-1";
+} from "./render-detail-panel.js?v=20260729-personnel-preview-1";
 import {
   setCurrentSession,
   setCurrentUser,
@@ -37,6 +38,11 @@ import {
   resetSelectedCell
 } from "./state.js?v=20260714-workflow-1";
 import { elements } from "./dom.js?v=20260714-workflow-1";
+import {
+  resolvePopoverAnchorTarget,
+  shouldRefreshActionPopoverForCell,
+  wasPopoverAnchorFocused
+} from "./async-focus-policy.mjs?v=20260730-focus-2";
 
 let assignmentCandidates = [];
 let previousMonthShiftData = null;
@@ -45,6 +51,7 @@ let activePopoverMode = "";
 let activePopoverKey = null;
 let activePopoverAnchor = null;
 let pendingActionPopoverFocus = null;
+let isRenderingShiftView = false;
 const IS_DEMO_MODE = new URLSearchParams(window.location.search).get("demo") === "1";
 const HOWTO_OPEN_STORAGE_KEY = "shiftbuilder-howto-open";
 
@@ -375,7 +382,9 @@ function updatePendingAssignment(caseId, date, pendingAssignmentId, result) {
     setSelectedCell(found);
   }
 
-  renderCurrentShiftView();
+  renderCurrentShiftView({
+    changedCellKey: getPopoverKey(caseId, date)
+  });
 
   return true;
 }
@@ -540,10 +549,7 @@ function getOrCreateCellPopover() {
 
     if (closeButton) {
       if (activePopoverMode === "personnel") {
-        const anchorElement = activePopoverAnchor;
-
-        hideCellPopover();
-        anchorElement?.focus({ preventScroll: true });
+        hideCellPopover({ restoreFocus: true });
         return;
       }
 
@@ -889,10 +895,7 @@ function handleActionPopoverKeydown(event, popover) {
     event.preventDefault();
 
     if (activePopoverMode === "personnel") {
-      const anchorElement = activePopoverAnchor;
-
-      hideCellPopover();
-      anchorElement?.focus({ preventScroll: true });
+      hideCellPopover({ restoreFocus: true });
       return;
     }
 
@@ -937,7 +940,11 @@ function hideCellPopover(options = {}) {
     restoreFocus = false
   } = options;
 
-  const focusKey = restoreFocus ? activePopoverKey : null;
+  const focusMode = restoreFocus ? activePopoverMode : "";
+  const focusKey =
+    restoreFocus && activePopoverKey
+      ? { ...activePopoverKey }
+      : null;
 
   const popover = document.getElementById("shiftbuilderCellPopover");
 
@@ -974,12 +981,9 @@ function hideCellPopover(options = {}) {
     setStatus(statusMessage);
   }
 
-  if (restoreFocus && focusKey?.caseId && focusKey?.date) {
+  if (restoreFocus && focusMode && focusKey) {
     requestAnimationFrame(() => {
-      const cellButton = findRenderedShiftCellButton(
-        focusKey.caseId,
-        focusKey.date
-      );
+      const cellButton = findRenderedPopoverAnchor(focusMode, focusKey);
 
       if (cellButton) {
         cellButton.focus({
@@ -1037,6 +1041,31 @@ function findRenderedShiftCellButton(caseId, date) {
   );
 }
 
+function findRenderedPersonnelCellButton(personId, date) {
+  if (!elements.shiftTableBody) {
+    return null;
+  }
+
+  const escapedPersonId = CSS.escape(String(personId || ""));
+  const escapedDate = CSS.escape(String(date || ""));
+
+  return elements.shiftTableBody.querySelector(
+    `.personnel-shift-cell[data-person-id="${escapedPersonId}"][data-date="${escapedDate}"]`
+  );
+}
+
+function findRenderedPopoverAnchor(activeMode, activeKey) {
+  const target = resolvePopoverAnchorTarget(activeMode, activeKey);
+
+  if (!target) {
+    return null;
+  }
+
+  return target.axis === "personnel"
+    ? findRenderedPersonnelCellButton(target.id, target.date)
+    : findRenderedShiftCellButton(target.id, target.date);
+}
+
 function focusFirstShiftCell() {
   const firstCell = elements.shiftTableBody?.querySelector(
     ".shift-cell, .personnel-shift-cell"
@@ -1086,7 +1115,7 @@ function getPersonnelAssignmentOptions(internalUserId, workDate) {
   });
 }
 
-function getPersonnelExistingAssignments(internalUserId, workDate) {
+function getPersonnelCellAssignments(internalUserId, workDate) {
   const shiftData = getCurrentShiftData();
   const targetUserId = String(internalUserId || "");
 
@@ -1103,7 +1132,16 @@ function getPersonnelExistingAssignments(internalUserId, workDate) {
 
     return cell.assigned
       .filter((member) => {
-        return String(member.internal_user_id || member.internalUserId || "") === targetUserId;
+        const memberUserId = (
+          member.internal_user_id ||
+          member.internalUserId ||
+          member.user_id ||
+          member.userId ||
+          member.id ||
+          ""
+        );
+
+        return String(memberUserId) === targetUserId;
       })
       .map((member) => ({
         caseId: caseItem.caseId || "",
@@ -1112,10 +1150,116 @@ function getPersonnelExistingAssignments(internalUserId, workDate) {
           caseItem.title ||
           caseItem.caseId ||
           "案件名未設定",
-        assignmentId: member.assignment_id || member.assignmentId || ""
-      }))
-      .filter((assignment) => Boolean(assignment.assignmentId));
+        assignmentId: member.assignment_id || member.assignmentId || "",
+        client: caseItem.client || "",
+        area: caseItem.area || ""
+      }));
   });
+}
+
+function getPersonnelExistingAssignments(internalUserId, workDate) {
+  return getPersonnelCellAssignments(internalUserId, workDate)
+    .filter((assignment) => Boolean(assignment.assignmentId));
+}
+
+function getPersonnelPopoverKey(internalUserId, workDate) {
+  return {
+    personId: String(internalUserId || ""),
+    date: String(workDate || "")
+  };
+}
+
+function isSamePersonnelPopoverKey(keyA, keyB) {
+  return (
+    keyA?.personId === keyB?.personId &&
+    keyA?.date === keyB?.date
+  );
+}
+
+function previewPersonnelCell(internalUserId, workDate, anchorElement) {
+  if (["action", "personnel"].includes(activePopoverMode)) {
+    return;
+  }
+
+  const candidate = findCandidateByInternalUserId(internalUserId);
+  const shiftData = getCurrentShiftData();
+  const dateItem = shiftData?.dates?.find((item) => item.date === workDate);
+  const assignments = getPersonnelCellAssignments(internalUserId, workDate);
+  const consecutiveWorkAlert = isPreviousMonthDataAvailable
+    ? getConsecutiveWorkAlert({
+        previousMonthData: previousMonthShiftData,
+        currentMonthData: shiftData,
+        internalUserId,
+        workDate
+      })
+    : null;
+  const popover = getOrCreateCellPopover();
+  const cellData = anchorElement?.dataset || {};
+
+  popover.className = "cell-popover cell-popover-mode-preview";
+  popover.innerHTML = renderPersonnelCellPreviewPopover({
+    internalUserId,
+    date: workDate,
+    dateLabel: [
+      dateItem?.label || workDate,
+      dateItem?.weekday ? `(${dateItem.weekday})` : ""
+    ].join(""),
+    displayName:
+      cellData.displayName ||
+      candidate?.display_name ||
+      candidate?.displayName ||
+      candidate?.name ||
+      internalUserId,
+    accountCode:
+      cellData.accountCode ||
+      candidate?.account_code ||
+      candidate?.employee_code ||
+      "",
+    affiliationType:
+      cellData.affiliationType ||
+      candidate?.affiliation_type ||
+      "",
+    contractType:
+      cellData.contractType ||
+      candidate?.contract_type ||
+      "",
+    gradeRole:
+      cellData.gradeRole ||
+      candidate?.grade_role ||
+      "",
+    baseArea:
+      cellData.baseArea ||
+      candidate?.base_area ||
+      "",
+    assignments,
+    consecutiveWorkAlert
+  });
+  popover.hidden = false;
+  activePopoverMode = "personnel-preview";
+  activePopoverKey = getPersonnelPopoverKey(internalUserId, workDate);
+  activePopoverAnchor = anchorElement;
+  setPopoverPosition(popover, anchorElement);
+}
+
+function leavePersonnelCell(internalUserId, workDate) {
+  if (isRenderingShiftView) {
+    return;
+  }
+
+  if (activePopoverMode !== "personnel-preview") {
+    return;
+  }
+
+  if (
+    !isSamePersonnelPopoverKey(
+      activePopoverKey,
+      getPersonnelPopoverKey(internalUserId, workDate)
+    )
+  ) {
+    return;
+  }
+
+  hideCellPopover();
 }
 
 function openPersonnelAssignmentPopover(internalUserId, workDate, anchorElement) {
@@ -1131,7 +1275,12 @@ function openPersonnelAssignmentPopover(internalUserId, workDate, anchorElement)
       })
     : null;
   const popover = getOrCreateCellPopover();
-  const displayName = candidate?.display_name || candidate?.displayName || candidate?.name || internalUserId;
+  const displayName =
+    anchorElement?.dataset?.displayName ||
+    candidate?.display_name ||
+    candidate?.displayName ||
+    candidate?.name ||
+    internalUserId;
 
   popover.className = "cell-popover cell-popover-mode-action";
   popover.innerHTML = `
@@ -1177,7 +1326,7 @@ function openPersonnelAssignmentPopover(internalUserId, workDate, anchorElement)
   `;
   popover.hidden = false;
   activePopoverMode = "personnel";
-  activePopoverKey = `${internalUserId}:${workDate}`;
+  activePopoverKey = getPersonnelPopoverKey(internalUserId, workDate);
   activePopoverAnchor = anchorElement;
   setPopoverPosition(popover, anchorElement);
   focusActionPopoverContainer(popover);
@@ -1241,6 +1390,97 @@ function refreshActiveActionPopover() {
   }
 }
 
+function capturePopoverRerenderState() {
+  const target = resolvePopoverAnchorTarget(
+    activePopoverMode,
+    activePopoverKey
+  );
+
+  if (!target) {
+    return null;
+  }
+
+  return {
+    mode: activePopoverMode,
+    key: { ...activePopoverKey },
+    target,
+    restoreAnchorFocus: wasPopoverAnchorFocused(
+      document.activeElement,
+      activePopoverAnchor
+    )
+  };
+}
+
+function reanchorActivePopover(rerenderState = null) {
+  const currentTarget = resolvePopoverAnchorTarget(
+    activePopoverMode,
+    activePopoverKey
+  );
+  const anchorElement = findRenderedPopoverAnchor(
+    activePopoverMode,
+    activePopoverKey
+  );
+  const popover = document.getElementById("shiftbuilderCellPopover");
+
+  if (!currentTarget || !anchorElement || !popover || popover.hidden) {
+    return;
+  }
+
+  activePopoverAnchor = anchorElement;
+  setPopoverPosition(popover, anchorElement);
+
+  if (
+    !rerenderState?.restoreAnchorFocus ||
+    rerenderState.mode !== activePopoverMode ||
+    rerenderState.target.axis !== currentTarget.axis ||
+    rerenderState.target.id !== currentTarget.id ||
+    rerenderState.target.date !== currentTarget.date
+  ) {
+    return;
+  }
+
+  requestAnimationFrame(() => {
+    const latestTarget = resolvePopoverAnchorTarget(
+      activePopoverMode,
+      activePopoverKey
+    );
+    const focusedElement = document.activeElement;
+
+    if (
+      !latestTarget ||
+      latestTarget.axis !== currentTarget.axis ||
+      latestTarget.id !== currentTarget.id ||
+      latestTarget.date !== currentTarget.date ||
+      (
+        focusedElement &&
+        focusedElement !== document.body &&
+        focusedElement !== document.documentElement
+      )
+    ) {
+      return;
+    }
+
+    findRenderedPopoverAnchor(
+      activePopoverMode,
+      activePopoverKey
+    )?.focus({ preventScroll: true });
+  });
+}
+
+function refreshActionPopoverForChangedCell(caseId, date) {
+  const changedCellKey = getPopoverKey(caseId, date);
+
+  if (
+    shouldRefreshActionPopoverForCell(
+      activePopoverMode,
+      activePopoverKey,
+      changedCellKey
+    )
+  ) {
+    refreshActiveActionPopover();
+  }
+}
+
 function previewShiftCell(caseId, date, anchorElement) {
   if (activePopoverMode === "action") {
     return;
@@ -1256,6 +1496,10 @@ function previewShiftCell(caseId, date, anchorElement) {
 }
 
 function leaveShiftCell(caseId, date) {
+  if (isRenderingShiftView) {
+    return;
+  }
+
   if (activePopoverMode !== "preview") {
     return;
   }
@@ -1372,7 +1616,9 @@ function renderAssignmentCandidateCards() {
   }).join("");
 }
 
-function renderCurrentShiftView() {
+function renderCurrentShiftView(options = {}) {
+  const changedCellKey = options.changedCellKey || null;
+  const popoverRerenderState = capturePopoverRerenderState();
   const shiftData = getCurrentShiftData();
 
   if (!shiftData) {
@@ -1402,27 +1648,42 @@ function renderCurrentShiftView() {
       elements.shiftTable.style.minWidth = `${170 + personnelViewModel.dates.length * 40}px`;
     }
 
-    renderPersonnelTable(personnelViewModel, {
-      shiftTableHead: elements.shiftTableHead,
-      shiftTableBody: elements.shiftTableBody
-    }, {
-      onSelectCell: openPersonnelAssignmentPopover
-    });
+    isRenderingShiftView = true;
+
+    try {
+      renderPersonnelTable(personnelViewModel, {
+        shiftTableHead: elements.shiftTableHead,
+        shiftTableBody: elements.shiftTableBody
+      }, {
+        onSelectCell: openPersonnelAssignmentPopover,
+        onPreviewCell: previewPersonnelCell,
+        onLeaveCell: leavePersonnelCell,
+        onCloseCell: () => hideCellPopover()
+      });
+    } finally {
+      isRenderingShiftView = false;
+    }
   } else {
     elements.shiftTable?.style.removeProperty("min-width");
 
-    renderShiftTable(
-      shiftData,
-      {
-        shiftTableHead: elements.shiftTableHead,
-        shiftTableBody: elements.shiftTableBody
-      },
-      {
-        onSelectCell: selectShiftCell,
-        onPreviewCell: previewShiftCell,
-        onLeaveCell: leaveShiftCell
-      }
-    );
+    isRenderingShiftView = true;
+
+    try {
+      renderShiftTable(
+        shiftData,
+        {
+          shiftTableHead: elements.shiftTableHead,
+          shiftTableBody: elements.shiftTableBody
+        },
+        {
+          onSelectCell: selectShiftCell,
+          onPreviewCell: previewShiftCell,
+          onLeaveCell: leaveShiftCell
+        }
+      );
+    } finally {
+      isRenderingShiftView = false;
+    }
   }
 
   const selectedCell = getSelectedCell();
@@ -1441,8 +1702,18 @@ function renderCurrentShiftView() {
   }
 
   renderAssignmentCandidateCards();
-  if (activeAxis === "case") {
+
+  if (
+    activeAxis === "case" &&
+    shouldRefreshActionPopoverForCell(
+      activePopoverMode,
+      activePopoverKey,
+      changedCellKey
+    )
+  ) {
     refreshActiveActionPopover();
+  } else {
+    reanchorActivePopover(popoverRerenderState);
   }
 }
 
@@ -1470,11 +1741,15 @@ function syncAxisControls(axis) {
 
 function switchAxis(axis) {
   const nextAxis = axis === "personnel" ? "personnel" : "case";
+  const currentAxis = getActiveAxis();
 
-  if (nextAxis === "personnel") {
-    hideCellPopover({ resetSelection: true });
+  if (nextAxis === currentAxis) {
+    return;
   }
 
+  hideCellPopover({
+    resetSelection: nextAxis === "personnel"
+  });
   setActiveAxis(nextAxis);
   syncAxisControls(nextAxis);
   renderCurrentShiftView();
@@ -1635,8 +1910,11 @@ async function loadShiftData(options = {}) {
   const reloadCandidates = options.reloadCandidates !== false;
   const silent = options.silent === true;
   const preserveSelectedCell = options.preserveSelectedCell === true;
+  const preservePopoverInteraction =
+    options.preservePopoverInteraction === true;
+  const changedCellKey = options.changedCellKey || null;
   const suppressStatus = options.suppressStatus === true;
-  const selectedKey = getSelectedCellKey(getSelectedCell());
+  const initialSelectedKey = getSelectedCellKey(getSelectedCell());
 
   const selectedArea = elements.areaSelect?.value || "all";
   const selectedMonth =
@@ -1767,7 +2045,13 @@ async function loadShiftData(options = {}) {
     assignmentCandidates = [];
   }
 
-  hideCellPopover();
+  const selectedKey = preservePopoverInteraction
+    ? getSelectedCellKey(getSelectedCell()) || initialSelectedKey
+    : initialSelectedKey;
+
+  if (!preservePopoverInteraction) {
+    hideCellPopover();
+  }
 
   if (preserveSelectedCell && selectedKey?.caseId && selectedKey?.date) {
     const restored = findShiftCell(selectedKey.caseId, selectedKey.date);
@@ -1781,7 +2065,7 @@ async function loadShiftData(options = {}) {
     resetSelectedCell();
   }
 
-  renderCurrentShiftView();
+  renderCurrentShiftView({ changedCellKey });
 
   if (!getSelectedCell()) {
     resetDetailPanel({
@@ -1977,6 +2261,8 @@ async function createAssignmentFromSelectedCell(internalUserId) {
         reloadCandidates: false,
         silent: true,
         preserveSelectedCell: true,
+        preservePopoverInteraction: true,
+        changedCellKey: getPopoverKey(caseId, workDate),
         suppressStatus: true
       });
     }
@@ -1986,8 +2272,6 @@ async function createAssignmentFromSelectedCell(internalUserId) {
     if (elements.assignmentCandidateStatus) {
       elements.assignmentCandidateStatus.textContent = "アサインを保存しました。";
     }
-
-    refreshActiveActionPopover();
   } catch (error) {
     console.error("[ShiftBuilder] create assignment error:", error);
 
@@ -2000,7 +2284,9 @@ async function createAssignmentFromSelectedCell(internalUserId) {
         setSelectedCell(found);
       }
 
-      renderCurrentShiftView();
+      renderCurrentShiftView({
+        changedCellKey: getPopoverKey(caseId, workDate)
+      });
     }
 
     setStatus(error.message || String(error));
@@ -2009,7 +2295,7 @@ async function createAssignmentFromSelectedCell(internalUserId) {
       elements.assignmentCandidateStatus.textContent = error.message || String(error);
     }
 
-    refreshActiveActionPopover();
+    refreshActionPopoverForChangedCell(caseId, workDate);
   }
 }
 
@@ -2173,6 +2459,8 @@ async function replaceAssignmentFromSelectedCell(internalUserId, replaceAssignme
         reloadCandidates: false,
         silent: true,
         preserveSelectedCell: true,
+        preservePopoverInteraction: true,
+        changedCellKey: getPopoverKey(caseId, workDate),
         suppressStatus: true
       });
     }
@@ -2182,9 +2470,7 @@ async function replaceAssignmentFromSelectedCell(internalUserId, replaceAssignme
     if (elements.assignmentCandidateStatus) {
       elements.assignmentCandidateStatus.textContent = "入れ替えを保存しました。";
     }
-
-    refreshActiveActionPopover();
-    } catch (error) {
+  } catch (error) {
     console.error("[ShiftBuilder] replace assignment error:", error);
 
     const found = findShiftCell(caseId, workDate);
@@ -2196,7 +2482,9 @@ async function replaceAssignmentFromSelectedCell(internalUserId, replaceAssignme
         setSelectedCell(found);
       }
 
-      renderCurrentShiftView();
+      renderCurrentShiftView({
+        changedCellKey: getPopoverKey(caseId, workDate)
+      });
     }
 
     try {
@@ -2204,6 +2492,8 @@ async function replaceAssignmentFromSelectedCell(internalUserId, replaceAssignme
         reloadCandidates: true,
         silent: true,
         preserveSelectedCell: true,
+        preservePopoverInteraction: true,
+        changedCellKey: getPopoverKey(caseId, workDate),
         suppressStatus: true
       });
     } catch (reloadError) {
@@ -2216,7 +2506,7 @@ async function replaceAssignmentFromSelectedCell(internalUserId, replaceAssignme
       elements.assignmentCandidateStatus.textContent = error.message || String(error);
     }
 
-    refreshActiveActionPopover();
+    refreshActionPopoverForChangedCell(caseId, workDate);
   }
 }
 
@@ -2296,7 +2586,7 @@ async function archiveAssignmentFromButton(assignmentId) {
       elements.assignmentCandidateStatus.textContent = "アサインを解除しました。";
     }
 
-    refreshActiveActionPopover();
+    refreshActionPopoverForChangedCell(caseId, workDate);
   } catch (error) {
     console.error("[ShiftBuilder] archive assignment error:", error);
 
@@ -2309,7 +2599,9 @@ async function archiveAssignmentFromButton(assignmentId) {
         setSelectedCell(found);
       }
 
-      renderCurrentShiftView();
+      renderCurrentShiftView({
+        changedCellKey: getPopoverKey(caseId, workDate)
+      });
     }
 
     setStatus(error.message || String(error));
@@ -2318,7 +2610,7 @@ async function archiveAssignmentFromButton(assignmentId) {
       elements.assignmentCandidateStatus.textContent = error.message || String(error);
     }
 
-    refreshActiveActionPopover();
+    refreshActionPopoverForChangedCell(caseId, workDate);
   }
 }
 
