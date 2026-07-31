@@ -8,8 +8,9 @@ import {
   createShiftBuilderAssignment,
   archiveShiftBuilderAssignment,
   replaceShiftBuilderAssignment,
-  getShiftBuilderAssignmentCandidates
-} from "./api.js?v=20260714-workflow-1";
+  getShiftBuilderAssignmentCandidates,
+  SHIFTBUILDER_DATA_REVISION_KEY
+} from "./api.js?v=20260730-case-cascade-1";
 import { mockShiftData } from "./mock-data.js";
 import { escapeHtml } from "./utils.js";
 import { getPermissionLabel, canEdit } from "./permissions.js";
@@ -40,9 +41,11 @@ import {
 import { elements } from "./dom.js?v=20260714-workflow-1";
 import {
   resolvePopoverAnchorTarget,
+  shouldClosePersonnelPopoverForExternalRefresh,
+  shouldClosePopoverForMissingSelection,
   shouldRefreshActionPopoverForCell,
   wasPopoverAnchorFocused
-} from "./async-focus-policy.mjs?v=20260730-focus-2";
+} from "./async-focus-policy.mjs?v=20260730-case-cascade-1";
 
 let assignmentCandidates = [];
 let previousMonthShiftData = null;
@@ -52,6 +55,9 @@ let activePopoverKey = null;
 let activePopoverAnchor = null;
 let pendingActionPopoverFocus = null;
 let isRenderingShiftView = false;
+let externalDataRefreshTimer = null;
+let externalDataRefreshPending = false;
+let isExternalDataRefreshRunning = false;
 const IS_DEMO_MODE = new URLSearchParams(window.location.search).get("demo") === "1";
 const HOWTO_OPEN_STORAGE_KEY = "shiftbuilder-howto-open";
 
@@ -1959,18 +1965,21 @@ async function loadShiftData(options = {}) {
       candidateRequest = reloadCandidates
         ? getShiftBuilderAssignmentCandidates(session.idToken, {
             targetMonth: selectedMonth,
-            area: selectedArea
+            area: selectedArea,
+            bypassCache: options.bypassCache === true
           })
         : null;
 
       previousMonthRequest = getShiftBuilderMonthData(session.idToken, {
         targetMonth: shiftMonthValue(selectedMonth, -1),
-        area: selectedArea
+        area: selectedArea,
+        bypassCache: options.bypassCache === true
       });
 
       apiResult = await getShiftBuilderMonthData(session.idToken, {
         targetMonth: selectedMonth,
-        area: selectedArea
+        area: selectedArea,
+        bypassCache: options.bypassCache === true
       });
 
       console.log("[ShiftBuilder] month data API result:", apiResult);
@@ -2041,7 +2050,7 @@ async function loadShiftData(options = {}) {
 
   setCurrentShiftData(shiftData);
 
-  if (reloadCandidates) {
+  if (reloadCandidates && !preservePopoverInteraction) {
     assignmentCandidates = [];
   }
 
@@ -2060,6 +2069,16 @@ async function loadShiftData(options = {}) {
       setSelectedCell(restored);
     } else {
       resetSelectedCell();
+
+      if (
+        shouldClosePopoverForMissingSelection(
+          preserveSelectedCell,
+          selectedKey,
+          restored
+        )
+      ) {
+        hideCellPopover({ resetSelection: false });
+      }
     }
   } else {
     resetSelectedCell();
@@ -2109,6 +2128,61 @@ async function loadShiftData(options = {}) {
     await loadAssignmentCandidates(currentSession, candidateRequest);
   } else {
     renderAssignmentCandidateCards();
+  }
+}
+
+function scheduleExternalDataRefresh() {
+  externalDataRefreshPending = true;
+
+  if (
+    document.visibilityState === "hidden" ||
+    isExternalDataRefreshRunning
+  ) {
+    return;
+  }
+
+  if (externalDataRefreshTimer) {
+    clearTimeout(externalDataRefreshTimer);
+  }
+
+  externalDataRefreshTimer = setTimeout(refreshAfterExternalDataChange, 120);
+}
+
+async function refreshAfterExternalDataChange() {
+  externalDataRefreshTimer = null;
+
+  if (
+    !externalDataRefreshPending ||
+    document.visibilityState === "hidden" ||
+    isExternalDataRefreshRunning
+  ) {
+    return;
+  }
+
+  externalDataRefreshPending = false;
+  isExternalDataRefreshRunning = true;
+
+  try {
+    if (shouldClosePersonnelPopoverForExternalRefresh(activePopoverMode)) {
+      hideCellPopover({ resetSelection: false });
+    }
+
+    await loadShiftData({
+      reloadCandidates: true,
+      silent: true,
+      preserveSelectedCell: true,
+      preservePopoverInteraction: true,
+      bypassCache: true,
+      suppressStatus: true
+    });
+  } catch (error) {
+    console.error("[ShiftBuilder] external data refresh error:", error);
+  } finally {
+    isExternalDataRefreshRunning = false;
+
+    if (externalDataRefreshPending) {
+      scheduleExternalDataRefresh();
+    }
   }
 }
 
@@ -2673,7 +2747,27 @@ elements.dashboardBtn?.addEventListener("click", () => {
 });
 
 elements.reloadBtn?.addEventListener("click", () => {
-  window.location.reload();
+  loadShiftData({
+    reloadCandidates: true,
+    bypassCache: true
+  });
+});
+
+window.addEventListener("storage", (event) => {
+  if (
+    event.key !== SHIFTBUILDER_DATA_REVISION_KEY ||
+    event.newValue === event.oldValue
+  ) {
+    return;
+  }
+
+  scheduleExternalDataRefresh();
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && externalDataRefreshPending) {
+    scheduleExternalDataRefresh();
+  }
 });
 
 elements.prevMonthBtn?.addEventListener("click", () => {

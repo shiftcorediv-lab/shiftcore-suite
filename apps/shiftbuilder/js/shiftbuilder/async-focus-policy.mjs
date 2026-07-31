@@ -49,3 +49,20 @@ export function resolvePopoverAnchorTarget(activeMode, activeKey) {
 export function wasPopoverAnchorFocused(activeElement, previousAnchor) {
   return Boolean(previousAnchor && activeElement === previousAnchor);
 }
+
+export function shouldClosePopoverForMissingSelection(
+  preserveSelectedCell,
+  selectedKey,
+  restoredCell
+) {
+  return Boolean(
+    preserveSelectedCell &&
+    selectedKey?.caseId &&
+    selectedKey?.date &&
+    !restoredCell
+  );
+}
+
+export function shouldClosePersonnelPopoverForExternalRefresh(activeMode) {
+  return activeMode === "personnel" || activeMode === "personnel-preview";
+}

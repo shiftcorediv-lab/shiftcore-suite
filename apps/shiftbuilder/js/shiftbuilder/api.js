@@ -4,6 +4,16 @@ import { SHIFTBUILDER_API_URL } from "./config.js";
 
 const READ_CACHE_PREFIX = "shiftbuilder-read-v1";
 const READ_CACHE_TTL_MS = 60 * 1000;
+export const SHIFTBUILDER_DATA_REVISION_KEY =
+  "shiftcore-shiftbuilder-data-revision-v1";
+
+function getShiftBuilderDataRevision() {
+  try {
+    return localStorage.getItem(SHIFTBUILDER_DATA_REVISION_KEY) || "0";
+  } catch (error) {
+    return "0";
+  }
+}
 
 function getTokenSubject(idToken) {
   try {
@@ -21,21 +31,26 @@ function getTokenSubject(idToken) {
   }
 }
 
-function buildReadCacheKey(idToken, action, params = {}) {
+function buildReadCacheKey(idToken, action, params = {}, revision = "0") {
   return [
     READ_CACHE_PREFIX,
     getTokenSubject(idToken),
+    revision,
     action,
     params.targetMonth || "",
     params.area || "all"
   ].join(":");
 }
 
-function readCachedResult(cacheKey) {
+function readCachedResult(cacheKey, revision) {
   try {
     const cached = JSON.parse(sessionStorage.getItem(cacheKey) || "null");
 
-    if (!cached || Date.now() - cached.savedAt > READ_CACHE_TTL_MS) {
+    if (
+      !cached ||
+      cached.revision !== revision ||
+      Date.now() - cached.savedAt > READ_CACHE_TTL_MS
+    ) {
       sessionStorage.removeItem(cacheKey);
       return null;
     }
@@ -46,10 +61,11 @@ function readCachedResult(cacheKey) {
   }
 }
 
-function writeCachedResult(cacheKey, result) {
+function writeCachedResult(cacheKey, result, revision) {
   try {
     sessionStorage.setItem(cacheKey, JSON.stringify({
       savedAt: Date.now(),
+      revision: revision,
       result: result
     }));
   } catch (error) {
@@ -97,9 +113,18 @@ async function postToShiftBuilderApi(action, body = {}) {
 }
 // ===== API共通POSTここまで =====
 
-async function postCachedRead(action, idToken, body = {}) {
-  const cacheKey = buildReadCacheKey(idToken, action, body);
-  const cached = readCachedResult(cacheKey);
+async function postCachedRead(action, idToken, body = {}, options = {}) {
+  const requestRevision = getShiftBuilderDataRevision();
+  const cacheKey = buildReadCacheKey(
+    idToken,
+    action,
+    body,
+    requestRevision
+  );
+  const bypassCache = options.bypassCache === true;
+  const cached = bypassCache
+    ? null
+    : readCachedResult(cacheKey, requestRevision);
 
   if (cached) {
     return cached;
@@ -110,8 +135,12 @@ async function postCachedRead(action, idToken, body = {}) {
     idToken: idToken
   });
 
-  if (result && (result.success === true || result.ok === true)) {
-    writeCachedResult(cacheKey, result);
+  if (
+    result &&
+    (result.success === true || result.ok === true) &&
+    getShiftBuilderDataRevision() === requestRevision
+  ) {
+    writeCachedResult(cacheKey, result, requestRevision);
   }
 
   return result;
@@ -150,6 +179,8 @@ export async function getShiftBuilderMonthData(idToken, params = {}) {
   return postCachedRead("shiftBuilderGetMonthData", idToken, {
     targetMonth: params.targetMonth || "",
     area: params.area || "all"
+  }, {
+    bypassCache: params.bypassCache === true
   });
 }
 // ===== 月次シフトデータ取得ここまで =====
@@ -196,6 +227,8 @@ export async function getShiftBuilderAssignmentCandidates(idToken, params = {}) 
   return postCachedRead("shiftBuilderGetAssignmentCandidates", idToken, {
     targetMonth: params.targetMonth || "",
     area: params.area || "all"
+  }, {
+    bypassCache: params.bypassCache === true
   });
 }
 // ===== アサイン候補者取得ここまで =====

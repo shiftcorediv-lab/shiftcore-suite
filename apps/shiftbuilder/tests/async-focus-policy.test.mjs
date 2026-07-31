@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 
 import {
   resolvePopoverAnchorTarget,
+  shouldClosePersonnelPopoverForExternalRefresh,
+  shouldClosePopoverForMissingSelection,
   shouldRefreshActionPopoverForCell,
   wasPopoverAnchorFocused
 } from "../js/shiftbuilder/async-focus-policy.mjs";
@@ -64,4 +66,38 @@ test("セル自身にフォーカスがあった時だけ再描画後セルへ�
   assert.equal(wasPopoverAnchorFocused(oldAnchor, oldAnchor), true);
   assert.equal(wasPopoverAnchorFocused(popoverCandidate, oldAnchor), false);
   assert.equal(wasPopoverAnchorFocused(null, oldAnchor), false);
+});
+
+test("外部更新で選択案件が消えたら古い操作ポップアップを閉じる", () => {
+  assert.equal(
+    shouldClosePopoverForMissingSelection(
+      true,
+      { caseId: "CASE-A", date: "2026-08-01" },
+      null
+    ),
+    true
+  );
+  assert.equal(
+    shouldClosePopoverForMissingSelection(
+      true,
+      { caseId: "CASE-A", date: "2026-08-01" },
+      { caseItem: {} }
+    ),
+    false
+  );
+});
+
+test("外部更新時は人員軸の操作・簡易ポップアップを一度閉じる", () => {
+  assert.equal(
+    shouldClosePersonnelPopoverForExternalRefresh("personnel"),
+    true
+  );
+  assert.equal(
+    shouldClosePersonnelPopoverForExternalRefresh("personnel-preview"),
+    true
+  );
+  assert.equal(
+    shouldClosePersonnelPopoverForExternalRefresh("action"),
+    false
+  );
 });

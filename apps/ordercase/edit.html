@@ -592,6 +592,9 @@
       settings: {},
       storesMaster: []
     };
+
+    const SHIFTBUILDER_DATA_REVISION_KEY =
+      'shiftcore-shiftbuilder-data-revision-v1';
     /****************************************************
      * 状態 ここまで
      ****************************************************/
@@ -1168,6 +1171,25 @@
         const payload = buildUpdatePayload();
         validateUpdatePayload(payload);
 
+        const isAssignmentEjectStatus =
+          payload.status === 'cancelled' ||
+          payload.status === 'archived';
+        const isNewAssignmentEjectStatus =
+          isAssignmentEjectStatus &&
+          String(state.caseDetail?.status || '') !== payload.status;
+        const statusActionLabel =
+          payload.status === 'archived' ? 'アーカイブ' : 'キャンセル';
+
+        if (
+          isNewAssignmentEjectStatus &&
+          !window.confirm(
+            `この案件を${statusActionLabel}すると、現在アサインされている人員もすべて解除されます。` +
+            '解除したアサインは案件を戻しても自動復元されません。続けますか？'
+          )
+        ) {
+          return;
+        }
+
         const button = document.getElementById('saveButton');
         button.disabled = true;
         button.textContent = '保存中...';
@@ -1175,20 +1197,76 @@
         showLoading('案件を保存中...');
 
         const json = await postUpdateCase(payload);
+        const responseData = json.data || {};
+        const caseSaved =
+          json.ok === true ||
+          (
+            isAssignmentEjectStatus &&
+            responseData.case_saved === true
+          );
 
-        if (!json.ok) {
+        if (!caseSaved) {
           throw new Error(json.message || '保存に失敗しました');
         }
 
-        setMessage(`保存しました：${json.data.case_id}`, 'success');
+        const cleanupResultReported =
+          Object.prototype.hasOwnProperty.call(
+            responseData,
+            'assignment_cleanup_succeeded'
+          );
+        const assignmentCleanupSucceeded =
+          cleanupResultReported &&
+          responseData.assignment_cleanup_succeeded === true;
+        const hasArchivedAssignmentCount =
+          Object.prototype.hasOwnProperty.call(
+            responseData,
+            'archived_assignment_count'
+          ) &&
+          responseData.archived_assignment_count !== null &&
+          responseData.archived_assignment_count !== '' &&
+          Number.isFinite(Number(responseData.archived_assignment_count));
+        const archivedAssignmentCount = hasArchivedAssignmentCount
+          ? Number(responseData.archived_assignment_count)
+          : null;
+        const ejectedAssignmentMessage =
+          isAssignmentEjectStatus && hasArchivedAssignmentCount
+          ? ` / アサイン${archivedAssignmentCount}件を解除しました`
+          : '';
 
-const caseId = json.data.case_id;
+        setMessage(
+          `保存しました：${responseData.case_id || payload.case_id}${ejectedAssignmentMessage}`,
+          'success'
+        );
 
-sessionStorage.setItem('ordercase_force_list_refresh', '1');
+        const caseId = responseData.case_id || payload.case_id;
 
-setTimeout(() => {
-  window.location.href = `./case.html?case_id=${encodeURIComponent(caseId)}&force_refresh=1`;
-}, 500);
+        state.caseDetail = Object.assign({}, state.caseDetail, payload);
+        sessionStorage.setItem('ordercase_force_list_refresh', '1');
+
+        if (isAssignmentEjectStatus) {
+          notifyShiftBuilderDataChanged();
+        }
+
+        if (isAssignmentEjectStatus && !assignmentCleanupSucceeded) {
+          const cleanupError = String(
+            responseData.assignment_cleanup_error || json.message || ''
+          ).trim();
+          const cleanupStatusMessage = cleanupResultReported
+            ? 'アサイン解除に失敗しました。'
+            : 'アサイン解除結果を確認できませんでした。';
+
+          setMessage(
+            `案件の${statusActionLabel}は保存済みですが、${cleanupStatusMessage}` +
+            'この画面で、もう一度「保存する」を押して解除を再試行してください。' +
+            (cleanupError ? `\n詳細：${cleanupError}` : ''),
+            'error'
+          );
+          return;
+        }
+
+        setTimeout(() => {
+          window.location.href = `./case.html?case_id=${encodeURIComponent(caseId)}&force_refresh=1`;
+        }, 500);
 
       } catch (error) {
         console.error(error);
@@ -1203,6 +1281,25 @@ setTimeout(() => {
     }
     /****************************************************
      * submitUpdateCase ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * notifyShiftBuilderDataChanged ここから
+     * 別タブのShiftBuilderにも案件状態変更を通知する
+     ****************************************************/
+    function notifyShiftBuilderDataChanged() {
+      try {
+        localStorage.setItem(
+          SHIFTBUILDER_DATA_REVISION_KEY,
+          `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        );
+      } catch (error) {
+        console.warn('ShiftBuilder更新通知を保存できませんでした:', error);
+      }
+    }
+    /****************************************************
+     * notifyShiftBuilderDataChanged ここまで
      ****************************************************/
 
 
