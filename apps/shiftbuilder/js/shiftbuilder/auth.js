@@ -1,10 +1,10 @@
 // ===== ShiftBuilder auth.js ここから =====
 
-import { LOGIN_URL } from "./config.js";
+import { LOGIN_URL } from "./config.js?v=20260801-hardening-1";
 import {
   getShiftCoreAuth,
   getShiftCoreSession
-} from "../../../../shared/js/shiftcore-auth.js";
+} from "../../../../shared/js/shiftcore-auth.js?v=20260801-hardening-1";
 
 export function getShiftBuilderAuth() {
   return getShiftCoreAuth();

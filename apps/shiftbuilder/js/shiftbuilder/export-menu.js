@@ -4,8 +4,8 @@ import {
   buildPersonnelExportFilename,
   buildPersonnelIcs,
   collectPersonnelAssignments
-} from "./export-utils.mjs?v=20260731-row-export-1";
-import { escapeHtml } from "./utils.js";
+} from "./export-utils.mjs?v=20260801-hardening-1";
+import { escapeHtml } from "./utils.js?v=20260801-hardening-1";
 
 let activeMenu = null;
 let restoreFocusTarget = null;

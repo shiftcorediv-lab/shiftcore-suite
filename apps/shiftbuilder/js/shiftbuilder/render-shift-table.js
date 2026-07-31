@@ -1,11 +1,15 @@
 // ===== ShiftBuilder render-shift-table.js ここから =====
 
-import { escapeHtml } from "./utils.js";
+import { escapeHtml } from "./utils.js?v=20260801-hardening-1";
 import {
   SHIFT_CELL_STATUS,
   SHIFT_CELL_STATUS_LABELS,
   EMPTY_CELL
-} from "./constants.js";
+} from "./constants.js?v=20260801-hardening-1";
+import {
+  getAssignmentId,
+  getInternalUserId
+} from "./record-normalizers.mjs?v=20260801-hardening-1";
 
 export function getCellStatus(cell) {
   const required = Number(cell?.required || 0);
@@ -66,7 +70,7 @@ function hasSavingAssignment(cell) {
   }
 
   return cell.assigned.some((member) => {
-    const assignmentId = member.assignment_id || member.assignmentId || "";
+    const assignmentId = getAssignmentId(member);
 
     return (
       member.is_pending === true ||
@@ -91,8 +95,7 @@ function getAssignedMemberNames(cell) {
         member.display_name ||
           member.displayName ||
           member.name ||
-          member.internal_user_id ||
-          member.internalUserId ||
+          getInternalUserId(member) ||
           ""
       ).trim();
 

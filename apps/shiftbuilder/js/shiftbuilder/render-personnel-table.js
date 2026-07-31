@@ -1,6 +1,6 @@
 // ===== ShiftBuilder render-personnel-table.js ここから =====
 
-import { escapeHtml } from "./utils.js";
+import { escapeHtml } from "./utils.js?v=20260801-hardening-1";
 
 function getDateColumnClass(dateItem) {
   const weekday = String(dateItem?.weekday || "").trim().toLowerCase();

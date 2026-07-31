@@ -1,6 +1,6 @@
 // ===== ShiftBuilder personnel-axis-view-model.js ここから =====
 
-import { getConsecutiveWorkAlert } from "./consecutive-work-alert.js";
+import { getConsecutiveWorkAlert } from "./consecutive-work-alert.js?v=20260801-hardening-1";
 
 function firstValue(source, keys) {
   for (const key of keys) {

@@ -1,6 +1,6 @@
 // ===== ShiftBuilder API client ここから =====
 
-import { SHIFTBUILDER_API_URL } from "./config.js";
+import { SHIFTBUILDER_API_URL } from "./config.js?v=20260801-hardening-1";
 
 const READ_CACHE_PREFIX = "shiftbuilder-read-v1";
 const READ_CACHE_TTL_MS = 60 * 1000;

@@ -1,8 +1,12 @@
 // ===== ShiftBuilder render-detail-panel.js ここから =====
 
-import { escapeHtml } from "./utils.js";
-import { getCellStatus } from "./render-shift-table.js?v=20260714-workflow-1";
-import { CANDIDATE_GROUP_CLASSES } from "./constants.js";
+import { escapeHtml } from "./utils.js?v=20260801-hardening-1";
+import { getCellStatus } from "./render-shift-table.js?v=20260801-hardening-1";
+import { CANDIDATE_GROUP_CLASSES } from "./constants.js?v=20260801-hardening-1";
+import {
+  getAssignmentId,
+  getInternalUserId
+} from "./record-normalizers.mjs?v=20260801-hardening-1";
 
 function getAssignedCount(cell) {
   return Array.isArray(cell?.assigned) ? cell.assigned.length : 0;
@@ -27,8 +31,7 @@ function getAssignedMemberName(member) {
     member?.display_name ||
     member?.user_name ||
     member?.userName ||
-    member?.internal_user_id ||
-    member?.internalUserId ||
+    getInternalUserId(member) ||
     "氏名未設定"
   );
 }
@@ -40,10 +43,6 @@ function getAssignedMemberMeta(member) {
     member?.assignment_status ||
     "メモなし"
   );
-}
-
-function getAssignmentId(member) {
-  return member?.assignment_id || member?.assignmentId || "";
 }
 
 function isPendingAssignedMember(member) {
@@ -574,8 +573,8 @@ function getCandidateSortRank(candidate, alreadyAssigned) {
 
 function sortAssignmentCandidates(candidates, assignedUserIds) {
   return [...candidates].sort((a, b) => {
-    const aUserId = String(a?.internal_user_id || "");
-    const bUserId = String(b?.internal_user_id || "");
+    const aUserId = getInternalUserId(a);
+    const bUserId = getInternalUserId(b);
 
     const aAlreadyAssigned = assignedUserIds.includes(aUserId);
     const bAlreadyAssigned = assignedUserIds.includes(bUserId);
@@ -612,7 +611,7 @@ function renderAssignmentCandidatesHtml(candidates, assignedMembers, actionMode 
 
   const safeAssignedMembers = Array.isArray(assignedMembers) ? assignedMembers : [];
   const assignedUserIds = safeAssignedMembers.map((member) => {
-    return String(member.internal_user_id || member.internalUserId || "");
+    return getInternalUserId(member);
   });
 
   const sortedCandidates = sortAssignmentCandidates(candidates, assignedUserIds);
@@ -620,7 +619,7 @@ function renderAssignmentCandidatesHtml(candidates, assignedMembers, actionMode 
   return `
     <div class="candidate-card-list">
       ${sortedCandidates.map((candidate) => {
-        const userId = candidate.internal_user_id || "";
+        const userId = getInternalUserId(candidate);
         const displayName =
           candidate.display_name ||
           candidate.displayName ||

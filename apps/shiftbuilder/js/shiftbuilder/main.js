@@ -1,7 +1,7 @@
 // ===== ShiftBuilder main.js ここから =====
 
-import { DASHBOARD_URL } from "./config.js";
-import { requireShiftBuilderSession, getLoginUrl } from "./auth.js";
+import { DASHBOARD_URL } from "./config.js?v=20260801-hardening-1";
+import { requireShiftBuilderSession, getLoginUrl } from "./auth.js?v=20260801-hardening-1";
 import {
   getCurrentShiftBuilderUser,
   getShiftBuilderMonthData,
@@ -11,22 +11,22 @@ import {
   getShiftBuilderAssignmentCandidates,
   sendShiftBuilderPersonnelIcs,
   SHIFTBUILDER_DATA_REVISION_KEY
-} from "./api.js?v=20260731-ics-mail-1";
-import { mockShiftData } from "./mock-data.js";
-import { escapeHtml } from "./utils.js";
-import { getPermissionLabel, canEdit } from "./permissions.js";
-import { renderSummary } from "./render-summary.js?v=20260714-workflow-1";
-import { renderShiftTable } from "./render-shift-table.js?v=20260714-workflow-1";
-import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20260731-requested-off-1";
-import { renderPersonnelTable } from "./render-personnel-table.js?v=20260731-ics-mail-1";
-import { getConsecutiveWorkAlert } from "./consecutive-work-alert.js?v=20260714-workflow-1";
+} from "./api.js?v=20260801-hardening-1";
+import { mockShiftData } from "./mock-data.js?v=20260801-hardening-1";
+import { escapeHtml } from "./utils.js?v=20260801-hardening-1";
+import { getPermissionLabel, canEdit } from "./permissions.js?v=20260801-hardening-1";
+import { renderSummary } from "./render-summary.js?v=20260801-hardening-1";
+import { renderShiftTable } from "./render-shift-table.js?v=20260801-hardening-1";
+import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20260801-hardening-1";
+import { renderPersonnelTable } from "./render-personnel-table.js?v=20260801-hardening-1";
+import { getConsecutiveWorkAlert } from "./consecutive-work-alert.js?v=20260801-hardening-1";
 import {
   renderSelectedCell,
   resetDetailPanel,
   renderCellPreviewPopover,
   renderPersonnelCellPreviewPopover,
   renderCellActionPopover
-} from "./render-detail-panel.js?v=20260729-personnel-preview-1";
+} from "./render-detail-panel.js?v=20260801-hardening-1";
 import {
   setCurrentSession,
   setCurrentUser,
@@ -38,26 +38,35 @@ import {
   setActiveAxis,
   setSelectedCell,
   resetSelectedCell
-} from "./state.js?v=20260714-workflow-1";
-import { elements } from "./dom.js?v=20260714-workflow-1";
+} from "./state.js?v=20260801-hardening-1";
+import { elements } from "./dom.js?v=20260801-hardening-1";
 import {
   resolvePopoverAnchorTarget,
   shouldClosePersonnelPopoverForExternalRefresh,
   shouldClosePopoverForMissingSelection,
   shouldRefreshActionPopoverForCell,
   wasPopoverAnchorFocused
-} from "./async-focus-policy.mjs?v=20260730-case-cascade-1";
+} from "./async-focus-policy.mjs?v=20260801-hardening-1";
 import {
   closeExportMenu,
   openCaseExportMenu,
   openPersonnelExportMenu,
   openPersonnelBulkMenu
-} from "./export-menu.js?v=20260731-ics-mail-1";
+} from "./export-menu.js?v=20260801-hardening-1";
 import {
   buildPersonnelExportFilename,
   buildPersonnelIcs
-} from "./export-utils.mjs?v=20260731-ics-mail-1";
-import { getRequestedOffState } from "./availability-policy.mjs?v=20260731-requested-off-1";
+} from "./export-utils.mjs?v=20260801-hardening-1";
+import { getRequestedOffState } from "./availability-policy.mjs?v=20260801-hardening-1";
+import {
+  getAssignmentId,
+  getInternalUserId
+} from "./record-normalizers.mjs?v=20260801-hardening-1";
+import {
+  assertMutationSession,
+  isMutationSessionRequiredError,
+  restoreAssignedSnapshot
+} from "./mutation-session-policy.mjs?v=20260801-hardening-1";
 
 let assignmentCandidates = [];
 let previousMonthShiftData = null;
@@ -72,6 +81,31 @@ let externalDataRefreshPending = false;
 let isExternalDataRefreshRunning = false;
 const IS_DEMO_MODE = new URLSearchParams(window.location.search).get("demo") === "1";
 const HOWTO_OPEN_STORAGE_KEY = "shiftbuilder-howto-open";
+
+async function requireMutationSession() {
+  let session = getCurrentSession();
+
+  if (!session?.isLoggedIn || !session?.idToken) {
+    session = await requireShiftBuilderSession();
+    setCurrentSession(session);
+  }
+
+  return assertMutationSession(session);
+}
+
+function showMutationFailure(error) {
+  const message = error?.message || String(error);
+
+  if (isMutationSessionRequiredError(error)) {
+    renderNoLogin(error.session || {});
+  } else {
+    setStatus(message);
+  }
+
+  if (elements.assignmentCandidateStatus) {
+    elements.assignmentCandidateStatus.textContent = message;
+  }
+}
 
 function buildPersonnelIcsMailRecipients(people, shiftData) {
   return (Array.isArray(people) ? people : []).map((person) => ({
@@ -314,7 +348,7 @@ function initializeFilters() {
 
 function findCandidateByInternalUserId(internalUserId) {
   return assignmentCandidates.find((candidate) => {
-    return String(candidate.internal_user_id || candidate.internalUserId || "") === String(internalUserId || "");
+    return getInternalUserId(candidate) === String(internalUserId || "");
   }) || null;
 }
 
@@ -432,7 +466,7 @@ function updatePendingAssignment(caseId, date, pendingAssignmentId, result) {
   const index = found.cell.assigned.findIndex((member) => {
     return (
       String(member.client_pending_id || "") === String(pendingAssignmentId) ||
-      String(member.assignment_id || member.assignmentId || "") === String(pendingAssignmentId)
+      getAssignmentId(member) === String(pendingAssignmentId)
     );
   });
 
@@ -494,7 +528,7 @@ function getSameDayAssignmentsForUser(internalUserId, selectedCell) {
     }
 
     cell.assigned.forEach((member) => {
-      const memberUserId = String(member.internal_user_id || member.internalUserId || "");
+      const memberUserId = getInternalUserId(member);
 
       if (memberUserId !== targetUserId) {
         return;
@@ -504,7 +538,7 @@ function getSameDayAssignmentsForUser(internalUserId, selectedCell) {
         caseId: caseItem.caseId || "",
         caseTitle: caseItem.title || caseItem.store_name || caseItem.caseId || "別案件",
         date: selectedDate,
-        assignmentId: member.assignment_id || member.assignmentId || "",
+        assignmentId: getAssignmentId(member),
         displayName:
           member.display_name ||
           member.displayName ||
@@ -528,15 +562,11 @@ function normalizeAssignmentCandidatesForCell(candidates, selectedCell) {
     : [];
 
   const assignedUserIds = assignedMembers.map((member) => {
-    return String(member.internal_user_id || member.internalUserId || "");
+    return getInternalUserId(member);
   });
 
   return safeCandidates.map((candidate) => {
-    const userId = String(
-      candidate.internal_user_id ||
-        candidate.internalUserId ||
-        ""
-    );
+    const userId = getInternalUserId(candidate);
 
     const alreadyAssigned = assignedUserIds.includes(userId);
     const sameDayAssignments = getSameDayAssignmentsForUser(userId, selectedCell);
@@ -1229,14 +1259,7 @@ function getPersonnelCellAssignments(internalUserId, workDate) {
 
     return cell.assigned
       .filter((member) => {
-        const memberUserId = (
-          member.internal_user_id ||
-          member.internalUserId ||
-          member.user_id ||
-          member.userId ||
-          member.id ||
-          ""
-        );
+        const memberUserId = getInternalUserId(member);
 
         return String(memberUserId) === targetUserId;
       })
@@ -1247,7 +1270,7 @@ function getPersonnelCellAssignments(internalUserId, workDate) {
           caseItem.title ||
           caseItem.caseId ||
           "案件名未設定",
-        assignmentId: member.assignment_id || member.assignmentId || "",
+        assignmentId: getAssignmentId(member),
         client: caseItem.client || "",
         area: caseItem.area || ""
       }));
@@ -1637,7 +1660,7 @@ function renderAssignmentCandidateCards() {
   }
 
   const assignedUserIds = Array.isArray(cell.assigned)
-    ? cell.assigned.map((member) => String(member.internal_user_id || member.internalUserId || ""))
+    ? cell.assigned.map((member) => getInternalUserId(member))
     : [];
 
   const normalizedCandidates = normalizeAssignmentCandidatesForCell(
@@ -1646,7 +1669,7 @@ function renderAssignmentCandidateCards() {
   );
 
   elements.assignmentCandidateList.innerHTML = normalizedCandidates.map((candidate) => {
-    const userId = candidate.internal_user_id || "";
+    const userId = getInternalUserId(candidate);
     const separatedName = [
       candidate.family_name || candidate.familyName || "",
       candidate.given_name || candidate.givenName || ""
@@ -2372,7 +2395,7 @@ async function createAssignmentFromSelectedCell(internalUserId) {
 
   const alreadyAssigned = Array.isArray(cell.assigned)
     ? cell.assigned.some((member) => {
-        return String(member.internal_user_id || "") === targetInternalUserId;
+        return getInternalUserId(member) === targetInternalUserId;
       })
     : false;
 
@@ -2441,17 +2464,7 @@ async function createAssignmentFromSelectedCell(internalUserId) {
   }
 
   try {
-    let session = getCurrentSession();
-
-    if (!session || !session.isLoggedIn || !session.idToken) {
-      session = await requireShiftBuilderSession();
-      setCurrentSession(session);
-    }
-
-    if (!session.isLoggedIn) {
-      renderNoLogin(session);
-      return;
-    }
+    const session = await requireMutationSession();
 
     const shiftData = getCurrentShiftData();
     const targetMonth =
@@ -2504,7 +2517,7 @@ async function createAssignmentFromSelectedCell(internalUserId) {
     const found = findShiftCell(caseId, workDate);
 
     if (found?.cell) {
-      found.cell.assigned = previousAssigned;
+      restoreAssignedSnapshot(found.cell, previousAssigned);
 
       if (isSelectedCellKey(caseId, workDate)) {
         setSelectedCell(found);
@@ -2515,11 +2528,7 @@ async function createAssignmentFromSelectedCell(internalUserId) {
       });
     }
 
-    setStatus(error.message || String(error));
-
-    if (elements.assignmentCandidateStatus) {
-      elements.assignmentCandidateStatus.textContent = error.message || String(error);
-    }
+    showMutationFailure(error);
 
     refreshActionPopoverForChangedCell(caseId, workDate);
   }
@@ -2550,7 +2559,7 @@ async function replaceAssignmentFromSelectedCell(internalUserId, replaceAssignme
     : [];
 
   const replaceIndex = previousAssigned.findIndex((member) => {
-    return String(member.assignment_id || member.assignmentId || "") === targetReplaceAssignmentId;
+    return getAssignmentId(member) === targetReplaceAssignmentId;
   });
 
   if (replaceIndex < 0) {
@@ -2562,7 +2571,7 @@ async function replaceAssignmentFromSelectedCell(internalUserId, replaceAssignme
   }
 
   const alreadyAssigned = previousAssigned.some((member) => {
-    return String(member.internal_user_id || member.internalUserId || "") === targetInternalUserId;
+    return getInternalUserId(member) === targetInternalUserId;
   });
 
   if (alreadyAssigned) {
@@ -2632,17 +2641,7 @@ async function replaceAssignmentFromSelectedCell(internalUserId, replaceAssignme
   let createResult = null;
 
   try {
-    let session = getCurrentSession();
-
-    if (!session || !session.isLoggedIn || !session.idToken) {
-      session = await requireShiftBuilderSession();
-      setCurrentSession(session);
-    }
-
-    if (!session.isLoggedIn) {
-      renderNoLogin(session);
-      return;
-    }
+    const session = await requireMutationSession();
 
     const shiftData = getCurrentShiftData();
     const targetMonth =
@@ -2702,7 +2701,7 @@ async function replaceAssignmentFromSelectedCell(internalUserId, replaceAssignme
     const found = findShiftCell(caseId, workDate);
 
     if (found?.cell) {
-      found.cell.assigned = previousAssigned;
+      restoreAssignedSnapshot(found.cell, previousAssigned);
 
       if (isSelectedCellKey(caseId, workDate)) {
         setSelectedCell(found);
@@ -2726,11 +2725,7 @@ async function replaceAssignmentFromSelectedCell(internalUserId, replaceAssignme
       console.error("[ShiftBuilder] replace failure reload error:", reloadError);
     }
 
-    setStatus(error.message || String(error));
-
-    if (elements.assignmentCandidateStatus) {
-      elements.assignmentCandidateStatus.textContent = error.message || String(error);
-    }
+    showMutationFailure(error);
 
     refreshActionPopoverForChangedCell(caseId, workDate);
   }
@@ -2764,7 +2759,7 @@ async function archiveAssignmentFromButton(assignmentId) {
 
   if (Array.isArray(cell.assigned)) {
     cell.assigned = cell.assigned.filter((member) => {
-      return String(member.assignment_id || member.assignmentId || "") !== String(assignmentId);
+      return getAssignmentId(member) !== String(assignmentId);
     });
   }
 
@@ -2783,17 +2778,7 @@ async function archiveAssignmentFromButton(assignmentId) {
   }
 
   try {
-    let session = getCurrentSession();
-
-    if (!session || !session.isLoggedIn || !session.idToken) {
-      session = await requireShiftBuilderSession();
-      setCurrentSession(session);
-    }
-
-    if (!session.isLoggedIn) {
-      renderNoLogin(session);
-      return;
-    }
+    const session = await requireMutationSession();
 
     const result = await archiveShiftBuilderAssignment(
       session.idToken,
@@ -2819,7 +2804,7 @@ async function archiveAssignmentFromButton(assignmentId) {
     const found = findShiftCell(caseId, workDate);
 
     if (found?.cell) {
-      found.cell.assigned = previousAssigned;
+      restoreAssignedSnapshot(found.cell, previousAssigned);
 
       if (isSelectedCellKey(caseId, workDate)) {
         setSelectedCell(found);
@@ -2830,11 +2815,7 @@ async function archiveAssignmentFromButton(assignmentId) {
       });
     }
 
-    setStatus(error.message || String(error));
-
-    if (elements.assignmentCandidateStatus) {
-      elements.assignmentCandidateStatus.textContent = error.message || String(error);
-    }
+    showMutationFailure(error);
 
     refreshActionPopoverForChangedCell(caseId, workDate);
   }

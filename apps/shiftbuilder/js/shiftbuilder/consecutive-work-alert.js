@@ -1,5 +1,7 @@
 // ===== ShiftBuilder consecutive-work-alert.js ここから =====
 
+import { getInternalUserId } from "./record-normalizers.mjs?v=20260801-hardening-1";
+
 const ALERT_LEVELS = [
   { minimumDays: 6, level: "critical", label: "強い警告" },
   { minimumDays: 5, level: "warning", label: "警告" },
@@ -7,7 +9,7 @@ const ALERT_LEVELS = [
 ];
 
 function getUserId(member) {
-  return String(member?.internal_user_id || member?.internalUserId || "");
+  return getInternalUserId(member);
 }
 
 function addAssignedDates(data, userId, dates) {
