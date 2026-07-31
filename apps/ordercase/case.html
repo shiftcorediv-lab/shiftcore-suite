@@ -405,6 +405,7 @@ applyPermissionView();
           <div class="grid three">
             ${fieldHtml('対象月', item.target_month)}
             ${fieldHtml('案件種別', caseTypeName)}
+            ${fieldHtml('案件ランク', getCaseRankName(item.case_rank))}
             ${fieldHtml('ステータス', statusName)}
             ${fieldHtml('入力方式', item.input_mode === 'days' ? '日数指定' : '日付指定')}
             ${fieldHtml('日付/日数', scheduleText)}

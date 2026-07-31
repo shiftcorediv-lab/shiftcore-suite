@@ -139,6 +139,16 @@ function getStatusName(value) {
   return map[value] || value || '-';
 }
 
+function getCaseRankName(value) {
+  const map = {
+    A: 'A：重要',
+    B: 'B：通常',
+    C: 'C：保守'
+  };
+
+  return map[String(value || '').toUpperCase()] || 'B：通常';
+}
+
 function getSkillName(value) {
   const map = {
     any: '指定なし',

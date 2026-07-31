@@ -356,6 +356,16 @@
         </div>
 
         <div>
+          <label for="caseRank">案件ランク</label>
+          <select id="caseRank">
+            <option value="A">A：重要</option>
+            <option value="B">B：通常</option>
+            <option value="C">C：保守</option>
+          </select>
+          <p class="hint" id="caseRankPermissionHint">案件ランクは役員級のみ変更できます。</p>
+        </div>
+
+        <div>
           <label for="shiftcoreDisplayName">シフトコア表示用省略名称</label>
           <input id="shiftcoreDisplayName" maxlength="24" placeholder="例：池袋8月1" />
           <p class="hint">ShiftBuilderの人員×日付セルに表示します。正式な案件情報は変更しません。</p>
@@ -590,7 +600,8 @@
       caseDetail: null,
       caseTypes: [],
       settings: {},
-      storesMaster: []
+      storesMaster: [],
+      permission: ''
     };
 
     const SHIFTBUILDER_DATA_REVISION_KEY =
@@ -642,10 +653,18 @@
 
       const permission = json.permission || json.data?.permission || '';
       const canEdit = permission === 'all' || permission === 'edit';
+      state.permission = permission;
 
       if (!canEdit) {
         throw new Error('案件編集権限がありません。案件詳細画面から閲覧してください。');
       }
+
+      const caseRank = document.getElementById('caseRank');
+      const canChangeCaseRank = permission === 'all';
+      caseRank.disabled = !canChangeCaseRank;
+      document.getElementById('caseRankPermissionHint').textContent = canChangeCaseRank
+        ? '役員級権限で案件ランクを変更できます。'
+        : '案件ランクは役員級のみ変更できます。';
     }
     /****************************************************
      * requireEditablePermissionForEditPage ここまで
@@ -716,6 +735,7 @@
   'syncCaseDatesRequiredPeople',
         'targetMonth',
         'caseType',
+        'caseRank',
         'status',
         'inputMode',
         'replyDeadline',
@@ -1073,6 +1093,7 @@
       setValue('caseId', item.case_id);
       setValue('targetMonth', item.target_month);
       setValue('caseType', item.case_type);
+      setValue('caseRank', item.case_rank || 'B');
       setValue('shiftcoreDisplayName', item.shiftcore_display_name);
       setValue('status', item.status);
       setValue('inputMode', item.input_mode);
@@ -1318,6 +1339,9 @@
 
         target_month: document.getElementById('targetMonth').value,
         case_type: document.getElementById('caseType').value,
+        case_rank: state.permission === 'all'
+          ? document.getElementById('caseRank').value
+          : (state.caseDetail.case_rank || 'B'),
         shiftcore_display_name: document.getElementById('shiftcoreDisplayName').value.trim(),
         status: document.getElementById('status').value,
         input_mode: document.getElementById('inputMode').value,
@@ -1374,6 +1398,7 @@ if (payload.change_type !== 'status_change' && !payload.change_memo) {
 
       if (!payload.target_month) throw new Error('対象月を入力してください。');
       if (!payload.case_type) throw new Error('案件種別を選択してください。');
+      if (!['A', 'B', 'C'].includes(payload.case_rank)) throw new Error('案件ランクを選択してください。');
       if (!payload.shiftcore_display_name) throw new Error('シフトコア表示用省略名称を入力してください。');
       if (!payload.input_mode) throw new Error('入力方式を選択してください。');
       if (!payload.agency_name) throw new Error('代理店名を入力してください。');
@@ -1401,6 +1426,7 @@ if (payload.change_type !== 'status_change' && !payload.change_memo) {
 
       document.getElementById('saveSummary').innerHTML = `
         編集中：${escapeHtml(caseId)}<br>
+        案件ランク：${escapeHtml(getCaseRankName(document.getElementById('caseRank').value))}<br>
         変更種別：${escapeHtml(changeType)}<br>
         日付明細反映：${syncDates ? 'する' : 'しない'}<br>
         必要数：${lines}枠 × ${people}人 = ${lines * people}人

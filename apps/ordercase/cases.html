@@ -705,7 +705,7 @@
           <div class="target-month-title">${escapeHtml(formatTargetMonth(item.target_month))}</div>
 
           <div class="case-main-title">
-            ${escapeHtml(caseTypeName)} / ${escapeHtml(item.store_name || '-')}
+            ${escapeHtml(getCaseRankName(item.case_rank))} / ${escapeHtml(caseTypeName)} / ${escapeHtml(item.store_name || '-')}
           </div>
 
           <div class="required-people-main">

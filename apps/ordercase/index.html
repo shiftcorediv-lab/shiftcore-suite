@@ -373,6 +373,16 @@ input[type="time"] {
         </div>
 
         <div>
+          <label for="caseRank">案件ランク</label>
+          <select id="caseRank">
+            <option value="A">A：重要</option>
+            <option value="B" selected>B：通常</option>
+            <option value="C">C：保守</option>
+          </select>
+          <p class="hint">登録後のランク変更は役員級のみ可能です。</p>
+        </div>
+
+        <div>
           <label for="shiftcoreDisplayName">シフトコア表示用省略名称</label>
           <input id="shiftcoreDisplayName" maxlength="24" placeholder="例：池袋8月1" />
           <p class="hint">ShiftBuilderの人員×日付セルに表示します。正式な案件情報は変更しません。</p>
@@ -693,6 +703,7 @@ input[type="time"] {
       [
         'targetMonth',
         'caseType',
+        'caseRank',
         'inputMode',
         'storeArea',
         'workArea',
@@ -1350,6 +1361,7 @@ input[type="time"] {
         reply_deadline: document.getElementById('replyDeadline').value,
 
         case_type: document.getElementById('caseType').value,
+        case_rank: document.getElementById('caseRank').value,
         shiftcore_display_name: document.getElementById('shiftcoreDisplayName').value.trim(),
         input_mode: inputMode,
 
@@ -1404,6 +1416,7 @@ input[type="time"] {
     function validatePayload(payload) {
       if (!payload.target_month) throw new Error('対象月を入力してください。');
       if (!payload.case_type) throw new Error('案件種別を選択してください。');
+      if (!['A', 'B', 'C'].includes(payload.case_rank)) throw new Error('案件ランクを選択してください。');
       if (!payload.shiftcore_display_name) throw new Error('シフトコア表示用省略名称を入力してください。');
       if (!payload.agency_name) throw new Error('代理店名を入力してください。');
       if (!payload.store_name) throw new Error('連携店舗を入力してください。');
@@ -1439,6 +1452,7 @@ input[type="time"] {
       document.getElementById('storeName').value = '';
       document.getElementById('shiftcoreDisplayName').value = '';
       document.getElementById('replyDeadline').value = '';
+      document.getElementById('caseRank').value = 'B';
 
       document.getElementById('workLocation').value = '';
       document.getElementById('workStartTime').value = '';
@@ -1492,6 +1506,7 @@ input[type="time"] {
         : `希望日数：${document.getElementById('requestedDays').value || '-'}日`;
 
       document.getElementById('summaryBox').innerHTML = `
+        案件ランク：${escapeHtml(getCaseRankName(document.getElementById('caseRank').value))}<br>
         入力方式：${mode === 'dates' ? '日付指定' : '日数指定'}<br>
         ${dateText}<br>
         1案件あたり：1人分<br>
