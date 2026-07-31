@@ -16,8 +16,8 @@ import { escapeHtml } from "./utils.js";
 import { getPermissionLabel, canEdit } from "./permissions.js";
 import { renderSummary } from "./render-summary.js?v=20260714-workflow-1";
 import { renderShiftTable } from "./render-shift-table.js?v=20260714-workflow-1";
-import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20260715-personnel-actions-1";
-import { renderPersonnelTable } from "./render-personnel-table.js?v=20260729-personnel-preview-1";
+import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20260731-requested-off-1";
+import { renderPersonnelTable } from "./render-personnel-table.js?v=20260731-requested-off-1";
 import { getConsecutiveWorkAlert } from "./consecutive-work-alert.js?v=20260714-workflow-1";
 import {
   renderSelectedCell,
