@@ -1,6 +1,6 @@
 // ===== ShiftBuilder consecutive-work-alert.js ここから =====
 
-import { getInternalUserId } from "./record-normalizers.mjs?v=20260801-hardening-1";
+import { getInternalUserId } from "./record-normalizers.mjs?v=20260801-authfix-1";
 
 const ALERT_LEVELS = [
   { minimumDays: 6, level: "critical", label: "強い警告" },

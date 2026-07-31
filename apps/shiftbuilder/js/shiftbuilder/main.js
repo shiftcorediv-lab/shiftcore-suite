@@ -1,7 +1,7 @@
 // ===== ShiftBuilder main.js ここから =====
 
-import { DASHBOARD_URL } from "./config.js?v=20260801-hardening-1";
-import { requireShiftBuilderSession, getLoginUrl } from "./auth.js?v=20260801-hardening-1";
+import { DASHBOARD_URL } from "./config.js?v=20260801-authfix-1";
+import { requireShiftBuilderSession, getLoginUrl } from "./auth.js?v=20260801-authfix-1";
 import {
   getCurrentShiftBuilderUser,
   getShiftBuilderMonthData,
@@ -11,22 +11,22 @@ import {
   getShiftBuilderAssignmentCandidates,
   sendShiftBuilderPersonnelIcs,
   SHIFTBUILDER_DATA_REVISION_KEY
-} from "./api.js?v=20260801-hardening-1";
-import { mockShiftData } from "./mock-data.js?v=20260801-hardening-1";
-import { escapeHtml } from "./utils.js?v=20260801-hardening-1";
-import { getPermissionLabel, canEdit } from "./permissions.js?v=20260801-hardening-1";
-import { renderSummary } from "./render-summary.js?v=20260801-hardening-1";
-import { renderShiftTable } from "./render-shift-table.js?v=20260801-hardening-1";
-import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20260801-hardening-1";
-import { renderPersonnelTable } from "./render-personnel-table.js?v=20260801-hardening-1";
-import { getConsecutiveWorkAlert } from "./consecutive-work-alert.js?v=20260801-hardening-1";
+} from "./api.js?v=20260801-authfix-1";
+import { mockShiftData } from "./mock-data.js?v=20260801-authfix-1";
+import { escapeHtml } from "./utils.js?v=20260801-authfix-1";
+import { getPermissionLabel, canEdit } from "./permissions.js?v=20260801-authfix-1";
+import { renderSummary } from "./render-summary.js?v=20260801-authfix-1";
+import { renderShiftTable } from "./render-shift-table.js?v=20260801-authfix-1";
+import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20260801-authfix-1";
+import { renderPersonnelTable } from "./render-personnel-table.js?v=20260801-authfix-1";
+import { getConsecutiveWorkAlert } from "./consecutive-work-alert.js?v=20260801-authfix-1";
 import {
   renderSelectedCell,
   resetDetailPanel,
   renderCellPreviewPopover,
   renderPersonnelCellPreviewPopover,
   renderCellActionPopover
-} from "./render-detail-panel.js?v=20260801-hardening-1";
+} from "./render-detail-panel.js?v=20260801-authfix-1";
 import {
   setCurrentSession,
   setCurrentUser,
@@ -38,35 +38,35 @@ import {
   setActiveAxis,
   setSelectedCell,
   resetSelectedCell
-} from "./state.js?v=20260801-hardening-1";
-import { elements } from "./dom.js?v=20260801-hardening-1";
+} from "./state.js?v=20260801-authfix-1";
+import { elements } from "./dom.js?v=20260801-authfix-1";
 import {
   resolvePopoverAnchorTarget,
   shouldClosePersonnelPopoverForExternalRefresh,
   shouldClosePopoverForMissingSelection,
   shouldRefreshActionPopoverForCell,
   wasPopoverAnchorFocused
-} from "./async-focus-policy.mjs?v=20260801-hardening-1";
+} from "./async-focus-policy.mjs?v=20260801-authfix-1";
 import {
   closeExportMenu,
   openCaseExportMenu,
   openPersonnelExportMenu,
   openPersonnelBulkMenu
-} from "./export-menu.js?v=20260801-hardening-1";
+} from "./export-menu.js?v=20260801-authfix-1";
 import {
   buildPersonnelExportFilename,
   buildPersonnelIcs
-} from "./export-utils.mjs?v=20260801-hardening-1";
-import { getRequestedOffState } from "./availability-policy.mjs?v=20260801-hardening-1";
+} from "./export-utils.mjs?v=20260801-authfix-1";
+import { getRequestedOffState } from "./availability-policy.mjs?v=20260801-authfix-1";
 import {
   getAssignmentId,
   getInternalUserId
-} from "./record-normalizers.mjs?v=20260801-hardening-1";
+} from "./record-normalizers.mjs?v=20260801-authfix-1";
 import {
   assertMutationSession,
   isMutationSessionRequiredError,
   restoreAssignedSnapshot
-} from "./mutation-session-policy.mjs?v=20260801-hardening-1";
+} from "./mutation-session-policy.mjs?v=20260801-authfix-1";
 
 let assignmentCandidates = [];
 let previousMonthShiftData = null;

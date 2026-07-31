@@ -3,7 +3,7 @@
 import {
   SHIFTBUILDER_PERMISSION_LABELS,
   EDITABLE_SHIFTBUILDER_PERMISSIONS
-} from "./constants.js?v=20260801-hardening-1";
+} from "./constants.js?v=20260801-authfix-1";
 
 export function getPermissionLabel(permission) {
   return SHIFTBUILDER_PERMISSION_LABELS[permission] || "権限なし";

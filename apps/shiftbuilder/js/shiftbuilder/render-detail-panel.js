@@ -1,12 +1,12 @@
 // ===== ShiftBuilder render-detail-panel.js ここから =====
 
-import { escapeHtml } from "./utils.js?v=20260801-hardening-1";
-import { getCellStatus } from "./render-shift-table.js?v=20260801-hardening-1";
-import { CANDIDATE_GROUP_CLASSES } from "./constants.js?v=20260801-hardening-1";
+import { escapeHtml } from "./utils.js?v=20260801-authfix-1";
+import { getCellStatus } from "./render-shift-table.js?v=20260801-authfix-1";
+import { CANDIDATE_GROUP_CLASSES } from "./constants.js?v=20260801-authfix-1";
 import {
   getAssignmentId,
   getInternalUserId
-} from "./record-normalizers.mjs?v=20260801-hardening-1";
+} from "./record-normalizers.mjs?v=20260801-authfix-1";
 
 function getAssignedCount(cell) {
   return Array.isArray(cell?.assigned) ? cell.assigned.length : 0;

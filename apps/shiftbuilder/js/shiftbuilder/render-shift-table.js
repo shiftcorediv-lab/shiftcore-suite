@@ -1,15 +1,15 @@
 // ===== ShiftBuilder render-shift-table.js ここから =====
 
-import { escapeHtml } from "./utils.js?v=20260801-hardening-1";
+import { escapeHtml } from "./utils.js?v=20260801-authfix-1";
 import {
   SHIFT_CELL_STATUS,
   SHIFT_CELL_STATUS_LABELS,
   EMPTY_CELL
-} from "./constants.js?v=20260801-hardening-1";
+} from "./constants.js?v=20260801-authfix-1";
 import {
   getAssignmentId,
   getInternalUserId
-} from "./record-normalizers.mjs?v=20260801-hardening-1";
+} from "./record-normalizers.mjs?v=20260801-authfix-1";
 
 export function getCellStatus(cell) {
   const required = Number(cell?.required || 0);
