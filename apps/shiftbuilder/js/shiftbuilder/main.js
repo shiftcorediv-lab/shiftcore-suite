@@ -51,6 +51,7 @@ import {
   openCaseExportMenu,
   openPersonnelExportMenu
 } from "./export-menu.js?v=20260731-row-export-1";
+import { getRequestedOffState } from "./availability-policy.mjs?v=20260731-requested-off-1";
 
 let assignmentCandidates = [];
 let previousMonthShiftData = null;
@@ -478,6 +479,10 @@ function normalizeAssignmentCandidatesForCell(candidates, selectedCell) {
     const alreadyAssigned = assignedUserIds.includes(userId);
     const sameDayAssignments = getSameDayAssignmentsForUser(userId, selectedCell);
     const hasSameDayAssignment = sameDayAssignments.length > 0;
+    const requestedOffState = getRequestedOffState(
+      candidate,
+      selectedCell?.dateItem?.date
+    );
 
     const sameDayCaseTitles = sameDayAssignments
       .map((item) => item.caseTitle)
@@ -496,6 +501,15 @@ function normalizeAssignmentCandidatesForCell(candidates, selectedCell) {
     let buttonLabel = "アサイン";
     let disabled = false;
     let warningText = "";
+
+    if (requestedOffState.requestedOff) {
+      sortRank = 85;
+      buttonLabel = "希望休";
+      disabled = true;
+      warningText = requestedOffState.memo
+        ? `希望休：${requestedOffState.memo}`
+        : "希望休";
+    }
 
     if (hasSameDayAssignment) {
       sortRank = 80;
@@ -540,6 +554,11 @@ function normalizeAssignmentCandidatesForCell(candidates, selectedCell) {
         consecutiveWorkAlert
       }
     };
+  }).sort((candidateA, candidateB) => {
+    return (
+      Number(candidateA.uiState?.sortRank || 0) -
+      Number(candidateB.uiState?.sortRank || 0)
+    );
   });
 }
 
@@ -1100,9 +1119,14 @@ function getPersonnelAssignmentOptions(internalUserId, workDate) {
   const candidate = findCandidateByInternalUserId(internalUserId);
   const shiftData = getCurrentShiftData();
 
-  if (!candidate || !shiftData || hasSameDayAssignmentForUser(internalUserId, {
+  if (
+    !candidate ||
+    !shiftData ||
+    getRequestedOffState(candidate, workDate).requestedOff ||
+    hasSameDayAssignmentForUser(internalUserId, {
     dateItem: { date: workDate }
-  })) {
+    })
+  ) {
     return [];
   }
 
@@ -1275,6 +1299,7 @@ function leavePersonnelCell(internalUserId, workDate) {
 
 function openPersonnelAssignmentPopover(internalUserId, workDate, anchorElement) {
   const candidate = findCandidateByInternalUserId(internalUserId);
+  const requestedOffState = getRequestedOffState(candidate, workDate);
   const options = getPersonnelAssignmentOptions(internalUserId, workDate);
   const existingAssignments = getPersonnelExistingAssignments(internalUserId, workDate);
   const consecutiveWorkAlert = isPreviousMonthDataAvailable
@@ -1302,6 +1327,7 @@ function openPersonnelAssignmentPopover(internalUserId, workDate, anchorElement)
       </div>
       <button type="button" class="cell-popover-close" data-popover-action="close" aria-label="閉じる">×</button>
     </div>
+    ${requestedOffState.requestedOff ? `<div class="candidate-warning">希望休${requestedOffState.memo ? `：${escapeHtml(requestedOffState.memo)}` : ""}のため、新しい案件へ配置できません。</div>` : ""}
     ${consecutiveWorkAlert ? `<div class="candidate-warning">${escapeHtml(consecutiveWorkAlert.message)}</div>` : ""}
     ${!isPreviousMonthDataAvailable ? '<div class="candidate-warning">前月末からの連勤を確認できません</div>' : ""}
     ${existingAssignments.length ? `
@@ -1332,7 +1358,7 @@ function openPersonnelAssignmentPopover(internalUserId, workDate, anchorElement)
         >
           ${escapeHtml(option.title)}（${option.assignedCount}/${option.required}）
         </button>
-      `).join("") : '<div class="empty-note">この人員を追加できる未充足案件はありません。</div>'}
+      `).join("") : `<div class="empty-note">${requestedOffState.requestedOff ? "希望休のため追加できません。" : "この人員を追加できる未充足案件はありません。"}</div>`}
     </div>
   `;
   popover.hidden = false;
@@ -1585,6 +1611,10 @@ function renderAssignmentCandidateCards() {
     const sameDayAssignments = getSameDayAssignmentsForUser(userId, selectedCell);
     const hasSameDayAssignment = sameDayAssignments.length > 0;
 
+    const requestedOffState = getRequestedOffState(
+      candidate,
+      selectedCell?.dateItem?.date
+    );
     const warningText = candidate.uiState?.warningText || (hasSameDayAssignment
       ? `同日別案件あり：${sameDayAssignments.map((item) => item.caseTitle).join(" / ")}`
       : "");
@@ -1593,9 +1623,14 @@ function renderAssignmentCandidateCards() {
       ? "アサイン済み"
       : hasSameDayAssignment
         ? "同日あり"
-        : "アサイン";
+        : requestedOffState.requestedOff
+          ? "希望休"
+          : "アサイン";
 
-    const isDisabled = alreadyAssigned || hasSameDayAssignment;
+    const isDisabled =
+      alreadyAssigned ||
+      hasSameDayAssignment ||
+      requestedOffState.requestedOff;
     const consecutiveAlertLevel = candidate.uiState?.consecutiveWorkAlert?.level || "";
 
     return `

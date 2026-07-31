@@ -48,6 +48,15 @@ function normalizePerson(source = {}) {
       "employeeCode"
     ]),
     email: firstValue(source, ["email", "mail", "gmail"]),
+    requestedOffDates: Array.isArray(source.requested_off_dates)
+      ? source.requested_off_dates
+      : Array.isArray(source.requestedOffDates)
+        ? source.requestedOffDates
+        : [],
+    requestedOffMemo: firstValue(source, [
+      "requested_off_memo",
+      "requestedOffMemo"
+    ]),
     personType: firstValue(source, ["person_type", "personType"]),
     affiliationType: firstValue(source, ["affiliation_type", "affiliationType"]),
     contractType: firstValue(source, ["contract_type", "contractType"]),
@@ -69,6 +78,11 @@ function mergePerson(current, incoming) {
         : incoming.displayName,
     accountCode: current.accountCode || incoming.accountCode,
     email: current.email || incoming.email,
+    requestedOffDates:
+      current.requestedOffDates?.length
+        ? current.requestedOffDates
+        : incoming.requestedOffDates,
+    requestedOffMemo: current.requestedOffMemo || incoming.requestedOffMemo,
     personType: current.personType || incoming.personType,
     affiliationType: current.affiliationType || incoming.affiliationType,
     contractType: current.contractType || incoming.contractType,

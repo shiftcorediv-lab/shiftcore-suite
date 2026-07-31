@@ -1912,3 +1912,23 @@ select {
   background: #eef4ff;
   color: #244c87;
 }
+
+.personnel-shift-cell-requested-off {
+  border-color: #98a2b3;
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      #f2f4f7,
+      #f2f4f7 6px,
+      #e4e7ec 6px,
+      #e4e7ec 12px
+    );
+  color: #475467;
+  font-weight: 700;
+}
+
+.personnel-shift-cell.is-requested-off-conflict {
+  border-color: #d92d20;
+  background: #fef3f2;
+  color: #b42318;
+}

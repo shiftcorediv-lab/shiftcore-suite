@@ -58,7 +58,28 @@ function renderPersonnelDataAttributes(person) {
 }
 
 function renderPersonnelDateCell(person, dateItem, assignments, consecutiveWorkAlert = null) {
+  const isRequestedOff = (person.requestedOffDates || []).includes(dateItem.date);
+  const requestedOffTitle = person.requestedOffMemo
+    ? `希望休：${person.requestedOffMemo}`
+    : "希望休";
+
   if (!assignments.length) {
+    if (isRequestedOff) {
+      return `
+        <button
+          type="button"
+          class="personnel-shift-cell personnel-shift-cell-requested-off"
+          data-person-id="${escapeHtml(person.id)}"
+          data-date="${escapeHtml(dateItem.date)}"
+          ${renderPersonnelDataAttributes(person)}
+          title="${escapeHtml(requestedOffTitle)}"
+          aria-label="${escapeHtml(requestedOffTitle)}"
+        >
+          希望休
+        </button>
+      `;
+    }
+
     return `
       <button
         type="button"
@@ -80,6 +101,7 @@ function renderPersonnelDateCell(person, dateItem, assignments, consecutiveWorkA
     (assignment) => assignment.caseDisplayTitle || assignment.caseTitle
   );
   const title = [
+    isRequestedOff ? "希望休とアサインが重複しています" : "",
     isConflict ? `同日重複：${caseNames.join(" / ")}` : caseNames[0],
     consecutiveWorkAlert?.message || ""
   ].filter(Boolean).join(" / ");
@@ -96,14 +118,14 @@ function renderPersonnelDateCell(person, dateItem, assignments, consecutiveWorkA
   return `
     <button
       type="button"
-      class="personnel-shift-cell ${isConflict ? "is-conflict" : "is-assigned"} ${alertClass} ${statusBadges ? "has-status" : ""}"
+      class="personnel-shift-cell ${isConflict ? "is-conflict" : "is-assigned"} ${isRequestedOff ? "is-requested-off-conflict" : ""} ${alertClass} ${statusBadges ? "has-status" : ""}"
       data-person-id="${escapeHtml(person.id)}"
       data-date="${escapeHtml(dateItem.date)}"
       ${renderPersonnelDataAttributes(person)}
       title="${escapeHtml(title)}"
       aria-label="${escapeHtml(title)}"
     >
-      <span class="personnel-shift-statuses" aria-hidden="true">${statusBadges}</span>
+      <span class="personnel-shift-statuses" aria-hidden="true">${isRequestedOff ? '<span class="personnel-shift-status" title="希望休と重複">休</span>' : ""}${statusBadges}</span>
       <span class="personnel-shift-label-row">
         <span class="personnel-shift-case">${escapeHtml(caseDisplayNames[0])}</span>
         ${assignments.length > 1 ? `<span class="personnel-shift-more">+${assignments.length - 1}</span>` : ""}
