@@ -9,15 +9,16 @@ import {
   archiveShiftBuilderAssignment,
   replaceShiftBuilderAssignment,
   getShiftBuilderAssignmentCandidates,
+  sendShiftBuilderPersonnelIcs,
   SHIFTBUILDER_DATA_REVISION_KEY
-} from "./api.js?v=20260730-case-cascade-1";
+} from "./api.js?v=20260731-ics-mail-1";
 import { mockShiftData } from "./mock-data.js";
 import { escapeHtml } from "./utils.js";
 import { getPermissionLabel, canEdit } from "./permissions.js";
 import { renderSummary } from "./render-summary.js?v=20260714-workflow-1";
 import { renderShiftTable } from "./render-shift-table.js?v=20260714-workflow-1";
 import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20260731-requested-off-1";
-import { renderPersonnelTable } from "./render-personnel-table.js?v=20260731-requested-off-1";
+import { renderPersonnelTable } from "./render-personnel-table.js?v=20260731-ics-mail-1";
 import { getConsecutiveWorkAlert } from "./consecutive-work-alert.js?v=20260714-workflow-1";
 import {
   renderSelectedCell,
@@ -49,8 +50,13 @@ import {
 import {
   closeExportMenu,
   openCaseExportMenu,
-  openPersonnelExportMenu
-} from "./export-menu.js?v=20260731-row-export-1";
+  openPersonnelExportMenu,
+  openPersonnelBulkMenu
+} from "./export-menu.js?v=20260731-ics-mail-1";
+import {
+  buildPersonnelExportFilename,
+  buildPersonnelIcs
+} from "./export-utils.mjs?v=20260731-ics-mail-1";
 import { getRequestedOffState } from "./availability-policy.mjs?v=20260731-requested-off-1";
 
 let assignmentCandidates = [];
@@ -66,6 +72,62 @@ let externalDataRefreshPending = false;
 let isExternalDataRefreshRunning = false;
 const IS_DEMO_MODE = new URLSearchParams(window.location.search).get("demo") === "1";
 const HOWTO_OPEN_STORAGE_KEY = "shiftbuilder-howto-open";
+
+function buildPersonnelIcsMailRecipients(people, shiftData) {
+  return (Array.isArray(people) ? people : []).map((person) => ({
+    internalUserId: person.id,
+    displayName: person.displayName,
+    filename: buildPersonnelExportFilename(person, shiftData.month, "ics"),
+    icsContent: buildPersonnelIcs(person, shiftData)
+  }));
+}
+
+async function sendPersonnelIcsEmails(people, shiftData) {
+  const targets = (Array.isArray(people) ? people : []).filter(
+    (person) => String(person.email || "").trim() && Number(person.assignmentCount || 0) > 0
+  );
+  if (!targets.length) {
+    setStatus("メール送信できるアサイン済み人員がいません。");
+    return;
+  }
+
+  const names = targets.length === 1
+    ? targets[0].displayName
+    : `${targets.length}名`;
+  if (!window.confirm(`${shiftData.month}のICSを${names}へメール送信します。よろしいですか？`)) {
+    setStatus("ICSメール送信をキャンセルしました。");
+    return;
+  }
+
+  const session = getCurrentSession();
+  if (!session?.idToken) {
+    setStatus("メール送信には再ログインが必要です。");
+    return;
+  }
+
+  setLoading(true, `ICSを${names}へ送信中...`);
+  setStatus(`ICSを${names}へ送信中...`);
+  try {
+    const result = await sendShiftBuilderPersonnelIcs(session.idToken, {
+      targetMonth: shiftData.month,
+      recipients: buildPersonnelIcsMailRecipients(targets, shiftData)
+    });
+    if (!result || result.success !== true) {
+      throw new Error(result?.message || "ICSメール送信に失敗しました。");
+    }
+    const sentCount = Number(result.sentCount || 0);
+    const skippedCount = Number(result.skippedCount || 0);
+    setStatus(
+      `ICSメールを${sentCount}名へ送信しました。` +
+      (skippedCount ? ` 未送信 ${skippedCount}名。` : "")
+    );
+  } catch (error) {
+    console.error("[ShiftBuilder] ICS mail error:", error);
+    setStatus(error.message || String(error));
+  } finally {
+    setLoading(false);
+  }
+}
 
 function initializeHowto() {
   if (!elements.shiftbuilderHowto) {
@@ -1718,7 +1780,22 @@ function renderCurrentShiftView(options = {}) {
             point,
             person,
             shiftData,
-            onStatus: setStatus
+            onStatus: setStatus,
+            onSendIcs: (targetPerson) => {
+              sendPersonnelIcsEmails([targetPerson], shiftData);
+            }
+          });
+        },
+        onOpenBulkMenu: (anchor, point) => {
+          openPersonnelBulkMenu({
+            anchor,
+            point,
+            people: personnelViewModel.people,
+            shiftData,
+            onStatus: setStatus,
+            onSendAllIcs: (targets) => {
+              sendPersonnelIcsEmails(targets, shiftData);
+            }
           });
         }
       });

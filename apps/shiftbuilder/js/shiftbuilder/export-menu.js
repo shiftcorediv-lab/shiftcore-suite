@@ -177,7 +177,16 @@ function drawCalendar(canvas, person, shiftData) {
   context.fillText("※時刻はICSまたはShiftBuilderで確認してください。", 48, height - 28);
 }
 
-export function openPersonnelExportMenu({ anchor, point, person, shiftData, onStatus }) {
+export function openPersonnelExportMenu({
+  anchor,
+  point,
+  person,
+  shiftData,
+  onStatus,
+  onSendIcs
+}) {
+  const email = String(person.email || "").trim();
+  const hasAssignments = Number(person.assignmentCount || 0) > 0;
   openMenu({
     anchor,
     point,
@@ -208,8 +217,51 @@ export function openPersonnelExportMenu({ anchor, point, person, shiftData, onSt
           );
           onStatus?.(`${person.displayName}のICSを出力しました。`);
         }
+      },
+      {
+        label: "ICSをメール送信",
+        run: () => {
+          if (!email) {
+            onStatus?.(`${person.displayName}には送信先メールアドレスが登録されていません。`);
+            return;
+          }
+          if (!hasAssignments) {
+            onStatus?.(`${person.displayName}には対象月のアサインがありません。`);
+            return;
+          }
+          onStatus?.("メール送信の確認中...");
+          onSendIcs?.(person);
+        }
       }
     ]
+  });
+}
+
+export function openPersonnelBulkMenu({
+  anchor,
+  point,
+  people,
+  shiftData,
+  onStatus,
+  onSendAllIcs
+}) {
+  const targets = (Array.isArray(people) ? people : []).filter(
+    (person) => String(person.email || "").trim() && Number(person.assignmentCount || 0) > 0
+  );
+  openMenu({
+    anchor,
+    point,
+    title: `${shiftData.month || "対象月"} 人員一括`,
+    actions: [{
+      label: `ICSを一括メール送信（${targets.length}名）`,
+      run: () => {
+        if (!targets.length) {
+          onStatus?.("メール送信できるアサイン済み人員がいません。");
+          return;
+        }
+        onSendAllIcs?.(targets);
+      }
+    }]
   });
 }
 

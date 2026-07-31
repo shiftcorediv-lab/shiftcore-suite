@@ -233,4 +233,13 @@ export async function getShiftBuilderAssignmentCandidates(idToken, params = {}) 
 }
 // ===== アサイン候補者取得ここまで =====
 
+// ===== ICSメール送信ここから =====
+export async function sendShiftBuilderPersonnelIcs(idToken, params = {}) {
+  return postMutation("shiftBuilderSendPersonnelIcs", idToken, {
+    targetMonth: params.targetMonth || "",
+    recipients: Array.isArray(params.recipients) ? params.recipients : []
+  });
+}
+// ===== ICSメール送信ここまで =====
+
 // ===== ShiftBuilder API client ここまで =====

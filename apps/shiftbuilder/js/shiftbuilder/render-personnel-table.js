@@ -231,7 +231,11 @@ export function renderPersonnelTable(viewModel, elements, handlers = {}) {
 
   elements.shiftTableHead.innerHTML = `
     <tr>
-      <th class="personnel-header-cell">人員</th>
+      <th
+        class="personnel-header-cell row-export-trigger"
+        tabindex="0"
+        aria-label="人員一括メニュー。右クリックまたはShift+F10"
+      >人員</th>
       ${dates
         .map(
           (dateItem) => `
@@ -289,6 +293,21 @@ export function renderPersonnelTable(viewModel, elements, handlers = {}) {
     .join("");
 
   bindPersonnelCellEvents(elements.shiftTableBody, handlers);
+
+  const cornerCell = elements.shiftTableHead.querySelector(".personnel-header-cell");
+  cornerCell?.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    handlers.onOpenBulkMenu?.(cornerCell, {
+      x: event.clientX,
+      y: event.clientY
+    });
+  });
+  cornerCell?.addEventListener("keydown", (event) => {
+    if ((event.shiftKey && event.key === "F10") || event.key === "ContextMenu") {
+      event.preventDefault();
+      handlers.onOpenBulkMenu?.(cornerCell);
+    }
+  });
 
   elements.shiftTableBody.querySelectorAll(".personnel-cell[data-person-id]").forEach((cell) => {
     const personId = cell.dataset.personId || "";
