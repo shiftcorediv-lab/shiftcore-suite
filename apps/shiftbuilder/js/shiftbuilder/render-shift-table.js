@@ -358,7 +358,8 @@ export function renderShiftTable(data, elements, handlers = {}) {
     onSelectCell,
     onPreviewCell,
     onLeaveCell,
-    onCloseCell
+    onCloseCell,
+    onOpenRowMenu
   } = handlers;
 
   const dates = Array.isArray(data?.dates) ? data.dates : [];
@@ -482,7 +483,12 @@ export function renderShiftTable(data, elements, handlers = {}) {
 
       return `
         <tr class="${escapeHtml(rowClasses)}">
-          <td class="case-cell">
+          <td
+            class="case-cell row-export-trigger"
+            tabindex="0"
+            data-case-id="${escapeHtml(caseItem.caseId)}"
+            aria-label="${escapeHtml(`${caseItem.title}の出力メニュー。右クリックまたはShift+F10`)}"
+          >
             <div class="case-title">${escapeHtml(caseItem.title)}</div>
             <div class="case-meta">${escapeHtml(caseItem.client)} / ${escapeHtml(caseItem.area)}</div>
             <div class="case-fulfillment-row">
@@ -502,6 +508,22 @@ export function renderShiftTable(data, elements, handlers = {}) {
     onPreviewCell,
     onLeaveCell,
     onCloseCell
+  });
+
+  shiftTableBody.querySelectorAll(".case-cell[data-case-id]").forEach((cell) => {
+    const caseId = cell.dataset.caseId || "";
+
+    cell.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      onOpenRowMenu?.(caseId, cell, { x: event.clientX, y: event.clientY });
+    });
+
+    cell.addEventListener("keydown", (event) => {
+      if ((event.shiftKey && event.key === "F10") || event.key === "ContextMenu") {
+        event.preventDefault();
+        onOpenRowMenu?.(caseId, cell);
+      }
+    });
   });
 }
 

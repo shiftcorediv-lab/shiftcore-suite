@@ -1861,3 +1861,54 @@ select {
 }
 
 /* ===== ShiftBuilder CSS ここまで ===== */
+.row-export-trigger {
+  cursor: context-menu;
+}
+
+.row-export-trigger:focus-visible {
+  outline: 3px solid #2f6fed;
+  outline-offset: -3px;
+}
+
+.row-export-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 240px;
+  max-width: min(360px, calc(100vw - 16px));
+  overflow: hidden;
+  padding: 6px;
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 12px 32px rgba(16, 24, 40, 0.2);
+}
+
+.row-export-menu-title {
+  overflow: hidden;
+  padding: 8px 10px 6px;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-export-menu button {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #172033;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row-export-menu button:hover,
+.row-export-menu button:focus-visible {
+  outline: none;
+  background: #eef4ff;
+  color: #244c87;
+}

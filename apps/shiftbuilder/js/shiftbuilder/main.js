@@ -46,6 +46,11 @@ import {
   shouldRefreshActionPopoverForCell,
   wasPopoverAnchorFocused
 } from "./async-focus-policy.mjs?v=20260730-case-cascade-1";
+import {
+  closeExportMenu,
+  openCaseExportMenu,
+  openPersonnelExportMenu
+} from "./export-menu.js?v=20260731-row-export-1";
 
 let assignmentCandidates = [];
 let previousMonthShiftData = null;
@@ -1664,7 +1669,23 @@ function renderCurrentShiftView(options = {}) {
         onSelectCell: openPersonnelAssignmentPopover,
         onPreviewCell: previewPersonnelCell,
         onLeaveCell: leavePersonnelCell,
-        onCloseCell: () => hideCellPopover()
+        onCloseCell: () => hideCellPopover(),
+        onOpenRowMenu: (personId, anchor, point) => {
+          const person = personnelViewModel.people.find((item) => item.id === personId);
+
+          if (!person) {
+            setStatus("出力対象の人員を取得できませんでした。");
+            return;
+          }
+
+          openPersonnelExportMenu({
+            anchor,
+            point,
+            person,
+            shiftData,
+            onStatus: setStatus
+          });
+        }
       });
     } finally {
       isRenderingShiftView = false;
@@ -1684,7 +1705,25 @@ function renderCurrentShiftView(options = {}) {
         {
           onSelectCell: selectShiftCell,
           onPreviewCell: previewShiftCell,
-          onLeaveCell: leaveShiftCell
+          onLeaveCell: leaveShiftCell,
+          onOpenRowMenu: (caseId, anchor, point) => {
+            const caseItem = shiftData.cases.find(
+              (item) => String(item.caseId) === String(caseId)
+            );
+
+            if (!caseItem) {
+              setStatus("出力対象の案件を取得できませんでした。");
+              return;
+            }
+
+            openCaseExportMenu({
+              anchor,
+              point,
+              caseItem,
+              shiftData,
+              onStatus: setStatus
+            });
+          }
         }
       );
     } finally {
@@ -1746,6 +1785,7 @@ function syncAxisControls(axis) {
 }
 
 function switchAxis(axis) {
+  closeExportMenu();
   const nextAxis = axis === "personnel" ? "personnel" : "case";
   const currentAxis = getActiveAxis();
 

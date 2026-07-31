@@ -251,7 +251,12 @@ export function renderPersonnelTable(viewModel, elements, handlers = {}) {
 
       return `
         <tr>
-          <td class="personnel-cell">
+          <td
+            class="personnel-cell row-export-trigger"
+            tabindex="0"
+            data-person-id="${escapeHtml(person.id)}"
+            aria-label="${escapeHtml(`${person.displayName}の出力メニュー。右クリックまたはShift+F10`)}"
+          >
             ${renderPersonMeta(person)}
             ${renderPersonnelGauge(person)}
           </td>
@@ -262,6 +267,25 @@ export function renderPersonnelTable(viewModel, elements, handlers = {}) {
     .join("");
 
   bindPersonnelCellEvents(elements.shiftTableBody, handlers);
+
+  elements.shiftTableBody.querySelectorAll(".personnel-cell[data-person-id]").forEach((cell) => {
+    const personId = cell.dataset.personId || "";
+
+    cell.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      handlers.onOpenRowMenu?.(personId, cell, {
+        x: event.clientX,
+        y: event.clientY
+      });
+    });
+
+    cell.addEventListener("keydown", (event) => {
+      if ((event.shiftKey && event.key === "F10") || event.key === "ContextMenu") {
+        event.preventDefault();
+        handlers.onOpenRowMenu?.(personId, cell);
+      }
+    });
+  });
 }
 
 // ===== ShiftBuilder render-personnel-table.js ここまで =====

@@ -47,6 +47,7 @@ function normalizePerson(source = {}) {
       "employee_code",
       "employeeCode"
     ]),
+    email: firstValue(source, ["email", "mail", "gmail"]),
     personType: firstValue(source, ["person_type", "personType"]),
     affiliationType: firstValue(source, ["affiliation_type", "affiliationType"]),
     contractType: firstValue(source, ["contract_type", "contractType"]),
@@ -67,6 +68,7 @@ function mergePerson(current, incoming) {
         ? current.displayName
         : incoming.displayName,
     accountCode: current.accountCode || incoming.accountCode,
+    email: current.email || incoming.email,
     personType: current.personType || incoming.personType,
     affiliationType: current.affiliationType || incoming.affiliationType,
     contractType: current.contractType || incoming.contractType,
