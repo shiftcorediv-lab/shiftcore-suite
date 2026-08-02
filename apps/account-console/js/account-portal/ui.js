@@ -58,10 +58,16 @@ export function setupShiftCoreEntryBanner(params) {
   banner.style.border = "1px solid #cfdcff";
   banner.style.fontSize = "14px";
   banner.style.lineHeight = "1.6";
-  banner.innerHTML = `
-    <div><strong>ShiftCoreから移動しました</strong></div>
-    <div>module: ${params.module || "unknown"}</div>
-  `;
+  const titleLine = document.createElement("div");
+  const titleStrong = document.createElement("strong");
+  titleStrong.textContent = "ShiftCoreから移動しました";
+  titleLine.appendChild(titleStrong);
+
+  const moduleLine = document.createElement("div");
+  moduleLine.textContent = "module: " + (params.module || "unknown");
+
+  banner.appendChild(titleLine);
+  banner.appendChild(moduleLine);
   entryBannerArea.appendChild(banner);
 }
 

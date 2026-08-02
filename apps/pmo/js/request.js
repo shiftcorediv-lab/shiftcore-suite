@@ -14,7 +14,7 @@ import {
   updateSubmitButtonState,
   getTargetYearMonth
 } from "./calendar.js";
-import { showMessage, showMainMessage } from "./ui.js";
+import { showMessage, showMainMessage } from "./ui.js?v=20260802-xss-1";
 
 export function buildSubmitPayload() {
   return {

@@ -1,6 +1,6 @@
 import { getQueryParams, buildCurrentUserFromQuery } from "./query.js";
 import { goSignupAdminBtn, backToDashboardBtn } from "./dom.js";
-import { renderAccountInfo, setupShiftCoreEntryBanner, updatePortalState, showMessage } from "./ui.js";
+import { renderAccountInfo, setupShiftCoreEntryBanner, updatePortalState, showMessage } from "./ui.js?v=20260802-xss-1";
 import { canUseAccountPortal, buildSignupAdminUrl, goToDashboard } from "./navigation.js?v=20260802-modules-1";
 
 const params = getQueryParams();
