@@ -4,30 +4,87 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ShiftCore Dashboard</title>
-  <link rel="stylesheet" href="./css/dashboard.css">
+  <link rel="stylesheet" href="./css/dashboard.css?v=20260802">
 </head>
 <body>
-  <div class="container">
-    <h1>ShiftCore Dashboard</h1>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="./dashboard.html" aria-label="ShiftCore Dashboard">
+        <span class="brand-mark"><i></i><i></i></span>
+        <span><strong>ShiftCore</strong><small>WORKFORCE PLATFORM</small></span>
+      </a>
+      <div class="topbar-actions">
+        <button class="icon-button" id="notificationBtn" type="button" aria-label="通知を開く" aria-expanded="false">
+          <span aria-hidden="true">♢</span><b id="notificationBadge" hidden>0</b>
+        </button>
+        <button class="user-chip" id="userMenuBtn" type="button"><span id="userInitial">—</span><span id="userName">読み込み中</span></button>
+      </div>
+      <aside class="notification-panel" id="notificationPanel" hidden>
+        <div class="panel-heading"><strong>通知</strong><button id="notificationCloseBtn" type="button" aria-label="閉じる">×</button></div>
+        <div id="notificationList" class="notification-list"></div>
+      </aside>
+    </header>
 
-    <div class="info-box">
-      <div><strong>名前：</strong><span id="nameText"></span></div>
-      <div><strong>メール：</strong><span id="emailText"></span></div>
-      <div><strong>ロール：</strong><span id="roleText"></span></div>
-      <div><strong>組織：</strong><span id="organizationText"></span></div>
-    </div>
+    <main class="dashboard">
+      <section class="welcome-row">
+        <div><p class="eyebrow" id="todayLabel">TODAY</p><h1><span id="greetingName">—</span>さん、おはようございます</h1><p>今日の予定と稼働状況を確認できます。</p></div>
+        <a id="adminLink" class="admin-link" href="./attendance-admin.html" hidden>管理者画面</a>
+      </section>
 
-    <h2>利用可能モジュール</h2>
-    <div id="moduleList" class="module-list"></div>
+      <div id="alertArea" class="alert-area" aria-live="polite"></div>
 
-    <div class="button-row">
-      <button id="logoutBtn">ログアウト</button>
-      <button id="backToLoginBtn">ログイン画面へ戻る</button>
-    </div>
+      <section class="hero-grid">
+        <article class="work-card card">
+          <div class="card-heading"><div><span class="section-label">TODAY'S WORK</span><h2>本日の稼働予定</h2></div><span id="workStatus" class="status-pill">確認中</span></div>
+          <div class="work-place"><span class="place-icon">⌖</span><div><small>稼働予定場所</small><strong id="workLocation">読み込み中...</strong></div></div>
+          <dl class="work-details">
+            <div><dt>予定時間</dt><dd id="plannedTime">—</dd></div>
+            <div><dt>開始時刻</dt><dd id="startedAt">—</dd></div>
+            <div><dt>終了時刻</dt><dd id="endedAt">—</dd></div>
+          </dl>
+          <div class="clock-actions">
+            <button id="startBtn" class="primary-action" type="button">稼働開始</button>
+            <button id="endBtn" class="danger-action" type="button" hidden>稼働終了</button>
+            <button id="correctionBtn" class="outline-action" type="button" hidden>修正申請</button>
+          </div>
+          <p class="deadline-note" id="deadlineNote">9:30以降は未押下理由が必要です。通常開始は10:00までです。</p>
+        </article>
 
-    <div id="statusBox" class="status-box">ログイン済みユーザー情報を表示中</div>
+        <article class="weather-card card">
+          <div class="card-heading"><div><span class="section-label">WEATHER</span><h2>稼働場所の天気</h2></div></div>
+          <div class="weather-main"><span class="weather-icon">☁</span><div><strong>準備中</strong><p id="weatherLocation">稼働場所の天気情報</p></div></div>
+          <div class="weather-note">天気情報の提供元を選定後に表示します。勤怠操作には影響しません。</div>
+        </article>
+      </section>
+
+      <section class="content-grid">
+        <article class="card schedule-card"><div class="card-heading"><div><span class="section-label">UPCOMING</span><h2>直近の稼働予定</h2></div></div><div id="upcomingList" class="schedule-list"></div></article>
+        <article class="card module-card-wrap"><div class="card-heading"><div><span class="section-label">MODULES</span><h2>業務モジュール</h2></div></div><div id="moduleList" class="module-list"></div></article>
+      </section>
+
+      <section class="account-strip"><div><span id="emailText"></span><small id="accountMeta"></small></div><div><button id="logoutBtn" type="button">ログアウト</button><button id="backToLoginBtn" type="button">ログイン画面</button></div></section>
+      <div id="statusBox" class="status-box" aria-live="polite">データを読み込んでいます</div>
+    </main>
   </div>
 
-  <script type="module" src="./js/dashboard/main.js"></script>
+  <dialog id="actionDialog">
+    <form method="dialog" id="actionForm">
+      <div class="dialog-heading"><div><span class="section-label">ATTENDANCE</span><h2 id="dialogTitle">稼働開始</h2></div><button value="cancel" aria-label="閉じる">×</button></div>
+      <div id="dialogBody"></div>
+      <div class="dialog-actions"><button value="cancel" class="outline-action">キャンセル</button><button id="dialogSubmitBtn" value="default" class="primary-action">登録する</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="locationConsentDialog">
+    <form method="dialog">
+      <div class="dialog-heading"><div><span class="section-label">PRIVACY</span><h2>稼働開始時の位置情報について</h2></div></div>
+      <p>勤怠記録の正確性を確認するため、稼働開始ボタンを押した時点の位置情報を取得します。</p>
+      <p>位置情報はボタンを押した時だけ取得し、勤務中の継続的な追跡は行いません。取得した情報は勤怠確認および必要な修正確認のために、権限を持つ担当者のみが利用します。</p>
+      <p>端末やブラウザの設定により取得できない場合でも、理由を記録して稼働を開始できます。</p>
+      <div class="dialog-actions"><button id="denyLocationBtn" value="deny" class="outline-action">今回は許可しない</button><button id="allowLocationBtn" value="allow" class="primary-action">位置情報の取得を許可する</button></div>
+    </form>
+  </dialog>
+
+  <script type="module" src="./js/dashboard/main.js?v=20260802"></script>
 </body>
 </html>
