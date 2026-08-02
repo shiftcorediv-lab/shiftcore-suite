@@ -7,6 +7,7 @@ import { LOCATION_CONSENT_VERSION } from "./config.js?v=20260802-attendance-2";
 
 const $ = id => document.getElementById(id);
 const storedUser = getStoredUser();
+const dashboardCacheKey = `shiftcore_attendance_dashboard:${storedUser?.email || storedUser?.employee_code || "anonymous"}`;
 let dashboardData = null;
 let busy = false;
 
@@ -16,6 +17,12 @@ if (!storedUser) {
 } else {
   renderIdentity(storedUser);
   renderModules(storedUser.allowed_modules || [], storedUser, showStatus);
+  const cachedDashboard = readDashboardCache();
+  if (cachedDashboard) {
+    dashboardData = cachedDashboard;
+    renderDashboard(cachedDashboard);
+    showStatus("前回確認した当日の情報を表示しています。最新情報を確認中です。");
+  }
 }
 
 onAuthStateChanged(auth, async user => {
@@ -31,6 +38,7 @@ async function loadDashboard() {
   try {
     dashboardData = await attendanceRequest("getDashboardData");
     renderDashboard(dashboardData);
+    writeDashboardCache(dashboardData);
     showStatus("保存済みの勤怠情報を表示しています。SBの最新予定を確認中です。");
     refreshDashboardInBackground();
   } catch (error) {
@@ -44,10 +52,33 @@ async function refreshDashboardInBackground() {
     const refreshed = await attendanceRequest("refreshDashboardData");
     dashboardData = refreshed;
     renderDashboard(refreshed);
+    writeDashboardCache(refreshed);
     showStatus("SBの最新予定を反映しました");
   } catch (error) {
     showStatus(`保存済み予定を表示中（SB同期失敗: ${error.message}）`, true);
   }
+}
+
+function readDashboardCache() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(dashboardCacheKey) || "null");
+    if (!cached || cached.today !== todayKey()) return null;
+    return cached;
+  } catch (_) {
+    return null;
+  }
+}
+
+function writeDashboardCache(data) {
+  try {
+    localStorage.setItem(dashboardCacheKey, JSON.stringify({ ...data, notifications: [] }));
+  } catch (_) {
+    // キャッシュ不可でも通常のAPI表示は継続する。
+  }
+}
+
+function todayKey() {
+  return new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 }
 
 function renderIdentity(user) {
