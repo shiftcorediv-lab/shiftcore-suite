@@ -1,6 +1,6 @@
 import { MODULE_NAME_MAP } from "./config.js?v=20260802-attendance-2";
 import { moduleList } from "./dom.js";
-import { openModule } from "./navigation.js";
+import { openModule } from "./navigation.js?v=20260802-attendance-3";
 
 const OPENABLE_MODULE_MAP = {
   pmo: true,
