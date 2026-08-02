@@ -1,20 +1,25 @@
-import { MODULE_NAME_MAP } from "./config.js?v=20260802-modules-1";
+import { MODULE_NAME_MAP } from "./config.js?v=20260802-modules-2";
 import { moduleList, userModuleList } from "./dom.js";
-import { openModule } from "./navigation.js?v=20260802-modules-1";
+import { openModule } from "./navigation.js?v=20260802-modules-2";
 
-const MODULE_ALIASES = { shiftbuilder: "shift", order_case: "ordercase" };
+const MODULE_ALIASES = { account: "account_console", shiftbuilder: "shift", order_case: "ordercase" };
 const ADMIN_ROLES = ["admin", "developer", "dev"];
 const ORDERCASE_PERMISSIONS = ["all", "edit", "view", "view_without_amount"];
 const SHIFT_PERMISSIONS = ["all", "manager", "edit", "view", "self"];
-const OPENABLE_MODULES = ["account", "account_console", "pmo", "ordercase", "shift"];
+const OPENABLE_MODULES = ["account_console", "pmo", "ordercase", "shift"];
 
 function normalizeModule(moduleCode) {
   const code = String(moduleCode || "").trim().toLowerCase();
   return MODULE_ALIASES[code] || code;
 }
 
-function hasPermission(user, key, allowedValues) {
-  return allowedValues.includes(String(user?.[key] || "").trim().toLowerCase());
+function hasPermission(user, keys, allowedValues) {
+  const value = keys.map(key => user?.[key]).find(Boolean);
+  return allowedValues.includes(String(value || "").trim().toLowerCase());
+}
+
+function permissionValue(user, keys) {
+  return String(keys.map(key => user?.[key]).find(Boolean) || "").trim().toLowerCase();
 }
 
 function moduleArray(modules) {
@@ -25,13 +30,14 @@ function moduleArray(modules) {
 
 function canUseModule(moduleCode, user) {
   const role = String(user?.role || "").trim().toLowerCase();
-  if ((moduleCode === "account" || moduleCode === "account_console") && !ADMIN_ROLES.includes(role)) return false;
-  if (moduleCode === "account_console") {
-    const allowed = moduleArray(user?.allowed_modules).map(normalizeModule);
-    return allowed.includes("account");
+  if (moduleCode === "account_console" && !ADMIN_ROLES.includes(role)) return false;
+  if (moduleCode === "ordercase") return hasPermission(user, ["ordercase_permission", "ordercasePermission"], ORDERCASE_PERMISSIONS);
+  if (moduleCode === "shift") {
+    const value = permissionValue(user, ["shiftbuilder_permission", "shiftBuilderPermission", "shift_permission"]);
+    // ログイン照合APIが詳細権限を返さない場合も、モジュール許諾があれば入口は表示する。
+    // ShiftBuilder側で最新の詳細権限を再取得し、編集可否を最終判定する。
+    return !value || SHIFT_PERMISSIONS.includes(value);
   }
-  if (moduleCode === "ordercase") return hasPermission(user, "ordercase_permission", ORDERCASE_PERMISSIONS);
-  if (moduleCode === "shift") return hasPermission(user, "shiftbuilder_permission", SHIFT_PERMISSIONS);
   return OPENABLE_MODULES.includes(moduleCode);
 }
 
@@ -45,11 +51,11 @@ export function getEffectiveModules(modules, user) {
   return effective;
 }
 
-function buildModuleButton(moduleCode, className, setStatus) {
+function buildModuleButton(moduleCode, className, setStatus, label) {
   const button = document.createElement("button");
   button.className = className;
   button.type = "button";
-  button.textContent = MODULE_NAME_MAP[moduleCode] || moduleCode;
+  button.textContent = label || MODULE_NAME_MAP[moduleCode] || moduleCode;
   button.addEventListener("click", () => openModule(moduleCode, setStatus));
   return button;
 }
@@ -71,7 +77,7 @@ export function renderModules(modules, user, setStatus) {
     title.textContent = MODULE_NAME_MAP[moduleCode] || moduleCode;
     code.className = "module-card-code";
     code.textContent = "module_code: " + moduleCode;
-    card.append(title, code, buildModuleButton(moduleCode, "", setStatus));
+    card.append(title, code, buildModuleButton(moduleCode, "", setStatus, "開く"));
     moduleList.appendChild(card);
   });
 }

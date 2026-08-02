@@ -1,5 +1,6 @@
-import { DASHBOARD_URL, SIGNUP_ADMIN_URL } from "./config.js?v=20260802-modules-1";
+import { DASHBOARD_URL, SIGNUP_ADMIN_URL } from "./config.js?v=20260802-modules-2";
 import { requireAccountConsoleSession } from "./auth.js";
+import { compareUsersBySortOrder } from "./sort.js?v=20260802-modules-2";
 import {
   getAccountConsoleBootstrap,
   listAccountUsers,
@@ -36,7 +37,7 @@ import {
   showLoading,
   hideLoading,
   setLogsLoading
-} from "./ui.js?v=20260802-modules-1";
+} from "./ui.js?v=20260802-modules-2";
 
 // ===== 状態ここから =====
 let session = null;
@@ -126,7 +127,7 @@ async function loadUsers(loadingMessage = "ユーザー名簿を取得中...") {
 }
 
 function renderCurrentUsers() {
-  const filtered = filterUsers(allUsers, searchInput.value);
+  const filtered = filterUsers(allUsers, searchInput.value).slice().sort(compareUsersBySortOrder);
   const selectedId = selectedUser ? selectedUser.internal_user_id : "";
 
   renderUsers(filtered, selectedId, (user) => {
@@ -181,11 +182,8 @@ async function saveUser(event) {
     const role = String(user.role || "").trim().toLowerCase();
     const isAdministrator = ["admin", "developer", "dev"].includes(role);
 
-    if ((modules.includes("account") || modules.includes("account_console")) && !isAdministrator) {
-      throw new Error("アカウント基盤とAccount Consoleは、管理者・役員・開発者のみ許可できます");
-    }
-    if (modules.includes("account_console") && !modules.includes("account")) {
-      throw new Error("Account Consoleを許可する場合は、アカウント基盤も許可してください");
+    if (modules.includes("account_console") && !isAdministrator) {
+      throw new Error("Account Consoleは、管理者・役員・開発者のみ許可できます");
     }
     if (modules.includes("ordercase") && !user.ordercase_permission) {
       throw new Error("OrderCaseを許可する場合は、OrderCase権限を選択してください");

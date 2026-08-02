@@ -13,11 +13,11 @@ export const ATTENDANCE_API_URL = "https://script.google.com/macros/s/AKfycbzYSk
 export const LOCATION_CONSENT_VERSION = "2026-08-02-v1";
 
 export const MODULE_NAME_MAP = {
-  account: "アカウント基盤",
-  account_console: "Account Console",
-  pmo: "Pick My Off",
-  ordercase: "案件管理 / OrderCase",
-  order_case: "案件管理 / OrderCase",
-  shift: "シフト作成 / ShiftBuilder",
-  shiftbuilder: "シフト作成 / ShiftBuilder"
+  account: "Account Console (アカウント登録・申請・権限管理)",
+  account_console: "Account Console (アカウント登録・申請・権限管理)",
+  pmo: "Pick My Off (希望休管理)",
+  ordercase: "OrderCase (案件管理)",
+  order_case: "OrderCase (案件管理)",
+  shift: "ShiftBuilder (シフト・稼働予定管理)",
+  shiftbuilder: "ShiftBuilder (シフト・稼働予定管理)"
 };
