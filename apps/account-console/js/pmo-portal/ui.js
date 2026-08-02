@@ -43,7 +43,7 @@ export function renderDeveloperMeta(params, currentUser) {
 
   if (role !== "developer") {
     developerMetaArea.style.display = "none";
-    developerMetaArea.innerHTML = "";
+    developerMetaArea.textContent = "";
     return;
   }
 
@@ -51,13 +51,25 @@ export function renderDeveloperMeta(params, currentUser) {
   const workStatus = currentUser?.workStatus || "未設定";
 
   developerMetaArea.style.display = "block";
-  developerMetaArea.innerHTML = `
-    <div class="developer-meta-inner">
-      <span>ShiftCore &gt; ${moduleName}</span>
-      <span>role: ${role}</span>
-      <span>workStatus: ${workStatus}</span>
-    </div>
-  `;
+  developerMetaArea.textContent = "";
+
+  const inner = document.createElement("div");
+  inner.className = "developer-meta-inner";
+
+  const moduleSpan = document.createElement("span");
+  moduleSpan.textContent = "ShiftCore > " + moduleName;
+
+  const roleSpan = document.createElement("span");
+  roleSpan.textContent = "role: " + role;
+
+  const workStatusSpan = document.createElement("span");
+  workStatusSpan.textContent = "workStatus: " + workStatus;
+
+  inner.appendChild(moduleSpan);
+  inner.appendChild(roleSpan);
+  inner.appendChild(workStatusSpan);
+
+  developerMetaArea.appendChild(inner);
 }
 
 export function updateManageButtonState(canManage) {

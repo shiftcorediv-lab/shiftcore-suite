@@ -21,7 +21,7 @@ import {
   backToFormView,
   isUserInactive,
   showMainMessage
-} from "./ui.js";
+} from "./ui.js?v=20260802-xss-1";
 import {
   renderCalendar,
   renderSelectedDates,
@@ -33,7 +33,7 @@ import {
   loadLatestRequest,
   validateBeforeSubmit,
   submitRequest
-} from "./request.js";
+} from "./request.js?v=20260802-xss-1";
 
 window.addEventListener("DOMContentLoaded", async () => {
   if (isLineInAppBrowser()) {
