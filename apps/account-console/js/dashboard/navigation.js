@@ -1,8 +1,9 @@
-import { LOGIN_PAGE_URL, PMO_APPLY_URL } from "./config.js?v=20260802-attendance-2";
+import { LOGIN_PAGE_URL, PMO_APPLY_URL } from "./config.js?v=20260802-modules-1";
 import { getStoredUser } from "./storage.js";
 
 const PMO_PORTAL_URL = "./pmo-portal.html";
 const ACCOUNT_CONSOLE_URL = "./account-console.html";
+const ACCOUNT_PORTAL_URL = "./account-portal.html";
 const SHIFTBUILDER_URL = "../shiftbuilder/";
 const ORDERCASE_URL = "../ordercase/";
 const PMO_PORTAL_ROLES = ["admin", "developer", "dev"];
@@ -50,6 +51,18 @@ export function buildAccountConsoleUrl(storedUser) {
   targetUrl.searchParams.set("role", storedUser.role || "");
   targetUrl.searchParams.set("workStatus", storedUser.workStatus || storedUser.work_status || "");
 
+  return targetUrl.toString();
+}
+
+export function buildAccountPortalUrl(storedUser) {
+  const targetUrl = new URL(ACCOUNT_PORTAL_URL, window.location.href);
+  targetUrl.searchParams.set("from", "shiftcore");
+  targetUrl.searchParams.set("module", "account");
+  targetUrl.searchParams.set("userId", storedUser.userId || storedUser.internal_user_id || "");
+  targetUrl.searchParams.set("displayName", storedUser.displayName || storedUser.name || "");
+  targetUrl.searchParams.set("employeeCode", storedUser.employeeCode || storedUser.employee_code || "");
+  targetUrl.searchParams.set("role", storedUser.role || "");
+  targetUrl.searchParams.set("workStatus", storedUser.workStatus || storedUser.work_status || "");
   return targetUrl.toString();
 }
 
@@ -104,7 +117,12 @@ export function openModule(moduleCode, setStatus) {
     return;
   }
 
-  if (moduleCode === "account" || moduleCode === "account_console") {
+  if (moduleCode === "account") {
+    window.location.href = buildAccountPortalUrl(storedUser);
+    return;
+  }
+
+  if (moduleCode === "account_console") {
     window.location.href = buildAccountConsoleUrl(storedUser);
     return;
   }

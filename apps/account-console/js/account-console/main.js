@@ -1,4 +1,4 @@
-import { DASHBOARD_URL, SIGNUP_ADMIN_URL } from "./config.js";
+import { DASHBOARD_URL, SIGNUP_ADMIN_URL } from "./config.js?v=20260802-modules-1";
 import { requireAccountConsoleSession } from "./auth.js";
 import {
   getAccountConsoleBootstrap,
@@ -36,7 +36,7 @@ import {
   showLoading,
   hideLoading,
   setLogsLoading
-} from "./ui.js";
+} from "./ui.js?v=20260802-modules-1";
 
 // ===== 状態ここから =====
 let session = null;
@@ -176,6 +176,25 @@ async function saveUser(event) {
     if (!user.email) {
       throw new Error("メールを入力してください");
     }
+
+    const modules = String(user.allowed_modules || "").split(",").map(value => value.trim()).filter(Boolean);
+    const role = String(user.role || "").trim().toLowerCase();
+    const isAdministrator = ["admin", "developer", "dev"].includes(role);
+
+    if ((modules.includes("account") || modules.includes("account_console")) && !isAdministrator) {
+      throw new Error("アカウント基盤とAccount Consoleは、管理者・役員・開発者のみ許可できます");
+    }
+    if (modules.includes("account_console") && !modules.includes("account")) {
+      throw new Error("Account Consoleを許可する場合は、アカウント基盤も許可してください");
+    }
+    if (modules.includes("ordercase") && !user.ordercase_permission) {
+      throw new Error("OrderCaseを許可する場合は、OrderCase権限を選択してください");
+    }
+    if (modules.includes("shift") && !user.shiftbuilder_permission) {
+      throw new Error("ShiftBuilderを許可する場合は、ShiftBuilder権限を選択してください");
+    }
+    if (!modules.includes("ordercase")) user.ordercase_permission = "";
+    if (!modules.includes("shift")) user.shiftbuilder_permission = "";
 
     const confirmMessage = buildSaveConfirmMessage(user);
     const confirmed = window.confirm(confirmMessage);

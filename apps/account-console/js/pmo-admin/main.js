@@ -22,7 +22,7 @@ import {
   goToDashboard,
   openUrl,
   downloadExcelFile
-} from "./navigation.js";
+} from "./navigation.js?v=20260802-modules-1";
 import {
   fetchPmoAdminMeta,
   fetchMonthlyExcel,

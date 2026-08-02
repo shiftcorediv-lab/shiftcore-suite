@@ -15,7 +15,7 @@ export const LOCATION_CONSENT_VERSION = "2026-08-02-v1";
 export const MODULE_NAME_MAP = {
   account: "アカウント基盤",
   account_console: "Account Console",
-  pmo: "希望休回収 / PMO",
+  pmo: "Pick My Off",
   ordercase: "案件管理 / OrderCase",
   order_case: "案件管理 / OrderCase",
   shift: "シフト作成 / ShiftBuilder",
