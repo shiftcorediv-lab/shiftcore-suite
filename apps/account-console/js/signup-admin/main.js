@@ -1,4 +1,4 @@
-import { getQueryParams, buildCurrentUserFromQuery } from "./query.js";
+import { getQueryParams, buildCurrentUserFromQuery } from "./query.js?v=20260802-signup-auth-1";
 import {
   backToAccountPortalBtn,
   approveBtn,
@@ -8,7 +8,7 @@ import {
   allowedModulesInput,
   statusSelect,
   workStatusSelect,
-} from "./dom.js";
+} from "./dom.js?v=20260802-signup-auth-1";
 import {
   renderAccountInfo,
   setupShiftCoreEntryBanner,
@@ -18,9 +18,10 @@ import {
   setActionButtonsEnabled,
   getApprovalSummary,
   showMessage
-} from "./ui.js";
-import { canUseSignupAdmin, goToAccountPortal } from "./navigation.js";
-import { fetchSignupRequests, approveSignupRequest, rejectSignupRequest } from "./api.js";
+} from "./ui.js?v=20260802-signup-auth-1";
+import { canUseSignupAdmin, goToAccountPortal } from "./navigation.js?v=20260802-signup-auth-1";
+import { fetchSignupRequests, approveSignupRequest, rejectSignupRequest } from "./api.js?v=20260802-signup-auth-1";
+import { requireAuthenticatedSession } from "../common/auth-session.js?v=20260802-signup-auth-1";
 
 const params = getQueryParams();
 const currentUser = buildCurrentUserFromQuery(params);
@@ -35,6 +36,16 @@ setupShiftCoreEntryBanner(params);
 renderAccountInfo(currentUser);
 setActionButtonsEnabled(false);
 
+async function getFreshIdToken() {
+  const session = await requireAuthenticatedSession();
+
+  if (!session.ok) {
+    throw new Error(session.message || "ログイン状態を確認できません");
+  }
+
+  return session.idToken;
+}
+
 async function loadRequests() {
   if (!canUse) {
     showMessage("このアカウントには登録申請管理の利用権限がありません", "error");
@@ -44,7 +55,8 @@ async function loadRequests() {
   showMessage("申請一覧を取得中...");
 
   try {
-    const result = await fetchSignupRequests("pending_approval");
+    const idToken = await getFreshIdToken();
+    const result = await fetchSignupRequests("pending_approval", idToken);
 
     if (!result.success) {
       showMessage(result.message || "申請一覧の取得に失敗しました", "error");
@@ -62,7 +74,7 @@ async function loadRequests() {
     showMessage("申請一覧を読み込みました", "success");
   } catch (error) {
     console.error(error);
-    showMessage("申請一覧の取得に失敗しました", "error");
+    showMessage(error.message || "申請一覧の取得に失敗しました", "error");
   }
 }
 
@@ -89,6 +101,7 @@ approveBtn.addEventListener("click", async () => {
   showMessage("承認処理中...");
 
   try {
+    const idToken = await getFreshIdToken();
     const result = await approveSignupRequest(
       selectedRequest.request_id,
       {
@@ -98,7 +111,7 @@ approveBtn.addEventListener("click", async () => {
         status: statusSelect.value,
         workStatus: workStatusSelect.value,
       },
-      currentUser.userId
+      idToken
     );
 
     if (!result.success) {
@@ -113,7 +126,7 @@ approveBtn.addEventListener("click", async () => {
     showMessage("承認しました", "success");
   } catch (error) {
     console.error(error);
-    showMessage("承認に失敗しました", "error");
+    showMessage(error.message || "承認に失敗しました", "error");
   }
 });
 
@@ -126,9 +139,10 @@ rejectBtn.addEventListener("click", async () => {
   showMessage("却下処理中...");
 
   try {
+    const idToken = await getFreshIdToken();
     const result = await rejectSignupRequest(
       selectedRequest.request_id,
-      currentUser.userId
+      idToken
     );
 
     if (!result.success) {
@@ -143,7 +157,7 @@ rejectBtn.addEventListener("click", async () => {
     showMessage("却下しました", "success");
   } catch (error) {
     console.error(error);
-    showMessage("却下に失敗しました", "error");
+    showMessage(error.message || "却下に失敗しました", "error");
   }
 });
 

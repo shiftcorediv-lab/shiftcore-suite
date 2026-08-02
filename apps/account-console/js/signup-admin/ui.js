@@ -19,7 +19,7 @@ import {
   workStatusSelect,
   approveBtn,
   rejectBtn
-} from "./dom.js";
+} from "./dom.js?v=20260802-signup-auth-1";
 
 const ACCOUNT_TYPE_LABELS = {
   employee: "弊社内人員",

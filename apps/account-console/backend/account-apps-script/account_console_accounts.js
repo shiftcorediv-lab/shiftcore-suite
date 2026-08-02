@@ -1,34 +1,4 @@
-
-// ===== Account Console 操作者確認ここから =====
-function requireAccountConsoleOperator_(body) {
-  const idToken = normalizeText(body.idToken);
-
-  if (!idToken) {
-    throw new Error("idToken が必要です");
-  }
-
-  const resolved = resolveCurrentUserByIdToken(idToken);
-
-  if (!resolved || resolved.ok !== true || !resolved.user) {
-    throw new Error("ログインユーザーを確認できません");
-  }
-
-  const user = resolved.user;
-  const modules = Array.isArray(user.allowed_modules)
-    ? user.allowed_modules
-    : parseAllowedModules(user.allowed_modules);
-
-  if (normalizeText(user.status).toLowerCase() !== "active") {
-    throw new Error("このユーザーは停止中です");
-  }
-
-  if (modules.indexOf(ACCOUNT_CONSOLE_MODULE_KEY) === -1) {
-    throw new Error("Account Console の利用権限がありません");
-  }
-
-  return user;
-}
-// ===== Account Console 操作者確認ここまで =====
+// requireAccountConsoleOperator_ は account_console_users.js に定義。
 
 
 // ===== Account Console用ユーザー整形ここから =====

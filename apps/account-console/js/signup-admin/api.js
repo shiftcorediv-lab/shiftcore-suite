@@ -1,12 +1,16 @@
-import { SIGNUP_ADMIN_API_URL } from "./config.js";
+import { SIGNUP_ADMIN_API_URL } from "./config.js?v=20260802-signup-auth-1";
 
-export async function fetchSignupRequests(status = "pending_approval") {
-  const url = new URL(SIGNUP_ADMIN_API_URL);
-  url.searchParams.set("action", "getSignupRequests");
-  url.searchParams.set("status", status);
-
-  const response = await fetch(url.toString(), {
-    method: "GET"
+export async function fetchSignupRequests(status, idToken) {
+  const response = await fetch(SIGNUP_ADMIN_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain;charset=utf-8"
+    },
+    body: JSON.stringify({
+      action: "getSignupRequestsSecure",
+      status,
+      idToken
+    })
   });
 
   if (!response.ok) {
@@ -16,7 +20,7 @@ export async function fetchSignupRequests(status = "pending_approval") {
   return await response.json();
 }
 
-export async function approveSignupRequest(requestId, approval, reviewedBy) {
+export async function approveSignupRequest(requestId, approval, idToken) {
   const response = await fetch(SIGNUP_ADMIN_API_URL, {
     method: "POST",
     headers: {
@@ -26,7 +30,7 @@ export async function approveSignupRequest(requestId, approval, reviewedBy) {
       action: "approveSignupRequest",
       requestId,
       approval,
-      reviewedBy
+      idToken
     })
   });
 
@@ -37,7 +41,7 @@ export async function approveSignupRequest(requestId, approval, reviewedBy) {
   return await response.json();
 }
 
-export async function rejectSignupRequest(requestId, reviewedBy) {
+export async function rejectSignupRequest(requestId, idToken) {
   const response = await fetch(SIGNUP_ADMIN_API_URL, {
     method: "POST",
     headers: {
@@ -46,7 +50,7 @@ export async function rejectSignupRequest(requestId, reviewedBy) {
     body: JSON.stringify({
       action: "rejectSignupRequest",
       requestId,
-      reviewedBy
+      idToken
     })
   });
 

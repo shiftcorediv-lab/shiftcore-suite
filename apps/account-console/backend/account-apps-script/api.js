@@ -38,13 +38,6 @@ function doGet(e) {
     }
     // ===== PMO系 GET ここまで =====
 
-    // ===== signup系 GET ここから =====
-    if (action === "getSignupRequests") {
-      const status = normalizeText(getParam_(e, "status"));
-      return jsonResponse_(getSignupRequests(status));
-    }
-    // ===== signup系 GET ここまで =====
-
     return jsonResponse_({
       success: false,
       message: "Unknown GET action: " + action
@@ -142,19 +135,40 @@ function doPost(e) {
       return jsonResponse_(submitSignupRequest(body.payload || body));
     }
 
+    if (action === "getSignupRequestsSecure") {
+      const operator = requireSignupAdminOperator_(body);
+
+      if (!operator.success) {
+        return jsonResponse_(operator);
+      }
+
+      const status = normalizeText(body.status);
+      return jsonResponse_(getSignupRequests(status));
+    }
+
     if (action === "approveSignupRequest") {
+      const operator = requireSignupAdminOperator_(body);
+
+      if (!operator.success) {
+        return jsonResponse_(operator);
+      }
+
       const requestId = normalizeText(body.requestId);
       const approval = body.approval || {};
-      const reviewedBy = normalizeText(body.reviewedBy);
 
-      return jsonResponse_(approveSignupRequest(requestId, approval, reviewedBy));
+      return jsonResponse_(approveSignupRequest(requestId, approval, operator.operatorId));
     }
 
     if (action === "rejectSignupRequest") {
-      const requestId = normalizeText(body.requestId);
-      const reviewedBy = normalizeText(body.reviewedBy);
+      const operator = requireSignupAdminOperator_(body);
 
-      return jsonResponse_(rejectSignupRequest(requestId, reviewedBy));
+      if (!operator.success) {
+        return jsonResponse_(operator);
+      }
+
+      const requestId = normalizeText(body.requestId);
+
+      return jsonResponse_(rejectSignupRequest(requestId, operator.operatorId));
     }
     // ===== signup系 POST ここまで =====
 
