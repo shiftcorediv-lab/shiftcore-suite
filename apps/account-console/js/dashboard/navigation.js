@@ -1,4 +1,4 @@
-import { LOGIN_PAGE_URL, PMO_APPLY_URL } from "./config.js";
+import { LOGIN_PAGE_URL, PMO_APPLY_URL } from "./config.js?v=20260802-attendance-2";
 import { getStoredUser } from "./storage.js";
 
 const PMO_PORTAL_URL = "./pmo-portal.html";
