@@ -40,6 +40,7 @@ import {
   resetSelectedCell
 } from "./state.js?v=20260801-authfix-1";
 import { elements } from "./dom.js?v=20260801-authfix-1";
+import { getMonthShortcutOffset } from "./keyboard-shortcuts.js?v=20260802-shortcuts-1";
 import {
   resolvePopoverAnchorTarget,
   shouldClosePersonnelPopoverForExternalRefresh,
@@ -1188,7 +1189,7 @@ function findRenderedPopoverAnchor(activeMode, activeKey) {
     : findRenderedShiftCellButton(target.id, target.date);
 }
 
-function focusFirstShiftCell() {
+function focusFirstShiftCell({ announce = true } = {}) {
   const firstCell = elements.shiftTableBody?.querySelector(
     ".shift-cell, .personnel-shift-cell"
   );
@@ -1204,7 +1205,9 @@ function focusFirstShiftCell() {
     inline: "nearest"
   });
 
-  setStatus("シフト表の先頭セルへ移動しました。");
+  if (announce) {
+    setStatus("シフト表の先頭セルへ移動しました。");
+  }
 }
 
 function getPersonnelAssignmentOptions(internalUserId, workDate) {
@@ -2304,6 +2307,10 @@ async function loadShiftData(options = {}) {
   } else {
     renderAssignmentCandidateCards();
   }
+
+  if (!silent && options.activateShortcuts !== false) {
+    requestAnimationFrame(() => focusFirstShiftCell({ announce: false }));
+  }
 }
 
 function scheduleExternalDataRefresh() {
@@ -3044,6 +3051,13 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && activePopoverMode === "action") {
     event.preventDefault();
     closeDetailPanel();
+    return;
+  }
+
+  const monthOffset = getMonthShortcutOffset(event.key);
+  if (!isTypingTarget && monthOffset !== 0 && !event.metaKey && !event.ctrlKey && !event.altKey) {
+    event.preventDefault();
+    moveTargetMonth(monthOffset);
     return;
   }
 

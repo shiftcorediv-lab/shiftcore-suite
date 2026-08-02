@@ -1,6 +1,7 @@
 import { DASHBOARD_URL, SIGNUP_ADMIN_URL } from "./config.js?v=20260802-modules-2";
 import { requireAccountConsoleSession } from "./auth.js";
 import { compareUsersBySortOrder } from "./sort.js?v=20260802-modules-2";
+import { planSortOrderUpdates } from "./reorder.js?v=20260802-reorder-1";
 import {
   getAccountConsoleBootstrap,
   listAccountUsers,
@@ -194,7 +195,19 @@ async function saveUser(event) {
     if (!modules.includes("ordercase")) user.ordercase_permission = "";
     if (!modules.includes("shift")) user.shiftbuilder_permission = "";
 
-    const confirmMessage = buildSaveConfirmMessage(user);
+    const previousOrder = selectedUser?.internal_user_id === user.internal_user_id
+      ? selectedUser.sort_order ?? selectedUser.sortOrder
+      : "";
+    const reorderUpdates = planSortOrderUpdates(
+      allUsers,
+      user.internal_user_id,
+      previousOrder,
+      user.sort_order
+    );
+    const reorderNotice = reorderUpdates.length
+      ? `\n\n並び順の変更に伴い、ほかの${reorderUpdates.length}件を自動で繰り上げ・繰り下げます。`
+      : "";
+    const confirmMessage = buildSaveConfirmMessage(user) + reorderNotice;
     const confirmed = window.confirm(confirmMessage);
 
     if (!confirmed) {
@@ -207,15 +220,41 @@ async function saveUser(event) {
     setStatus("保存中...");
 
     let result;
+    const appliedUpdates = [];
 
-    if (user.internal_user_id) {
-      result = await updateAccountUser(idToken, user);
-    } else {
-      result = await createAccountUser(idToken, user);
-    }
+    try {
+      for (const update of reorderUpdates) {
+        const shiftedUser = {
+          ...update.user,
+          sortOrder: String(update.to),
+          sort_order: String(update.to)
+        };
+        const shiftedResult = await updateAccountUser(idToken, shiftedUser);
+        if (!isOkResult(shiftedResult)) {
+          throw new Error(shiftedResult.message || "並び順の繰り下げに失敗しました");
+        }
+        appliedUpdates.push(update);
+      }
 
-    if (!isOkResult(result)) {
-      throw new Error(result.message || "保存に失敗しました");
+      if (user.internal_user_id) {
+        result = await updateAccountUser(idToken, user);
+      } else {
+        result = await createAccountUser(idToken, user);
+      }
+
+      if (!isOkResult(result)) {
+        throw new Error(result.message || "保存に失敗しました");
+      }
+    } catch (saveError) {
+      for (const update of appliedUpdates.reverse()) {
+        const rollbackUser = {
+          ...update.user,
+          sortOrder: String(update.from),
+          sort_order: String(update.from)
+        };
+        await updateAccountUser(idToken, rollbackUser).catch(() => null);
+      }
+      throw saveError;
     }
 
     const savedUserId =
