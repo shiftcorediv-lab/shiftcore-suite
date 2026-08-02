@@ -1,5 +1,5 @@
 import { auth } from "./auth.js";
-import { ATTENDANCE_API_URL } from "./config.js";
+import { ATTENDANCE_API_URL } from "./config.js?v=20260802-attendance-2";
 
 export async function attendanceRequest(action, payload = {}) {
   const user = auth.currentUser;
