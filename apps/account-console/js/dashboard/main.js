@@ -1,8 +1,8 @@
-import { auth, signOut, onAuthStateChanged } from "./auth.js";
-import { getStoredUser, clearStoredUser } from "./storage.js";
-import { goToLogin } from "./navigation.js";
-import { renderModules } from "./modules.js";
-import { attendanceRequest } from "./attendance-api.js";
+import { auth, signOut, onAuthStateChanged } from "./auth.js?v=20260802-attendance-3";
+import { getStoredUser, clearStoredUser } from "./storage.js?v=20260802-attendance-3";
+import { goToLogin } from "./navigation.js?v=20260802-attendance-3";
+import { renderModules } from "./modules.js?v=20260802-attendance-3";
+import { attendanceRequest } from "./attendance-api.js?v=20260802-attendance-3";
 import { LOCATION_CONSENT_VERSION } from "./config.js?v=20260802-attendance-2";
 
 const $ = id => document.getElementById(id);
