@@ -1,8 +1,9 @@
 import { auth, signOut, onAuthStateChanged } from "./auth.js?v=20260802-attendance-3";
-import { getStoredUser, clearStoredUser } from "./storage.js?v=20260802-attendance-3";
-import { goToLogin } from "./navigation.js?v=20260802-modules-1";
-import { renderModules, renderModuleMenu } from "./modules.js?v=20260802-modules-1";
+import { getStoredUser, saveStoredUser, clearStoredUser } from "./storage.js?v=20260802-modules-2";
+import { goToLogin } from "./navigation.js?v=20260802-modules-2";
+import { renderModules, renderModuleMenu } from "./modules.js?v=20260802-modules-2";
 import { attendanceRequest } from "./attendance-api.js?v=20260802-attendance-3";
+import { checkUserWithGas } from "../login/api.js?v=20260802-modules-2";
 import { LOCATION_CONSENT_VERSION } from "./config.js?v=20260802-attendance-2";
 
 const $ = id => document.getElementById(id);
@@ -32,8 +33,22 @@ onAuthStateChanged(auth, async user => {
     goToLogin();
     return;
   }
+  await refreshModuleAccess(user.email);
   await loadDashboard();
 });
+
+async function refreshModuleAccess(email) {
+  try {
+    const result = await checkUserWithGas(email);
+    if (!result?.ok || !result.user) return;
+    saveStoredUser(result.user);
+    renderIdentity(result.user);
+    renderModules(result.user.allowed_modules || [], result.user, showStatus);
+    renderModuleMenu(result.user.allowed_modules || [], result.user, showStatus);
+  } catch (_) {
+    // 権限の再取得に失敗した場合は、ログイン時の保存情報で表示を継続する。
+  }
+}
 
 async function loadDashboard() {
   try {
@@ -155,6 +170,7 @@ $("userMenuBtn").addEventListener("click", () => {
   $("userMenuBtn").setAttribute("aria-expanded", String(!panel.hidden));
 });
 $("userMenuCloseBtn").addEventListener("click", closeUserMenu);
+$("userMenuLogoutBtn").addEventListener("click", logoutDashboard);
 
 function closeUserMenu() {
   $("userMenuPanel").hidden = true;
@@ -246,7 +262,13 @@ async function runAction(action) {
   try { await action(); } catch (error) { showStatus(error.message, true); if (/通信|fetch|network/i.test(error.message)) showAlert("打刻を記録できませんでした。上席へ電話またはLINEで報告し、復旧後に修正申請してください。", "danger"); } finally { busy = false; document.body.classList.remove("is-busy"); }
 }
 
-$("logoutBtn").addEventListener("click", async () => { await signOut(auth); clearStoredUser(); goToLogin(); });
+$("logoutBtn").addEventListener("click", logoutDashboard);
+
+async function logoutDashboard() {
+  await signOut(auth);
+  clearStoredUser();
+  goToLogin();
+}
 $("backToLoginBtn").addEventListener("click", goToLogin);
 function showStatus(message, error = false) { $("statusBox").textContent = message; $("statusBox").classList.toggle("error", error); }
 function showAlert(message, type) { $("alertArea").innerHTML = `<div class="inline-alert ${type}">${escapeHtml(message)}</div>`; }
