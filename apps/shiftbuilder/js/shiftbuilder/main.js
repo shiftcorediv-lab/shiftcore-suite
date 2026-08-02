@@ -40,7 +40,7 @@ import {
   resetSelectedCell
 } from "./state.js?v=20260801-authfix-1";
 import { elements } from "./dom.js?v=20260801-authfix-1";
-import { getMonthShortcutOffset } from "./keyboard-shortcuts.js?v=20260802-shortcuts-2";
+import { getMonthShortcutOffset, isTableNavigationKey } from "./keyboard-shortcuts.js?v=20260802-shortcuts-4";
 import { requiresAuthRefresh, buildAuthRefreshMessage } from "./auth-refresh-policy.js?v=20260802-shortcuts-2";
 import {
   resolvePopoverAnchorTarget,
@@ -83,7 +83,7 @@ let externalDataRefreshPending = false;
 let isExternalDataRefreshRunning = false;
 let authRefreshRequired = false;
 const IS_DEMO_MODE = new URLSearchParams(window.location.search).get("demo") === "1";
-const HOWTO_OPEN_STORAGE_KEY = "shiftbuilder-howto-open";
+const HOWTO_OPEN_STORAGE_KEY = "shiftbuilder-howto-open-v2";
 
 async function requireMutationSession() {
   let session = getCurrentSession();
@@ -189,7 +189,7 @@ function initializeHowto() {
     console.warn("[ShiftBuilder] how-to state could not be restored:", error);
   }
 
-  elements.shiftbuilderHowto.open = savedState === null ? true : savedState === "true";
+  elements.shiftbuilderHowto.open = savedState === "true";
   elements.shiftbuilderHowto.addEventListener("toggle", () => {
     try {
       window.localStorage.setItem(
@@ -1216,7 +1216,7 @@ function focusFirstShiftCell({ announce = true } = {}) {
 
   if (!firstCell) {
     setStatus("フォーカスできるシフトセルがありません。");
-    return;
+    return null;
   }
 
   firstCell.focus();
@@ -1228,6 +1228,8 @@ function focusFirstShiftCell({ announce = true } = {}) {
   if (announce) {
     setStatus("シフト表の先頭セルへ移動しました。");
   }
+
+  return firstCell;
 }
 
 function getPersonnelAssignmentOptions(internalUserId, workDate) {
@@ -3006,6 +3008,37 @@ elements.assignedMembersList?.addEventListener("click", (event) => {
   const assignmentId = button.dataset.assignmentId || "";
 
   archiveAssignmentFromButton(assignmentId);
+});
+
+document.addEventListener("keydown", (event) => {
+  const target = event.target;
+  const isTypingTarget =
+    target instanceof HTMLElement &&
+    (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+  const isTableCell = target instanceof HTMLElement && target.matches(".shift-cell, .personnel-shift-cell");
+  const isManagedOverlay = target instanceof HTMLElement && Boolean(target.closest("#shiftbuilderCellPopover, .export-menu"));
+
+  if (
+    !isTableNavigationKey(event.key) ||
+    isTypingTarget ||
+    isTableCell ||
+    isManagedOverlay ||
+    event.defaultPrevented ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.altKey ||
+    event.isComposing
+  ) {
+    return;
+  }
+
+  event.preventDefault();
+  const firstCell = focusFirstShiftCell({ announce: false });
+  firstCell?.dispatchEvent(new KeyboardEvent("keydown", {
+    key: event.key,
+    bubbles: true,
+    cancelable: true
+  }));
 });
 
 document.addEventListener("keydown", (event) => {
