@@ -1,15 +1,15 @@
 # G-B PMO無認証アクション撤去：実装結果
 
-- 状態: ローカル実装・自動検証完了、GAS反映未実施
+- 状態: 実装・GAS反映・遮断確認完了
 - 作成者: Codex
 - 作成日: 2026-08-02
 - 前提文書: `approved/20260802_G-B_PMO死活アクション撤去_04_approved.md`
 - 着手時HEAD: `01ad54a`
 - ブランチ: `codex/attendance-dashboard`
 - 実装: 完了
-- commit: 未実施
-- push: 未実施
-- deploy: 未実施
+- commit: `afc774c`（公開時 `efcc9b7`）
+- push: 完了
+- deploy: PMO本番 `@23`
 
 ---
 
@@ -20,7 +20,7 @@
 - PMO本番デプロイ: `AKfycbyTQlhU9…` **@22**
 - PMO @HEADデプロイ: `AKfycbxwSCE…` @HEAD
 
-公開状態は変更していない。更新前バージョン番号は @22 として記録した。
+更新前バージョン番号は @22。更新後は本番を @23 へ反映した。
 
 ## 2. 変更内容
 
@@ -47,11 +47,11 @@
 - 既存テスト: **21件 pass / 0件 fail**
 - `git diff --check`: 成功
 - クライアント設定のPMOデプロイID: `AKfycbyTQlhU9…` と照合
+- 本番GET `getPmoAdminMeta` / `getPmoMonthlyTable` / `exportMonthlyExcel`: `Unknown GET action`
+- 本番POST `createMonthlyRequestSheet`: `Unknown POST action`
 
 ### 未実施
 
-- PMO GAS @22から新バージョンへの更新
-- 新デプロイに対する4アクションの到達不能テスト
 - PMO管理画面の月一覧・月次テーブル・Excel出力の実画面回帰確認
 - 一般PMO画面の希望休参照・提出の実画面回帰確認
 - リポジトリ外の呼び出し元が存在しないことの確認
