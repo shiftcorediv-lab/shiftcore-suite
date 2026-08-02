@@ -31,10 +31,22 @@ async function loadDashboard() {
   try {
     dashboardData = await attendanceRequest("getDashboardData");
     renderDashboard(dashboardData);
-    showStatus("最新の勤怠情報を表示しています");
+    showStatus("保存済みの勤怠情報を表示しています。SBの最新予定を確認中です。");
+    refreshDashboardInBackground();
   } catch (error) {
     showStatus(error.message, true);
     renderUnavailable();
+  }
+}
+
+async function refreshDashboardInBackground() {
+  try {
+    const refreshed = await attendanceRequest("refreshDashboardData");
+    dashboardData = refreshed;
+    renderDashboard(refreshed);
+    showStatus("SBの最新予定を反映しました");
+  } catch (error) {
+    showStatus(`保存済み予定を表示中（SB同期失敗: ${error.message}）`, true);
   }
 }
 

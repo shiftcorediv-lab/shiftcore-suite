@@ -26,7 +26,8 @@ function doPost(e) {
     const action = String(body.action || "");
     const payload = body.payload || {};
 
-    if (action === "getDashboardData") return jsonOutput_(getDashboardData_(user, body.idToken));
+    if (action === "getDashboardData") return jsonOutput_(getDashboardData_(user));
+    if (action === "refreshDashboardData") return jsonOutput_(getDashboardData_(user, getSchedules_(body.idToken)));
     if (action === "clockIn") return jsonOutput_(clockIn_(user, payload, body.idToken));
     if (action === "clockOut") return jsonOutput_(clockOut_(user, payload, body.idToken));
     if (action === "submitCorrection") return jsonOutput_(submitCorrection_(user, payload));
@@ -54,10 +55,10 @@ function resolveUser_(idToken) {
   return data.user;
 }
 
-function getDashboardData_(user, idToken) {
+function getDashboardData_(user, sourceSchedules) {
   ensureReportSheet_();
   const today = today_();
-  const schedules = getSchedules_(idToken).filter(r => matchesUser_(r, user));
+  const schedules = (sourceSchedules || rows_(SHEETS.schedules)).filter(r => matchesUser_(r, user));
   const todaySchedules = schedules.filter(r => dateKey_(r["勤務日"]) === today);
   const upcoming = schedules.filter(r => dateKey_(r["勤務日"]) >= today).sort((a, b) => dateKey_(a["勤務日"]).localeCompare(dateKey_(b["勤務日"]))).slice(0, 5);
   const records = rows_(SHEETS.records).filter(r => normalizeEmail_(r.email) === normalizeEmail_(user.email) && dateKey_(r["勤務日"]) === today);
@@ -256,7 +257,7 @@ function getSchedules_(idToken) {
             "勤務日": workDate,
             "予定開始": cell.start_time || cell.startTime || caseItem.start_time || caseItem.startTime || "",
             "予定終了": cell.end_time || cell.endTime || caseItem.end_time || caseItem.endTime || "",
-            "稼働場所": caseItem.area || caseItem.client || caseItem.title || "場所未定",
+            "稼働場所": caseItem.shiftcore_display_name || caseItem.shiftcoreDisplayName || caseItem.store_name || caseItem.storeName || caseItem.title || caseItem.client || caseItem.area || "場所未定",
             "開発予定ID": caseItem.caseId || "",
             "開発予定名": caseItem.shiftcore_display_name || caseItem.title || caseItem.caseId || "開発予定"
           });
@@ -272,15 +273,28 @@ function getSchedules_(idToken) {
 
 function mergeSchedules_(local, derived) {
   const result = local.slice();
+  const sheet = SpreadsheetApp.getActive().getSheetByName(SHEETS.schedules);
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  const syncedFields = ["organization_id", "employee_code", "email", "氏名", "勤務日", "予定開始", "予定終了", "稼働場所", "開発予定ID", "開発予定名"];
   derived.forEach(item => {
     const key = String(item.schedule_id || "");
-    if (!result.some(existing => String(existing.schedule_id || "") === key)) {
+    const existingIndex = result.findIndex(existing => String(existing.schedule_id || "") === key);
+    if (existingIndex < 0) {
       result.push(item);
       append_(SHEETS.schedules, [
         item.schedule_id, item.organization_id || "", item.employee_code || "", item.email || "", item["氏名"] || "",
         item["勤務日"] || "", item["予定開始"] || "", item["予定終了"] || "", item["稼働場所"] || "",
         item["開発予定ID"] || "", item["開発予定名"] || "", new Date()
       ]);
+      return;
+    }
+
+    const existing = result[existingIndex];
+    const changed = syncedFields.some(field => String(existing[field] || "") !== String(item[field] || ""));
+    if (changed) {
+      const merged = Object.assign({}, existing, item, { "同期日時": new Date() });
+      result[existingIndex] = merged;
+      sheet.getRange(existingIndex + 2, 1, 1, headers.length).setValues([headers.map(header => merged[header] == null ? "" : merged[header])]);
     }
   });
   return result;
