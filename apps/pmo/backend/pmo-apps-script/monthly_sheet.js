@@ -316,70 +316,7 @@ function getAvailableMonthlySheets_() {
 // =========================
 
 
-// =========================
-// PMO管理メタ取得 secure ここから
-// 初回表示用の一覧データもまとめて返す
-// =========================
-function getPmoAdminMetaSecure(targetYearMonth, idToken) {
-  const auth = requirePmoAdminUser_(idToken);
-
-  if (!auth.success) {
-    return auth;
-  }
-
-  const meta = getPmoAdminMeta(targetYearMonth, auth.user.role);
-
-  if (!meta.success) {
-    return meta;
-  }
-
-  const effectiveYearMonth = normalizeText(meta.selectedYearMonth);
-
-  if (!effectiveYearMonth) {
-    return {
-      success: true,
-      months: meta.months || [],
-      selectedYearMonth: "",
-      monthlySheetUrl: meta.monthlySheetUrl || "",
-      requestSheetUrl: meta.requestSheetUrl || "",
-      initialTable: {
-        headers: [],
-        rows: []
-      }
-    };
-  }
-
-  const table = buildPmoMonthlyTableData_(effectiveYearMonth, auth.user.role);
-
-  if (!table.success) {
-    return {
-      success: true,
-      months: meta.months || [],
-      selectedYearMonth: effectiveYearMonth,
-      monthlySheetUrl: meta.monthlySheetUrl || "",
-      requestSheetUrl: meta.requestSheetUrl || "",
-      initialTable: {
-        headers: [],
-        rows: []
-      }
-    };
-  }
-
-  return {
-    success: true,
-    months: meta.months || [],
-    selectedYearMonth: effectiveYearMonth,
-    monthlySheetUrl: meta.monthlySheetUrl || "",
-    requestSheetUrl: meta.requestSheetUrl || "",
-    initialTable: {
-      headers: table.headers || [],
-      rows: table.rows || []
-    }
-  };
-}
-// =========================
-// PMO管理メタ取得 secure ここまで
-// =========================
+// getPmoAdminMetaSecure の重複定義を削除（旧323行目）。有効な定義は下方に1つ。
 
 
 // =========================

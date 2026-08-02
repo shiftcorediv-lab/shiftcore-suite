@@ -1,6 +1,8 @@
 // =========================
 // PMO管理ロール判定ここから
 // =========================
+// この関数はSecure版から検証済みroleを受けて呼ばれる内部関数である。
+// doGet/doPostのルーターから直接公開しないこと。
 function canManagePmoByRole_(role) {
   const normalizedRole = normalizeText(role).toLowerCase();
   return normalizedRole === "admin" || normalizedRole === "developer";

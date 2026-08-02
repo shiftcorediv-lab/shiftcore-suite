@@ -20,27 +20,6 @@ function doGet(e) {
       return jsonResponse_(getLatestShiftRequest(userId, targetYearMonth));
     }
 
-    if (action === "getPmoAdminMeta") {
-      const targetYearMonth = normalizeText(getParam_(e, "targetYearMonth"));
-      const role = normalizeText(getParam_(e, "role"));
-
-      return jsonResponse_(getPmoAdminMeta(targetYearMonth, role));
-    }
-
-    if (action === "getPmoMonthlyTable") {
-      const targetYearMonth = normalizeText(getParam_(e, "targetYearMonth"));
-      const role = normalizeText(getParam_(e, "role"));
-
-      return jsonResponse_(getPmoMonthlyTable(targetYearMonth, role));
-    }
-
-    if (action === "exportMonthlyExcel") {
-      const targetYearMonth = normalizeText(getParam_(e, "targetYearMonth"));
-      const role = normalizeText(getParam_(e, "role"));
-
-      return jsonResponse_(exportMonthlyExcel(targetYearMonth, role));
-    }
-
     return jsonResponse_({
       success: false,
       message: "Unknown GET action: " + action
@@ -92,13 +71,6 @@ function doPost(e) {
 
     if (action === "submitShiftRequest") {
       return jsonResponse_(submitShiftRequest(body.payload || body));
-    }
-
-    if (action === "createMonthlyRequestSheet") {
-      const targetYearMonth = normalizeText(body.targetYearMonth);
-      const roster = body.roster;
-
-      return jsonResponse_(createMonthlyRequestSheet(targetYearMonth, roster));
     }
 
     return jsonResponse_({
