@@ -15,3 +15,7 @@ export function getStoredUser() {
 export function clearStoredUser() {
   sessionStorage.removeItem("shiftcore_user");
 }
+
+export function saveStoredUser(user) {
+  sessionStorage.setItem("shiftcore_user", JSON.stringify(user));
+}

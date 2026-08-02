@@ -6,7 +6,6 @@ export const LOGIN_URL = "./index.html";
 export const SIGNUP_ADMIN_URL = "./signup-admin.html";
 
 export const MODULE_OPTIONS = [
-  "account",
   "account_console",
   "pmo",
   "ordercase",

@@ -92,8 +92,8 @@ const CONTRACT_TYPE_LABELS = {
 };
 
 const MODULE_LABELS = {
-  account: "アカウント基盤",
-  account_console: "Account Console",
+  account: "Account Console (旧アカウント基盤)",
+  account_console: "Account Console (アカウント登録・申請・権限管理)",
   pmo: "Pick My Off",
   ordercase: "OrderCase",
   manual: "取扱説明書（未公開・無効）",
@@ -497,7 +497,7 @@ export function fillUserForm(user) {
   baseAreaInput.value = text(user.base_area);
   statusInput.value = text(user.status) || "active";
   workStatusInput.value = text(user.work_status || user.workStatus) || "off";
-  sortOrderInput.value = text(user.sort_order || user.sortOrder);
+  sortOrderInput.value = text(user.sort_order ?? user.sortOrder);
   ordercasePermissionInput.value = text(user.ordercase_permission);
   shiftbuilderPermissionInput.value = text(user.shiftbuilder_permission);
   memoInput.value = text(user.memo);
@@ -540,6 +540,7 @@ export function collectUserForm() {
     status: text(statusInput.value),
     workStatus: text(workStatusInput.value),
     sortOrder: text(sortOrderInput.value),
+    sort_order: text(sortOrderInput.value),
     allowed_modules: modules.join(","),
     ordercase_permission: text(ordercasePermissionInput.value),
     shiftbuilder_permission: text(shiftbuilderPermissionInput.value),

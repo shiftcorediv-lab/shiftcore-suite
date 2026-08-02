@@ -14,11 +14,11 @@
     <header class="header">
       <div>
         <h1>Account Console</h1>
-        <p class="subtitle">アカウント・権限管理</p>
+        <p class="subtitle">アカウント登録・申請・権限管理</p>
       </div>
 
       <div class="header-actions">
-        <button id="signupAdminBtn" class="secondary-button">登録申請管理へ</button>
+        <button id="signupAdminBtn" class="secondary-button">申請管理</button>
         <button id="dashboardBtn" class="secondary-button">Dashboardへ</button>
       </div>
     </header>
@@ -229,13 +229,8 @@
             <legend>利用可能機能</legend>
 
             <label class="check-row">
-              <input type="checkbox" name="module" value="account">
-              アカウント基盤
-            </label>
-
-            <label class="check-row">
               <input type="checkbox" name="module" value="account_console">
-              Account Console
+              Account Console (アカウント登録・申請・権限管理)
             </label>
 
             <label class="check-row">
@@ -310,6 +305,6 @@
     <div id="statusBox" class="status-box">初期化中...</div>
   </div>
 
-  <script type="module" src="./js/account-console/main.js?v=20260802-modules-1"></script>
+  <script type="module" src="./js/account-console/main.js?v=20260802-modules-2"></script>
 </body>
 </html>
