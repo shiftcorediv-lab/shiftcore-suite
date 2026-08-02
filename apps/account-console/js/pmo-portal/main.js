@@ -1,7 +1,7 @@
 import { getQueryParams, buildCurrentUserFromQuery } from "./query.js";
 import { goApplyBtn, goManageBtn, backToDashboardBtn } from "./dom.js";
 import { renderAccountInfo, renderDeveloperMeta, updateManageButtonState, showMessage } from "./ui.js";
-import { buildPmoApplyUrl, buildPmoAdminUrl, canManagePmo, goToDashboard } from "./navigation.js";
+import { buildPmoApplyUrl, buildPmoAdminUrl, canManagePmo, goToDashboard } from "./navigation.js?v=20260802-modules-1";
 
 const params = getQueryParams();
 const currentUser = buildCurrentUserFromQuery(params);
