@@ -1948,6 +1948,7 @@ function switchAxis(axis) {
   const currentAxis = getActiveAxis();
 
   if (nextAxis === currentAxis) {
+    activateShiftTableShortcuts();
     return;
   }
 
@@ -1957,6 +1958,11 @@ function switchAxis(axis) {
   setActiveAxis(nextAxis);
   syncAxisControls(nextAxis);
   renderCurrentShiftView();
+  activateShiftTableShortcuts();
+}
+
+function activateShiftTableShortcuts() {
+  requestAnimationFrame(() => focusFirstShiftCell({ announce: false }));
 }
 
 async function loadAssignmentCandidates(session, resultPromise = null) {
