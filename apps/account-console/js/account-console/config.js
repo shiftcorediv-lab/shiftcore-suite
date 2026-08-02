@@ -10,7 +10,6 @@ export const MODULE_OPTIONS = [
   "account_console",
   "pmo",
   "ordercase",
-  "manual",
   "shift"
 ];
 // ===== Account Console 設定ここまで =====

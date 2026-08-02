@@ -94,9 +94,9 @@ const CONTRACT_TYPE_LABELS = {
 const MODULE_LABELS = {
   account: "アカウント基盤",
   account_console: "Account Console",
-  pmo: "希望休 / 稼働不可日申請",
+  pmo: "Pick My Off",
   ordercase: "OrderCase",
-  manual: "取扱説明書",
+  manual: "取扱説明書（未公開・無効）",
   shift: "ShiftBuilder",
   dashboard: "Dashboard"
 };

@@ -1,4 +1,4 @@
-import { SIGNUP_ADMIN_URL, DASHBOARD_URL, ACCOUNT_ALLOWED_ROLES } from "./config.js";
+import { SIGNUP_ADMIN_URL, DASHBOARD_URL, ACCOUNT_ALLOWED_ROLES } from "./config.js?v=20260802-modules-1";
 
 export function canUseAccountPortal(currentUser) {
   const role = String(currentUser?.role || "").trim().toLowerCase();

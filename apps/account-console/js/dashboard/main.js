@@ -1,7 +1,7 @@
 import { auth, signOut, onAuthStateChanged } from "./auth.js?v=20260802-attendance-3";
 import { getStoredUser, clearStoredUser } from "./storage.js?v=20260802-attendance-3";
-import { goToLogin } from "./navigation.js?v=20260802-attendance-3";
-import { renderModules } from "./modules.js?v=20260802-attendance-3";
+import { goToLogin } from "./navigation.js?v=20260802-modules-1";
+import { renderModules, renderModuleMenu } from "./modules.js?v=20260802-modules-1";
 import { attendanceRequest } from "./attendance-api.js?v=20260802-attendance-3";
 import { LOCATION_CONSENT_VERSION } from "./config.js?v=20260802-attendance-2";
 
@@ -17,6 +17,7 @@ if (!storedUser) {
 } else {
   renderIdentity(storedUser);
   renderModules(storedUser.allowed_modules || [], storedUser, showStatus);
+  renderModuleMenu(storedUser.allowed_modules || [], storedUser, showStatus);
   const cachedDashboard = readDashboardCache();
   if (cachedDashboard) {
     dashboardData = cachedDashboard;
@@ -140,10 +141,25 @@ function renderNotifications(items) {
 
 $("notificationBtn").addEventListener("click", () => {
   const panel = $("notificationPanel");
+  closeUserMenu();
   panel.hidden = !panel.hidden;
   $("notificationBtn").setAttribute("aria-expanded", String(!panel.hidden));
 });
 $("notificationCloseBtn").addEventListener("click", () => { $("notificationPanel").hidden = true; });
+
+$("userMenuBtn").addEventListener("click", () => {
+  const panel = $("userMenuPanel");
+  $("notificationPanel").hidden = true;
+  $("notificationBtn").setAttribute("aria-expanded", "false");
+  panel.hidden = !panel.hidden;
+  $("userMenuBtn").setAttribute("aria-expanded", String(!panel.hidden));
+});
+$("userMenuCloseBtn").addEventListener("click", closeUserMenu);
+
+function closeUserMenu() {
+  $("userMenuPanel").hidden = true;
+  $("userMenuBtn").setAttribute("aria-expanded", "false");
+}
 
 $("startBtn").addEventListener("click", async () => {
   if (busy || !dashboardData) return;

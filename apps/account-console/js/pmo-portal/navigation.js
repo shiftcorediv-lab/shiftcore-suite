@@ -1,4 +1,4 @@
-import { PMO_APPLY_URL, PMO_ADMIN_URL, DASHBOARD_URL, PORTAL_ALLOWED_ROLES } from "./config.js";
+import { PMO_APPLY_URL, PMO_ADMIN_URL, DASHBOARD_URL, PORTAL_ALLOWED_ROLES } from "./config.js?v=20260802-modules-1";
 
 export function canManagePmo(currentUser) {
   const role = String(currentUser?.role || "").trim().toLowerCase();
