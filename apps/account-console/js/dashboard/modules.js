@@ -1,4 +1,4 @@
-import { MODULE_NAME_MAP } from "./config.js?v=20260802-modules-2";
+import { MODULE_NAME_MAP, MODULE_DESCRIPTION_MAP } from "./config.js?v=20260802-reorder-1";
 import { moduleList, userModuleList } from "./dom.js";
 import { openModule } from "./navigation.js?v=20260802-modules-2";
 
@@ -71,13 +71,16 @@ export function renderModules(modules, user, setStatus) {
   effectiveModules.forEach(moduleCode => {
     const card = document.createElement("div");
     const title = document.createElement("div");
+    const description = document.createElement("div");
     const code = document.createElement("div");
     card.className = "module-card";
     title.className = "module-card-title";
     title.textContent = MODULE_NAME_MAP[moduleCode] || moduleCode;
+    description.className = "module-card-description";
+    description.textContent = MODULE_DESCRIPTION_MAP[moduleCode] || "業務モジュール";
     code.className = "module-card-code";
     code.textContent = "module_code: " + moduleCode;
-    card.append(title, code, buildModuleButton(moduleCode, "", setStatus, "開く"));
+    card.append(title, buildModuleButton(moduleCode, "", setStatus, "開く"), description, code);
     moduleList.appendChild(card);
   });
 }
