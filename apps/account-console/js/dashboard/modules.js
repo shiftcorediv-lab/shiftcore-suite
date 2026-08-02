@@ -1,4 +1,4 @@
-import { MODULE_NAME_MAP } from "./config.js";
+import { MODULE_NAME_MAP } from "./config.js?v=20260802-attendance-2";
 import { moduleList } from "./dom.js";
 import { openModule } from "./navigation.js";
 
