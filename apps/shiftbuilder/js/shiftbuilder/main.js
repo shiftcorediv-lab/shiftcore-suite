@@ -40,7 +40,8 @@ import {
   resetSelectedCell
 } from "./state.js?v=20260801-authfix-1";
 import { elements } from "./dom.js?v=20260801-authfix-1";
-import { getMonthShortcutOffset } from "./keyboard-shortcuts.js?v=20260802-shortcuts-1";
+import { getMonthShortcutOffset } from "./keyboard-shortcuts.js?v=20260802-shortcuts-2";
+import { requiresAuthRefresh, buildAuthRefreshMessage } from "./auth-refresh-policy.js?v=20260802-shortcuts-2";
 import {
   resolvePopoverAnchorTarget,
   shouldClosePersonnelPopoverForExternalRefresh,
@@ -80,6 +81,7 @@ let isRenderingShiftView = false;
 let externalDataRefreshTimer = null;
 let externalDataRefreshPending = false;
 let isExternalDataRefreshRunning = false;
+let authRefreshRequired = false;
 const IS_DEMO_MODE = new URLSearchParams(window.location.search).get("demo") === "1";
 const HOWTO_OPEN_STORAGE_KEY = "shiftbuilder-howto-open";
 
@@ -99,6 +101,8 @@ function showMutationFailure(error) {
 
   if (isMutationSessionRequiredError(error)) {
     renderNoLogin(error.session || {});
+  } else if (requiresAuthRefresh(message)) {
+    showAuthRefreshPrompt(message);
   } else {
     setStatus(message);
   }
@@ -106,6 +110,14 @@ function showMutationFailure(error) {
   if (elements.assignmentCandidateStatus) {
     elements.assignmentCandidateStatus.textContent = message;
   }
+}
+
+function showAuthRefreshPrompt(detail = "") {
+  authRefreshRequired = true;
+  if (elements.reloadBtn) {
+    elements.reloadBtn.textContent = "再読み込みして再接続";
+  }
+  setStatus(buildAuthRefreshMessage(detail));
 }
 
 function buildPersonnelIcsMailRecipients(people, shiftData) {
@@ -291,6 +303,14 @@ function isSelectedCellKey(caseId, date) {
 }
 
 function renderNoLogin(session) {
+  if (requiresAuthRefresh(session?.authError)) {
+    elements.operatorText.textContent = "認証更新が必要です";
+    elements.permissionText.textContent = "再読み込み後にアサイン操作を再開できます";
+    elements.permissionBadge.textContent = "更新待ち";
+    showAuthRefreshPrompt(session.authError);
+    return;
+  }
+
   elements.operatorText.textContent = "未ログイン";
   elements.permissionText.textContent = "ShiftBuilderを利用するにはログインが必要です";
   elements.permissionBadge.textContent = "未ログイン";
@@ -2866,6 +2886,10 @@ async function init() {
     console.log("[ShiftBuilder] current user:", currentUserResult);
 
     renderUser(currentUserResult);
+    authRefreshRequired = false;
+    if (elements.reloadBtn) {
+      elements.reloadBtn.textContent = "再読み込み";
+    }
 
   } catch (error) {
     console.error("[ShiftBuilder] init error:", error);
@@ -2887,6 +2911,10 @@ elements.dashboardBtn?.addEventListener("click", () => {
 });
 
 elements.reloadBtn?.addEventListener("click", () => {
+  if (authRefreshRequired) {
+    window.location.reload();
+    return;
+  }
   loadShiftData({
     reloadCandidates: true,
     bypassCache: true
