@@ -152,6 +152,14 @@
       min-width: auto;
     }
 
+    .date-row {
+      margin-bottom: 10px;
+      padding: 12px;
+      border: 1px solid #e3e7eb;
+      border-radius: 10px;
+      background: #fafafa;
+    }
+
     .save-bar {
       position: fixed;
       left: 0;
@@ -502,9 +510,9 @@
         </div>
 
         <div>
-          <label for="caseDatesText">日付明細</label>
-          <textarea id="caseDatesText" readonly></textarea>
-          <p class="hint">日付明細の個別編集は次工程で対応します。</p>
+          <label>日付明細</label>
+          <div id="caseDatesEditor"></div>
+          <p class="hint">空欄の日は案件共通の時間・単価を使用します。この画面では、この1人分の列を編集します。</p>
         </div>
       </div>
 
@@ -598,6 +606,7 @@
      ****************************************************/
     const state = {
       caseDetail: null,
+      caseDates: [],
       caseTypes: [],
       settings: {},
       storesMaster: [],
@@ -1149,29 +1158,61 @@
      * renderCaseDatesText ここから
      ****************************************************/
     function renderCaseDatesText(item) {
-      const textarea = document.getElementById('caseDatesText');
+      const editor = document.getElementById('caseDatesEditor');
 
       if (item.input_mode === 'days') {
-        textarea.value = '日数指定のため日付明細はありません。';
+        state.caseDates = [];
+        editor.innerHTML = '<p class="hint">日数指定のため日付明細はありません。</p>';
         return;
       }
 
       const dates = Array.isArray(item.case_dates) ? item.case_dates : [];
+      state.caseDates = dates.map(date => ({
+        case_date_id: date.case_date_id || '',
+        work_date: date.work_date || '',
+        work_start_time: date.work_start_time || '',
+        work_end_time: date.work_end_time || '',
+        unit_amount_override: date.unit_amount_override ?? '',
+        memo: date.memo || ''
+      }));
 
       if (dates.length === 0) {
-        textarea.value = '日付明細はありません。';
+        editor.innerHTML = '<p class="hint">日付明細はありません。</p>';
         return;
       }
 
-      textarea.value = dates.map(date => {
-        return [
-          `日付：${date.work_date || '-'}`,
-          `必要枠数：${date.required_lines || '-'}`,
-          `1枠あたり人数：${date.people_per_line || '-'}`,
-          `必要人数：${date.required_people || '-'}`,
-          `メモ：${date.memo || '-'}`
-        ].join(' / ');
-      }).join('\n');
+      editor.innerHTML = state.caseDates.map((date, index) => `
+        <div class="date-row">
+          <strong>${escapeHtml(date.work_date || '-')}</strong>
+          <div class="grid two">
+            <div>
+              <label>この日の開始時刻</label>
+              <input type="time" value="${escapeHtml(date.work_start_time)}" data-date-index="${index}" data-date-field="work_start_time">
+            </div>
+            <div>
+              <label>この日の終了時刻</label>
+              <input type="time" value="${escapeHtml(date.work_end_time)}" data-date-index="${index}" data-date-field="work_end_time">
+            </div>
+            <div>
+              <label>この日の1日単価</label>
+              <input type="number" min="0" value="${escapeHtml(date.unit_amount_override)}"
+                ${item.amount_type === 'per_person_day' ? '' : 'disabled'} data-date-index="${index}" data-date-field="unit_amount_override">
+            </div>
+            <div>
+              <label>日別メモ</label>
+              <input value="${escapeHtml(date.memo)}" data-date-index="${index}" data-date-field="memo">
+            </div>
+          </div>
+        </div>
+      `).join('');
+
+      editor.querySelectorAll('[data-date-field]').forEach(input => {
+        input.addEventListener('input', event => {
+          const index = Number(event.target.dataset.dateIndex);
+          state.caseDates[index][event.target.dataset.dateField] = event.target.value;
+          updateSaveSummary();
+        });
+      });
     }
     /****************************************************
      * renderCaseDatesText ここまで
@@ -1377,6 +1418,14 @@
         required_skill: document.getElementById('requiredSkill').value || 'any',
 
         sync_case_dates_required_people: document.getElementById('syncCaseDatesRequiredPeople').checked,
+        case_dates: state.caseDates.map(date => ({
+          case_date_id: date.case_date_id,
+          work_date: date.work_date,
+          work_start_time: date.work_start_time,
+          work_end_time: date.work_end_time,
+          unit_amount_override: date.unit_amount_override,
+          memo: date.memo
+        })),
 
         amount: document.getElementById('amount').value,
         amount_type: document.getElementById('amountType').value,
@@ -1418,6 +1467,17 @@ if (payload.change_type !== 'status_change' && !payload.change_memo) {
       if (payload.input_mode === 'days' && !payload.requested_days) {
         throw new Error('日数指定の場合、希望日数を入力してください。');
       }
+
+      payload.case_dates.forEach(date => {
+        const hasStart = Boolean(date.work_start_time);
+        const hasEnd = Boolean(date.work_end_time);
+        if (hasStart !== hasEnd || (hasStart && date.work_end_time <= date.work_start_time)) {
+          throw new Error(`${date.work_date} の開始・終了時刻を正しく入力してください。`);
+        }
+        if (date.unit_amount_override !== '' && payload.amount_type !== 'per_person_day') {
+          throw new Error(`${date.work_date} の日別単価は「1コマ・1日あたり」の場合だけ設定できます。`);
+        }
+      });
     }
     /****************************************************
      * validateUpdatePayload ここまで

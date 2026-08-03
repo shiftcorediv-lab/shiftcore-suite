@@ -221,6 +221,26 @@ function testDailyNormalConditionRestoresBaseAmount() {
   }
 }
 
+function testBuildCaseDateConditionUpdates() {
+  const current = [{
+    case_date_id: 'CD-1', work_date: '2026-08-13', work_start_time: '', work_end_time: '', unit_amount_override: '', memo: ''
+  }];
+  const updates = buildCaseDateConditionUpdates_({
+    amount_type: 'per_person_day',
+    case_dates: [{
+      case_date_id: 'CD-1', work_date: '2026-08-13', work_start_time: '10:30', work_end_time: '17:30', unit_amount_override: '18000', memo: '短縮'
+    }]
+  }, current);
+
+  if (updates.length !== 1 || updates[0].unit_amount_override !== '18000') {
+    throw new Error('日別条件の変更差分を正しく抽出できていません。');
+  }
+  const unchanged = buildCaseDateConditionUpdates_({
+    amount_type: 'per_person_day', case_dates: [current[0]]
+  }, current);
+  if (unchanged.length !== 0) throw new Error('未変更の日別条件を更新対象にしています。');
+}
+
 function auditCancelledCaseAssignmentsDryRun() {
   const audit = auditCaseAssignmentsByStatusesDryRun_(['cancelled']);
   const result = {

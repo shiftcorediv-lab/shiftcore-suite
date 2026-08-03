@@ -538,6 +538,7 @@ function updateCase_(payload, options) {
 
   try {
     ensureCaseRankColumn_();
+    ensureCaseDateConditionColumns_();
     return updateCaseWithoutLock_(payload, options);
   } finally {
     lock.releaseLock();
@@ -661,6 +662,12 @@ function updateCaseWithoutLock_(payload, options) {
     changedFieldsText += '日付明細の必要数: 全日付へ反映';
   }
 
+  const caseDateConditionUpdates = buildCaseDateConditionUpdates_(payload, current.case_dates || []);
+  if (caseDateConditionUpdates.length > 0) {
+    changedFieldsText += changedFieldsText ? '\n' : '';
+    changedFieldsText += '日別の時間・単価・メモ: ' + caseDateConditionUpdates.length + '日更新';
+  }
+
   if (!changedFieldsText) {
     const assignmentCleanup = shouldCleanupAssignments
       ? cleanupCaseAssignmentsAfterCaseDeactivation_(
@@ -717,6 +724,11 @@ function updateCaseWithoutLock_(payload, options) {
       required_people: requiredPeople,
       updated_at: now
     });
+  }
+
+  if (caseDateConditionUpdates.length > 0 && inputMode === 'dates') {
+    updateCaseDateConditionsByCaseId_(caseId, caseDateConditionUpdates, now);
+    updatedCaseDatesCount = Math.max(updatedCaseDatesCount, caseDateConditionUpdates.length);
   }
 
   const assignmentCleanup = shouldCleanupAssignments
@@ -1134,6 +1146,74 @@ function updateCaseRowByCaseId_(caseId, updateRecord) {
 /****************************************************
  * updateCaseRowByCaseId_ ここまで
  ****************************************************/
+
+function buildCaseDateConditionUpdates_(payload, currentDates) {
+  if (!Array.isArray(payload.case_dates)) return [];
+
+  const currentById = {};
+  (currentDates || []).forEach(function(date) {
+    currentById[String(date.case_date_id || '')] = date;
+  });
+
+  return payload.case_dates.map(function(date) {
+    const caseDateId = String(date.case_date_id || '').trim();
+    const current = currentById[caseDateId];
+    if (!caseDateId || !current) {
+      throw new Error('更新対象の日付明細が見つかりません: ' + caseDateId);
+    }
+
+    const start = String(date.work_start_time || '').trim();
+    const end = String(date.work_end_time || '').trim();
+    if (start || end) validateWorkTimeRange_(start, end, String(date.work_date || '') + ' の日別時間');
+
+    const amount = date.unit_amount_override === null || date.unit_amount_override === undefined
+      ? ''
+      : String(date.unit_amount_override).trim();
+    if (amount && payload.amount_type !== 'per_person_day') {
+      throw new Error(String(date.work_date || '') + ' の日別単価は「1コマ・1日あたり」の場合だけ設定できます。');
+    }
+
+    const next = {
+      case_date_id: caseDateId,
+      work_start_time: start,
+      work_end_time: end,
+      unit_amount_override: amount,
+      memo: String(date.memo || '')
+    };
+    const changed = ['work_start_time', 'work_end_time', 'unit_amount_override', 'memo'].some(function(field) {
+      return String(current[field] || '') !== String(next[field] || '');
+    });
+    return changed ? next : null;
+  }).filter(function(update) {
+    return update !== null;
+  });
+}
+
+function updateCaseDateConditionsByCaseId_(caseId, updates, now) {
+  const sheet = getSheetForUpdate_(SHEET_CASE_DATES);
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0].map(function(header) { return String(header || '').trim(); });
+  const caseIdIndex = headers.indexOf('case_id');
+  const caseDateIdIndex = headers.indexOf('case_date_id');
+  const updatesById = {};
+  updates.forEach(function(update) { updatesById[update.case_date_id] = update; });
+  let updatedCount = 0;
+
+  for (let rowIndex = 1; rowIndex < values.length; rowIndex++) {
+    if (String(values[rowIndex][caseIdIndex] || '') !== String(caseId)) continue;
+    const update = updatesById[String(values[rowIndex][caseDateIdIndex] || '')];
+    if (!update) continue;
+    ['work_start_time', 'work_end_time', 'unit_amount_override', 'memo'].forEach(function(field) {
+      const columnIndex = headers.indexOf(field);
+      if (columnIndex >= 0) values[rowIndex][columnIndex] = update[field];
+    });
+    const updatedAtIndex = headers.indexOf('updated_at');
+    if (updatedAtIndex >= 0) values[rowIndex][updatedAtIndex] = now;
+    sheet.getRange(rowIndex + 1, 1, 1, headers.length).setValues([values[rowIndex]]);
+    updatedCount += 1;
+  }
+  return updatedCount;
+}
 
 /****************************************************
  * normalizeCheckboxRowValues_ ここから
