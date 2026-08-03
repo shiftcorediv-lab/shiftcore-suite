@@ -782,6 +782,16 @@
       amountInput.disabled = !amountType;
       amountInput.placeholder = amountType ? '金額を入力' : '先に金額区分を選択';
       if (!amountType) amountInput.value = '';
+
+      const canUseDailyAmount = amountType === 'per_person_day';
+      document.querySelectorAll('[data-date-field="unit_amount_override"]').forEach(input => {
+        input.disabled = !canUseDailyAmount;
+        if (!canUseDailyAmount) {
+          input.value = '';
+          const index = Number(input.dataset.dateIndex);
+          if (state.caseDates[index]) state.caseDates[index].unit_amount_override = '';
+        }
+      });
     }
     /****************************************************
      * setupEventListeners ここまで
