@@ -219,6 +219,8 @@ export async function replaceShiftBuilderAssignment(idToken, params = {}) {
     caseDateId: params.caseDateId || "",
     workDate: params.workDate || "",
     internalUserId: params.internalUserId || "",
+    startTime: params.startTime || params.start_time || "",
+    endTime: params.endTime || params.end_time || "",
     assignmentNote: params.assignmentNote || ""
   });
 }

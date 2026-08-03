@@ -484,12 +484,12 @@
       <div class="grid three">
         <div>
           <label for="requiredLines">必要枠数</label>
-          <input id="requiredLines" type="number" min="1" />
+          <input id="requiredLines" type="number" min="1" value="1" disabled />
         </div>
 
         <div>
           <label for="peoplePerLine">1枠あたり人数</label>
-          <input id="peoplePerLine" type="number" min="1" />
+          <input id="peoplePerLine" type="number" min="1" value="1" disabled />
         </div>
 
         <div>
@@ -535,9 +535,9 @@
           <label for="amountType">金額区分</label>
           <select id="amountType">
             <option value="">未入力</option>
-            <option value="per_day">1日あたり</option>
+            <option value="per_day" disabled>1日あたり（過去データ）</option>
             <option value="per_person_day">1コマ・1日あたり</option>
-            <option value="per_line_day">1枠日あたり</option>
+            <option value="per_line_day" disabled>1枠日あたり（過去データ）</option>
             <option value="per_case">案件一式</option>
             <option value="monthly">月額</option>
             <option value="other">その他</option>
@@ -1314,9 +1314,18 @@
           isAssignmentEjectStatus && hasArchivedAssignmentCount
           ? ` / アサイン${archivedAssignmentCount}件を解除しました`
           : '';
+        const updatedAssignmentTimeCount = Number(
+          responseData.updated_draft_assignment_time_count || 0
+        );
+        const protectedAssignmentTimeCount = Number(
+          responseData.protected_assignment_time_count || 0
+        );
+        const assignmentTimeMessage = updatedAssignmentTimeCount > 0
+          ? ` / 未確定アサイン${updatedAssignmentTimeCount}件の時刻を更新しました`
+          : '';
 
         setMessage(
-          `保存しました：${responseData.case_id || payload.case_id}${ejectedAssignmentMessage}`,
+          `保存しました：${responseData.case_id || payload.case_id}${ejectedAssignmentMessage}${assignmentTimeMessage}`,
           'success'
         );
 
@@ -1325,7 +1334,7 @@
         state.caseDetail = Object.assign({}, state.caseDetail, payload);
         sessionStorage.setItem('ordercase_force_list_refresh', '1');
 
-        if (isAssignmentEjectStatus) {
+        if (isAssignmentEjectStatus || updatedAssignmentTimeCount > 0) {
           notifyShiftBuilderDataChanged();
         }
 
@@ -1341,6 +1350,30 @@
             `案件の${statusActionLabel}は保存済みですが、${cleanupStatusMessage}` +
             'この画面で、もう一度「保存する」を押して解除を再試行してください。' +
             (cleanupError ? `\n詳細：${cleanupError}` : ''),
+            'error'
+          );
+          return;
+        }
+
+        if (
+          responseData.assignment_time_sync_attempted === true &&
+          responseData.assignment_time_sync_succeeded !== true
+        ) {
+          setMessage(
+            '案件は保存しましたが、配置済み担当者の時刻を更新できませんでした。' +
+            'もう一度「保存する」を押して再試行してください。' +
+            (responseData.assignment_time_sync_error
+              ? `\n詳細：${responseData.assignment_time_sync_error}`
+              : ''),
+            'error'
+          );
+          return;
+        }
+
+        if (protectedAssignmentTimeCount > 0) {
+          setMessage(
+            `案件は保存しました。未確定アサイン${updatedAssignmentTimeCount}件は時刻を更新しましたが、` +
+            `確定・保護状態の${protectedAssignmentTimeCount}件は変更していません。担当者へ確認してください。`,
             'error'
           );
           return;
@@ -1474,6 +1507,13 @@ if (payload.change_type !== 'status_change' && !payload.change_memo) {
       if (!payload.store_name) throw new Error('連携店舗を入力してください。');
       if (!payload.store_area) throw new Error('連携店舗エリアを選択してください。');
 
+      if (!['', 'per_person_day', 'per_case', 'per_day', 'per_line_day'].includes(payload.amount_type)) {
+        throw new Error('金額区分が不正です。');
+      }
+      if (payload.amount !== '' && (!Number.isFinite(Number(payload.amount)) || Number(payload.amount) < 0)) {
+        throw new Error('金額は0以上の数値で入力してください。');
+      }
+
       if (payload.input_mode === 'days' && !payload.requested_days) {
         throw new Error('日数指定の場合、希望日数を入力してください。');
       }
@@ -1486,6 +1526,12 @@ if (payload.change_type !== 'status_change' && !payload.change_memo) {
         }
         if (date.unit_amount_override !== '' && payload.amount_type !== 'per_person_day') {
           throw new Error(`${date.work_date} の日別単価は「1コマ・1日あたり」の場合だけ設定できます。`);
+        }
+        if (
+          date.unit_amount_override !== '' &&
+          (!Number.isFinite(Number(date.unit_amount_override)) || Number(date.unit_amount_override) < 0)
+        ) {
+          throw new Error(`${date.work_date} の日別単価は0以上の数値で入力してください。`);
         }
       });
     }
