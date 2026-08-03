@@ -446,12 +446,12 @@ input[type="time"] {
 
         <div id="workStartTimeWrap">
           <label for="workStartTime">稼働開始時間</label>
-          <input id="workStartTime" type="time" />
+          <input id="workStartTime" type="time" value="10:00" required />
         </div>
 
         <div id="workEndTimeWrap">
           <label for="workEndTime">稼働終了時間</label>
-          <input id="workEndTime" type="time" />
+          <input id="workEndTime" type="time" value="18:00" required />
         </div>
 
         <div id="meetingTimeWrap">
@@ -505,6 +505,39 @@ input[type="time"] {
       </div>
 
       <input id="peoplePerLine" type="hidden" value="1" />
+
+      <div id="alternateTimeOption" class="hidden">
+        <label>
+          <input id="hasAlternateTimeWorkers" type="checkbox" />
+          一部に異なる時間帯の稼働者がいる
+        </label>
+      </div>
+
+      <div id="alternateTimeFields" class="grid two hidden">
+        <div>
+          <label for="alternateWorkerCount">異なる時間帯の人数</label>
+          <input id="alternateWorkerCount" type="number" min="1" value="1" />
+        </div>
+        <div></div>
+        <div>
+          <label for="alternateWorkStartTime">開始時刻</label>
+          <input id="alternateWorkStartTime" type="time" value="10:30" />
+        </div>
+        <div>
+          <label for="alternateWorkEndTime">終了時刻</label>
+          <input id="alternateWorkEndTime" type="time" value="17:30" />
+        </div>
+        <div>
+          <label>
+            <input id="alternateAmountEnabled" type="checkbox" />
+            基本コマと単価が異なる
+          </label>
+        </div>
+        <div>
+          <label for="alternateAmount">異なる時間帯の単価</label>
+          <input id="alternateAmount" type="number" min="0" disabled />
+        </div>
+      </div>
     </section>
 
     <section id="datesSection">
@@ -540,21 +573,17 @@ input[type="time"] {
 
       <div class="grid two">
         <div>
-          <label for="amount">金額</label>
-          <input id="amount" type="number" min="0" placeholder="決定済みのみ入力" />
-        </div>
-
-        <div>
           <label for="amountType">金額区分</label>
           <select id="amountType">
             <option value="">未入力</option>
-            <option value="per_day">1日あたり</option>
-            <option value="per_person_day">1人日あたり</option>
-            <option value="per_line_day">1枠日あたり</option>
+            <option value="per_person_day">1コマ・1日あたり</option>
             <option value="per_case">案件一式</option>
-            <option value="monthly">月額</option>
-            <option value="other">その他</option>
           </select>
+        </div>
+
+        <div>
+          <label for="amount">金額</label>
+          <input id="amount" type="number" min="0" placeholder="先に金額区分を選択" disabled />
         </div>
 
         <div>
@@ -638,6 +667,7 @@ input[type="time"] {
         await loadBootstrap();
 
         updateRequiredPeople();
+        updateAmountInputState();
         renderCalendar();
         updateInputModeView();
         updateSummary();
@@ -730,6 +760,10 @@ input[type="time"] {
       document.getElementById('targetMonth').addEventListener('change', renderCalendar);
       document.getElementById('clearDatesButton').addEventListener('click', clearSelectedDates);
       document.getElementById('submitButton').addEventListener('click', submitCase);
+      document.getElementById('hasAlternateTimeWorkers').addEventListener('change', updateAlternateTimeView);
+      document.getElementById('alternateAmountEnabled').addEventListener('change', updateAlternateAmountView);
+      document.getElementById('amountType').addEventListener('change', updateAmountInputState);
+      document.getElementById('sameConditionCount').addEventListener('input', updateAlternateTimeView);
     }
     /****************************************************
      * setupEventListeners ここまで
@@ -1289,6 +1323,45 @@ input[type="time"] {
       document.getElementById('requiredLines').value = 1;
       document.getElementById('peoplePerLine').value = 1;
       document.getElementById('requiredPeople').value = 1;
+      updateAlternateTimeView();
+    }
+
+    function updateAlternateTimeView() {
+      const total = Number(document.getElementById('sameConditionCount').value || 1);
+      const option = document.getElementById('alternateTimeOption');
+      const checkbox = document.getElementById('hasAlternateTimeWorkers');
+      const fields = document.getElementById('alternateTimeFields');
+      const countInput = document.getElementById('alternateWorkerCount');
+      const canUse = total > 1;
+
+      option.classList.toggle('hidden', !canUse);
+      if (!canUse) checkbox.checked = false;
+      fields.classList.toggle('hidden', !canUse || !checkbox.checked);
+      countInput.max = String(Math.max(total - 1, 1));
+      if (Number(countInput.value || 1) >= total) countInput.value = String(Math.max(total - 1, 1));
+      updateAlternateAmountView();
+    }
+
+    function updateAmountInputState() {
+      const amountType = document.getElementById('amountType').value;
+      const amountInput = document.getElementById('amount');
+      amountInput.disabled = !amountType;
+      amountInput.placeholder = amountType ? '金額を入力' : '先に金額区分を選択';
+
+      if (amountType !== 'per_person_day') {
+        document.getElementById('alternateAmountEnabled').checked = false;
+      }
+      updateAlternateAmountView();
+    }
+
+    function updateAlternateAmountView() {
+      const enabled = document.getElementById('alternateAmountEnabled').checked;
+      const perPersonDay = document.getElementById('amountType').value === 'per_person_day';
+      const checkbox = document.getElementById('alternateAmountEnabled');
+      const input = document.getElementById('alternateAmount');
+      checkbox.disabled = !perPersonDay;
+      input.disabled = !enabled || !perPersonDay;
+      if (!enabled || !perPersonDay) input.value = '';
     }
     /****************************************************
      * updateRequiredPeople ここまで
@@ -1381,6 +1454,12 @@ input[type="time"] {
         required_lines: 1,
         people_per_line: 1,
         same_condition_count: sameConditionCount,
+        has_alternate_time_workers: document.getElementById('hasAlternateTimeWorkers').checked,
+        alternate_worker_count: Number(document.getElementById('alternateWorkerCount').value || 0),
+        alternate_work_start_time: document.getElementById('alternateWorkStartTime').value,
+        alternate_work_end_time: document.getElementById('alternateWorkEndTime').value,
+        alternate_amount_enabled: document.getElementById('alternateAmountEnabled').checked,
+        alternate_amount: document.getElementById('alternateAmount').value,
         required_skill: document.getElementById('requiredSkill').value || 'any',
 
         amount: document.getElementById('amount').value,
@@ -1421,12 +1500,32 @@ input[type="time"] {
       if (!payload.agency_name) throw new Error('代理店名を入力してください。');
       if (!payload.store_name) throw new Error('連携店舗を入力してください。');
       if (!payload.store_area) throw new Error('連携店舗エリアを選択してください。');
+      if (!payload.work_start_time || !payload.work_end_time) throw new Error('基本時間の開始・終了時刻を入力してください。');
+      if (payload.work_end_time <= payload.work_start_time) throw new Error('基本時間の終了時刻は開始時刻より後にしてください。');
             if (!Number.isFinite(payload.same_condition_count) || payload.same_condition_count < 1) {
         throw new Error('同条件で作成する件数は1以上で入力してください。');
       }
 
       if (payload.same_condition_count > 20) {
         throw new Error('同条件で作成する件数は20件以下で入力してください。');
+      }
+
+      if (payload.has_alternate_time_workers) {
+        if (payload.alternate_worker_count < 1 || payload.alternate_worker_count >= payload.same_condition_count) {
+          throw new Error('異なる時間帯の人数は、1以上かつ必要人数未満にしてください。');
+        }
+        if (!payload.alternate_work_start_time || !payload.alternate_work_end_time) {
+          throw new Error('異なる時間帯の開始・終了時刻を入力してください。');
+        }
+        if (payload.alternate_work_end_time <= payload.alternate_work_start_time) {
+          throw new Error('異なる時間帯の終了時刻は開始時刻より後にしてください。');
+        }
+        if (payload.alternate_amount_enabled && payload.amount_type !== 'per_person_day') {
+          throw new Error('異なる時間帯の別単価は「1コマ・1日あたり」の場合だけ設定できます。');
+        }
+        if (payload.alternate_amount_enabled && payload.alternate_amount === '') {
+          throw new Error('異なる時間帯の単価を入力してください。');
+        }
       }
 
       if (payload.input_mode === 'dates' && payload.case_dates.length === 0) {
@@ -1455,8 +1554,8 @@ input[type="time"] {
       document.getElementById('caseRank').value = 'B';
 
       document.getElementById('workLocation').value = '';
-      document.getElementById('workStartTime').value = '';
-      document.getElementById('workEndTime').value = '';
+      document.getElementById('workStartTime').value = '10:00';
+      document.getElementById('workEndTime').value = '18:00';
       document.getElementById('meetingTime').value = '';
       document.getElementById('meetingPlace').value = '';
 
@@ -1464,6 +1563,12 @@ input[type="time"] {
       document.getElementById('peoplePerLine').value = 1;
       document.getElementById('requiredPeople').value = 1;
       document.getElementById('sameConditionCount').value = 1;
+      document.getElementById('hasAlternateTimeWorkers').checked = false;
+      document.getElementById('alternateWorkerCount').value = 1;
+      document.getElementById('alternateWorkStartTime').value = '10:30';
+      document.getElementById('alternateWorkEndTime').value = '17:30';
+      document.getElementById('alternateAmountEnabled').checked = false;
+      document.getElementById('alternateAmount').value = '';
 
       document.getElementById('requestedDays').value = '';
 
@@ -1488,6 +1593,7 @@ input[type="time"] {
       updateRequiredPeople();
       updateInputModeView();
       updateSummary();
+      updateAmountInputState();
     }
     /****************************************************
      * clearFormAfterSubmit ここまで

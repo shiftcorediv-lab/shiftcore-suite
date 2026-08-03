@@ -94,6 +94,66 @@ function testBuildShiftAssignmentArchivePlan() {
   console.log(JSON.stringify(plan));
 }
 
+function testBuildAlternateTimeWorkerPayload() {
+  const payload = {
+    work_start_time: '10:00',
+    work_end_time: '18:00',
+    amount: '20000',
+    amount_type: 'per_person_day',
+    alternate_work_start_time: '10:30',
+    alternate_work_end_time: '17:30',
+    alternate_amount_enabled: true,
+    alternate_amount: '18000',
+    case_dates: [{ work_date: '2026-08-10', memo: '' }]
+  };
+  const normal = buildSinglePersonCasePayload_(payload, {
+    case_group_id: 'CG-1', copy_index: 1, copy_count: 3
+  }, { use_alternate_conditions: false });
+  const alternate = buildSinglePersonCasePayload_(payload, {
+    case_group_id: 'CG-1', copy_index: 3, copy_count: 3
+  }, { use_alternate_conditions: true });
+
+  if (normal.work_start_time !== '10:00' || normal.amount !== '20000') {
+    throw new Error('基本コマの時刻または単価が不正です。');
+  }
+  if (alternate.work_start_time !== '10:30' || alternate.work_end_time !== '17:30') {
+    throw new Error('異なる時間帯の時刻が不正です。');
+  }
+  if (alternate.amount !== '18000') {
+    throw new Error('異なる時間帯の単価が不正です。');
+  }
+}
+
+function testValidateWorkTimeRange() {
+  validateWorkTimeRange_('10:00', '18:00', 'テスト時間');
+
+  let failed = false;
+  try {
+    validateWorkTimeRange_('18:00', '10:00', 'テスト時間');
+  } catch (error) {
+    failed = true;
+  }
+  if (!failed) throw new Error('終了時刻が開始時刻以前の入力を拒否できていません。');
+}
+
+function testPerCaseAmountIsStoredOnce() {
+  const payload = {
+    amount: '300000',
+    amount_type: 'per_case',
+    case_dates: []
+  };
+  const first = buildSinglePersonCasePayload_(payload, {
+    case_group_id: 'CG-1', copy_index: 1, copy_count: 3
+  });
+  const second = buildSinglePersonCasePayload_(payload, {
+    case_group_id: 'CG-1', copy_index: 2, copy_count: 3
+  });
+
+  if (first.amount !== '300000' || second.amount !== '') {
+    throw new Error('案件一式の総額が兄弟コマへ重複保存されています。');
+  }
+}
+
 function auditCancelledCaseAssignmentsDryRun() {
   const audit = auditCaseAssignmentsByStatusesDryRun_(['cancelled']);
   const result = {

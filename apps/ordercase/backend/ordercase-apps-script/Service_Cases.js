@@ -24,6 +24,7 @@ function createCase_(payload) {
     ensureCaseRankColumn_();
 
     const sameConditionCount = normalizeSameConditionCount_(payload.same_condition_count);
+    const alternateWorkerCount = normalizeAlternateWorkerCount_(payload, sameConditionCount);
     const targetMonth = String(payload.target_month).trim();
     const inputMode = String(payload.input_mode || 'dates').trim();
 
@@ -48,7 +49,10 @@ for (let index = 1; index <= sameConditionCount; index++) {
         copy_count: ''
       };
 
-  const singlePayload = buildSinglePersonCasePayload_(payload, copyInfo);
+  const isAlternateWorker = alternateWorkerCount > 0 && index > sameConditionCount - alternateWorkerCount;
+  const singlePayload = buildSinglePersonCasePayload_(payload, copyInfo, {
+    use_alternate_conditions: isAlternateWorker
+  });
 
   const result = createSingleCase_(singlePayload, {
     send_notification: false
@@ -81,6 +85,7 @@ for (let index = 1; index <= sameConditionCount; index++) {
       }, 0),
       input_mode: inputMode,
       same_condition_count: sameConditionCount,
+      alternate_worker_count: alternateWorkerCount,
       case_group_id: caseGroupId,
       store_master: createdResults.length > 0 ? createdResults[0].store_master : null
     };
@@ -161,6 +166,7 @@ function createSingleCase_(payload, options) {
     operation_memo: payload.operation_memo || '',
 
     for_shift_builder: normalizeSheetBoolean_(payload.for_shift_builder, true),
+    shiftcore_display_name: String(payload.shiftcore_display_name || '').trim(),
 
     case_group_id: payload.case_group_id || '',
     copy_index: payload.copy_index || '',
@@ -325,8 +331,9 @@ function normalizeSheetBoolean_(value, defaultValue) {
  * buildSinglePersonCasePayload_ ここから
  * 1案件1人分としてpayloadを正規化する
  ****************************************************/
-function buildSinglePersonCasePayload_(payload, copyInfo) {
+function buildSinglePersonCasePayload_(payload, copyInfo, options) {
   const safeCopyInfo = copyInfo || {};
+  const safeOptions = options || {};
   const normalized = Object.assign({}, payload);
 
   normalized.required_lines = 1;
@@ -336,6 +343,20 @@ function buildSinglePersonCasePayload_(payload, copyInfo) {
   normalized.case_group_id = safeCopyInfo.case_group_id || '';
   normalized.copy_index = safeCopyInfo.copy_index || '';
   normalized.copy_count = safeCopyInfo.copy_count || '';
+
+  // 案件一式の総額を人数分の兄弟コマへ重複保存しない。
+  if (payload.amount_type === 'per_case' && Number(safeCopyInfo.copy_index || 1) > 1) {
+    normalized.amount = '';
+  }
+
+  if (safeOptions.use_alternate_conditions === true) {
+    normalized.work_start_time = String(payload.alternate_work_start_time || '').trim();
+    normalized.work_end_time = String(payload.alternate_work_end_time || '').trim();
+
+    if (payload.alternate_amount_enabled === true || payload.alternate_amount_enabled === 'true') {
+      normalized.amount = payload.alternate_amount;
+    }
+  }
 
   if (Array.isArray(payload.case_dates)) {
     normalized.case_dates = payload.case_dates.map(function(dateItem) {
@@ -352,6 +373,48 @@ function buildSinglePersonCasePayload_(payload, copyInfo) {
   }
 
   return normalized;
+}
+
+function normalizeAlternateWorkerCount_(payload, totalCount) {
+  const enabled = payload.has_alternate_time_workers === true ||
+    payload.has_alternate_time_workers === 'true';
+
+  if (!enabled) return 0;
+
+  const count = Number(payload.alternate_worker_count);
+  if (!Number.isInteger(count) || count < 1 || count >= totalCount) {
+    throw new Error('異なる時間帯の人数は、1以上かつ必要人数未満にしてください。');
+  }
+
+  const start = String(payload.alternate_work_start_time || '').trim();
+  const end = String(payload.alternate_work_end_time || '').trim();
+  validateWorkTimeRange_(start, end, '異なる時間帯');
+
+  if (start === String(payload.work_start_time || '').trim() && end === String(payload.work_end_time || '').trim()) {
+    throw new Error('異なる時間帯には基本時間と違う時刻を入力してください。');
+  }
+
+  const hasAlternateAmount = payload.alternate_amount_enabled === true ||
+    payload.alternate_amount_enabled === 'true';
+  if (hasAlternateAmount) {
+    if (payload.amount_type !== 'per_person_day') {
+      throw new Error('異なる時間帯の別単価は「1コマ・1日あたり」の場合だけ設定できます。');
+    }
+    if (payload.alternate_amount === '' || payload.alternate_amount === null || payload.alternate_amount === undefined) {
+      throw new Error('異なる時間帯の単価を入力してください。');
+    }
+  }
+
+  return count;
+}
+
+function validateWorkTimeRange_(start, end, label) {
+  if (!start || !end) {
+    throw new Error((label || '稼働時間') + 'の開始・終了時刻は必須です。');
+  }
+  if (end <= start) {
+    throw new Error((label || '稼働時間') + 'の終了時刻は開始時刻より後にしてください。');
+  }
 }
 /****************************************************
  * buildSinglePersonCasePayload_ ここまで
@@ -491,6 +554,7 @@ function updateCaseWithoutLock_(payload, options) {
     operation_memo: payload.operation_memo || '',
 
     for_shift_builder: nextForShiftBuilder,
+    shiftcore_display_name: String(payload.shiftcore_display_name || current.shiftcore_display_name || '').trim(),
 
     updated_at: now,
     updated_by: updatedBy,
@@ -679,6 +743,19 @@ function validateCreateCasePayload_(payload) {
   });
 
   normalizeCaseRank_(payload.case_rank);
+  validateWorkTimeRange_(
+    String(payload.work_start_time || '').trim(),
+    String(payload.work_end_time || '').trim(),
+    '基本時間'
+  );
+
+  if (!String(payload.shiftcore_display_name || '').trim()) {
+    throw new Error('シフトコア表示用省略名称が必要です。');
+  }
+
+  if (payload.amount !== '' && payload.amount !== null && payload.amount !== undefined && !payload.amount_type) {
+    throw new Error('金額を入力する前に金額区分を選択してください。');
+  }
 
   if (payload.input_mode !== 'dates' && payload.input_mode !== 'days') {
     throw new Error('input_mode は dates または days にしてください。');
@@ -725,6 +802,19 @@ function validateUpdateCasePayload_(payload) {
   });
 
   normalizeCaseRank_(payload.case_rank);
+  validateWorkTimeRange_(
+    String(payload.work_start_time || '').trim(),
+    String(payload.work_end_time || '').trim(),
+    '基本時間'
+  );
+
+  if (!String(payload.shiftcore_display_name || '').trim()) {
+    throw new Error('シフトコア表示用省略名称が必要です。');
+  }
+
+  if (payload.amount !== '' && payload.amount !== null && payload.amount !== undefined && !payload.amount_type) {
+    throw new Error('金額を入力する前に金額区分を選択してください。');
+  }
 
   if (payload.input_mode !== 'dates' && payload.input_mode !== 'days') {
     throw new Error('input_mode は dates または days にしてください。');
