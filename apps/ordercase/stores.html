@@ -47,6 +47,9 @@
       state.stores = json.data || [];
       renderStores();
     }
+    function normalizeText(value) {
+      return String(value || '').trim().normalize('NFKC').replace(/\s+/g, '').toLowerCase();
+    }
     function renderStores() {
       const keyword = normalizeText(document.getElementById('searchInput').value);
       const rows = state.stores.filter(row => !keyword || normalizeText([row.agency_name,row.store_name,row.store_short_name].join(' ')).includes(keyword));
