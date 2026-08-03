@@ -14,6 +14,8 @@ function handleGet_(e) {
     const action = params.action || '';
 
     if (action === 'bootstrap') {
+      const context = requireOrderCaseViewer_(getIdTokenFromParams_(params));
+
       return jsonResponse_({
         ok: true,
         action: action,
@@ -22,6 +24,8 @@ function handleGet_(e) {
     }
 
     if (action === 'getCaseTypes') {
+      const context = requireOrderCaseViewer_(getIdTokenFromParams_(params));
+
       return jsonResponse_({
         ok: true,
         action: action,
