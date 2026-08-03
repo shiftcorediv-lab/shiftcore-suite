@@ -425,6 +425,9 @@
           <label for="storeArea">連携店舗エリア</label>
           <select id="storeArea"></select>
         </div>
+        <div><label for="storeShortName">店舗略称</label><input id="storeShortName" readonly /></div>
+        <div><label for="storeAddress">店舗住所</label><input id="storeAddress" readonly /></div>
+        <div><label for="storeNearestStation">店舗最寄り駅</label><input id="storeNearestStation" readonly /></div>
       </div>
 
       <p class="hint">
@@ -440,6 +443,8 @@
           <label for="workLocation">実稼働場所・会場</label>
           <input id="workLocation" />
         </div>
+        <div><label for="workAddress">実稼働先住所</label><input id="workAddress" /></div>
+        <div><label for="workNearestStation">実稼働先最寄り駅</label><input id="workNearestStation" /></div>
 
         <div>
           <label for="workArea">実稼働エリア</label>
@@ -1030,6 +1035,9 @@
 
     function selectStoreSuggestion(row) {
       document.getElementById('storeName').value = row.store_name || '';
+      document.getElementById('storeShortName').value = row.store_short_name || '';
+      document.getElementById('storeAddress').value = row.address || '';
+      document.getElementById('storeNearestStation').value = row.nearest_station || '';
 
       if (row.agency_name) {
         document.getElementById('agencyName').value = row.agency_name;
@@ -1130,8 +1138,14 @@
       setValue('agencyName', item.agency_name);
       setValue('storeName', item.store_name);
       setValue('storeArea', item.store_area);
+      const masterStore = state.storesMaster.find(row => row.store_id === item.store_id) || {};
+      setValue('storeShortName', masterStore.store_short_name);
+      setValue('storeAddress', masterStore.address);
+      setValue('storeNearestStation', masterStore.nearest_station);
 
       setValue('workLocation', item.work_location);
+      setValue('workAddress', item.work_address);
+      setValue('workNearestStation', item.work_nearest_station);
       setValue('workArea', item.work_area);
       setValue('workStartTime', item.work_start_time);
       setValue('workEndTime', item.work_end_time);
@@ -1413,6 +1427,8 @@
         store_area: document.getElementById('storeArea').value,
 
         work_location: document.getElementById('workLocation').value.trim(),
+        work_address: document.getElementById('workAddress').value.trim(),
+        work_nearest_station: document.getElementById('workNearestStation').value.trim(),
         work_area: document.getElementById('workArea').value,
         work_start_time: document.getElementById('workStartTime').value,
         work_end_time: document.getElementById('workEndTime').value,

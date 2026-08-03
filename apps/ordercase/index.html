@@ -430,6 +430,9 @@ input[type="time"] {
           <label for="storeArea">連携店舗エリア</label>
           <select id="storeArea"></select>
         </div>
+        <div><label for="storeShortName">店舗略称</label><input id="storeShortName" placeholder="例：長居店" /></div>
+        <div><label for="storeAddress">店舗住所</label><input id="storeAddress" /></div>
+        <div><label for="storeNearestStation">店舗最寄り駅</label><input id="storeNearestStation" /></div>
       </div>
 
       <p class="hint">
@@ -450,6 +453,8 @@ input[type="time"] {
           <label for="workArea">実稼働エリア</label>
           <select id="workArea"></select>
         </div>
+        <div><label for="workAddress">実稼働先住所</label><input id="workAddress" placeholder="店舗と同じ場合は空欄" /></div>
+        <div><label for="workNearestStation">実稼働先最寄り駅</label><input id="workNearestStation" placeholder="店舗と同じ場合は空欄" /></div>
 
         <div id="workStartTimeWrap">
           <label for="workStartTime">稼働開始時間</label>
@@ -990,6 +995,9 @@ input[type="time"] {
 
     function selectStoreSuggestion(row) {
       document.getElementById('storeName').value = row.store_name || '';
+      document.getElementById('storeShortName').value = row.store_short_name || '';
+      document.getElementById('storeAddress').value = row.address || '';
+      document.getElementById('storeNearestStation').value = row.nearest_station || '';
 
       if (row.agency_name) {
         document.getElementById('agencyName').value = row.agency_name;
@@ -1513,9 +1521,14 @@ input[type="time"] {
 
         agency_name: document.getElementById('agencyName').value.trim(),
         store_name: document.getElementById('storeName').value.trim(),
+        store_short_name: document.getElementById('storeShortName').value.trim(),
+        store_address: document.getElementById('storeAddress').value.trim(),
+        store_nearest_station: document.getElementById('storeNearestStation').value.trim(),
         store_area: storeArea,
 
         work_location: document.getElementById('workLocation').value.trim() || document.getElementById('storeName').value.trim(),
+        work_address: document.getElementById('workAddress').value.trim(),
+        work_nearest_station: document.getElementById('workNearestStation').value.trim(),
         work_area: document.getElementById('workArea').value || storeArea,
         work_start_time: document.getElementById('workStartTime').value,
         work_end_time: document.getElementById('workEndTime').value,
@@ -1652,11 +1665,16 @@ input[type="time"] {
     function clearFormAfterSubmit() {
       document.getElementById('agencyName').value = '';
       document.getElementById('storeName').value = '';
+      document.getElementById('storeShortName').value = '';
+      document.getElementById('storeAddress').value = '';
+      document.getElementById('storeNearestStation').value = '';
       document.getElementById('shiftcoreDisplayName').value = '';
       document.getElementById('replyDeadline').value = '';
       document.getElementById('caseRank').value = 'B';
 
       document.getElementById('workLocation').value = '';
+      document.getElementById('workAddress').value = '';
+      document.getElementById('workNearestStation').value = '';
       document.getElementById('workStartTime').value = '10:00';
       document.getElementById('workEndTime').value = '18:00';
       document.getElementById('meetingTime').value = '';
