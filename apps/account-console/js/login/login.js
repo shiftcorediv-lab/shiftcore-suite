@@ -1,6 +1,6 @@
 import { auth, signOut } from "./auth.js";
 import { DASHBOARD_URL, SIGNUP_REQUEST_URL } from "./config.js";
-import { checkUserWithGas } from "./api.js";
+import { resolveCurrentUserWithGasByIdToken } from "./api.js?v=20260803-logintoken-1";
 import { saveLoginSession, clearLoginSession, saveSignupEmail, clearSignupEmail } from "./storage.js";
 import { setStatus, showLoggedOutState } from "./ui.js";
 
@@ -15,7 +15,8 @@ export async function verifySignedInUser(user) {
   try {
     setStatus("アカウント照合中...");
 
-    const loginCheck = await checkUserWithGas(user.email);
+    const idToken = await user.getIdToken();
+    const loginCheck = await resolveCurrentUserWithGasByIdToken(idToken);
 
     if (loginCheck.ok) {
       clearSignupEmail();

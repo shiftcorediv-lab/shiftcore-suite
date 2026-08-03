@@ -9,7 +9,7 @@ import {
 import { loginBtn } from "./dom.js";
 import { clearLoginSession } from "./storage.js";
 import { showLoggedOutState, showLoginProcessingState } from "./ui.js";
-import { verifySignedInUser } from "./login.js";
+import { verifySignedInUser } from "./login.js?v=20260803-logintoken-1";
 
 await setPersistence(auth, browserLocalPersistence);
 
