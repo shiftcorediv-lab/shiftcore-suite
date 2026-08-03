@@ -36,6 +36,11 @@ function renderOrderCaseHeader(activePage, subtitle) {
       href: './cases.html'
     },
     {
+      key: 'stores',
+      label: '店舗マスター',
+      href: './stores.html'
+    },
+    {
       key: 'dashboard',
       label: 'Dashboardへ戻る',
       href: ORDERCASE_DASHBOARD_URL

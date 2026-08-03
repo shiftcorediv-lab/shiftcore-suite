@@ -158,6 +158,17 @@ async function postUpdateCase(payload) {
 
   return parseApiJsonResponse_(res, 'updateCase');
 }
+
+async function postOrderCaseAction(action, payload) {
+  const base = window.ORDERCASE_CONFIG.API_URL;
+  const idToken = await getOrderCaseIdToken();
+  const res = await fetch(base, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action: action, idToken: idToken, payload: payload })
+  });
+  return parseApiJsonResponse_(res, action);
+}
 /****************************************************
  * postUpdateCase ここまで
  ****************************************************/

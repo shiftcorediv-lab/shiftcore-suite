@@ -23,6 +23,7 @@ function createCase_(payload) {
     lock.waitLock(10000);
     ensureCaseRankColumn_();
     ensureCaseDateConditionColumns_();
+    ensureCaseLocationColumns_();
 
     const sameConditionCount = normalizeSameConditionCount_(payload.same_condition_count);
     const alternateWorkerCount = normalizeAlternateWorkerCount_(payload, sameConditionCount);
@@ -144,6 +145,8 @@ function createSingleCase_(payload, options) {
     store_area: storeArea,
 
     work_location: workLocation,
+    work_address: payload.work_address || '',
+    work_nearest_station: payload.work_nearest_station || '',
     work_area: workArea,
     work_start_time: payload.work_start_time || '',
     work_end_time: payload.work_end_time || '',
@@ -264,6 +267,19 @@ function ensureCaseDateConditionColumns_() {
   let nextColumn = lastColumn + 1;
 
   requiredHeaders.forEach(function(header) {
+    if (headers.indexOf(header) === -1) {
+      sheet.getRange(1, nextColumn).setValue(header);
+      nextColumn += 1;
+    }
+  });
+}
+
+function ensureCaseLocationColumns_() {
+  const sheet = getSheetForUpdate_(SHEET_CASES);
+  const lastColumn = Math.max(sheet.getLastColumn(), 1);
+  const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0].map(function(value) { return String(value || '').trim(); });
+  let nextColumn = lastColumn + 1;
+  ['work_address', 'work_nearest_station'].forEach(function(header) {
     if (headers.indexOf(header) === -1) {
       sheet.getRange(1, nextColumn).setValue(header);
       nextColumn += 1;
@@ -539,6 +555,7 @@ function updateCase_(payload, options) {
   try {
     ensureCaseRankColumn_();
     ensureCaseDateConditionColumns_();
+    ensureCaseLocationColumns_();
     return updateCaseWithoutLock_(payload, options);
   } finally {
     lock.releaseLock();
@@ -615,6 +632,8 @@ function updateCaseWithoutLock_(payload, options) {
     store_area: storeArea,
 
     work_location: workLocation,
+    work_address: payload.work_address || '',
+    work_nearest_station: payload.work_nearest_station || '',
     work_area: workArea,
     work_start_time: payload.work_start_time || '',
     work_end_time: payload.work_end_time || '',
