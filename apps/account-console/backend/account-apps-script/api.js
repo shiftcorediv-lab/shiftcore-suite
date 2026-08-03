@@ -15,27 +15,6 @@ function doGet(e) {
     if (action === "getPmoRoster") {
       return jsonResponse_(getPmoRoster());
     }
-
-    if (action === "getLatestShiftRequest") {
-      const userId = normalizeText(getParam_(e, "userId"));
-      const targetYearMonth = normalizeText(getParam_(e, "targetYearMonth"));
-
-      return jsonResponse_(getLatestShiftRequest(userId, targetYearMonth));
-    }
-
-    if (action === "getPmoAdminMeta") {
-      const targetYearMonth = normalizeText(getParam_(e, "targetYearMonth"));
-      const role = normalizeText(getParam_(e, "role"));
-
-      return jsonResponse_(getPmoAdminMeta(targetYearMonth, role));
-    }
-
-    if (action === "exportMonthlyExcel") {
-      const targetYearMonth = normalizeText(getParam_(e, "targetYearMonth"));
-      const role = normalizeText(getParam_(e, "role"));
-
-      return jsonResponse_(exportMonthlyExcel(targetYearMonth, role));
-    }
     // ===== PMO系 GET ここまで =====
 
     return jsonResponse_({
@@ -116,19 +95,6 @@ function doPost(e) {
     }
     // ===== Account Console系 POST ここまで =====
 
-
-    // ===== PMO系 POST ここから =====
-    if (action === "submitShiftRequest") {
-      return jsonResponse_(submitShiftRequest(body.payload || body));
-    }
-
-    if (action === "createMonthlyRequestSheet") {
-      const targetYearMonth = normalizeText(body.targetYearMonth);
-      const roster = body.roster;
-
-      return jsonResponse_(createMonthlyRequestSheet(targetYearMonth, roster));
-    }
-    // ===== PMO系 POST ここまで =====
 
     // ===== signup系 POST ここから =====
     if (action === "submitSignupRequest") {
