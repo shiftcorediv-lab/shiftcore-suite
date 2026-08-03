@@ -223,6 +223,13 @@ input[type="time"] {
       margin-bottom: 10px;
     }
 
+    .date-override-fields {
+      margin: 10px 0;
+      padding: 10px;
+      border-left: 3px solid #4caf50;
+      background: #fff;
+    }
+
     .summary-bar {
       position: fixed;
       left: 0;
@@ -1201,6 +1208,15 @@ input[type="time"] {
           work_date: date,
           required_lines: 1,
           people_per_line: 1,
+          has_condition_override: false,
+          work_start_time: '',
+          work_end_time: '',
+          has_alternate_time_workers: false,
+          alternate_worker_count: 1,
+          alternate_work_start_time: '',
+          alternate_work_end_time: '',
+          alternate_amount_enabled: false,
+          alternate_amount: '',
           memo: ''
         });
       }
@@ -1236,18 +1252,68 @@ input[type="time"] {
 
         row.innerHTML = `
           <div class="date-row-title">${item.work_date}</div>
-          <p class="hint">
-            この日は1案件につき1人分として作成されます。
-            複数名必要な場合は、上の「同条件で作成する件数」を増やしてください。
-          </p>
+          <label>
+            <input type="checkbox" ${item.has_condition_override ? 'checked' : ''}
+              data-date-index="${index}" data-field="has_condition_override">
+            この日だけ時間・人数・単価を変更する
+          </label>
+          <div class="date-override-fields ${item.has_condition_override ? '' : 'hidden'}">
+            <div class="grid two">
+              <div>
+                <label>基本の開始時刻</label>
+                <input type="time" value="${escapeHtml(item.work_start_time || document.getElementById('workStartTime').value)}"
+                  data-date-index="${index}" data-field="work_start_time">
+              </div>
+              <div>
+                <label>基本の終了時刻</label>
+                <input type="time" value="${escapeHtml(item.work_end_time || document.getElementById('workEndTime').value)}"
+                  data-date-index="${index}" data-field="work_end_time">
+              </div>
+            </div>
+            <label class="${Number(document.getElementById('sameConditionCount').value || 1) > 1 ? '' : 'hidden'}">
+              <input type="checkbox" ${item.has_alternate_time_workers ? 'checked' : ''}
+                data-date-index="${index}" data-field="has_alternate_time_workers">
+              この日は一部に異なる時間帯の稼働者がいる
+            </label>
+            <div class="grid two ${item.has_alternate_time_workers ? '' : 'hidden'}">
+              <div>
+                <label>異なる時間帯の人数</label>
+                <input type="number" min="1" max="${Math.max(Number(document.getElementById('sameConditionCount').value || 1) - 1, 1)}"
+                  value="${escapeHtml(item.alternate_worker_count || 1)}" data-date-index="${index}" data-field="alternate_worker_count">
+              </div>
+              <div></div>
+              <div>
+                <label>異時間者の開始時刻</label>
+                <input type="time" value="${escapeHtml(item.alternate_work_start_time || '10:30')}"
+                  data-date-index="${index}" data-field="alternate_work_start_time">
+              </div>
+              <div>
+                <label>異時間者の終了時刻</label>
+                <input type="time" value="${escapeHtml(item.alternate_work_end_time || '17:30')}"
+                  data-date-index="${index}" data-field="alternate_work_end_time">
+              </div>
+              <label>
+                <input type="checkbox" ${item.alternate_amount_enabled ? 'checked' : ''}
+                  ${document.getElementById('amountType').value === 'per_person_day' ? '' : 'disabled'}
+                  data-date-index="${index}" data-field="alternate_amount_enabled">
+                この日だけ異時間者の単価が違う
+              </label>
+              <div>
+                <label>異時間者の1日単価</label>
+                <input type="number" min="0" value="${escapeHtml(item.alternate_amount || '')}"
+                  ${item.alternate_amount_enabled ? '' : 'disabled'} data-date-index="${index}" data-field="alternate_amount">
+              </div>
+            </div>
+          </div>
           <div>
             <label>日別メモ</label>
             <input type="text" value="${escapeHtml(item.memo)}" data-date-index="${index}" data-field="memo">
           </div>
         `;
 
-        row.querySelectorAll('input[data-field="memo"]').forEach(input => {
+        row.querySelectorAll('input[data-field]').forEach(input => {
           input.addEventListener('input', updateDateDetail);
+          input.addEventListener('change', updateDateDetail);
         });
 
         list.appendChild(row);
@@ -1264,14 +1330,21 @@ input[type="time"] {
     function updateDateDetail(event) {
       const index = Number(event.target.dataset.dateIndex);
       const field = event.target.dataset.field;
-      const value = event.target.value;
+      const value = event.target.type === 'checkbox' ? event.target.checked : event.target.value;
 
       if (!state.selectedDates[index]) {
         return;
       }
 
-      if (field === 'memo') {
-        state.selectedDates[index].memo = value;
+      state.selectedDates[index][field] = value;
+
+      if (field === 'has_condition_override' && value) {
+        state.selectedDates[index].work_start_time ||= document.getElementById('workStartTime').value;
+        state.selectedDates[index].work_end_time ||= document.getElementById('workEndTime').value;
+      }
+
+      if (event.type === 'change' && ['has_condition_override', 'has_alternate_time_workers', 'alternate_amount_enabled'].includes(field)) {
+        renderSelectedDateList();
       }
 
       state.selectedDates[index].required_lines = 1;
@@ -1479,6 +1552,15 @@ input[type="time"] {
               work_date: item.work_date,
               required_lines: 1,
               people_per_line: 1,
+              has_condition_override: item.has_condition_override === true,
+              work_start_time: item.has_condition_override ? item.work_start_time : '',
+              work_end_time: item.has_condition_override ? item.work_end_time : '',
+              has_alternate_time_workers: item.has_condition_override && item.has_alternate_time_workers === true,
+              alternate_worker_count: Number(item.alternate_worker_count || 0),
+              alternate_work_start_time: item.alternate_work_start_time || '',
+              alternate_work_end_time: item.alternate_work_end_time || '',
+              alternate_amount_enabled: item.alternate_amount_enabled === true,
+              alternate_amount: item.alternate_amount || '',
               memo: item.memo || ''
             }))
           : []
@@ -1531,6 +1613,27 @@ input[type="time"] {
       if (payload.input_mode === 'dates' && payload.case_dates.length === 0) {
         throw new Error('日付指定の場合、日付を1つ以上選択してください。');
       }
+
+      payload.case_dates.forEach(dateItem => {
+        if (!dateItem.has_condition_override) return;
+        if (!dateItem.work_start_time || !dateItem.work_end_time || dateItem.work_end_time <= dateItem.work_start_time) {
+          throw new Error(`${dateItem.work_date} の基本時間を正しく入力してください。`);
+        }
+        if (dateItem.has_alternate_time_workers) {
+          if (dateItem.alternate_worker_count < 1 || dateItem.alternate_worker_count >= payload.same_condition_count) {
+            throw new Error(`${dateItem.work_date} の異時間者数は、1以上かつ必要人数未満にしてください。`);
+          }
+          if (!dateItem.alternate_work_start_time || !dateItem.alternate_work_end_time || dateItem.alternate_work_end_time <= dateItem.alternate_work_start_time) {
+            throw new Error(`${dateItem.work_date} の異時間者の時間を正しく入力してください。`);
+          }
+          if (dateItem.alternate_amount_enabled && payload.amount_type !== 'per_person_day') {
+            throw new Error(`${dateItem.work_date} の別単価は「1コマ・1日あたり」の場合だけ設定できます。`);
+          }
+          if (dateItem.alternate_amount_enabled && dateItem.alternate_amount === '') {
+            throw new Error(`${dateItem.work_date} の異時間者単価を入力してください。`);
+          }
+        }
+      });
 
       if (payload.input_mode === 'days' && !payload.requested_days) {
         throw new Error('日数指定の場合、希望日数を入力してください。');
