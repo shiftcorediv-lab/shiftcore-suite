@@ -323,7 +323,7 @@ function syncDraftShiftAssignmentTimesByCaseId_(caseId, commonTimes, caseDateTim
 
   const headers = values[0].map(function(header) { return String(header || '').trim(); });
   const requiredHeaders = [
-    'case_id', 'case_date_id', 'assignment_status', 'start_time', 'end_time',
+    'assignment_id', 'case_id', 'case_date_id', 'assignment_status', 'start_time', 'end_time',
     'updated_at', 'updated_by', 'archived'
   ];
   const indexes = {};
@@ -350,8 +350,9 @@ function syncDraftShiftAssignmentTimesByCaseId_(caseId, commonTimes, caseDateTim
     const status = String(row[indexes.assignment_status] || '').trim().toLowerCase();
     if (archived || status === 'archived' || status === 'cancelled') continue;
 
-    // 現行の未確定状態だけ自動更新する。将来の確定・公開状態は勝手に変更しない。
-    if (status !== '' && status !== 'draft') {
+    // 未確定と明示された draft だけ自動更新する。空欄や変更待ち、確定・公開状態は
+    // 意味を推測せず保護する。別GASで同時に操作されるため、直前にも再確認する。
+    if (status !== 'draft') {
       protectedCount += 1;
       continue;
     }
@@ -365,11 +366,37 @@ function syncDraftShiftAssignmentTimesByCaseId_(caseId, commonTimes, caseDateTim
       String(row[indexes.end_time] || '').trim() === nextEnd
     ) continue;
 
-    row[indexes.start_time] = nextStart;
-    row[indexes.end_time] = nextEnd;
-    row[indexes.updated_at] = updatedAt;
-    row[indexes.updated_by] = operator;
-    sheet.getRange(rowIndex + 1, 1, 1, headers.length).setValues([row]);
+    const rowNumber = rowIndex + 1;
+    const liveRow = sheet.getRange(rowNumber, 1, 1, headers.length).getValues()[0];
+    if (String(liveRow[indexes.assignment_id] || '').trim() !== String(row[indexes.assignment_id] || '').trim()) {
+      throw new Error('アサイン行の並び順が変わったため、時刻同期を中止しました。');
+    }
+    const liveArchived = liveRow[indexes.archived] === true ||
+      String(liveRow[indexes.archived] || '').trim().toLowerCase() === 'true';
+    const liveStatus = String(liveRow[indexes.assignment_status] || '').trim().toLowerCase();
+    if (liveArchived || liveStatus === 'archived' || liveStatus === 'cancelled') continue;
+    if (liveStatus !== 'draft') {
+      protectedCount += 1;
+      continue;
+    }
+
+    // 行全体を古い値で書き戻さず、今回の責務である時刻と監査列だけを更新する。
+    sheet.getRange(rowNumber, indexes.start_time + 1).setValue(nextStart);
+    sheet.getRange(rowNumber, indexes.end_time + 1).setValue(nextEnd);
+    sheet.getRange(rowNumber, indexes.updated_at + 1).setValue(updatedAt);
+    sheet.getRange(rowNumber, indexes.updated_by + 1).setValue(operator);
+
+    SpreadsheetApp.flush();
+    const verifiedRow = sheet.getRange(rowNumber, 1, 1, headers.length).getValues()[0];
+    const verifiedStatus = String(verifiedRow[indexes.assignment_status] || '').trim().toLowerCase();
+    if (
+      String(verifiedRow[indexes.assignment_id] || '').trim() !== String(row[indexes.assignment_id] || '').trim() ||
+      verifiedStatus !== 'draft' ||
+      String(verifiedRow[indexes.start_time] || '').trim() !== nextStart ||
+      String(verifiedRow[indexes.end_time] || '').trim() !== nextEnd
+    ) {
+      throw new Error('アサイン時刻の更新結果を確認できませんでした。');
+    }
     updatedCount += 1;
   }
 
