@@ -11,7 +11,7 @@ import {
   getShiftBuilderAssignmentCandidates,
   sendShiftBuilderPersonnelIcs,
   SHIFTBUILDER_DATA_REVISION_KEY
-} from "./api.js?v=20260801-authfix-1";
+} from "./api.js?v=20260803-oc-timesync-1";
 import { mockShiftData } from "./mock-data.js?v=20260801-authfix-1";
 import { escapeHtml } from "./utils.js?v=20260801-authfix-1";
 import { getPermissionLabel, canEdit } from "./permissions.js?v=20260801-authfix-1";
@@ -2694,6 +2694,8 @@ async function replaceAssignmentFromSelectedCell(internalUserId, replaceAssignme
       caseDateId: cell.case_date_id || "",
       workDate: workDate,
       internalUserId: targetInternalUserId,
+      startTime: cell.start_time || "",
+      endTime: cell.end_time || "",
       assignmentNote: "ShiftBuilder画面から入れ替え"
     });
 
