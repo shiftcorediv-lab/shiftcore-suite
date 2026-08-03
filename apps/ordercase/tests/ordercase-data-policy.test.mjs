@@ -40,19 +40,21 @@ test('人数は整数、金額は許可区分の0以上だけを許可する', (
 
 test('OC時刻変更は未確定アサインだけ更新し、確定状態を保護する', () => {
   const values = [
-    ['case_id', 'case_date_id', 'assignment_status', 'start_time', 'end_time', 'updated_at', 'updated_by', 'archived'],
-    ['CASE-1', 'DATE-1', 'draft', '10:00', '18:00', '', '', false],
-    ['CASE-1', 'DATE-1', 'confirmed', '10:00', '18:00', '', '', false],
-    ['CASE-1', 'DATE-1', 'archived', '10:00', '18:00', '', '', true],
-    ['CASE-2', 'DATE-1', 'draft', '10:00', '18:00', '', '', false]
+    ['assignment_id', 'case_id', 'case_date_id', 'assignment_status', 'start_time', 'end_time', 'updated_at', 'updated_by', 'archived', 'assignment_note'],
+    ['A-1', 'CASE-1', 'DATE-1', 'draft', '10:00', '18:00', '', '', false, 'SB入力は維持'],
+    ['A-2', 'CASE-1', 'DATE-1', 'confirmed', '10:00', '18:00', '', '', false, '保護'],
+    ['A-3', 'CASE-1', 'DATE-1', 'archived', '10:00', '18:00', '', '', true, '対象外'],
+    ['A-4', 'CASE-1', 'DATE-1', '', '10:00', '18:00', '', '', false, '状態不明'],
+    ['A-5', 'CASE-2', 'DATE-1', 'draft', '10:00', '18:00', '', '', false, '別案件']
   ];
   const writes = [];
   const sheet = {
     getDataRange: () => ({ getValues: () => values.map(row => row.slice()) }),
-    getRange: rowNumber => ({
-      setValues: rows => {
-        writes.push({ rowNumber, row: rows[0].slice() });
-        values[rowNumber - 1] = rows[0].slice();
+    getRange: (rowNumber, columnNumber, numRows, numColumns) => ({
+      getValues: () => [values[rowNumber - 1].slice(0, numColumns)],
+      setValue: value => {
+        writes.push({ rowNumber, columnNumber, value });
+        values[rowNumber - 1][columnNumber - 1] = value;
       }
     })
   };
@@ -76,11 +78,13 @@ test('OC時刻変更は未確定アサインだけ更新し、確定状態を保
     new Date()
   );
 
-  assert.deepEqual({ ...result }, { updated_count: 1, protected_count: 1 });
-  assert.equal(writes.length, 1);
-  assert.equal(writes[0].row[3], '10:30');
-  assert.equal(writes[0].row[4], '17:30');
-  assert.equal(values[2][3], '10:00');
+  assert.deepEqual({ ...result }, { updated_count: 1, protected_count: 2 });
+  assert.equal(writes.length, 4);
+  assert.equal(values[1][4], '10:30');
+  assert.equal(values[1][5], '17:30');
+  assert.equal(values[1][9], 'SB入力は維持');
+  assert.equal(values[2][4], '10:00');
+  assert.equal(values[4][4], '10:00');
 });
 
 test('担当者入れ替えAPIへ選択セルの開始・終了時刻を渡す', () => {
