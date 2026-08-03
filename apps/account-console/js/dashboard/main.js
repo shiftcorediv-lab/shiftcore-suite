@@ -3,7 +3,7 @@ import { getStoredUser, saveStoredUser, clearStoredUser } from "./storage.js?v=2
 import { goToLogin } from "./navigation.js?v=20260803-role-1";
 import { renderModules, renderModuleMenu } from "./modules.js?v=20260803-role-1";
 import { attendanceRequest } from "./attendance-api.js?v=20260802-attendance-3";
-import { checkUserWithGas } from "../login/api.js?v=20260802-modules-2";
+import { resolveCurrentUserWithGasByIdToken } from "../login/api.js?v=20260803-logintoken-1";
 import { LOCATION_CONSENT_VERSION } from "./config.js?v=20260802-attendance-2";
 
 const $ = id => document.getElementById(id);
@@ -33,13 +33,14 @@ onAuthStateChanged(auth, async user => {
     goToLogin();
     return;
   }
-  await refreshModuleAccess(user.email);
+  await refreshModuleAccess(user);
   await loadDashboard();
 });
 
-async function refreshModuleAccess(email) {
+async function refreshModuleAccess(firebaseUser) {
   try {
-    const result = await checkUserWithGas(email);
+    const idToken = await firebaseUser.getIdToken();
+    const result = await resolveCurrentUserWithGasByIdToken(idToken);
     if (!result?.ok || !result.user) return;
     saveStoredUser(result.user);
     renderIdentity(result.user);
