@@ -524,21 +524,21 @@
 
       <div class="grid two">
         <div>
-          <label for="amount">金額</label>
-          <input id="amount" type="number" min="0" />
-        </div>
-
-        <div>
           <label for="amountType">金額区分</label>
           <select id="amountType">
             <option value="">未入力</option>
             <option value="per_day">1日あたり</option>
-            <option value="per_person_day">1人日あたり</option>
+            <option value="per_person_day">1コマ・1日あたり</option>
             <option value="per_line_day">1枠日あたり</option>
             <option value="per_case">案件一式</option>
             <option value="monthly">月額</option>
             <option value="other">その他</option>
           </select>
+        </div>
+
+        <div>
+          <label for="amount">金額</label>
+          <input id="amount" type="number" min="0" placeholder="先に金額区分を選択" disabled />
         </div>
 
         <div>
@@ -764,6 +764,15 @@
       });
 
       document.getElementById('saveButton').addEventListener('click', submitUpdateCase);
+      document.getElementById('amountType').addEventListener('change', updateAmountInputState);
+    }
+
+    function updateAmountInputState() {
+      const amountType = document.getElementById('amountType').value;
+      const amountInput = document.getElementById('amount');
+      amountInput.disabled = !amountType;
+      amountInput.placeholder = amountType ? '金額を入力' : '先に金額区分を選択';
+      if (!amountType) amountInput.value = '';
     }
     /****************************************************
      * setupEventListeners ここまで
@@ -1119,6 +1128,7 @@
 
       setValue('amount', item.amount);
       setValue('amountType', item.amount_type);
+      updateAmountInputState();
       setValue('taxType', item.tax_type);
       setValue('amountMemo', item.amount_memo);
 

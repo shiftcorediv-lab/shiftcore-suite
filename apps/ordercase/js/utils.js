@@ -163,7 +163,7 @@ function getSkillName(value) {
 function getAmountTypeName(value) {
   const map = {
     per_day: '1日あたり',
-    per_person_day: '1人日あたり',
+    per_person_day: '1コマ・1日あたり',
     per_line_day: '1枠日あたり',
     per_case: '案件一式',
     monthly: '月額',
