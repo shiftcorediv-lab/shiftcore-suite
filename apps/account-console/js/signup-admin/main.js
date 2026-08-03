@@ -18,9 +18,9 @@ import {
   setActionButtonsEnabled,
   getApprovalSummary,
   showMessage
-} from "./ui.js?v=20260802-signup-auth-1";
-import { canUseSignupAdmin, goToAccountPortal } from "./navigation.js?v=20260802-signup-auth-1";
-import { fetchSignupRequests, approveSignupRequest, rejectSignupRequest } from "./api.js?v=20260802-signup-auth-1";
+} from "./ui.js?v=20260803-role-1";
+import { canUseSignupAdmin, goToAccountPortal } from "./navigation.js?v=20260803-role-1";
+import { fetchSignupRequests, approveSignupRequest, rejectSignupRequest } from "./api.js?v=20260803-role-1";
 import { requireAuthenticatedSession } from "../common/auth-session.js?v=20260802-signup-auth-1";
 
 const params = getQueryParams();

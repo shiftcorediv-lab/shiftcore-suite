@@ -1,4 +1,4 @@
-import { PMO_ADMIN_API_URL } from "./config.js";
+import { PMO_ADMIN_API_URL } from "./config.js?v=20260803-role-1";
 
 async function postJson(body) {
   const response = await fetch(PMO_ADMIN_API_URL, {

@@ -167,7 +167,7 @@ export function applyApprovalDefaults(request) {
   const companyName = String(request?.company_name || "").trim();
 
   if (type === "employee" || type === "member" || type === "internal") {
-    roleSelect.value = "employee";
+    roleSelect.value = "member";
     organizationIdInput.value = "internal";
     allowedModulesInput.value = "pmo";
     statusSelect.value = "active";
