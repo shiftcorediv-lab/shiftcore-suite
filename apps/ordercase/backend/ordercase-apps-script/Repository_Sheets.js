@@ -313,6 +313,69 @@ function archiveActiveShiftAssignmentsByCaseId_(
     remaining_active_count: 0
   };
 }
+
+function syncDraftShiftAssignmentTimesByCaseId_(caseId, commonTimes, caseDateTimes, updatedBy, now) {
+  const sheet = getShiftAssignmentsSheetForOrderCase_();
+  const values = sheet.getDataRange().getValues();
+  if (!values.length) {
+    return { updated_count: 0, protected_count: 0 };
+  }
+
+  const headers = values[0].map(function(header) { return String(header || '').trim(); });
+  const requiredHeaders = [
+    'case_id', 'case_date_id', 'assignment_status', 'start_time', 'end_time',
+    'updated_at', 'updated_by', 'archived'
+  ];
+  const indexes = {};
+  requiredHeaders.forEach(function(header) {
+    const index = headers.indexOf(header);
+    if (index === -1) throw new Error('shift_assignments に必須列がありません: ' + header);
+    indexes[header] = index;
+  });
+
+  const effectiveByDateId = caseDateTimes || {};
+  const commonStart = String((commonTimes || {}).start_time || '').trim();
+  const commonEnd = String((commonTimes || {}).end_time || '').trim();
+  const operator = String(updatedBy || 'OrderCase').trim() || 'OrderCase';
+  const updatedAt = formatDate_(now || new Date(), "yyyy-MM-dd'T'HH:mm:ssXXX");
+  let updatedCount = 0;
+  let protectedCount = 0;
+
+  for (let rowIndex = 1; rowIndex < values.length; rowIndex++) {
+    const row = values[rowIndex];
+    if (String(row[indexes.case_id] || '').trim() !== String(caseId || '').trim()) continue;
+
+    const archived = row[indexes.archived] === true ||
+      String(row[indexes.archived] || '').trim().toLowerCase() === 'true';
+    const status = String(row[indexes.assignment_status] || '').trim().toLowerCase();
+    if (archived || status === 'archived' || status === 'cancelled') continue;
+
+    // 現行の未確定状態だけ自動更新する。将来の確定・公開状態は勝手に変更しない。
+    if (status !== '' && status !== 'draft') {
+      protectedCount += 1;
+      continue;
+    }
+
+    const caseDateId = String(row[indexes.case_date_id] || '').trim();
+    const dateTimes = effectiveByDateId[caseDateId] || {};
+    const nextStart = String(dateTimes.start_time || commonStart).trim();
+    const nextEnd = String(dateTimes.end_time || commonEnd).trim();
+    if (
+      String(row[indexes.start_time] || '').trim() === nextStart &&
+      String(row[indexes.end_time] || '').trim() === nextEnd
+    ) continue;
+
+    row[indexes.start_time] = nextStart;
+    row[indexes.end_time] = nextEnd;
+    row[indexes.updated_at] = updatedAt;
+    row[indexes.updated_by] = operator;
+    sheet.getRange(rowIndex + 1, 1, 1, headers.length).setValues([row]);
+    updatedCount += 1;
+  }
+
+  if (updatedCount > 0) SpreadsheetApp.flush();
+  return { updated_count: updatedCount, protected_count: protectedCount };
+}
 /****************************************************
  * 案件無効化連動アサイン解除 ここまで
  ****************************************************/
