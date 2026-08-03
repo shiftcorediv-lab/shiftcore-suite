@@ -33,7 +33,7 @@ function handleGet_(e) {
 
     if (action === 'listStoresMaster') {
       const context = requireOrderCaseViewer_(getIdTokenFromParams_(params));
-      return jsonResponse_({ ok: true, action: action, permission: context.permission, data: getActiveStoresMaster_() });
+      return jsonResponse_({ ok: true, action: action, permission: context.permission, data: getStoresMasterForManagement_() });
     }
 
 

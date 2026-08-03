@@ -18,6 +18,9 @@ function ensureStoreMaster_(payload, caseId) {
   const existing = findStoreMasterByNames_(agencyName, storeName);
 
   if (existing) {
+    if (String(existing.status || 'active') === 'archived') {
+      throw new Error('この店舗はアーカイブ済みです。店舗マスターで復元してください。');
+    }
     return existing;
   }
 
@@ -92,6 +95,10 @@ function getActiveStoresMaster_() {
   });
 }
 
+function getStoresMasterForManagement_() {
+  return getSheetObjects_(SHEET_STORES_MASTER);
+}
+
 function ensureStoreMasterLocationColumns_() {
   const sheet = getSheetForUpdate_(SHEET_STORES_MASTER);
   const lastColumn = Math.max(sheet.getLastColumn(), 1);
@@ -127,6 +134,7 @@ function updateStoreMaster_(payload) {
     store_area: String(payload.store_area || '').trim(),
     address: String(payload.address || '').trim(),
     nearest_station: String(payload.nearest_station || '').trim(),
+    status: String(payload.status || 'active').trim() === 'archived' ? 'archived' : 'active',
     updated_at: new Date()
   };
   if (!record.agency_name || !record.store_name) throw new Error('代理店名と店舗名は必須です。');

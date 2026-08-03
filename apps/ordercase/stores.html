@@ -1,87 +1,28 @@
 <!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OrderCase 店舗マスター</title>
-  <link rel="stylesheet" href="./css/common.css" />
-  <script defer src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
-  <script defer src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
-  <style>
-    main { max-width: 980px; }
-    .store-list { display: grid; gap: 12px; }
-    .store-card { padding: 14px; border: 1px solid #e3e7eb; border-radius: 12px; background: #fff; }
-    .store-title { font-weight: bold; margin-bottom: 10px; }
-    .actions { display: flex; justify-content: flex-end; margin-top: 10px; }
-  </style>
-</head>
-<body>
-  <header id="ordercaseHeader"></header>
-  <main>
-    <section>
-      <h2>店舗マスター</h2>
-      <p class="hint">案件登録の候補として使う正式情報です。保存しても過去案件の店舗名は一括変更しません。</p>
-      <input id="searchInput" placeholder="代理店名・店舗名・略称で検索" />
-      <div id="messageBox" class="message"></div>
-    </section>
-    <div id="storeList" class="store-list"></div>
-  </main>
-  <script src="./js/config.js"></script><script src="./js/utils.js"></script>
-  <script src="./js/auth-session.js"></script><script src="./js/api.js"></script>
-  <script src="./js/navigation.js"></script>
-  <script>
-    const state = { stores: [], permission: '' };
-    document.addEventListener('DOMContentLoaded', async () => {
-      try {
-        renderOrderCaseHeader('stores', '店舗マスター編集');
-        const permission = await fetchApiJson('getOrderCasePermission');
-        if (!permission.ok || !permission.data?.can_edit) throw new Error('店舗マスターの編集権限がありません。');
-        state.permission = permission.permission;
-        await loadStores();
-        document.getElementById('searchInput').addEventListener('input', renderStores);
-      } catch (error) { setMessage(error.message, 'error'); }
-    });
-    async function loadStores() {
-      const json = await fetchApiJson('listStoresMaster');
-      if (!json.ok) throw new Error(json.message || '店舗一覧を取得できませんでした。');
-      state.stores = json.data || [];
-      renderStores();
-    }
-    function normalizeText(value) {
-      return String(value || '').trim().normalize('NFKC').replace(/\s+/g, '').toLowerCase();
-    }
-    function renderStores() {
-      const keyword = normalizeText(document.getElementById('searchInput').value);
-      const rows = state.stores.filter(row => !keyword || normalizeText([row.agency_name,row.store_name,row.store_short_name].join(' ')).includes(keyword));
-      document.getElementById('storeList').innerHTML = rows.map(row => `
-        <div class="store-card" data-store-id="${escapeHtml(row.store_id)}">
-          <div class="store-title">${escapeHtml(row.store_id)} / ${escapeHtml(row.store_name)}</div>
-          <div class="grid two">
-            <div><label>代理店名</label><input data-field="agency_name" value="${escapeHtml(row.agency_name)}"></div>
-            <div><label>正式店舗名</label><input data-field="store_name" value="${escapeHtml(row.store_name)}"></div>
-            <div><label>店舗略称</label><input data-field="store_short_name" value="${escapeHtml(row.store_short_name)}"></div>
-            <div><label>エリア</label><input data-field="store_area" value="${escapeHtml(row.store_area)}"></div>
-            <div><label>住所</label><input data-field="address" value="${escapeHtml(row.address)}"></div>
-            <div><label>最寄り駅</label><input data-field="nearest_station" value="${escapeHtml(row.nearest_station)}"></div>
-          </div>
-          <div class="actions"><button type="button" data-save>この店舗を保存</button></div>
-        </div>`).join('') || '<p class="hint">該当する店舗はありません。</p>';
-      document.querySelectorAll('[data-save]').forEach(button => button.addEventListener('click', saveStore));
-    }
-    async function saveStore(event) {
-      const card = event.target.closest('[data-store-id]');
-      const payload = { store_id: card.dataset.storeId };
-      card.querySelectorAll('[data-field]').forEach(input => payload[input.dataset.field] = input.value.trim());
-      event.target.disabled = true;
-      try {
-        const json = await postOrderCaseAction('updateStoreMaster', payload);
-        if (!json.ok) throw new Error(json.message || '保存できませんでした。');
-        setMessage(`${payload.store_name}を保存しました。`, 'success');
-        await loadStores();
-      } catch (error) { setMessage(error.message, 'error'); }
-      finally { event.target.disabled = false; }
-    }
-    function setMessage(text, type) { const box = document.getElementById('messageBox'); box.textContent = text; box.className = `message ${type || ''}`; }
-  </script>
-</body>
-</html>
+<html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OrderCase 店舗マスター</title><link rel="stylesheet" href="./css/common.css">
+<script defer src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script><script defer src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
+<style>
+main{max-width:980px}.toolbar{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center}.store-list{display:grid;gap:8px}.store-row{display:grid;grid-template-columns:1.1fr 1.5fr 1fr .7fr auto;gap:10px;align-items:center;padding:12px;border:1px solid #e3e7eb;border-radius:10px;background:#fff}.store-row.archived{opacity:.65}.badge{font-size:12px;padding:3px 7px;border-radius:99px;background:#e8f5e9;color:#2e7d32}.archived .badge{background:#eee;color:#666}.dialog-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:2000}.dialog{width:min(680px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:14px;padding:20px}.actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}.danger{background:#b3261e}.hidden{display:none!important}@media(max-width:760px){.store-row{grid-template-columns:1fr auto}.store-row>span:nth-child(3),.store-row>span:nth-child(4){display:none}}
+</style></head><body><header id="ordercaseHeader"></header><main>
+<section><h2>店舗マスター</h2><p class="hint">一覧から店舗を選んで編集します。アーカイブしても過去案件は変更されません。</p>
+<div class="toolbar"><input id="searchInput" placeholder="代理店名・店舗名・略称で検索"><label><input id="showArchived" type="checkbox"> アーカイブ済みも表示</label></div><div id="messageBox" class="message"></div></section>
+<div id="storeList" class="store-list"></div></main>
+<div id="editorBackdrop" class="dialog-backdrop hidden"><div class="dialog"><h2 id="editorTitle">店舗編集</h2><input id="editStoreId" type="hidden"><div class="grid two">
+<div><label>代理店名</label><input id="editAgencyName"></div><div><label>正式店舗名</label><input id="editStoreName"></div><div><label>店舗略称</label><input id="editStoreShortName"></div><div><label>エリア</label><input id="editStoreArea"></div><div><label>住所</label><input id="editAddress"></div><div><label>最寄り駅</label><input id="editNearestStation"></div></div>
+<div class="actions"><button id="archiveButton" type="button" class="danger">アーカイブ</button><button id="cancelButton" type="button" class="secondary">閉じる</button><button id="saveButton" type="button">保存</button></div></div></div>
+<script src="./js/config.js"></script><script src="./js/utils.js"></script><script src="./js/auth-session.js"></script><script src="./js/api.js"></script><script src="./js/navigation.js"></script>
+<script>
+const state={stores:[],editing:null};
+const searchInput=document.getElementById('searchInput'),showArchived=document.getElementById('showArchived'),storeList=document.getElementById('storeList'),messageBox=document.getElementById('messageBox'),editorBackdrop=document.getElementById('editorBackdrop'),editorTitle=document.getElementById('editorTitle'),editStoreId=document.getElementById('editStoreId'),editAgencyName=document.getElementById('editAgencyName'),editStoreName=document.getElementById('editStoreName'),editStoreShortName=document.getElementById('editStoreShortName'),editStoreArea=document.getElementById('editStoreArea'),editAddress=document.getElementById('editAddress'),editNearestStation=document.getElementById('editNearestStation'),archiveButton=document.getElementById('archiveButton'),cancelButton=document.getElementById('cancelButton'),saveButton=document.getElementById('saveButton');
+document.addEventListener('DOMContentLoaded',async()=>{try{renderOrderCaseHeader('stores','店舗マスター');const p=await fetchApiJson('getOrderCasePermission');if(!p.ok||!p.data?.can_edit)throw new Error('店舗マスターの編集権限がありません。');await loadStores();searchInput.addEventListener('input',renderStores);showArchived.addEventListener('change',renderStores);cancelButton.addEventListener('click',closeEditor);saveButton.addEventListener('click',()=>saveStore(state.editing?.status||'active'));archiveButton.addEventListener('click',toggleArchive);}catch(e){setMessage(e.message,'error')}});
+async function loadStores(){const j=await fetchApiJson('listStoresMaster');if(!j.ok)throw new Error(j.message||'店舗一覧を取得できませんでした。');state.stores=j.data||[];renderStores()}
+function normalizeText(v){return String(v||'').trim().normalize('NFKC').replace(/\s+/g,'').toLowerCase()}
+function renderStores(){const k=normalizeText(searchInput.value),show=showArchived.checked;const rows=state.stores.filter(r=>(show||String(r.status||'active')!=='archived')&&(!k||normalizeText([r.agency_name,r.store_name,r.store_short_name].join(' ')).includes(k)));storeList.innerHTML=rows.map(r=>`<div class="store-row ${r.status==='archived'?'archived':''}"><span>${escapeHtml(r.agency_name)}</span><strong>${escapeHtml(r.store_name)}</strong><span>${escapeHtml(r.store_short_name||'-')}</span><span class="badge">${r.status==='archived'?'アーカイブ':'有効'}</span><button type="button" data-edit="${escapeHtml(r.store_id)}">編集</button></div>`).join('')||'<p class="hint">該当する店舗はありません。</p>';document.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>openEditor(b.dataset.edit)))}
+function openEditor(id){const r=state.stores.find(x=>x.store_id===id);if(!r)return;state.editing=r;editStoreId.value=r.store_id||'';editAgencyName.value=r.agency_name||'';editStoreName.value=r.store_name||'';editStoreShortName.value=r.store_short_name||'';editStoreArea.value=r.store_area||'';editAddress.value=r.address||'';editNearestStation.value=r.nearest_station||'';editorTitle.textContent=`店舗編集：${r.store_name||r.store_id}`;archiveButton.textContent=r.status==='archived'?'復元':'アーカイブ';archiveButton.classList.toggle('danger',r.status!=='archived');editorBackdrop.classList.remove('hidden')}
+function closeEditor(){editorBackdrop.classList.add('hidden');state.editing=null}
+function buildPayload(status){return{store_id:editStoreId.value,agency_name:editAgencyName.value.trim(),store_name:editStoreName.value.trim(),store_short_name:editStoreShortName.value.trim(),store_area:editStoreArea.value.trim(),address:editAddress.value.trim(),nearest_station:editNearestStation.value.trim(),status}}
+async function saveStore(status){const p=buildPayload(status);if(!p.agency_name||!p.store_name){setMessage('代理店名と店舗名は必須です。','error');return}saveButton.disabled=true;try{const j=await postOrderCaseAction('updateStoreMaster',p);if(!j.ok)throw new Error(j.message||'保存できませんでした。');setMessage(`${p.store_name}を保存しました。`,'success');closeEditor();await loadStores()}catch(e){setMessage(e.message,'error')}finally{saveButton.disabled=false}}
+async function toggleArchive(){if(!state.editing)return;const archived=state.editing.status==='archived';const action=archived?'復元':'アーカイブ';if(!confirm(`${state.editing.store_name}を${action}しますか？\n過去案件は変更されません。`))return;await saveStore(archived?'active':'archived')}
+function setMessage(t,type){messageBox.textContent=t;messageBox.className=`message ${type||''}`}
+</script></body></html>
