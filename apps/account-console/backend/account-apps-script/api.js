@@ -36,18 +36,15 @@ function doPost(e) {
     const action = normalizeText(body.action || getAction_(e));
 
     // ===== ログイン照合 ここから =====
+    // G-D: メール指定の照合は廃止。resolveCurrentUserByIdToken を使うこと。
+    // 旧クライアント（キャッシュ済みの画面）向けに、更新を促す応答を返す。
+    // この分岐は暫定である。撤去条件は C-10 を参照。
     if (action === "checkLoginUserByEmail") {
-      const email = normalizeText(body.email);
-
-      if (!email) {
-        return jsonResponse_({
-          ok: false,
-          code: "EMAIL_REQUIRED",
-          message: "email が必要です"
-        });
-      }
-
-      return jsonResponse_(checkLoginUserByEmail(email));
+      return jsonResponse_({
+        ok: false,
+        code: "CLIENT_UPDATE_REQUIRED",
+        message: "画面が古いため利用できません。ページを再読込してください。"
+      });
     }
     // ===== ログイン照合 ここまで =====
 
