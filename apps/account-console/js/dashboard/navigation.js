@@ -5,7 +5,7 @@ const PMO_PORTAL_URL = "./pmo-portal.html";
 const ACCOUNT_CONSOLE_URL = "./account-console.html";
 const SHIFTBUILDER_URL = "../shiftbuilder/";
 const ORDERCASE_URL = "../ordercase/";
-const PMO_PORTAL_ROLES = ["admin", "developer", "dev"];
+const PMO_PORTAL_ROLES = ["admin", "developer"];
 
 export function goToLogin() {
   window.location.href = LOGIN_PAGE_URL;

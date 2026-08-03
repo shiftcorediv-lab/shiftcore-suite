@@ -1,4 +1,4 @@
-import { ACCOUNT_CONSOLE_URL, ACCOUNT_PORTAL_URL, SIGNUP_ADMIN_ALLOWED_ROLES } from "./config.js?v=20260802-signup-auth-1";
+import { ACCOUNT_CONSOLE_URL, ACCOUNT_PORTAL_URL, SIGNUP_ADMIN_ALLOWED_ROLES } from "./config.js?v=20260803-role-1";
 
 export function canUseSignupAdmin(currentUser) {
   const role = String(currentUser?.role || "").trim().toLowerCase();

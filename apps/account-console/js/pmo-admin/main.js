@@ -22,12 +22,12 @@ import {
   goToDashboard,
   openUrl,
   downloadExcelFile
-} from "./navigation.js?v=20260802-modules-1";
+} from "./navigation.js?v=20260803-role-1";
 import {
   fetchPmoAdminMeta,
   fetchMonthlyExcel,
   fetchPmoMonthlyTable
-} from "./api.js";
+} from "./api.js?v=20260803-role-1";
 import { requireAuthenticatedSession } from "../common/auth-session.js";
 
 const params = getQueryParams();

@@ -181,7 +181,7 @@ async function saveUser(event) {
 
     const modules = String(user.allowed_modules || "").split(",").map(value => value.trim()).filter(Boolean);
     const role = String(user.role || "").trim().toLowerCase();
-    const isAdministrator = ["admin", "developer", "dev"].includes(role);
+    const isAdministrator = ["admin", "developer"].includes(role);
 
     if (modules.includes("account_console") && !isAdministrator) {
       throw new Error("Account Consoleは、管理者・役員・開発者のみ許可できます");

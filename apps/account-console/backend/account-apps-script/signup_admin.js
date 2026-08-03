@@ -1,5 +1,5 @@
 // ===== signup承認の操作者確認ここから =====
-const SIGNUP_ADMIN_ALLOWED_ROLES_SERVER = ["admin", "dev", "developer"];
+const SIGNUP_ADMIN_ALLOWED_ROLES_SERVER = ["admin", "developer"];
 
 function requireSignupAdminOperator_(body) {
   const idToken = normalizeText(body.idToken);

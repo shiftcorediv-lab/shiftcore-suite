@@ -8,12 +8,10 @@ const ACCOUNT_CHANGE_LOGS_SHEET_NAME = "account_change_logs";
 const ACCOUNT_CONSOLE_MODULE_KEY = "account_console";
 
 const VALID_ACCOUNT_ROLES = [
-  "dev",
+  "developer",
   "admin",
   "member",
-  "employee",
   "partner_individual",
-  "partner_company",
   "partner_company_admin",
   "agency"
 ];

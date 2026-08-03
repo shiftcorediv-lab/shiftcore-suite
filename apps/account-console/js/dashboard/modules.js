@@ -1,9 +1,9 @@
 import { MODULE_NAME_MAP, MODULE_DESCRIPTION_MAP } from "./config.js?v=20260802-reorder-1";
 import { moduleList, userModuleList } from "./dom.js";
-import { openModule } from "./navigation.js?v=20260802-modules-2";
+import { openModule } from "./navigation.js?v=20260803-role-1";
 
 const MODULE_ALIASES = { account: "account_console", shiftbuilder: "shift", order_case: "ordercase" };
-const ADMIN_ROLES = ["admin", "developer", "dev"];
+const ADMIN_ROLES = ["admin", "developer"];
 const ORDERCASE_PERMISSIONS = ["all", "edit", "view", "view_without_amount"];
 const SHIFT_PERMISSIONS = ["all", "manager", "edit", "view", "self"];
 const OPENABLE_MODULES = ["account_console", "pmo", "ordercase", "shift"];
