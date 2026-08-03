@@ -154,6 +154,73 @@ function testPerCaseAmountIsStoredOnce() {
   }
 }
 
+function testBuildDailyConditionOverridePayload() {
+  const payload = {
+    work_start_time: '10:00',
+    work_end_time: '18:00',
+    amount: '20000',
+    amount_type: 'per_person_day',
+    case_dates: [{
+      work_date: '2026-08-11',
+      has_condition_override: true,
+      work_start_time: '11:00',
+      work_end_time: '19:00',
+      has_alternate_time_workers: true,
+      alternate_worker_count: 1,
+      alternate_work_start_time: '10:30',
+      alternate_work_end_time: '17:30',
+      alternate_amount_enabled: true,
+      alternate_amount: '18000'
+    }]
+  };
+
+  validateCaseDateConditionOverrides_(payload, 3);
+
+  const normal = buildSinglePersonCasePayload_(payload, {
+    case_group_id: 'CG-2', copy_index: 1, copy_count: 3
+  }, { use_alternate_conditions: false });
+  const alternate = buildSinglePersonCasePayload_(payload, {
+    case_group_id: 'CG-2', copy_index: 3, copy_count: 3
+  }, { use_alternate_conditions: false });
+
+  if (normal.case_dates[0].work_start_time !== '11:00' || normal.case_dates[0].work_end_time !== '19:00') {
+    throw new Error('日別の基本時間が1人分の案件日付へ反映されていません。');
+  }
+  if (alternate.case_dates[0].work_start_time !== '10:30' || alternate.case_dates[0].work_end_time !== '17:30') {
+    throw new Error('日別の異時間者時間が1人分の案件日付へ反映されていません。');
+  }
+  if (alternate.case_dates[0].unit_amount_override !== '18000') {
+    throw new Error('日別の異時間者単価が案件日付へ反映されていません。');
+  }
+}
+
+function testDailyNormalConditionRestoresBaseAmount() {
+  const payload = {
+    work_start_time: '10:00',
+    work_end_time: '18:00',
+    amount: '20000',
+    amount_type: 'per_person_day',
+    alternate_work_start_time: '10:30',
+    alternate_work_end_time: '17:30',
+    alternate_amount_enabled: true,
+    alternate_amount: '18000',
+    case_dates: [{
+      work_date: '2026-08-12',
+      has_condition_override: true,
+      work_start_time: '11:00',
+      work_end_time: '19:00',
+      has_alternate_time_workers: false
+    }]
+  };
+  const globallyAlternate = buildSinglePersonCasePayload_(payload, {
+    case_group_id: 'CG-3', copy_index: 3, copy_count: 3
+  }, { use_alternate_conditions: true });
+
+  if (globallyAlternate.amount !== '18000' || globallyAlternate.case_dates[0].unit_amount_override !== '20000') {
+    throw new Error('日別に全員を基本条件へ戻した日の単価補正が不正です。');
+  }
+}
+
 function auditCancelledCaseAssignmentsDryRun() {
   const audit = auditCaseAssignmentsByStatusesDryRun_(['cancelled']);
   const result = {

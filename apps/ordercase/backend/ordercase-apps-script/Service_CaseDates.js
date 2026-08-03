@@ -32,6 +32,13 @@ function createCaseDates_(caseId, targetMonth, caseDates, options) {
       people_per_line: peoplePerLine,
       required_people: requiredPeople,
 
+      // 空欄は cases の共通条件を使用する。既存案件との後方互換を保つ。
+      work_start_time: dateItem.work_start_time || '',
+      work_end_time: dateItem.work_end_time || '',
+      unit_amount_override: dateItem.unit_amount_override === undefined
+        ? ''
+        : dateItem.unit_amount_override,
+
       memo: dateItem.memo || '',
 
       created_at: safeOptions.now,

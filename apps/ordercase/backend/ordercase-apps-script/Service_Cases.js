@@ -22,9 +22,11 @@ function createCase_(payload) {
   try {
     lock.waitLock(10000);
     ensureCaseRankColumn_();
+    ensureCaseDateConditionColumns_();
 
     const sameConditionCount = normalizeSameConditionCount_(payload.same_condition_count);
     const alternateWorkerCount = normalizeAlternateWorkerCount_(payload, sameConditionCount);
+    validateCaseDateConditionOverrides_(payload, sameConditionCount);
     const targetMonth = String(payload.target_month).trim();
     const inputMode = String(payload.input_mode || 'dates').trim();
 
@@ -252,6 +254,23 @@ function ensureCaseRankColumn_() {
  * ensureCaseRankColumn_ ここまで
  ****************************************************/
 
+function ensureCaseDateConditionColumns_() {
+  const sheet = getSheetForUpdate_(SHEET_CASE_DATES);
+  const lastColumn = Math.max(sheet.getLastColumn(), 1);
+  const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0].map(function(header) {
+    return String(header || '').trim();
+  });
+  const requiredHeaders = ['work_start_time', 'work_end_time', 'unit_amount_override'];
+  let nextColumn = lastColumn + 1;
+
+  requiredHeaders.forEach(function(header) {
+    if (headers.indexOf(header) === -1) {
+      sheet.getRange(1, nextColumn).setValue(header);
+      nextColumn += 1;
+    }
+  });
+}
+
 /****************************************************
  * normalizeCaseRank_ ここから
  * 案件ランクを A / B / C に正規化する。既存案件の空欄は B と扱う。
@@ -360,11 +379,43 @@ function buildSinglePersonCasePayload_(payload, copyInfo, options) {
 
   if (Array.isArray(payload.case_dates)) {
     normalized.case_dates = payload.case_dates.map(function(dateItem) {
+      const dailyOverride = dateItem.has_condition_override === true || dateItem.has_condition_override === 'true';
+      const dailyAlternateCount = dailyOverride && (dateItem.has_alternate_time_workers === true || dateItem.has_alternate_time_workers === 'true')
+        ? Number(dateItem.alternate_worker_count || 0)
+        : 0;
+      const copyIndex = Number(safeCopyInfo.copy_index || 1);
+      const copyCount = Number(safeCopyInfo.copy_count || 1);
+      const useDailyAlternate = dailyAlternateCount > 0 && copyIndex > copyCount - dailyAlternateCount;
+      const effectiveStart = dailyOverride
+        ? String(useDailyAlternate ? dateItem.alternate_work_start_time : dateItem.work_start_time || '').trim()
+        : normalized.work_start_time;
+      const effectiveEnd = dailyOverride
+        ? String(useDailyAlternate ? dateItem.alternate_work_end_time : dateItem.work_end_time || '').trim()
+        : normalized.work_end_time;
+      let unitAmountOverride = '';
+
+      if (dailyOverride && payload.amount_type === 'per_person_day') {
+        let effectiveAmount = payload.amount;
+        if (useDailyAlternate) {
+          if (dateItem.alternate_amount_enabled === true || dateItem.alternate_amount_enabled === 'true') {
+            effectiveAmount = dateItem.alternate_amount;
+          } else if (payload.alternate_amount_enabled === true || payload.alternate_amount_enabled === 'true') {
+            effectiveAmount = payload.alternate_amount;
+          }
+        }
+        if (String(effectiveAmount ?? '') !== String(normalized.amount ?? '')) {
+          unitAmountOverride = effectiveAmount;
+        }
+      }
+
       return {
         work_date: dateItem.work_date,
         required_lines: 1,
         people_per_line: 1,
         required_people: 1,
+        work_start_time: effectiveStart === normalized.work_start_time ? '' : effectiveStart,
+        work_end_time: effectiveEnd === normalized.work_end_time ? '' : effectiveEnd,
+        unit_amount_override: unitAmountOverride,
         memo: dateItem.memo || ''
       };
     });
@@ -415,6 +466,41 @@ function validateWorkTimeRange_(start, end, label) {
   if (end <= start) {
     throw new Error((label || '稼働時間') + 'の終了時刻は開始時刻より後にしてください。');
   }
+}
+
+function validateCaseDateConditionOverrides_(payload, totalCount) {
+  (payload.case_dates || []).forEach(function(dateItem) {
+    const enabled = dateItem.has_condition_override === true || dateItem.has_condition_override === 'true';
+    if (!enabled) return;
+
+    const label = String(dateItem.work_date || '日別条件');
+    validateWorkTimeRange_(
+      String(dateItem.work_start_time || '').trim(),
+      String(dateItem.work_end_time || '').trim(),
+      label + ' の基本時間'
+    );
+
+    const hasAlternate = dateItem.has_alternate_time_workers === true || dateItem.has_alternate_time_workers === 'true';
+    if (!hasAlternate) return;
+
+    const alternateCount = Number(dateItem.alternate_worker_count);
+    if (!Number.isInteger(alternateCount) || alternateCount < 1 || alternateCount >= totalCount) {
+      throw new Error(label + ' の異時間者数は、1以上かつ必要人数未満にしてください。');
+    }
+    validateWorkTimeRange_(
+      String(dateItem.alternate_work_start_time || '').trim(),
+      String(dateItem.alternate_work_end_time || '').trim(),
+      label + ' の異時間者時間'
+    );
+
+    const hasAmount = dateItem.alternate_amount_enabled === true || dateItem.alternate_amount_enabled === 'true';
+    if (hasAmount && payload.amount_type !== 'per_person_day') {
+      throw new Error(label + ' の別単価は「1コマ・1日あたり」の場合だけ設定できます。');
+    }
+    if (hasAmount && (dateItem.alternate_amount === '' || dateItem.alternate_amount === null || dateItem.alternate_amount === undefined)) {
+      throw new Error(label + ' の異時間者単価を入力してください。');
+    }
+  });
 }
 /****************************************************
  * buildSinglePersonCasePayload_ ここまで

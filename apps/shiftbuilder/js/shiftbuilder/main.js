@@ -2514,6 +2514,8 @@ async function createAssignmentFromSelectedCell(internalUserId) {
       caseDateId: cell.case_date_id || "",
       workDate: workDate,
       internalUserId: targetInternalUserId,
+      startTime: cell.start_time || "",
+      endTime: cell.end_time || "",
       assignmentNote: "ShiftBuilder画面から作成"
     });
 
