@@ -34,11 +34,11 @@ test("Shadow API失敗を隔離して既存初期化へ例外を漏らさない"
   assert.equal(warnings.length, 1);
 });
 
-test("ログインセッション全体をブラウザコンソールへ出力しない", () => {
+test("利用者・配置データをブラウザコンソールへ出力しない", () => {
   const mainSource = readFileSync(
     new URL("../js/shiftbuilder/main.js", import.meta.url),
     "utf8"
   );
 
-  assert.doesNotMatch(mainSource, /console\.log\([^\n]*auth session/);
+  assert.doesNotMatch(mainSource, /console\.log\s*\(/);
 });
