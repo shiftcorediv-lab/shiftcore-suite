@@ -11,6 +11,10 @@ const repositorySource = fs.readFileSync(
   new URL('../backend/ordercase-apps-script/Repository_Sheets.js', import.meta.url),
   'utf8'
 );
+const storesMasterSource = fs.readFileSync(
+  new URL('../backend/ordercase-apps-script/Service_StoresMaster.js', import.meta.url),
+  'utf8'
+);
 
 function loadServiceContext() {
   const context = vm.createContext({ console });
@@ -111,4 +115,56 @@ test('担当者入れ替えAPIへ選択セルの開始・終了時刻を渡す',
   assert.match(apiSource, /endTime:\s*params\.endTime/);
   assert.match(mainSource, /startTime:\s*cell\.start_time/);
   assert.match(mainSource, /endTime:\s*cell\.end_time/);
+});
+
+test('店舗状態の入力規則へアーカイブを追加する', () => {
+  const writes = [];
+  const existingRule = {
+    getCriteriaValues: () => [['active', 'inactive']]
+  };
+  const sheet = {
+    getLastColumn: () => 9,
+    getMaxRows: () => 1000,
+    getRange: (row, column, numRows = 1, numColumns = 1) => {
+      if (row === 1) {
+        return {
+          getValues: () => [[
+            'agency_id', 'agency_name', 'store_id', 'store_name', 'store_area', 'status',
+            'store_short_name', 'address', 'nearest_station'
+          ]]
+        };
+      }
+      if (row === 2 && column === 6 && numRows === 1 && numColumns === 1) {
+        return { getDataValidation: () => existingRule };
+      }
+      return {
+        setDataValidation: rule => writes.push({ row, column, numRows, numColumns, rule })
+      };
+    }
+  };
+  const context = vm.createContext({
+    SHEET_STORES_MASTER: 'stores_master',
+    getSheetForUpdate_: () => sheet,
+    SpreadsheetApp: {
+      newDataValidation: () => {
+        const values = [];
+        const builder = {
+          requireValueInList: list => { values.push(...list); return builder; },
+          setAllowInvalid: () => builder,
+          build: () => ({ values })
+        };
+        return builder;
+      }
+    }
+  });
+  vm.runInContext(storesMasterSource, context);
+
+  context.ensureStoreMasterLocationColumns_();
+
+  assert.equal(writes.length, 1);
+  assert.deepEqual([...writes[0].rule.values], ['active', 'inactive', 'archived']);
+  assert.deepEqual(
+    { row: writes[0].row, column: writes[0].column, numRows: writes[0].numRows, numColumns: writes[0].numColumns },
+    { row: 2, column: 6, numRows: 999, numColumns: 1 }
+  );
 });

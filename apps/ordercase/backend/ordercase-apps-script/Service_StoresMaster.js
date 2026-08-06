@@ -112,6 +112,30 @@ function ensureStoreMasterLocationColumns_() {
       nextColumn += 1;
     }
   });
+
+  // 店舗画面のアーカイブ状態は stores_master の正式な状態値。
+  // 既存シートには active / inactive の入力規則だけが残っているため、
+  // 先頭のデータ行を確認して必要な場合だけ規則を補正する。
+  const statusColumnIndex = headers.indexOf('status');
+  if (statusColumnIndex === -1) return;
+
+  const statusColumn = statusColumnIndex + 1;
+  const existingRule = sheet.getRange(2, statusColumn).getDataValidation();
+  const existingValues = existingRule && existingRule.getCriteriaValues
+    ? existingRule.getCriteriaValues()[0] || []
+    : [];
+  const hasArchived = existingValues.some(function(value) {
+    return String(value) === 'archived';
+  });
+
+  if (hasArchived) return;
+
+  const statusRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(['active', 'inactive', 'archived'], true)
+    .setAllowInvalid(false)
+    .build();
+  sheet.getRange(2, statusColumn, Math.max(sheet.getMaxRows() - 1, 1), 1)
+    .setDataValidation(statusRule);
 }
 
 function updateStoreMaster_(payload) {
