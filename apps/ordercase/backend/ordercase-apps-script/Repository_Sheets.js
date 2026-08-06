@@ -392,8 +392,8 @@ function syncDraftShiftAssignmentTimesByCaseId_(caseId, commonTimes, caseDateTim
     if (
       String(verifiedRow[indexes.assignment_id] || '').trim() !== String(row[indexes.assignment_id] || '').trim() ||
       verifiedStatus !== 'draft' ||
-      String(verifiedRow[indexes.start_time] || '').trim() !== nextStart ||
-      String(verifiedRow[indexes.end_time] || '').trim() !== nextEnd
+      normalizeShiftAssignmentTimeForCompare_(verifiedRow[indexes.start_time]) !== nextStart ||
+      normalizeShiftAssignmentTimeForCompare_(verifiedRow[indexes.end_time]) !== nextEnd
     ) {
       throw new Error('アサイン時刻の更新結果を確認できませんでした。');
     }
@@ -402,6 +402,17 @@ function syncDraftShiftAssignmentTimesByCaseId_(caseId, commonTimes, caseDateTim
 
   if (updatedCount > 0) SpreadsheetApp.flush();
   return { updated_count: updatedCount, protected_count: protectedCount };
+}
+
+function normalizeShiftAssignmentTimeForCompare_(value) {
+  if (
+    Object.prototype.toString.call(value) === '[object Date]' &&
+    !isNaN(value.getTime())
+  ) {
+    return formatDate_(value, 'HH:mm');
+  }
+
+  return String(value || '').trim();
 }
 /****************************************************
  * 案件無効化連動アサイン解除 ここまで

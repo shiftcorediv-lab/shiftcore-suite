@@ -51,7 +51,16 @@ test('OC時刻変更は未確定アサインだけ更新し、確定状態を保
   const sheet = {
     getDataRange: () => ({ getValues: () => values.map(row => row.slice()) }),
     getRange: (rowNumber, columnNumber, numRows, numColumns) => ({
-      getValues: () => [values[rowNumber - 1].slice(0, numColumns)],
+      getValues: () => [values[rowNumber - 1].slice(0, numColumns).map((value, index) => {
+        if (rowNumber === 2 && (index === 4 || index === 5) && typeof value === 'string') {
+          return {
+            [Symbol.toStringTag]: 'Date',
+            getTime: () => 1,
+            timeText: value
+          };
+        }
+        return value;
+      })],
       setValue: value => {
         writes.push({ rowNumber, columnNumber, value });
         values[rowNumber - 1][columnNumber - 1] = value;
@@ -62,7 +71,9 @@ test('OC時刻変更は未確定アサインだけ更新し、確定状態を保
     console,
     SHIFTBUILDER_SPREADSHEET_ID: 'TEST-SHEET',
     SHEET_SHIFT_ASSIGNMENTS: 'shift_assignments',
-    formatDate_: () => '2026-08-03T18:00:00+09:00',
+    formatDate_: (value, pattern) => pattern === 'HH:mm'
+      ? value.timeText
+      : '2026-08-03T18:00:00+09:00',
     SpreadsheetApp: {
       openById: () => ({ getSheetByName: () => sheet }),
       flush() {}
