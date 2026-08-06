@@ -143,6 +143,10 @@ function submitCorrection_(user, payload) {
 function submitReport_(user, payload) {
   ensureReportSheet_();
   if (!payload.recordId || !String(payload.result || "").trim()) throw apiError_("REPORT_REQUIRED", "実績内容を入力してください。");
+  const record = rows_(SHEETS.records).find(r => String(r.record_id || "") === String(payload.recordId));
+  if (!record || normalizeEmail_(record.email) !== normalizeEmail_(user.email)) {
+    throw apiError_("REPORT_RECORD_FORBIDDEN", "本人の稼働記録を確認できません。");
+  }
   append_(SHEETS.reports, [Utilities.getUuid(), payload.recordId, payload.planId || "", payload.planName || "", user.email, user.name || "", payload.result, payload.notes || "", new Date()]);
   return { ok: true };
 }

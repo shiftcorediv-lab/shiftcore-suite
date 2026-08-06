@@ -1,54 +1,10 @@
 import { MODULE_NAME_MAP, MODULE_DESCRIPTION_MAP } from "./config.js?v=20260802-reorder-1";
 import { moduleList, userModuleList } from "./dom.js";
 import { openModule } from "./navigation.js?v=20260803-role-1";
-
-const MODULE_ALIASES = { account: "account_console", shiftbuilder: "shift", order_case: "ordercase" };
-const ADMIN_ROLES = ["admin", "developer"];
-const ORDERCASE_PERMISSIONS = ["all", "edit", "view", "view_without_amount"];
-const SHIFT_PERMISSIONS = ["all", "manager", "edit", "view", "self"];
-const OPENABLE_MODULES = ["account_console", "pmo", "ordercase", "shift"];
-
-function normalizeModule(moduleCode) {
-  const code = String(moduleCode || "").trim().toLowerCase();
-  return MODULE_ALIASES[code] || code;
-}
-
-function hasPermission(user, keys, allowedValues) {
-  const value = keys.map(key => user?.[key]).find(Boolean);
-  return allowedValues.includes(String(value || "").trim().toLowerCase());
-}
-
-function permissionValue(user, keys) {
-  return String(keys.map(key => user?.[key]).find(Boolean) || "").trim().toLowerCase();
-}
-
-function moduleArray(modules) {
-  return Array.isArray(modules)
-    ? modules
-    : String(modules || "").split(",").map(value => value.trim()).filter(Boolean);
-}
-
-function canUseModule(moduleCode, user) {
-  const role = String(user?.role || "").trim().toLowerCase();
-  if (moduleCode === "account_console" && !ADMIN_ROLES.includes(role)) return false;
-  if (moduleCode === "ordercase") return hasPermission(user, ["ordercase_permission", "ordercasePermission"], ORDERCASE_PERMISSIONS);
-  if (moduleCode === "shift") {
-    const value = permissionValue(user, ["shiftbuilder_permission", "shiftBuilderPermission", "shift_permission"]);
-    // ログイン照合APIが詳細権限を返さない場合も、モジュール許諾があれば入口は表示する。
-    // ShiftBuilder側で最新の詳細権限を再取得し、編集可否を最終判定する。
-    return !value || SHIFT_PERMISSIONS.includes(value);
-  }
-  return OPENABLE_MODULES.includes(moduleCode);
-}
+import { getEffectiveModuleCodes } from "../common/access-policy.mjs?v=20260806-permission-2";
 
 export function getEffectiveModules(modules, user) {
-  const effective = [];
-  moduleArray(modules).forEach(rawCode => {
-    const moduleCode = normalizeModule(rawCode);
-    if (!moduleCode || effective.includes(moduleCode) || !canUseModule(moduleCode, user)) return;
-    effective.push(moduleCode);
-  });
-  return effective;
+  return getEffectiveModuleCodes(modules, user);
 }
 
 function buildModuleButton(moduleCode, className, setStatus, label) {
