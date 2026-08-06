@@ -17,11 +17,13 @@ test("共通ログイン応答へ既存のShiftBuilder権限を返す", () => {
   const result = context.buildLoginUserResponse({
     email: "member@example.com",
     status: "active",
+    base_area: "関西",
     allowed_modules: "shift",
     shiftbuilder_permission: "view"
   });
 
   assert.equal(result.shiftbuilder_permission, "view");
+  assert.equal(result.base_area, "関西");
 });
 
 function createAttendanceContext(records) {

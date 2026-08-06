@@ -1,6 +1,9 @@
 // ===== ShiftBuilder API client ここから =====
 
-import { SHIFTBUILDER_API_URL } from "./config.js?v=20260801-authfix-1";
+import {
+  ACCOUNT_AUTHORIZATION_API_URL,
+  SHIFTBUILDER_API_URL
+} from "./config.js?v=20260807-shadow-1";
 
 const READ_CACHE_PREFIX = "shiftbuilder-read-v1";
 const READ_CACHE_TTL_MS = 60 * 1000;
@@ -112,6 +115,28 @@ async function postToShiftBuilderApi(action, body = {}) {
   }
 }
 // ===== API共通POSTここまで =====
+
+// ===== 共通権限Shadow確認ここから =====
+export async function resolveAuthorizationShadow(idToken) {
+  const response = await fetch(ACCOUNT_AUTHORIZATION_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain;charset=utf-8"
+    },
+    body: JSON.stringify({
+      action: "resolveAuthorizationContextByIdToken",
+      idToken: idToken
+    })
+  });
+  const text = await response.text();
+
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new Error("権限Shadow APIレスポンスのJSON解析に失敗しました");
+  }
+}
+// ===== 共通権限Shadow確認ここまで =====
 
 async function postCachedRead(action, idToken, body = {}, options = {}) {
   const requestRevision = getShiftBuilderDataRevision();

@@ -177,10 +177,12 @@ function buildLoginUserResponse(user) {
     display_name: String(user.display_name || user.name || "").trim(),
     role: String(user.role || "").trim(),
     organization_id: String(user.organization_id || "").trim(),
+    base_area: String(user.base_area || "").trim(),
     status: String(user.status || "").trim(),
     work_status: getNormalizedWorkStatus(user),
     allowed_modules: parseAllowedModules(user.allowed_modules),
     ordercase_permission: String(user.ordercase_permission || "").trim(),
+    shiftbuilder_permission: String(user.shiftbuilder_permission || "").trim(),
 
     // 人員区分・契約区分
     person_type: personType,

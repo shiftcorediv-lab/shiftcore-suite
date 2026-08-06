@@ -1,0 +1,292 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import vm from "node:vm";
+
+const assignmentHeaders = [
+  "permission_assignment_id",
+  "internal_user_id",
+  "module_code",
+  "capability_code",
+  "scope_type",
+  "scope_value",
+  "status",
+  "valid_from",
+  "valid_to",
+  "updated_at",
+  "updated_by",
+  "memo"
+];
+
+const shadowHeaders = [
+  "shadow_log_id",
+  "checked_date",
+  "checked_at",
+  "internal_user_id",
+  "module_code",
+  "legacy_capabilities",
+  "assigned_capabilities",
+  "legacy_only_capabilities",
+  "assigned_only_capabilities",
+  "legacy_scopes",
+  "assigned_scopes",
+  "legacy_only_scopes",
+  "assigned_only_scopes"
+];
+
+function createSheet(values) {
+  return {
+    values,
+    readCount: 0,
+    getDataRange() {
+      this.readCount += 1;
+      return {
+        getDisplayValues: () => this.values.map((row) => row.slice())
+      };
+    },
+    appendRow(row) {
+      this.values.push(row.slice());
+    }
+  };
+}
+
+function createAuthorizationContext(assignmentRows = [], options = {}) {
+  const permissionSheet = createSheet([assignmentHeaders, ...assignmentRows]);
+  const shadowSheet = createSheet([shadowHeaders]);
+  const spreadsheet = {
+    getSheetByName(name) {
+      if (name === "permission_assignments") return permissionSheet;
+      if (name === "authorization_shadow_logs") {
+        return options.missingShadowSheet ? null : shadowSheet;
+      }
+      return null;
+    }
+  };
+  const context = vm.createContext({
+    SpreadsheetApp: {
+      openById: () => spreadsheet
+    },
+    Utilities: {
+      formatDate: () => "2026-08-07",
+      getUuid: () => "UUID-1"
+    },
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperty: () => options.shadowEnabled === false ? "false" : "true"
+      })
+    },
+    LockService: {
+      getScriptLock: () => ({
+        tryLock: () => options.lockAvailable !== false,
+        releaseLock: () => {}
+      })
+    },
+    resolveCurrentUserByIdToken: () => ({
+      ok: true,
+      user: {
+        internal_user_id: "U-1",
+        status: "active",
+        role: "member",
+        organization_id: "ORG-1",
+        base_area: "関西",
+        allowed_modules: ["ordercase", "shift"],
+        ordercase_permission: "edit",
+        shiftbuilder_permission: "self"
+      }
+    }),
+    parseAllowedModules: (value) => String(value || "").split(",").map((item) => item.trim()).filter(Boolean),
+    getNowIsoStringJst: () => "2026-08-07T10:00:00",
+    console: { error() {} }
+  });
+
+  [
+    "../backend/account-apps-script/utils.js",
+    "../backend/account-apps-script/config.js",
+    "../backend/account-apps-script/permission_assignments.js",
+    "../backend/account-apps-script/authorization.js"
+  ].forEach((path) => {
+    vm.runInContext(readFileSync(new URL(path, import.meta.url), "utf8"), context);
+  });
+
+  return { context, permissionSheet, shadowSheet };
+}
+
+test("新権限が未登録なら旧判定へ戻しShadowログを作らない", () => {
+  const { context, shadowSheet } = createAuthorizationContext();
+  const result = context.resolveAuthorizationContextByIdToken_({ idToken: "TOKEN" });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.authorization.source, "legacy");
+  assert.equal(result.authorization.legacy_fallback, true);
+  assert.equal(result.authorization.shadow.enabled, false);
+  assert.deepEqual(
+    Array.from(result.authorization.modules.shift.capabilities),
+    ["shift.view.all"]
+  );
+  assert.equal(shadowSheet.values.length, 1);
+});
+
+test("新権限がある利用者は新判定を返し旧判定との差だけ記録する", () => {
+  const { context, shadowSheet } = createAuthorizationContext([
+    ["PA-1", "U-1", "shift", "shift.view.self", "self", "", "active", "", "", "", "", ""]
+  ]);
+  const first = context.resolveAuthorizationContextByIdToken_({ idToken: "TOKEN" });
+  const second = context.resolveAuthorizationContextByIdToken_({ idToken: "TOKEN" });
+
+  assert.equal(first.authorization.source, "legacy_shadow");
+  assert.equal(first.authorization.legacy_fallback, true);
+  assert.deepEqual(
+    Array.from(first.authorization.modules.shift.capabilities),
+    ["shift.view.all"]
+  );
+  assert.deepEqual(
+    Array.from(first.authorization.candidate_modules.shift.capabilities),
+    ["shift.view.self"]
+  );
+  assert.ok(first.authorization.shadow.differences.length > 0);
+  assert.equal(shadowSheet.values.length, 2);
+  assert.equal(second.authorization.shadow.enabled, true);
+  assert.equal(second.authorization.shadow.healthy, true);
+  assert.equal(shadowSheet.readCount, 2);
+});
+
+test("scopeだけの差分もShadow差分として記録する", () => {
+  const { context, shadowSheet } = createAuthorizationContext([
+    ["PA-1", "U-1", "shift", "shift.view.all", "self", "", "active", "", "", "", "", ""]
+  ]);
+  const result = context.resolveAuthorizationContextByIdToken_({ idToken: "TOKEN" });
+  const shiftDifference = result.authorization.shadow.differences.find(
+    (item) => item.module_code === "shift"
+  );
+
+  assert.deepEqual(Array.from(shiftDifference.legacy_only_scopes), ["all:"]);
+  assert.deepEqual(Array.from(shiftDifference.assigned_only_scopes), ["self:"]);
+  assert.equal(shadowSheet.values.length, 2);
+});
+
+test("候補行がない別モジュールは全権限喪失として記録しない", () => {
+  const { context, shadowSheet } = createAuthorizationContext([
+    ["PA-1", "U-1", "shift", "shift.view.self", "self", "", "active", "", "", "", "", ""]
+  ]);
+  const result = context.resolveAuthorizationContextByIdToken_({ idToken: "TOKEN" });
+
+  assert.deepEqual(
+    Array.from(result.authorization.shadow.differences, (item) => item.module_code),
+    ["shift"]
+  );
+  assert.equal(shadowSheet.values.length, 2);
+});
+
+test("Shadow権限行が不正でも旧権限だけを返す", () => {
+  const { context, shadowSheet } = createAuthorizationContext([
+    ["PA-1", "U-1", "shift", "shift.unknown", "self", "", "active", "", "", "", "", ""]
+  ]);
+  const result = context.resolveAuthorizationContextByIdToken_({ idToken: "TOKEN" });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.authorization.source, "legacy");
+  assert.equal(result.authorization.shadow.healthy, false);
+  assert.deepEqual(Array.from(result.authorization.modules.shift.capabilities), ["shift.view.all"]);
+  assert.equal(shadowSheet.values.length, 1);
+});
+
+test("Shadowログのロック取得失敗でも旧権限と候補権限を返す", () => {
+  const { context, shadowSheet } = createAuthorizationContext([
+    ["PA-1", "U-1", "shift", "shift.view.self", "self", "", "active", "", "", "", "", ""]
+  ], { lockAvailable: false });
+  const result = context.resolveAuthorizationContextByIdToken_({ idToken: "TOKEN" });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.authorization.shadow.healthy, false);
+  assert.deepEqual(Array.from(result.authorization.modules.shift.capabilities), ["shift.view.all"]);
+  assert.deepEqual(Array.from(result.authorization.candidate_modules.shift.capabilities), ["shift.view.self"]);
+  assert.equal(shadowSheet.values.length, 1);
+});
+
+test("Shadowログシートがなくても旧権限を返し欠落を通知する", () => {
+  const { context } = createAuthorizationContext([
+    ["PA-1", "U-1", "shift", "shift.view.self", "self", "", "active", "", "", "", "", ""]
+  ], { missingShadowSheet: true });
+  const result = context.resolveAuthorizationContextByIdToken_({ idToken: "TOKEN" });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.authorization.shadow.healthy, false);
+  assert.equal(result.authorization.shadow.logging_available, false);
+  assert.deepEqual(Array.from(result.authorization.modules.shift.capabilities), ["shift.view.all"]);
+});
+
+test("緊急停止フラグがfalseなら権限行を読まず旧判定だけを返す", () => {
+  const { context, shadowSheet } = createAuthorizationContext([
+    ["PA-1", "U-1", "shift", "shift.view.self", "self", "", "active", "", "", "", "", ""]
+  ], { shadowEnabled: false });
+  const result = context.resolveAuthorizationContextByIdToken_({ idToken: "TOKEN" });
+
+  assert.equal(result.authorization.source, "legacy");
+  assert.equal(result.authorization.shadow.enabled, false);
+  assert.equal(Object.keys(result.authorization.candidate_modules).length, 0);
+  assert.equal(shadowSheet.values.length, 1);
+});
+
+test("期限外・停止中の権限行は有効権限として扱わない", () => {
+  const { context } = createAuthorizationContext([
+    ["PA-1", "U-1", "ordercase", "ordercase.view", "all", "", "inactive", "", "", "", "", ""],
+    ["PA-2", "U-1", "ordercase", "ordercase.amount.view", "all", "", "active", "2026-08-08", "", "", "", ""],
+    ["PA-3", "U-1", "shift", "shift.view.self", "self", "", "active", "", "2026-08-06", "", "", ""]
+  ]);
+  const assignments = context.getActivePermissionAssignmentsForUser_(
+    "U-1",
+    new Date("2026-08-07T00:00:00Z")
+  );
+
+  assert.equal(assignments.length, 0);
+});
+
+test("権限コードと対象アプリの不一致を拒否する", () => {
+  const { context } = createAuthorizationContext();
+
+  assert.throws(
+    () => context.validatePermissionAssignment_({
+      module_code: "ordercase",
+      capability_code: "shift.view.all",
+      scope_type: "all",
+      scope_value: ""
+    }),
+    /module_codeとcapability_codeが一致しません/
+  );
+
+  assert.throws(
+    () => context.validatePermissionAssignment_({
+      module_code: "shift",
+      capability_code: "shift.view.self",
+      scope_type: "self",
+      scope_value: "",
+      valid_from: "2026/08/07"
+    }),
+    /valid_fromはYYYY-MM-DD形式/
+  );
+
+  assert.throws(
+    () => context.validatePermissionAssignment_({
+      module_code: "shift",
+      capability_code: "shift.view.self",
+      scope_type: "self",
+      scope_value: "U-OTHER"
+    }),
+    /scope_valueは空欄/
+  );
+});
+
+test("Shadowログへ書く文字列が数式記号から始まる場合は無害化する", () => {
+  const { context, shadowSheet } = createAuthorizationContext([
+    ["PA-1", "U-1", "shift", "shift.view.all", "organization", "=IMPORTDATA(\"https://example.invalid\")", "active", "", "", "", "", ""]
+  ]);
+  const result = context.resolveAuthorizationContextByIdToken_({ idToken: "TOKEN" });
+  const logRow = shadowSheet.values[1];
+
+  assert.equal(result.authorization.shadow.healthy, true);
+  assert.equal(logRow[3], "U-1");
+  assert.equal(logRow[10], "organization:=IMPORTDATA(\"https://example.invalid\")");
+  assert.equal(logRow[12], "organization:=IMPORTDATA(\"https://example.invalid\")");
+  assert.equal(context.escapeAuthorizationSheetText_("=1+1"), "'=1+1");
+  assert.equal(context.escapeAuthorizationSheetText_("@SUM(A1)"), "'@SUM(A1)");
+});

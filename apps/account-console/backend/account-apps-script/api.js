@@ -63,6 +63,10 @@ function doPost(e) {
 
       return jsonResponse_(resolveCurrentUserByIdToken(idToken));
     }
+
+    if (action === "resolveAuthorizationContextByIdToken") {
+      return jsonResponse_(resolveAuthorizationContextByIdToken_(body));
+    }
     // ===== oauth ここまで =====
 
 
