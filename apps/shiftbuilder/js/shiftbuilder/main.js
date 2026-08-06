@@ -1,6 +1,6 @@
 // ===== ShiftBuilder main.js ここから =====
 
-import { DASHBOARD_URL } from "./config.js?v=20260801-authfix-1";
+import { DASHBOARD_URL } from "./config.js?v=20260807-shadow-1";
 import { requireShiftBuilderSession, getLoginUrl } from "./auth.js?v=20260801-authfix-1";
 import {
   getCurrentShiftBuilderUser,
@@ -10,8 +10,10 @@ import {
   replaceShiftBuilderAssignment,
   getShiftBuilderAssignmentCandidates,
   sendShiftBuilderPersonnelIcs,
+  resolveAuthorizationShadow,
   SHIFTBUILDER_DATA_REVISION_KEY
-} from "./api.js?v=20260803-oc-timesync-1";
+} from "./api.js?v=20260807-shadow-1";
+import { runAuthorizationShadowCheck } from "./authorization-shadow-policy.mjs?v=20260807-shadow-1";
 import { mockShiftData } from "./mock-data.js?v=20260801-authfix-1";
 import { escapeHtml } from "./utils.js?v=20260801-authfix-1";
 import { getPermissionLabel, canEdit } from "./permissions.js?v=20260801-authfix-1";
@@ -2884,6 +2886,12 @@ async function init() {
     }
 
     setStatus(`Firebaseログイン確認OK：${session.email}`);
+
+    // Shadow判定は既存の画面表示・実効権限から隔離し、失敗しても初期化を継続する。
+    void runAuthorizationShadowCheck(
+      session.idToken,
+      resolveAuthorizationShadow
+    );
 
     setLoading(true, "ShiftBuilderデータを読み込み中...");
     const [currentUserResult] = await Promise.all([

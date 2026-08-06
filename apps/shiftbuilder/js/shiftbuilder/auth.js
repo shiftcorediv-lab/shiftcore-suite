@@ -1,6 +1,6 @@
 // ===== ShiftBuilder auth.js ここから =====
 
-import { LOGIN_URL } from "./config.js?v=20260801-authfix-1";
+import { LOGIN_URL } from "./config.js?v=20260807-shadow-1";
 import {
   getShiftCoreAuth,
   getShiftCoreSession
