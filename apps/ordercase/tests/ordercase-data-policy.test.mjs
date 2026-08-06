@@ -178,3 +178,42 @@ test('店舗状態は有効かアーカイブだけを受け付ける', () => {
   assert.equal(context.normalizeStoreStatus_(''), 'active');
   assert.throws(() => context.normalizeStoreStatus_('inactive'), /有効.*アーカイブ/);
 });
+
+test('店舗保存は状態の検証を通し、不正な状態では書き込まない', () => {
+  const values = [
+    ['store_id', 'agency_name', 'store_name', 'store_short_name', 'store_area', 'address', 'nearest_station', 'status', 'updated_at'],
+    ['ST-0001', '代理店', '店舗', '', '', '', '', 'active', '']
+  ];
+  const writes = [];
+  const sheet = {
+    getDataRange: () => ({ getValues: () => values.map(row => row.slice()) }),
+    getRange: (row, column, numRows, numColumns) => ({
+      setValues: rows => {
+        writes.push({ row, column, numRows, numColumns, rows });
+        values[row - 1] = rows[0].slice();
+      }
+    })
+  };
+  const context = vm.createContext({
+    SHEET_STORES_MASTER: 'stores_master',
+    getSheetForUpdate_: () => sheet
+  });
+  vm.runInContext(storesMasterSource, context);
+  context.ensureStoreMasterLocationColumns_ = () => {};
+
+  const archived = context.updateStoreMaster_({
+    store_id: 'ST-0001', agency_name: '代理店', store_name: '店舗', status: 'archived'
+  });
+
+  assert.equal(archived.status, 'archived');
+  assert.equal(values[1][7], 'archived');
+  assert.equal(writes.length, 1);
+  assert.throws(
+    () => context.updateStoreMaster_({
+      store_id: 'ST-0001', agency_name: '代理店', store_name: '店舗', status: 'inactive'
+    }),
+    /有効.*アーカイブ/
+  );
+  assert.equal(writes.length, 1);
+  assert.equal(values[1][7], 'archived');
+});
