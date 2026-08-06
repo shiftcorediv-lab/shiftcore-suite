@@ -19,21 +19,18 @@ import {
   getApprovalSummary,
   showMessage
 } from "./ui.js?v=20260803-role-1";
-import { canUseSignupAdmin, goToAccountPortal } from "./navigation.js?v=20260803-role-1";
-import { fetchSignupRequests, approveSignupRequest, rejectSignupRequest } from "./api.js?v=20260803-role-1";
+import { canUseSignupAdmin, goToAccountPortal } from "./navigation.js?v=20260806-permission-2";
+import { fetchSignupRequests, approveSignupRequest, rejectSignupRequest } from "./api.js?v=20260806-permission-2";
 import { requireAuthenticatedSession } from "../common/auth-session.js?v=20260802-signup-auth-1";
+import { resolveCurrentUserWithGasByIdToken } from "../login/api.js?v=20260803-logintoken-1";
 
 const params = getQueryParams();
-const currentUser = buildCurrentUserFromQuery(params);
-
-sessionStorage.setItem("shiftcore_portal_user", JSON.stringify(currentUser));
-
-const canUse = canUseSignupAdmin(currentUser);
+let currentUser = buildCurrentUserFromQuery(params);
+let canUse = false;
 
 let selectedRequest = null;
 
 setupShiftCoreEntryBanner(params);
-renderAccountInfo(currentUser);
 setActionButtonsEnabled(false);
 
 async function getFreshIdToken() {
@@ -44,6 +41,17 @@ async function getFreshIdToken() {
   }
 
   return session.idToken;
+}
+
+async function resolveSecureCurrentUser() {
+  const idToken = await getFreshIdToken();
+  const result = await resolveCurrentUserWithGasByIdToken(idToken);
+
+  if (!result?.ok || !result.user) {
+    throw new Error(result?.message || "ログインユーザーを確認できません");
+  }
+
+  return result.user;
 }
 
 async function loadRequests() {
@@ -165,4 +173,12 @@ backToAccountPortalBtn.addEventListener("click", () => {
   goToAccountPortal(currentUser);
 });
 
-await loadRequests();
+try {
+  currentUser = await resolveSecureCurrentUser();
+  canUse = canUseSignupAdmin(currentUser);
+  sessionStorage.setItem("shiftcore_portal_user", JSON.stringify(currentUser));
+  renderAccountInfo(currentUser);
+  await loadRequests();
+} catch (error) {
+  showMessage(error.message || "ログインユーザーを確認できません", "error");
+}

@@ -1,4 +1,4 @@
-import { SIGNUP_ADMIN_API_URL } from "./config.js?v=20260803-role-1";
+import { SIGNUP_ADMIN_API_URL } from "./config.js?v=20260806-permission-2";
 
 export async function fetchSignupRequests(status, idToken) {
   const response = await fetch(SIGNUP_ADMIN_API_URL, {
