@@ -3,6 +3,29 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
+test("共通ログイン応答へ既存のShiftBuilder権限を返す", () => {
+  const source = readFileSync(
+    new URL("../backend/account-apps-script/users.js", import.meta.url),
+    "utf8"
+  );
+  const context = vm.createContext({
+    buildPmoV2Url: () => "",
+    console
+  });
+
+  vm.runInContext(source, context);
+  const result = context.buildLoginUserResponse({
+    email: "member@example.com",
+    status: "active",
+    base_area: "関西",
+    allowed_modules: "shift",
+    shiftbuilder_permission: "view"
+  });
+
+  assert.equal(result.shiftbuilder_permission, "view");
+  assert.equal(result.base_area, "関西");
+});
+
 function createAttendanceContext(records) {
   const appendedReports = [];
   const sheets = {

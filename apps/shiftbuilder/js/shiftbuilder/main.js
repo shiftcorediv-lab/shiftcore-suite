@@ -2875,8 +2875,6 @@ async function init() {
 
     setCurrentSession(session);
 
-    console.log("[ShiftBuilder] auth session:", session);
-
     if (!session.isLoggedIn) {
       renderNoLogin(session);
       if (IS_DEMO_MODE) {
