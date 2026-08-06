@@ -2245,7 +2245,7 @@ async function loadShiftData(options = {}) {
         };
         isPreviousMonthDataAvailable = true;
       } else {
-        console.warn("[ShiftBuilder] previous month data was unavailable for consecutive-work alerts:", previousMonthResult);
+        console.warn("[ShiftBuilder] previous month data was unavailable for consecutive-work alerts");
       }
     } catch (error) {
       console.warn("[ShiftBuilder] previous month data request failed for consecutive-work alerts:", error);
