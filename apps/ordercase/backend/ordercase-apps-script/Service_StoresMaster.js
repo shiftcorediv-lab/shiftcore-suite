@@ -113,9 +113,9 @@ function ensureStoreMasterLocationColumns_() {
     }
   });
 
-  // 店舗画面のアーカイブ状態は stores_master の正式な状態値。
-  // 既存シートには active / inactive の入力規則だけが残っているため、
-  // 先頭のデータ行を確認して必要な場合だけ規則を補正する。
+  // 店舗画面の正式な状態値は「有効」と「アーカイブ」の2種類だけにする。
+  // 過去の入力規則には inactive が含まれているため、先頭のデータ行を
+  // 確認して必要な場合だけ規則を補正する。
   const statusColumnIndex = headers.indexOf('status');
   if (statusColumnIndex === -1) return;
 
@@ -124,18 +124,24 @@ function ensureStoreMasterLocationColumns_() {
   const existingValues = existingRule && existingRule.getCriteriaValues
     ? existingRule.getCriteriaValues()[0] || []
     : [];
-  const hasArchived = existingValues.some(function(value) {
-    return String(value) === 'archived';
-  });
+  const hasExpectedStatusValues = existingValues.length === 2 &&
+    existingValues.some(function(value) { return String(value) === 'active'; }) &&
+    existingValues.some(function(value) { return String(value) === 'archived'; });
 
-  if (hasArchived) return;
+  if (hasExpectedStatusValues) return;
 
   const statusRule = SpreadsheetApp.newDataValidation()
-    .requireValueInList(['active', 'inactive', 'archived'], true)
+    .requireValueInList(['active', 'archived'], true)
     .setAllowInvalid(false)
     .build();
   sheet.getRange(2, statusColumn, Math.max(sheet.getMaxRows() - 1, 1), 1)
     .setDataValidation(statusRule);
+}
+
+function normalizeStoreStatus_(value) {
+  const status = String(value || 'active').trim();
+  if (status === 'active' || status === 'archived') return status;
+  throw new Error('店舗状態は「有効」または「アーカイブ」を指定してください。');
 }
 
 function updateStoreMaster_(payload) {
@@ -158,7 +164,7 @@ function updateStoreMaster_(payload) {
     store_area: String(payload.store_area || '').trim(),
     address: String(payload.address || '').trim(),
     nearest_station: String(payload.nearest_station || '').trim(),
-    status: String(payload.status || 'active').trim() === 'archived' ? 'archived' : 'active',
+    status: normalizeStoreStatus_(payload.status),
     updated_at: new Date()
   };
   if (!record.agency_name || !record.store_name) throw new Error('代理店名と店舗名は必須です。');
