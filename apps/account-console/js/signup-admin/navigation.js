@@ -1,22 +1,8 @@
-import { ACCOUNT_CONSOLE_URL, ACCOUNT_PORTAL_URL, SIGNUP_ADMIN_ALLOWED_ROLES } from "./config.js?v=20260803-role-1";
+import { ACCOUNT_CONSOLE_URL, ACCOUNT_PORTAL_URL } from "./config.js?v=20260806-permission-2";
+import { canUseSignupAdminAccess } from "../common/access-policy.mjs?v=20260806-permission-2";
 
 export function canUseSignupAdmin(currentUser) {
-  const role = String(currentUser?.role || "").trim().toLowerCase();
-
-  if (SIGNUP_ADMIN_ALLOWED_ROLES.includes(role)) {
-    return true;
-  }
-
-  const modules = String(
-    currentUser?.allowed_modules ||
-    currentUser?.allowedModules ||
-    ""
-  )
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-
-  return modules.includes("account_console");
+  return canUseSignupAdminAccess(currentUser);
 }
 
 export function buildAccountPortalUrl(currentUser) {
