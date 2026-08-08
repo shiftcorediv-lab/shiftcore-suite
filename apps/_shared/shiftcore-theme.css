@@ -1,0 +1,136 @@
+:root {
+  color-scheme: light;
+  --sc-theme-bg: #f5f6f8;
+  --sc-theme-surface: #ffffff;
+  --sc-theme-surface-soft: #f7f9fc;
+  --sc-theme-text: #252525;
+  --sc-theme-muted: #667085;
+  --sc-theme-border: #e2e8f0;
+  --sc-theme-input: #ffffff;
+  --sc-theme-shadow: rgba(23, 32, 51, 0.08);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --sc-theme-bg: #0f141d;
+  --sc-theme-surface: #181f2b;
+  --sc-theme-surface-soft: #202938;
+  --sc-theme-text: #edf1f7;
+  --sc-theme-muted: #aab4c5;
+  --sc-theme-border: #354052;
+  --sc-theme-input: #121923;
+  --sc-theme-shadow: rgba(0, 0, 0, 0.32);
+  --bg: var(--sc-theme-bg);
+  --white: var(--sc-theme-surface);
+  --ink: var(--sc-theme-text);
+  --navy: var(--sc-theme-text);
+  --muted: var(--sc-theme-muted);
+  --line: var(--sc-theme-border);
+  --ac-bg: var(--sc-theme-bg);
+  --ac-surface: var(--sc-theme-surface);
+  --ac-text: var(--sc-theme-text);
+  --ac-muted: var(--sc-theme-muted);
+  --ac-border: var(--sc-theme-border);
+  --ac-shadow: 0 12px 32px var(--sc-theme-shadow);
+  --sb-bg: var(--sc-theme-bg);
+  --sb-surface: var(--sc-theme-surface);
+  --sb-surface-soft: var(--sc-theme-surface-soft);
+  --sb-border: var(--sc-theme-border);
+  --sb-border-strong: #465267;
+  --sb-text: var(--sc-theme-text);
+  --sb-muted: var(--sc-theme-muted);
+  --sb-primary: #f2f5fa;
+  --sb-primary-text: #151b25;
+  --sb-shadow: 0 12px 32px var(--sc-theme-shadow);
+}
+
+.shiftcore-theme-toggle {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 100000;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--sc-theme-border);
+  border-radius: 50%;
+  background: var(--sc-theme-surface);
+  color: var(--sc-theme-text);
+  box-shadow: 0 8px 24px var(--sc-theme-shadow);
+  font: 700 22px/1 system-ui, sans-serif;
+  cursor: pointer;
+  transition: transform 0.18s ease, background-color 0.18s ease;
+}
+
+.shiftcore-theme-toggle:hover { transform: translateY(-2px); }
+.shiftcore-theme-toggle:focus-visible { outline: 3px solid #6690ff; outline-offset: 3px; }
+
+:root[data-theme="dark"] body {
+  background-color: var(--sc-theme-bg) !important;
+  color: var(--sc-theme-text);
+}
+
+:root[data-theme="dark"] body,
+:root[data-theme="dark"] section,
+:root[data-theme="dark"] main,
+:root[data-theme="dark"] .shell,
+:root[data-theme="dark"] .app-shell {
+  border-color: var(--sc-theme-border);
+}
+
+:root[data-theme="dark"] :is(.card, .panel, .toolbar, .topbar, .summary, .operator-card, .summary-card, .content-card, .modal, .dialog, .table-wrap, .info-box, .calendar-wrap, .question-card, .result-card, dialog) {
+  background-color: var(--sc-theme-surface) !important;
+  color: var(--sc-theme-text);
+  border-color: var(--sc-theme-border) !important;
+  box-shadow: 0 12px 32px var(--sc-theme-shadow);
+}
+
+:root[data-theme="dark"] body > .container:not(:has(.card)) {
+  background-color: var(--sc-theme-surface) !important;
+  color: var(--sc-theme-text);
+  box-shadow: 0 12px 32px var(--sc-theme-shadow);
+}
+
+:root[data-theme="dark"] :is(input, select, textarea) {
+  background-color: var(--sc-theme-input) !important;
+  color: var(--sc-theme-text) !important;
+  border-color: var(--sc-theme-border) !important;
+}
+
+:root[data-theme="dark"] :is(input, textarea)::placeholder { color: #8793a6; }
+
+:root[data-theme="dark"] :is(th, .table-header, .calendar-header) {
+  background-color: var(--sc-theme-surface-soft) !important;
+  color: var(--sc-theme-muted) !important;
+}
+
+:root[data-theme="dark"] :is(td, th, tr, header, footer, .card, .panel, .toolbar, .topbar, .summary, .info-box, dialog) {
+  border-color: var(--sc-theme-border) !important;
+}
+
+:root[data-theme="dark"] :is(p, .description, .hint, .subtitle, .label, .summary-label, .empty-state) {
+  color: var(--sc-theme-muted);
+}
+
+:root[data-theme="dark"] :is(.secondary-button, .back-btn, .outline-action, .open-btn, .csv-btn, .rowbtn, dialog button:not(.primary-action):not(.primary-button)) {
+  background-color: var(--sc-theme-surface-soft) !important;
+  color: var(--sc-theme-text) !important;
+  border-color: var(--sc-theme-border) !important;
+}
+
+:root[data-theme="dark"] a { color: #8eb1ff; }
+
+:root[data-theme="dark"] .loading-card,
+:root[data-theme="dark"] .line-guard-card {
+  background: var(--sc-theme-surface);
+  color: var(--sc-theme-text);
+}
+
+:root[data-theme="dark"] .loading-text,
+:root[data-theme="dark"] .line-guard-title,
+:root[data-theme="dark"] .line-guard-text { color: var(--sc-theme-text); }
+
+@media (prefers-reduced-motion: reduce) {
+  .shiftcore-theme-toggle { transition: none; }
+}
