@@ -24,6 +24,15 @@ import {
   organizationInput,
   departmentInput,
   positionInput,
+  organizationAuthorityFieldset,
+  organizationLevelInput,
+  organizationVersionInput,
+  directManagerField,
+  directManagerInput,
+  executiveReviewerField,
+  executiveReviewerInput,
+  organizationReasonInput,
+  organizationAuthorityStatus,
   baseAreaInput,
   statusInput,
   workStatusInput,
@@ -39,7 +48,7 @@ import {
   updatedByText,
   logsList,
   statusBox
-} from "./dom.js";
+} from "./dom.js?v=20260810-org-shadow-1";
 
 
 // ===== 表示ラベル定義ここから =====
@@ -114,6 +123,13 @@ const SHIFTBUILDER_PERMISSION_LABELS = {
   edit: "作成・編集",
   view: "閲覧のみ",
   self: "自分の予定のみ"
+};
+
+const ORGANIZATION_LEVEL_LABELS = {
+  member: "メンバー",
+  leader: "リーダー",
+  manager: "マネージャー",
+  executive: "役員"
 };
 
 const FIELD_LABELS = {
@@ -472,6 +488,7 @@ export function clearUserForm() {
   createdAtText.textContent = "-";
   updatedAtText.textContent = "-";
   updatedByText.textContent = "-";
+  resetOrganizationAssignment();
 }
 
 export function fillUserForm(user) {
@@ -514,6 +531,7 @@ export function fillUserForm(user) {
   createdAtText.textContent = text(user.created_at) || "-";
   updatedAtText.textContent = text(user.updated_at) || "-";
   updatedByText.textContent = text(user.updated_by) || "-";
+  resetOrganizationAssignment("組織設定を読み込んでいます...");
 }
 
 export function collectUserForm() {
@@ -548,6 +566,83 @@ export function collectUserForm() {
   };
 }
 // ===== フォーム操作ここまで =====
+
+export function resetOrganizationAssignment(message = "既存アカウントを選択すると設定できます。") {
+  organizationAuthorityFieldset.disabled = true;
+  organizationLevelInput.value = "";
+  organizationVersionInput.value = "0";
+  directManagerInput.innerHTML = '<option value="">選択してください</option>';
+  executiveReviewerInput.innerHTML = '<option value="">選択してください</option>';
+  organizationReasonInput.value = "";
+  organizationAuthorityStatus.textContent = message;
+  updateOrganizationFieldVisibility();
+}
+
+export function renderOrganizationAssignment(organization, candidates, editable) {
+  const level = text(organization?.organization_level);
+  organizationAuthorityFieldset.disabled = !editable;
+  organizationLevelInput.value = level;
+  organizationVersionInput.value = String(organization?.organization_version || 0);
+  organizationReasonInput.value = "";
+  renderOrganizationCandidateOptions(
+    candidates,
+    text(organization?.direct_manager_user_id),
+    text(organization?.executive_reviewer_user_id)
+  );
+  organizationAuthorityStatus.textContent = !editable
+    ? "このアカウントの組織設定は変更できません。"
+    : level
+      ? `現在：${ORGANIZATION_LEVEL_LABELS[level] || level}`
+      : "組織階層は未設定です。保存前に階層と管理者を確認してください。";
+  updateOrganizationFieldVisibility();
+}
+
+export function renderOrganizationCandidateOptions(candidates, managerValue = "", reviewerValue = "") {
+  const items = Array.isArray(candidates) ? candidates : [];
+  const level = text(organizationLevelInput.value);
+  const expectedManagerLevel = { member: "leader", leader: "manager", manager: "executive" }[level];
+
+  setOrganizationSelectOptions_(
+    directManagerInput,
+    items.filter((item) => text(item.organization_level) === expectedManagerLevel),
+    managerValue || directManagerInput.value
+  );
+  setOrganizationSelectOptions_(
+    executiveReviewerInput,
+    items.filter((item) => text(item.organization_level) === "executive"),
+    reviewerValue || executiveReviewerInput.value
+  );
+  updateOrganizationFieldVisibility();
+}
+
+function setOrganizationSelectOptions_(select, candidates, selectedValue) {
+  select.innerHTML = '<option value="">選択してください</option>';
+  candidates.forEach((candidate) => {
+    const option = document.createElement("option");
+    option.value = text(candidate.internal_user_id);
+    option.textContent = `${text(candidate.display_name) || "名称未設定"}（${option.value}）`;
+    select.appendChild(option);
+  });
+  select.value = text(selectedValue);
+}
+
+export function updateOrganizationFieldVisibility() {
+  const level = text(organizationLevelInput.value);
+  const isExecutive = level === "executive";
+  directManagerField.hidden = !level || isExecutive;
+  executiveReviewerField.hidden = !isExecutive;
+}
+
+export function collectOrganizationAssignment() {
+  return {
+    target_internal_user_id: text(internalUserIdInput.value),
+    organization_level: text(organizationLevelInput.value),
+    direct_manager_user_id: text(directManagerInput.value),
+    executive_reviewer_user_id: text(executiveReviewerInput.value),
+    expected_organization_version: Number(organizationVersionInput.value || 0),
+    reason: text(organizationReasonInput.value)
+  };
+}
 
 
 // ===== 変更履歴描画ここから =====

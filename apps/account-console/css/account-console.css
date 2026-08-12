@@ -358,6 +358,19 @@ legend {
   line-height: 1.5;
 }
 
+.organization-authority {
+  border-color: #b9c7e8;
+  background: #f7f9ff;
+}
+
+.organization-authority:disabled {
+  opacity: 0.68;
+}
+
+.organization-authority [hidden] {
+  display: none !important;
+}
+
 .migration-pill {
   display: inline-block;
   padding: 4px 8px;

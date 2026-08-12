@@ -1,4 +1,4 @@
-import { ACCOUNT_API_URL } from "./config.js";
+import { ACCOUNT_API_URL } from "./config.js?v=20260810-org-shadow-1";
 
 // ===== API共通POSTここから =====
 async function postToAccountApi(action, body = {}) {
@@ -71,6 +71,20 @@ export async function updateAccountUser(idToken, user) {
   });
 }
 // ===== ユーザー更新ここまで =====
+
+export async function getOrganizationAssignment(idToken, targetUserId) {
+  return postToAccountApi("accountConsoleGetOrganizationAssignment", {
+    idToken: idToken,
+    target_internal_user_id: targetUserId
+  });
+}
+
+export async function updateOrganizationAssignment(idToken, organization) {
+  return postToAccountApi("accountConsoleUpdateOrganizationAssignment", {
+    idToken: idToken,
+    payload: organization
+  });
+}
 
 
 // ===== 変更履歴取得ここから =====
