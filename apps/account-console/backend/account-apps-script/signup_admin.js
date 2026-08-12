@@ -103,7 +103,7 @@ function getSignupRequests(status) {
 
 
 // ===== 承認処理ここから =====
-function approveSignupRequest(requestId, approval, reviewedBy) {
+function approveSignupRequest(requestId, approval, reviewedBy, operator) {
   try {
     const request = getSignupRequestById_(requestId);
 
@@ -130,6 +130,11 @@ function approveSignupRequest(requestId, approval, reviewedBy) {
     if (VALID_ACCOUNT_ROLES.indexOf(role) === -1) {
       return { success: false, message: "role の値が不正です" };
     }
+
+    // developer の新設は Account Console と同じ共通ガードへ委譲する。
+    // 承認経路を素通りさせると、非developerが自分で申請して自分で承認する
+    // 自己昇格経路になるため、ここを塞がないと developer 全権化が権限昇格機能になる。
+    assertDeveloperAccountMutationAllowed_(operator, "", role, "");
 
     if (!normalizeText(approval.organizationId)) {
       return { success: false, message: "organization_id は必須です" };
@@ -169,7 +174,7 @@ function approveSignupRequest(requestId, approval, reviewedBy) {
       };
     }
 
-    const internalUserId = appendUserMasterFromSignup_(request, approval);
+    const internalUserId = appendUserMasterFromSignup_(request, approval, operator);
 
     const sheet = getSignupRequestsSheet();
     const headerMap = getHeaderMap_(sheet);

@@ -151,11 +151,27 @@ function accountConsoleCreateUser(body) {
   setIfHeaderExists_(newUser, headers, "updated_at", now);
   setIfHeaderExists_(newUser, headers, "updated_by", operator.email);
 
+  const developerAuthorizationEventId = beginDeveloperAccountAuthorizationEvent_(
+    operator,
+    "",
+    newUser.role,
+    newUser.internal_user_id,
+    "Account Consoleでdeveloperアカウントを作成"
+  );
+
   const row = headers.map(function(header) {
     return newUser[header] || "";
   });
 
   sheet.appendRow(row);
+  completeDeveloperAccountAuthorizationEvent_(
+    developerAuthorizationEventId,
+    operator,
+    "",
+    newUser.role,
+    newUser.internal_user_id,
+    "Account Consoleでdeveloperアカウントを作成"
+  );
 
   appendAccountConsoleLog_({
     changedBy: operator.email,
@@ -292,6 +308,14 @@ function accountConsoleUpdateUser(body) {
     targetUserId
   );
 
+  const developerAuthorizationEventId = beginDeveloperAccountAuthorizationEvent_(
+    operator,
+    beforeUser.role,
+    afterUser.role,
+    targetUserId,
+    "Account Consoleでdeveloperアカウントを変更"
+  );
+
   afterUser.updated_at = getNowIsoStringJst();
   afterUser.updated_by = operator.email;
 
@@ -337,6 +361,15 @@ function accountConsoleUpdateUser(body) {
     }
   });
 
+  completeDeveloperAccountAuthorizationEvent_(
+    developerAuthorizationEventId,
+    operator,
+    beforeUser.role,
+    afterUser.role,
+    targetUserId,
+    "Account Consoleでdeveloperアカウントを変更"
+  );
+
   return {
     success: true,
     ok: true,
@@ -370,6 +403,58 @@ function assertDeveloperAccountMutationAllowed_(operator, beforeRole, afterRole,
   }
 
   return true;
+}
+
+function beginDeveloperAccountAuthorizationEvent_(operator, beforeRole, afterRole, targetUserId, reason) {
+  if (!isDeveloperRoleMutation_(beforeRole, afterRole)) return "";
+
+  const eventId = "ACE-" + Utilities.getUuid();
+  appendDeveloperAccountAuthorizationLog_(
+    eventId,
+    operator,
+    beforeRole,
+    afterRole,
+    targetUserId,
+    reason,
+    "started"
+  );
+  return eventId;
+}
+
+function completeDeveloperAccountAuthorizationEvent_(
+  eventId, operator, beforeRole, afterRole, targetUserId, reason
+) {
+  if (!normalizeText(eventId)) return;
+  appendDeveloperAccountAuthorizationLog_(
+    eventId,
+    operator,
+    beforeRole,
+    afterRole,
+    targetUserId,
+    reason,
+    "success"
+  );
+}
+
+function appendDeveloperAccountAuthorizationLog_(
+  eventId, operator, beforeRole, afterRole, targetUserId, reason, result
+) {
+  appendAuthorizationChangeLog_({
+    authorization_event_id: eventId,
+    event_type: "account.role.developer",
+    actor_internal_user_id: normalizeText(operator && operator.internal_user_id),
+    target_internal_user_id: normalizeText(targetUserId),
+    before: { role: normalizeText(beforeRole).toLowerCase() },
+    after: { role: normalizeText(afterRole).toLowerCase() },
+    reason: normalizeText(reason),
+    result: result,
+    source: "account_console"
+  });
+}
+
+function isDeveloperRoleMutation_(beforeRole, afterRole) {
+  return normalizeText(beforeRole).toLowerCase() === "developer" ||
+    normalizeText(afterRole).toLowerCase() === "developer";
 }
 // ===== developer特権保護 ここまで =====
 

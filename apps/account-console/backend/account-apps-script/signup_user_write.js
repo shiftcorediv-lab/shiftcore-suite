@@ -71,7 +71,7 @@ function createNextEmployeeCode_() {
 
 
 // ===== users_master 追加ここから =====
-function appendUserMasterFromSignup_(requestData, approval) {
+function appendUserMasterFromSignup_(requestData, approval, operator) {
   const sheet = getUsersSheet();
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
   const internalUserId = createNextInternalUserId_();
@@ -101,8 +101,24 @@ function appendUserMasterFromSignup_(requestData, approval) {
     return key in rowObject ? rowObject[key] : "";
   });
 
+  const developerAuthorizationEventId = beginDeveloperAccountAuthorizationEvent_(
+    operator,
+    "",
+    rowObject.role,
+    internalUserId,
+    "登録申請承認でdeveloperアカウントを作成"
+  );
+
   const targetRow = Math.max(sheet.getLastRow() + 1, 2);
   sheet.getRange(targetRow, 1, 1, row.length).setValues([row]);
+  completeDeveloperAccountAuthorizationEvent_(
+    developerAuthorizationEventId,
+    operator,
+    "",
+    rowObject.role,
+    internalUserId,
+    "登録申請承認でdeveloperアカウントを作成"
+  );
 
   return internalUserId;
 }

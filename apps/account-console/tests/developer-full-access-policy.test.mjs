@@ -113,3 +113,73 @@ test("developerは他のdeveloperを管理できるが自分のroleは変更で�
     /SELF_ROLE_CHANGE_FORBIDDEN/
   );
 });
+
+test("developerの付与・剥奪をハッシュ連鎖対象の権限監査ログへ記録する", () => {
+  const calls = [];
+  const context = vm.createContext({
+    Utilities: { getUuid: () => "event-1" },
+    appendAuthorizationChangeLog_: (entry) => calls.push(entry)
+  });
+  context.normalizeText = (value) => String(value == null ? "" : value).trim();
+  vm.runInContext(
+    readFileSync(
+      new URL("../backend/account-apps-script/account_console_users.js", import.meta.url),
+      "utf8"
+    ),
+    context
+  );
+
+  const operator = { internal_user_id: "U-DEV", role: "developer" };
+  const eventId = context.beginDeveloperAccountAuthorizationEvent_(
+    operator,
+    "member",
+    "developer",
+    "U-TARGET",
+    "権限変更"
+  );
+  context.completeDeveloperAccountAuthorizationEvent_(
+    eventId,
+    operator,
+    "member",
+    "developer",
+    "U-TARGET",
+    "権限変更"
+  );
+
+  assert.equal(calls.length, 2);
+  assert.deepEqual(
+    Array.from(calls, (entry) => [entry.event_type, entry.result]),
+    [
+      ["account.role.developer", "started"],
+      ["account.role.developer", "success"]
+    ]
+  );
+});
+
+test("developerに触れないrole変更は権限監査ログへ記録しない", () => {
+  const calls = [];
+  const context = vm.createContext({
+    Utilities: { getUuid: () => "unused" },
+    appendAuthorizationChangeLog_: (entry) => calls.push(entry)
+  });
+  context.normalizeText = (value) => String(value == null ? "" : value).trim();
+  vm.runInContext(
+    readFileSync(
+      new URL("../backend/account-apps-script/account_console_users.js", import.meta.url),
+      "utf8"
+    ),
+    context
+  );
+
+  assert.equal(
+    context.beginDeveloperAccountAuthorizationEvent_(
+      { internal_user_id: "U-ADMIN", role: "admin" },
+      "member",
+      "admin",
+      "U-TARGET",
+      "通常変更"
+    ),
+    ""
+  );
+  assert.equal(calls.length, 0);
+});

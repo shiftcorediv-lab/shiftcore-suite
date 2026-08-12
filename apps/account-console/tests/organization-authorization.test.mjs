@@ -274,6 +274,28 @@ test("開発者でも自分自身の組織設定は変更できない", () => {
   );
 });
 
+test("開発者でも最後の役員を変更できない", () => {
+  const context = createContext();
+  const users = validUsers().filter((user) => user.internal_user_id !== "U-E2");
+  const developer = {
+    internal_user_id: "U-DEV",
+    status: "active",
+    role: "developer",
+    organization_level: ""
+  };
+  const lastExecutive = users.find((user) => user.internal_user_id === "U-E1");
+
+  assert.throws(
+    () => context.assertCanUpdateOrganizationAssignment_(
+      developer,
+      lastExecutive,
+      { ...lastExecutive, organization_level: "manager" },
+      users
+    ),
+    (error) => error.code === "LAST_EXECUTIVE_PROTECTED"
+  );
+});
+
 test("マネージャーは別系統のメンバーを変更できない", () => {
   const context = createContext();
   const users = validUsers();

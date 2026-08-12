@@ -245,6 +245,9 @@ function assertCanUpdateOrganizationAssignment_(operator, target, candidate, use
   if (operatorId === targetId) {
     throw organizationAuthorizationError_("SELF_ESCALATION_FORBIDDEN");
   }
+  if (currentLevel === "executive" && countActiveExecutives_(users) <= 1) {
+    throw organizationAuthorizationError_("LAST_EXECUTIVE_PROTECTED");
+  }
   if (developerOperator) return true;
   if (ORGANIZATION_LEVEL_RANKS[currentLevel] >= ORGANIZATION_LEVEL_RANKS[operatorLevel] ||
       ORGANIZATION_LEVEL_RANKS[nextLevel] >= ORGANIZATION_LEVEL_RANKS[operatorLevel]) {
@@ -269,9 +272,6 @@ function assertCanUpdateOrganizationAssignment_(operator, target, candidate, use
       throw organizationAuthorizationError_("SCOPE_FORBIDDEN");
   }
 
-  if (currentLevel === "executive" && countActiveExecutives_(users) <= 1) {
-    throw organizationAuthorizationError_("LAST_EXECUTIVE_PROTECTED");
-  }
 }
 
 function findNewOrganizationErrors_(beforeErrors, afterErrors) {
