@@ -1,0 +1,186 @@
+# 03 権限設計 本番Shadow反映手順
+
+- 作成日: 2026-08-10
+- 状態: 第48版本番組織Shadow初期化・内部監査完了、実効権限切替は未実施
+- 原則: この反映では既存の実効権限を変更しない
+
+## 0. 本番正本との直接比較
+
+2026-08-10にAccount GAS本番プロジェクトを一時領域へ読み取り取得し、ローカル正本とファイル単位で直接比較した。
+
+- 初回比較時点の本番既存ファイルとの差分は `api.js`、`authorization.js`、`config.js` の3ファイルだった。その後のClaude監査対応で `account_console_users.js` を03対象へ追加した。
+- ローカルで追加されるファイルは `authorization_change_logs.js`、`organization_assignments.js`、`organization_authorization.js`、`organization_bootstrap.js` の4ファイルだけだった。
+- 2026-08-12の公開直前再比較では、既存4ファイルと新規4ファイルだけが差分で、その他の本番GAS 14ファイルはローカル正本と一致した。`account_console_users.js` のH-1修正も追加差分として確認済み。
+- 既存URLの直前復帰基準はAccount GAS第44版とする。
+- 比較は読み取り専用で実施し、本番ソース、データ、設定、デプロイは変更していない。
+
+## 1. 反映対象
+
+### Account GAS
+
+- 既存変更: `api.js`、`authorization.js`、`config.js`、`account_console_users.js`
+- 新規: `authorization_change_logs.js`
+- 新規: `organization_assignments.js`
+- 新規: `organization_authorization.js`
+- 新規: `organization_bootstrap.js`
+
+既存ファイルの変更内訳は次のとおり。
+
+- `api.js`: 組織設定の取得・更新APIルーティングだけを追加する。
+- `authorization.js`: 旧実効権限を維持した組織Shadow応答と `ordercase.case.create` の候補比較だけを追加する。
+- `config.js`: 組織6列、監査ログ、Shadow・bootstrap用Script Property、権限候補コードの定数だけを追加する。
+- `account_console_users.js`: 通常更新を組織更新と同じScriptLockで直列化し、行全体ではなく許可列だけを書き込む。組織6列は通常更新経路から変更しない。
+
+### Account Consoleフロント
+
+- `account-console.html` の組織設定欄
+- `css/account-console.css`
+- `js/account-console/api.js`
+- `js/account-console/dom.js`
+- `js/account-console/main.js`
+- `js/account-console/ui.js`
+
+`account-console.html` には03以外の既存未コミット差分があるため、コミット時は03の組織設定部分だけを選択する。その他のHTMLや共有テーマ差分を03へ混ぜない。
+
+### コミット時の除外条件
+
+- `account-console.html` はファイル丸ごとではなく、組織設定欄と03用モジュール更新だけを選択する。
+- 同ファイルのテーマ参照先は公開時点の `origin/main` を正とし、ローカルの別作業による参照先変更を03へ含めない。
+- `account_console_users.js` はH-1の競合修正を03対象へ含める。初回比較時に存在した空白だけの差分は含めず、ScriptLockと列単位書込みの実体差分だけを選択する。
+- Account Console、OrderCase、ShiftBuilder等に残る共有テーマ・画面調整・PMO・資料の別作業差分は03対象外とする。
+- `.clasp.json`、ルート `.gitignore`、`_shared/` は、本資料に列挙した03の正式対象として別途確認されない限り03コミットへ含めない。
+- 最終コミット作成前に `origin/main` を基準として03差分だけのパッチを再構成し、ファイル一覧と内容を再監査する。
+- 本番GAS操作は `account-console/backend/account-apps-script/.clasp.json` だけを使用する。apps直下の未追跡 `.clasp.json` は過去の比較用一時フォルダを指すため使用せず、03コミットにも含めない。
+
+### テスト・資料
+
+- `tests/authorization-shadow.test.mjs`
+- 新規 `tests/account-console-update-concurrency.test.mjs`
+- 新規 `tests/authorization-change-logs.test.mjs`
+- 新規 `tests/organization-authorization.test.mjs`
+- 03設計・移行・ロードマップ・内部監査・本手順
+
+## 2. 本番データ変更
+
+`users_master` の末尾へ次の6列だけを追加する。既存行は空欄のままにする。
+
+1. `organization_level`
+2. `direct_manager_user_id`
+3. `executive_reviewer_user_id`
+4. `organization_version`
+5. `organization_updated_at`
+6. `organization_updated_by`
+
+`authorization_change_logs` を次の16列のヘッダーだけで作成する。
+
+1. `authorization_change_log_id`
+2. `authorization_event_id`
+3. `occurred_at`
+4. `event_type`
+5. `request_id`
+6. `actor_internal_user_id`
+7. `target_internal_user_id`
+8. `reviewer_internal_user_id`
+9. `before_json`
+10. `after_json`
+11. `reason`
+12. `result`
+13. `error_code`
+14. `source`
+15. `previous_log_hash`
+16. `log_hash`
+
+準備処理は既存列を削除・移動・上書きしない。同名列の重複や既存監査シートのヘッダー不足があれば停止する。
+
+監査ログの最終行ハッシュとデータ行数はScript Property `AUTHORIZATION_LOG_ANCHOR` にも保存する。これにより、シート内のハッシュ連鎖だけでは分からない末尾行の切り詰めも検出する。
+
+## 3. 安全な実行順
+
+### 初回役員候補の業務決定
+
+- 初回役員は、えいちが指定した有効な社内利用者2名だけを対象とする。
+- 本番Account Consoleで両名の本人表示と内部IDを読み取り照合済み。
+- 既存の役職欄に「役員」と表示される別利用者は、今回の初回役員へ含めないと業務決定された。
+- 既存の `position`、`role`、アカウント種別から新しい `organization_level` を自動設定しない。
+- 氏名、メールアドレス、内部IDは公開リポジトリへ記録せず、承認された本番実行時の一時プロパティにだけ使用する。
+
+1. 本番GASとローカル正本を直接比較し、送信差分を確定する。（2026-08-12公開直前再確認済み）
+2. Script Property `ORGANIZATION_SHADOW_ENABLED=false` を先に設定する。
+3. Account GASをpushし、新バージョンを既存URLへ公開する。
+4. 組織Shadowが `false` の状態で、既存ログイン・既存権限API・Account Console一覧を確認する。
+5. Script Propertiesへ一時的に次を設定する。
+   - `ORGANIZATION_BOOTSTRAP_ENABLED=true`
+   - `ORGANIZATION_BOOTSTRAP_ACTOR_ID=<実行する役員候補の内部ID>`
+   - `ORGANIZATION_BOOTSTRAP_REASON=<承認済みの初期導入理由>`
+6. Apps Scriptエディタから `setupOrganizationAuthorizationStorage` を手動実行する。
+7. 追加6列が空で、監査シートにschema初期化ログだけがあることを再読取する。
+8. `AUTHORIZATION_LOG_ANCHOR` がschema初期化ログの件数と末尾ハッシュに一致することを確認する。
+9. Script Propertiesへ `AUTHORIZATION_INTEGRITY_RECIPIENT_IDS=<役員2名と独立監査担当の内部IDをCSV>`、`AUTHORIZATION_INTEGRITY_EXECUTIVE_IDS=<役員2名の内部IDをCSV>`、`AUTHORIZATION_INDEPENDENT_AUDITOR_ID=<独立監査担当の内部ID>` を設定する。メールアドレスは固定保存せず、送信時に人員マスターのactive利用者から解決する。
+10. `assertAuthorizationIntegrityRecipientRoles_` で役員2名と、それらとは別の独立監査担当が全員含まれることを確認する。この検証は日次トリガー作成関数からも必ず実行される。
+11. `sendAuthorizationIntegrityTestNotification` を手動実行し、3名全員で実際の着信を確認する。存在しない、停止中、メール不正の利用者は関数側で拒否する。
+12. `setupAuthorizationIntegrityDailyTrigger` を手動実行し、毎日6時台の検査トリガーが1件だけ存在することを確認する。
+13. `runAuthorizationIntegrityAudit` を手動実行し、正常終了を確認する。監査シート自体がない場合も異常通知を試みる。
+14. 役員候補2名の内部IDと組織6列の変更前値を読み取り、承認記録へ一時保存する。公開リポジトリには保存しない。
+15. `ORGANIZATION_BOOTSTRAP_EXECUTIVE_IDS=<2人以上の役員候補IDをCSV>` を設定する。
+16. Apps Scriptエディタから `runOrganizationExecutiveBootstrap` を手動実行する。
+17. 役員候補だけがversion 1で設定され、相互または循環する別役員承認者になっていることを再読取する。
+18. 成功後に実行許可がfalse、一時プロパティが削除、組織Shadowがtrueになったことを確認する。
+19. 共通権限APIで旧実効権限が変わらず、組織Shadowだけが返ることを確認する。
+20. Account Consoleフロントを公開し、役員テストアカウントで組織設定欄の読取だけを確認する。
+21. 他の利用者は、個別確認後にAccount Consoleから1人ずつ設定する。初回反映と同時には行わない。
+
+## 4. 即時停止
+
+異常時は最初に `ORGANIZATION_SHADOW_ENABLED=false` とする。これにより組織Shadowだけを止め、旧実効権限を維持する。
+
+次にAccount Consoleフロントを直前版へ戻し、必要ならGASを直前デプロイ版へ戻す。追加列と監査ログシートは削除せず、証拠として残す。
+
+GASを監査関数が存在しない版へ戻す場合は、先に `removeAuthorizationIntegrityDailyTrigger` を実行して日次トリガーを削除する。監査ログと `AUTHORIZATION_LOG_ANCHOR` は削除しない。
+
+## 4.1 アンカー保存中断時の復旧
+
+監査ログ追記後・アンカー保存前の中断など、シート内のハッシュ連鎖は正常だがアンカーだけが不一致の場合に限り再基線化できる。
+
+1. `ORGANIZATION_SHADOW_ENABLED=false` とし、組織変更を停止する。
+2. 監査シートのバックアップと現状のアンカー値を別保管する。
+3. ハッシュ連鎖、未完了イベント、復旧要求に異常がないことを別担当者が確認する。
+4. Script Propertiesへ `AUTHORIZATION_ANCHOR_REBASE_ENABLED=true` と `AUTHORIZATION_ANCHOR_REBASE_REASON=<承認済み理由>` を設定する。
+5. `rebaselineAuthorizationLogAnchor` を手動実行する。ハッシュ連鎖等に異常があれば拒否される。成功時は `audit.anchor.rebaseline` イベントと承認理由を監査ログへ追記し、その行を含む新アンカーを保存する。
+6. 実行後は許可がfalse、理由プロパティが削除され、再基線化イベント、新アンカー、監査シート末尾が一致することを再読取する。
+7. `runAuthorizationIntegrityAudit` の正常終了を確認後、別承認で組織Shadowを再開する。
+
+## 5. 初回役員設定のロールバック
+
+初回役員設定直後で、他の利用者をまだ1人も設定していない場合だけ実行できる。
+
+1. `ORGANIZATION_SHADOW_ENABLED=false` にする。
+2. 初回実行直前に保存した読み取り控えと、`authorization_change_logs` の `organization.bootstrap` 成功イベントに記録された対象IDを照合する。両方が一致した場合だけ、その対象IDをロールバック用の役員IDとして使用する。
+3. bootstrapの実行許可、照合済み役員ID、実行者ID、理由を再設定する。実行者は対象役員本人または設定済みの独立監査担当に限定し、bootstrapと同じ本人メール照合を行う。氏名・メールではなく内部IDを使い、公開リポジトリには保存しない。
+4. `runOrganizationExecutiveBootstrapRollback` をApps Scriptエディタから実行する。
+5. 対象役員がversion 1であり、設定済み利用者が対象役員だけの場合に限り空欄へ戻す。
+6. 監査ログ、空欄復元、実行許可false、一時プロパティ削除を再読取する。
+
+他利用者の設定開始後はこの一括ロールバックを拒否する。以後は監査ログを根拠に個別の変更として戻す。
+
+## 6. 公開後の確認
+
+- 既存ログイン
+- Account Console一覧
+- 既存 `allowed_modules`、OrderCase旧権限、ShiftBuilder旧権限
+- 共通権限APIの `modules` が旧判定のままであること
+- 共通応答へ直属管理者ID・役員承認者IDが含まれないこと
+- 組織Shadow停止時も旧権限が返ること
+- 監査ログの開始・成功イベントとハッシュ連結
+- `runAuthorizationIntegrityAudit` が正常終了し、未完了イベント・復旧要求・ハッシュ不一致が0件であること
+- Account Consoleで編集不可対象が無効表示になること
+- 外部人員、自己変更、同格以上、別系統、版競合が拒否されること
+- 組織Shadow停止中は組織変更APIも拒否されること
+
+## 7. 実行しないもの
+
+- 新権限を実効権限として使う切替
+- 既存role・旧権限列の削除
+- OrderCase・ShiftBuilder・勤怠GASの権限切替
+- 役員候補以外の一括割当
+- 正確な位置情報閲覧権限の割当
+- commit、push、本番GAS反映、公開（それぞれ明示承認まで実行しない）

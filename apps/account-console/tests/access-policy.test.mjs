@@ -31,3 +31,10 @@ test("OrderCaseとAccount Consoleは既存の詳細条件を維持する", () =>
   assert.deepEqual(getEffectiveModuleCodes(["account_console"], { role: "admin" }), ["account_console"]);
   assert.deepEqual(getEffectiveModuleCodes(["account_console"], { role: "member" }), []);
 });
+
+test("developerは個別モジュール設定に依存せず全機能の入口を持つ", () => {
+  assert.deepEqual(
+    getEffectiveModuleCodes([], { role: "developer" }),
+    ["account_console", "pmo", "ordercase", "shift"]
+  );
+});

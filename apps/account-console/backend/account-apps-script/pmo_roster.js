@@ -19,6 +19,10 @@ function getPmoRoster() {
     const roster = users
       .map(buildPmoRosterUser)
       .filter(user => {
+        if (user.role.toLowerCase() === "developer") {
+          return false;
+        }
+
         if (!user.userId || !user.displayName || !user.employeeCode) {
           return false;
         }

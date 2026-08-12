@@ -21,7 +21,9 @@ function resolveAuthorizationContextByIdToken_(body) {
   }
 
   const user = resolved.user;
+  const organizationUser = findAuthorizationOrganizationUser_(user);
   const legacyModules = buildLegacyAuthorizationModules_(user);
+  const organizationShadow = resolveOrganizationShadowContext_(organizationUser);
   let assignedModules = {};
   let configured = false;
   let shadowError = false;
@@ -89,7 +91,7 @@ function resolveAuthorizationContextByIdToken_(body) {
 
   return {
     ok: true,
-    user: buildAuthorizationPublicUser_(user),
+    user: buildAuthorizationPublicUser_(user, organizationUser),
     authorization: {
       version: 1,
       mode: "shadow",
@@ -102,17 +104,36 @@ function resolveAuthorizationContextByIdToken_(body) {
         healthy: !shadowError,
         logging_available: loggingAvailable,
         differences: differences
-      }
+      },
+      organization_shadow: organizationShadow
     }
   };
 }
 
-function buildAuthorizationPublicUser_(user) {
+function findAuthorizationOrganizationUser_(user) {
+  const userId = normalizeText(user.internal_user_id || user.userId);
+  if (!userId) {
+    return user;
+  }
+
+  try {
+    return getUsersData().find(function(item) {
+      return normalizeText(item.internal_user_id) === userId;
+    }) || user;
+  } catch (error) {
+    console.error("Organization source user resolution failed", error);
+    return user;
+  }
+}
+
+function buildAuthorizationPublicUser_(user, organizationUser) {
+  const source = organizationUser || user;
   return {
     internal_user_id: normalizeText(user.internal_user_id || user.userId),
     status: normalizeText(user.status),
     role: normalizeText(user.role),
     organization_id: normalizeText(user.organization_id),
+    organization_level: normalizeOrganizationLevel_(source.organization_level),
     base_area: normalizeText(user.base_area),
     allowed_modules: Array.isArray(user.allowed_modules)
       ? user.allowed_modules.map(normalizeText).filter(Boolean)
@@ -158,12 +179,19 @@ function buildAssignedAuthorizationModules_(assignments) {
 
 function buildLegacyAuthorizationModules_(user) {
   const modules = {};
+  const developer = normalizeText(user.role).toLowerCase() === "developer";
   const allowedModules = (Array.isArray(user.allowed_modules)
     ? user.allowed_modules.map(normalizeText).filter(Boolean)
     : parseAllowedModules(user.allowed_modules)
   ).map(function(moduleCode) {
     return moduleCode.toLowerCase();
   });
+
+  if (developer) {
+    ["account_console", "pmo", "ordercase", "shift"].forEach(function(moduleCode) {
+      if (allowedModules.indexOf(moduleCode) === -1) allowedModules.push(moduleCode);
+    });
+  }
 
   if (allowedModules.indexOf("account_console") !== -1) {
     modules.account_console = legacyAuthorizationModule_([
@@ -177,11 +205,12 @@ function buildLegacyAuthorizationModules_(user) {
   }
 
   if (allowedModules.indexOf("ordercase") !== -1) {
-    const orderCasePermission = normalizeText(user.ordercase_permission);
+    const orderCasePermission = developer ? "all" : normalizeText(user.ordercase_permission);
     const orderCaseCapabilities = {
       all: [
         "ordercase.view",
         "ordercase.amount.view",
+        "ordercase.case.create",
         "ordercase.case.edit",
         "ordercase.amount.edit",
         "ordercase.rank.edit",
@@ -192,6 +221,7 @@ function buildLegacyAuthorizationModules_(user) {
       edit: [
         "ordercase.view",
         "ordercase.amount.view",
+        "ordercase.case.create",
         "ordercase.case.edit",
         "ordercase.amount.edit",
         "ordercase.store.edit",
@@ -208,7 +238,7 @@ function buildLegacyAuthorizationModules_(user) {
   }
 
   if (allowedModules.indexOf("shift") !== -1) {
-    const shiftPermission = normalizeText(user.shiftbuilder_permission);
+    const shiftPermission = developer ? "all" : normalizeText(user.shiftbuilder_permission);
     const shiftCapabilities = {
       all: ["shift.view.all", "shift.draft.edit", "shift.distribute"],
       manager: ["shift.view.all", "shift.draft.edit", "shift.distribute"],

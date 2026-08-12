@@ -133,15 +133,18 @@ function setIfHeaderExists_(obj, headers, key, value) {
 
 // ===== 権限判定ここから =====
 function hasShiftBuilderModule_(user) {
-  return includesCsvValue(user.allowed_modules, SHIFTBUILDER_MODULE_KEY);
+  return normalizeLowerText(user && user.role) === "developer" ||
+    includesCsvValue(user.allowed_modules, SHIFTBUILDER_MODULE_KEY);
 }
 
 function hasShiftBuilderPermission_(user) {
-  return VALID_SHIFTBUILDER_PERMISSIONS.indexOf(normalizeText(user.shiftbuilder_permission)) !== -1;
+  return normalizeLowerText(user && user.role) === "developer" ||
+    VALID_SHIFTBUILDER_PERMISSIONS.indexOf(normalizeText(user.shiftbuilder_permission)) !== -1;
 }
 
 function canEditShiftBuilder_(user) {
-  return SHIFTBUILDER_EDITABLE_PERMISSIONS.indexOf(normalizeText(user.shiftbuilder_permission)) !== -1;
+  return normalizeLowerText(user && user.role) === "developer" ||
+    SHIFTBUILDER_EDITABLE_PERMISSIONS.indexOf(normalizeText(user.shiftbuilder_permission)) !== -1;
 }
 
 function requireShiftBuilderUser_(user) {

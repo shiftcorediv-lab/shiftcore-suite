@@ -57,6 +57,11 @@ function canUseModule(moduleCode, user) {
 }
 
 export function getEffectiveModuleCodes(modules, user) {
+  const role = String(user?.role || "").trim().toLowerCase();
+  if (role === "developer") {
+    return [...OPENABLE_MODULES];
+  }
+
   const effective = [];
 
   normalizeModuleList(modules).forEach((rawCode) => {

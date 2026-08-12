@@ -1,5 +1,5 @@
 import { ACCOUNT_CONSOLE_URL, ACCOUNT_PORTAL_URL } from "./config.js?v=20260806-permission-2";
-import { canUseSignupAdminAccess } from "../common/access-policy.mjs?v=20260806-permission-2";
+import { canUseSignupAdminAccess } from "../common/access-policy.mjs?v=20260812-developer-1";
 
 export function canUseSignupAdmin(currentUser) {
   return canUseSignupAdminAccess(currentUser);

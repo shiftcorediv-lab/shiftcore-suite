@@ -73,6 +73,7 @@ function resolveOrderCaseUserByIdToken_(idToken) {
  ****************************************************/
 function requireOrderCaseUser_(idToken) {
   const user = resolveOrderCaseUserByIdToken_(idToken);
+  const developer = String(user.role || '').trim().toLowerCase() === 'developer';
 
   const modules = Array.isArray(user.allowed_modules)
     ? user.allowed_modules
@@ -82,11 +83,13 @@ function requireOrderCaseUser_(idToken) {
     throw new Error('このユーザーは停止中です。');
   }
 
-  if (modules.indexOf(ORDERCASE_MODULE_KEY) === -1) {
+  if (!developer && modules.indexOf(ORDERCASE_MODULE_KEY) === -1) {
     throw new Error('OrderCase の利用権限がありません。');
   }
 
-  const permission = String(user.ordercase_permission || '').trim();
+  const permission = developer
+    ? ORDERCASE_PERMISSION_ALL
+    : String(user.ordercase_permission || '').trim();
 
   if (!permission) {
     throw new Error('OrderCase内の権限が設定されていません。');

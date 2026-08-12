@@ -5,6 +5,49 @@ const USERS_SHEET_NAME = "users_master";
 const ACCOUNT_CHANGE_LOGS_SHEET_NAME = "account_change_logs";
 const PERMISSION_ASSIGNMENTS_SHEET_NAME = "permission_assignments";
 const AUTHORIZATION_SHADOW_LOGS_SHEET_NAME = "authorization_shadow_logs";
+const AUTHORIZATION_CHANGE_LOGS_SHEET_NAME = "authorization_change_logs";
+
+const ORGANIZATION_LEVELS = [
+  "member",
+  "leader",
+  "manager",
+  "executive"
+];
+
+const ORGANIZATION_LEVEL_RANKS = {
+  member: 1,
+  leader: 2,
+  manager: 3,
+  executive: 4
+};
+
+const ORGANIZATION_USER_HEADERS = [
+  "organization_level",
+  "direct_manager_user_id",
+  "executive_reviewer_user_id",
+  "organization_version",
+  "organization_updated_at",
+  "organization_updated_by"
+];
+
+const AUTHORIZATION_CHANGE_LOG_HEADERS = [
+  "authorization_change_log_id",
+  "authorization_event_id",
+  "occurred_at",
+  "event_type",
+  "request_id",
+  "actor_internal_user_id",
+  "target_internal_user_id",
+  "reviewer_internal_user_id",
+  "before_json",
+  "after_json",
+  "reason",
+  "result",
+  "error_code",
+  "source",
+  "previous_log_hash",
+  "log_hash"
+];
 
 const PERMISSION_ASSIGNMENT_HEADERS = [
   "permission_assignment_id",
@@ -38,6 +81,18 @@ const AUTHORIZATION_SHADOW_LOG_HEADERS = [
 ];
 
 const AUTHORIZATION_SHADOW_ENABLED_PROPERTY = "AUTHORIZATION_SHADOW_ENABLED";
+const ORGANIZATION_SHADOW_ENABLED_PROPERTY = "ORGANIZATION_SHADOW_ENABLED";
+const ORGANIZATION_BOOTSTRAP_ENABLED_PROPERTY = "ORGANIZATION_BOOTSTRAP_ENABLED";
+const ORGANIZATION_BOOTSTRAP_EXECUTIVE_IDS_PROPERTY = "ORGANIZATION_BOOTSTRAP_EXECUTIVE_IDS";
+const ORGANIZATION_BOOTSTRAP_ACTOR_ID_PROPERTY = "ORGANIZATION_BOOTSTRAP_ACTOR_ID";
+const ORGANIZATION_BOOTSTRAP_REASON_PROPERTY = "ORGANIZATION_BOOTSTRAP_REASON";
+const AUTHORIZATION_LOG_ANCHOR_PROPERTY = "AUTHORIZATION_LOG_ANCHOR";
+const AUTHORIZATION_INTEGRITY_RECIPIENT_IDS_PROPERTY = "AUTHORIZATION_INTEGRITY_RECIPIENT_IDS";
+const AUTHORIZATION_INTEGRITY_EXECUTIVE_IDS_PROPERTY = "AUTHORIZATION_INTEGRITY_EXECUTIVE_IDS";
+const AUTHORIZATION_INDEPENDENT_AUDITOR_ID_PROPERTY = "AUTHORIZATION_INDEPENDENT_AUDITOR_ID";
+const AUTHORIZATION_ANCHOR_REBASE_ENABLED_PROPERTY = "AUTHORIZATION_ANCHOR_REBASE_ENABLED";
+const AUTHORIZATION_ANCHOR_REBASE_REASON_PROPERTY = "AUTHORIZATION_ANCHOR_REBASE_REASON";
+const AUTHORIZATION_INTEGRITY_TRIGGER_FUNCTION = "runAuthorizationIntegrityAudit";
 const AUTHORIZATION_SHADOW_MODULE_CODES = [
   "account_console",
   "ordercase",
@@ -70,6 +125,7 @@ const VALID_PERMISSION_CAPABILITIES_BY_MODULE = {
   ordercase: [
     "ordercase.view",
     "ordercase.amount.view",
+    "ordercase.case.create",
     "ordercase.case.edit",
     "ordercase.amount.edit",
     "ordercase.rank.edit",

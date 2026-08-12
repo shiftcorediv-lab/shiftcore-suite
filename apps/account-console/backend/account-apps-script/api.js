@@ -91,6 +91,14 @@ function doPost(e) {
       return jsonResponse_(accountConsoleUpdateUser(body));
     }
 
+    if (action === "accountConsoleUpdateOrganizationAssignment") {
+      return jsonResponse_(accountConsoleUpdateOrganizationAssignment(body));
+    }
+
+    if (action === "accountConsoleGetOrganizationAssignment") {
+      return jsonResponse_(accountConsoleGetOrganizationAssignment(body));
+    }
+
     if (action === "accountConsoleGetLogs") {
       return jsonResponse_(accountConsoleGetLogs(body));
     }
@@ -123,7 +131,9 @@ function doPost(e) {
       const requestId = normalizeText(body.requestId);
       const approval = body.approval || {};
 
-      return jsonResponse_(approveSignupRequest(requestId, approval, operator.operatorId));
+      return jsonResponse_(
+        approveSignupRequest(requestId, approval, operator.operatorId, operator.user)
+      );
     }
 
     if (action === "rejectSignupRequest") {

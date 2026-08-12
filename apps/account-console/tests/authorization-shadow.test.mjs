@@ -72,7 +72,12 @@ function createAuthorizationContext(assignmentRows = [], options = {}) {
     },
     PropertiesService: {
       getScriptProperties: () => ({
-        getProperty: () => options.shadowEnabled === false ? "false" : "true"
+        getProperty: (key) => {
+          if (key === "ORGANIZATION_SHADOW_ENABLED") {
+            return options.organizationShadowEnabled === false ? "false" : "true";
+          }
+          return options.shadowEnabled === false ? "false" : "true";
+        }
       })
     },
     LockService: {
@@ -94,6 +99,14 @@ function createAuthorizationContext(assignmentRows = [], options = {}) {
         shiftbuilder_permission: "self"
       }
     }),
+    getUsersData: () => {
+      if (options.organizationReadFails) throw new Error("READ_FAILED");
+      return [{
+        internal_user_id: "U-1",
+        status: "active",
+        organization_level: options.organizationLevel || ""
+      }];
+    },
     parseAllowedModules: (value) => String(value || "").split(",").map((item) => item.trim()).filter(Boolean),
     getNowIsoStringJst: () => "2026-08-07T10:00:00",
     console: { error() {} }
@@ -103,6 +116,7 @@ function createAuthorizationContext(assignmentRows = [], options = {}) {
     "../backend/account-apps-script/utils.js",
     "../backend/account-apps-script/config.js",
     "../backend/account-apps-script/permission_assignments.js",
+    "../backend/account-apps-script/organization_authorization.js",
     "../backend/account-apps-script/authorization.js"
   ].forEach((path) => {
     vm.runInContext(readFileSync(new URL(path, import.meta.url), "utf8"), context);
@@ -225,6 +239,36 @@ test("緊急停止フラグがfalseなら権限行を読まず旧判定だけを
   assert.equal(result.authorization.shadow.enabled, false);
   assert.equal(Object.keys(result.authorization.candidate_modules).length, 0);
   assert.equal(shadowSheet.values.length, 1);
+});
+
+test("共通権限応答へ直属管理者IDと役員承認者IDを公開しない", () => {
+  const { context } = createAuthorizationContext([], { organizationLevel: "leader" });
+  const result = context.resolveAuthorizationContextByIdToken_({ idToken: "TOKEN" });
+  const organization = result.authorization.organization_shadow;
+
+  assert.equal(Object.hasOwn(organization, "direct_manager_user_id"), false);
+  assert.equal(Object.hasOwn(organization, "executive_reviewer_user_id"), false);
+});
+
+test("組織情報の読取失敗を旧権限から隔離する", () => {
+  const { context } = createAuthorizationContext([], { organizationReadFails: true });
+  const result = context.resolveAuthorizationContextByIdToken_({ idToken: "TOKEN" });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(Array.from(result.authorization.modules.shift.capabilities), ["shift.view.all"]);
+  assert.equal(result.authorization.organization_shadow.configured, false);
+});
+
+test("組織Shadowだけを緊急停止しても旧権限を返す", () => {
+  const { context } = createAuthorizationContext([], {
+    organizationLevel: "leader",
+    organizationShadowEnabled: false
+  });
+  const result = context.resolveAuthorizationContextByIdToken_({ idToken: "TOKEN" });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.authorization.organization_shadow.enabled, false);
+  assert.deepEqual(Array.from(result.authorization.modules.shift.capabilities), ["shift.view.all"]);
 });
 
 test("期限外・停止中の権限行は有効権限として扱わない", () => {

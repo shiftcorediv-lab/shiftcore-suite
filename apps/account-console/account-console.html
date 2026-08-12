@@ -8,6 +8,8 @@
   <link rel="preconnect" href="https://script.google.com">
   <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
   <link rel="stylesheet" href="./css/account-console.css">
+  <script src="../_shared/shiftcore-theme.js"></script>
+  <link rel="stylesheet" href="../_shared/shiftcore-theme.css">
 </head>
 <body>
   <div class="page">
@@ -199,6 +201,45 @@
             <input id="positionInput" type="text" autocomplete="off">
           </label>
 
+          <fieldset id="organizationAuthorityFieldset" class="organization-authority" disabled>
+            <legend>組織上の権限・直属管理者</legend>
+            <p class="field-note">「役職」の自由入力とは別です。申請承認と全社閲覧の正式な判定に使います。</p>
+            <input id="organizationVersionInput" type="hidden" value="0">
+
+            <label>
+              組織階層
+              <select id="organizationLevelInput">
+                <option value="">未設定</option>
+                <option value="member">メンバー</option>
+                <option value="leader">リーダー</option>
+                <option value="manager">マネージャー</option>
+                <option value="executive">役員</option>
+              </select>
+            </label>
+
+            <label id="directManagerField">
+              直属管理者
+              <select id="directManagerInput">
+                <option value="">選択してください</option>
+              </select>
+            </label>
+
+            <label id="executiveReviewerField" hidden>
+              役員申請の承認者
+              <select id="executiveReviewerInput">
+                <option value="">選択してください</option>
+              </select>
+            </label>
+
+            <label>
+              変更理由
+              <textarea id="organizationReasonInput" rows="2" placeholder="例：組織変更に伴う直属管理者の変更"></textarea>
+            </label>
+
+            <p id="organizationAuthorityStatus" class="field-note">既存アカウントを選択すると設定できます。</p>
+            <button id="saveOrganizationBtn" type="button" class="secondary-button">組織設定を保存</button>
+          </fieldset>
+
           <label>
             担当エリア
             <input id="baseAreaInput" type="text" autocomplete="off" placeholder="例：関西 / 東海 / 関東">
@@ -305,6 +346,6 @@
     <div id="statusBox" class="status-box">初期化中...</div>
   </div>
 
-  <script type="module" src="./js/account-console/main.js?v=20260803-role-1"></script>
+  <script type="module" src="./js/account-console/main.js?v=20260810-org-shadow-1"></script>
 </body>
 </html>

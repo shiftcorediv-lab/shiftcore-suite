@@ -1,7 +1,7 @@
 # 03 権限移行・API詳細設計
 
-- 更新日: 2026-08-07
-- 前提: `03_PERMISSION_DESIGN_PROPOSAL.md` の基本方針6点をえいち承認済み
+- 更新日: 2026-08-10
+- 前提: `03_PERMISSION_DESIGN_PROPOSAL.md` の基本方針と4段階の組織階層、全社閲覧、直属承認をえいち承認済み
 - 状態: 実装前設計
 - 本番変更: 未実施
 
@@ -19,6 +19,54 @@
 6. 個人名・メール・トークンを引き継ぎ資料や監査ログへ残さない。
 7. API／GASを先に守り、画面はその応答へ後から合わせる。
 8. 旧列は全利用者の移行完了と一運用期間の安定確認まで削除しない。
+9. 自由入力の `position` や勤怠独自roleから組織階層を自動推定しない。
+10. 全社閲覧と直属承認を別の判定として実装する。
+11. 自分自身または同格以上の階層・権限を変更できないよう、対象利用者の階層も検証する。
+12. 既存利用者の組織階層・直属管理者・Shift編集権限は、自動推定せずAccount Consoleで1人ずつ手動設定する。
+13. 正確な位置情報の閲覧者は役員が個別に決定し、組織階層だけでは自動付与しない。
+14. `developer` は組織階層と別軸のシステム特権として全アプリ・全操作を許可する。個別権限列へ依存させない一方、停止中アカウント、自己変更禁止、データ整合性検証、監査記録は維持する。
+15. `developer` は認証・管理・監査主体として保持するが、ShiftBuilderの配置候補・人員軸・配置済み表示とPMOの新規月次人員対象には含めない。上流APIと各アプリの受取処理の両方で除外する。作成済みPMO月次シートはroleを保持しないため、推測で書き換えず、実データ確認後に別移行する。
+
+### 組織階層契約（正式案）
+
+組織階層は `executive`、`manager`、`leader`、`member` の4段階を正式値とする。既存 `role`、自由入力 `position`、`grade_role`、ShiftBuilderの旧 `manager` は変換元にも権限判定にも使わない。
+
+直属関係は利用者IDで管理し、表示名やメールを参照キーにしない。申請承認では、操作者IDが対象者の直属管理者IDと一致することをサーバー側で確認する。上位者や全社閲覧権限者であっても、直属管理者でなければ承認を許可しない。
+
+役員本人の申請は自己承認を禁止し、あらかじめ指定された別の役員だけが承認できるようにする。申請者、承認者、対象、変更前後、理由、日時、結果をサーバー側の監査ログへ残し、役員の申請・承認は他の役員または監査担当へ通知する。ログは談合の発見と抑止には有効だが、それだけで談合を完全に阻止するものではない。高リスク操作は申請者と承認者を必ず分離し、定期レビューとログ改ざん検知を併用する。
+
+### `users_master` 追加列（正式案）
+
+既存列の意味を変えず、末尾へ次の列を追加する。列が存在しない間は旧判定を維持し、空欄を推測で補完しない。
+
+| 列 | 必須条件 | 値・規則 |
+|---|---|---|
+| `organization_level` | 内部利用者で必須 | `executive`、`manager`、`leader`、`member` |
+| `direct_manager_user_id` | member／leader／managerで必須 | activeな内部利用者の `internal_user_id`。member→leader、leader→manager、manager→executiveのみ許可 |
+| `executive_reviewer_user_id` | 申請を行うexecutiveで必須 | 自分以外のactiveなexecutive。役員本人の申請承認だけに使用 |
+| `organization_version` | 組織設定済み利用者で必須 | 1から始まる整数。更新競合検知のたびに加算 |
+| `organization_updated_at` | 組織設定済み利用者で必須 | サーバー時刻 |
+| `organization_updated_by` | 組織設定済み利用者で必須 | IDトークンから解決した操作者の `internal_user_id` |
+
+external／partner系利用者は `organization_level` を自動設定しない。内部階層へ参加させる業務決裁があるまでは組織権限を持たない。
+
+役員の `direct_manager_user_id` は空欄とし、役員間の申請承認先をそこへ流用しない。役員同士を直属関係として循環させないため、`executive_reviewer_user_id` を分離する。
+
+### 組織設定の拒否条件
+
+サーバー側は保存直前に次をすべて検証する。
+
+1. 対象者と直属管理者・役員承認者が存在し、activeである。
+2. 自分自身を直属管理者または役員承認者に指定していない。
+3. member→leader、leader→manager、manager→executiveの組合せである。
+4. 直属関係をたどって同じ利用者へ戻る循環がない。
+5. 操作者が対象者を変更できる階層にあり、自分自身または同格以上を昇格・降格・停止できない。
+6. マネージャーの任命・解除、役員承認者の設定、全社権限方針の変更は役員本人だけが行う。
+7. 最後のactiveな役員を降格・停止できない。
+8. リクエストの `organization_version` が保存時の値と一致する。
+9. 変更理由が空欄でない。
+
+初回導入時だけは、えいちがAccount Consoleで1人ずつ設定する。初回の役員作成は通常APIの自己昇格経路を使わず、対象、理由、実施者、確認者を記録した移行操作として別承認する。
 
 ## 3. 権限コード案
 
@@ -43,6 +91,7 @@
 |---|---|
 | `ordercase.view` | 案件閲覧 |
 | `ordercase.amount.view` | 金額閲覧 |
+| `ordercase.case.create` | 案件登録 |
 | `ordercase.case.edit` | 案件条件編集 |
 | `ordercase.amount.edit` | 金額編集 |
 | `ordercase.rank.edit` | 案件ランク変更 |
@@ -74,6 +123,8 @@
 | `attendance.location.precise.view` | 正確な位置情報閲覧 |
 
 04待ちの操作コードは、業務仕様確定まで作成しない。
+
+`attendance.team.view` はリーダー以上へ全社範囲で付与できるが、`attendance.request.review` は直属関係の追加検証を必須とする。capabilityを持つだけで全社の申請を承認できる設計にはしない。
 
 ## 4. データ範囲
 
@@ -142,13 +193,13 @@ roleは候補生成に使わない。
 
 | 既存値 | 自動移行できる権限 | 個別確認が必要 |
 |---|---|---|
-| `all` | `ordercase.view`、`ordercase.amount.view`、`ordercase.case.edit`、`ordercase.amount.edit`、`ordercase.rank.edit`、`ordercase.store.edit`、`ordercase.case.archive`、`ordercase.store.archive` | データ範囲 |
-| `edit` | `ordercase.view`、`ordercase.amount.view`、`ordercase.case.edit`、`ordercase.store.edit` | `amount.edit`、`case.archive`、`store.archive` を残すか |
+| `all` | 現行比較として従来能力を記録するが、新体系では個人の組織階層確認が必須 | `case.create`、`case.edit`、`amount.edit`、`rank.edit`、店舗管理・アーカイブの正式割当 |
+| `edit` | 現行比較として従来能力を記録するが、新体系へ自動確定しない | リーダーなら `case.create` と `amount.view`、マネージャーなら追加で `case.edit`、`amount.edit`、店舗管理・アーカイブ |
 | `view` | `ordercase.view`、`ordercase.amount.view` | データ範囲 |
 | `view_without_amount` | `ordercase.view` | データ範囲 |
 | 空欄・未知値 | なし | モジュールを残すか |
 
-既存 `edit` は2人。比較期間中は旧APIが従来操作を許可するが、新API候補では破壊的操作を未割当として差分記録する。
+既存 `edit` は2人。案件登録と編集を分離するため、既存値だけから新権限を自動確定しない。比較期間中は旧APIが従来操作を許可し、新API候補との差を記録する。
 
 ### ShiftBuilder
 
@@ -186,6 +237,8 @@ Account APIへ、認証済み本人の権限コンテキストを返すactionを
     "internal_user_id": "U0000",
     "status": "active",
     "role": "member",
+    "organization_level": "leader",
+    "direct_manager_user_id": "U0009",
     "organization_id": "ORG-001",
     "base_area": "関西",
     "allowed_modules": ["ordercase", "shift"]
@@ -231,7 +284,92 @@ Shadow候補の読込・検証・ログ記録は旧判定から例外隔離す�
 
 勤怠は既存の独自roleと位置情報権限を別途棚卸しするまでShadow比較対象外とする。
 
+`organization_level` と `direct_manager_user_id` は正式列名とする。ただし、列追加とAPI実装は影響範囲・移行対象・ロールバック手順の別承認後に行う。フロントへ直属管理者IDを常時返す必要がない画面では省略し、`executive_reviewer_user_id` は本人の申請画面と役員向け組織管理画面以外へ返さない。
+
 フロントへメール、電話、他人の権限割当全件を返さない。各アプリGASはAccount APIの応答をそのまま信用せず、対象操作・対象データIDと照合する。
+
+### Account Console組織設定API（正式案）
+
+組織情報と操作権限を同じ更新APIへ混ぜない。どちらもIDトークンを再検証し、画面から送られた操作者ID・階層・権限を信用しない。
+
+#### `getOrganizationAssignment`
+
+- 用途: Account Console編集画面の初期表示。
+- 入力: `target_internal_user_id`。
+- 出力: 対象者の階層、直属管理者、役員承認者、`organization_version`。候補となる管理者は必要最小限のID・表示名・階層だけ返す。
+- 許可: Account Console閲覧権限。正確な位置情報や他モジュールの権限は返さない。
+
+#### `updateOrganizationAssignment`
+
+```json
+{
+  "action": "updateOrganizationAssignment",
+  "target_internal_user_id": "U0001",
+  "organization_level": "leader",
+  "direct_manager_user_id": "U0009",
+  "executive_reviewer_user_id": "",
+  "expected_organization_version": 3,
+  "reason": "組織変更のため"
+}
+```
+
+- マネージャーは直属配下となるmember／leaderだけを設定できる。manager／executiveは変更できない。
+- 役員はmanagerの任命・解除と配下関係を設定できる。役員自身の階層変更と最後の役員の解除は通常APIで許可しない。
+- 保存はScript Lock内で再読取、検証、更新、監査ログ記録まで行う。
+- 成功時は新しい `organization_version` と変更後の値だけを返す。
+- 組織情報と `permission_assignments` の同時変更は行わない。片方だけ成功する曖昧な更新を避ける。
+
+#### `reviewApprovalRequest`
+
+```json
+{
+  "action": "reviewApprovalRequest",
+  "request_id": "REQ-0001",
+  "decision": "approve",
+  "expected_request_version": 2,
+  "comment": "確認済み"
+}
+```
+
+承認対象の業務データは04以降の各機能が保持する。共通判定は次の順で行う。
+
+1. 申請者と承認者が別人である。
+2. 申請者がmember／leader／managerなら、承認者が申請者の `direct_manager_user_id` と一致する。
+3. 申請者がexecutiveなら、承認者が `executive_reviewer_user_id` と一致し、双方がactiveなexecutiveである。
+4. 申請が未処理で、`expected_request_version` が一致する。
+5. 承認直前にも組織関係を再読取する。申請後に異動していた場合は自動承認せず、経路再確認状態へ移す。
+6. 結果と理由を監査ログへ記録してから成功を返す。
+
+上位階層、全社閲覧、システム `admin`／`developer`、対象機能の編集権限だけでは代理承認できない。緊急時の代理承認を将来設ける場合も、通常APIへ例外分岐を混ぜず、別権限・理由・期限・通知を持つbreak-glass操作として別決裁する。
+
+### `authorization_change_logs` シート契約（正式案）
+
+Shadow比較ログとは用途が違うため、`authorization_shadow_logs` へ混在させない。
+
+| 列 | 内容 |
+|---|---|
+| `authorization_change_log_id` | `ACL-` から始まる一意ID |
+| `authorization_event_id` | 同じ変更の `started` と完了結果を結ぶ `ACE-` から始まる一意ID |
+| `occurred_at` | サーバー時刻 |
+| `event_type` | `organization.update`、`permission.update`、`approval.review`、`break_glass` |
+| `request_id` | 申請がある場合のID |
+| `actor_internal_user_id` | 実行者 |
+| `target_internal_user_id` | 対象者 |
+| `reviewer_internal_user_id` | 承認者。該当しない場合は空欄 |
+| `before_json` | 変更前の許可項目だけをJSON化 |
+| `after_json` | 変更後の許可項目だけをJSON化 |
+| `reason` | 必須理由。認証情報・位置情報・私的情報を書かない |
+| `result` | `started`、`success`、`rejected`、`conflict`、`error`、`recovery_required` |
+| `error_code` | 拒否・失敗時の共通コード |
+| `source` | `account_console`、対象アプリ、移行作業識別子 |
+| `previous_log_hash` | 直前ログのハッシュ |
+| `log_hash` | 本行の主要項目と `previous_log_hash` から生成 |
+
+通常UI・通常APIにはログ更新・削除機能を設けない。ハッシュ鎖は改ざんそのものを物理的に止めるものではなく、行の変更・削除を検知しやすくする仕組みである。日次で末尾ハッシュと件数を別保存先へ退避し、高リスクイベントは関係役員または監査担当へ即時通知する。
+
+Google Sheetsの複数シート更新はDBトランザクションではない。そこで、変更前に `started` ログの保存が成功したことを確認し、その後に業務データを更新し、最後に同じ `authorization_event_id` の完了ログを追記する。各行の `authorization_change_log_id` は別IDとする。業務更新後に完了ログまたは通知が失敗した場合は `recovery_required` として復旧キューへ残し、黙って通常成功にはしない。定期検査で `started` のまま残ったイベントと、更新後データに対応する完了ログの欠落を検知する。
+
+役員本人の申請運用には、自分以外のactiveな役員が最低1人必要である。activeな役員が1人だけの場合、役員本人の申請は承認経路なしとして拒否し、自己承認やシステム管理者による代行へ自動フォールバックしない。役員が2人だけの場合は相互談合をシステムだけで排除できないため、全役員への通知に加えて、承認権を持たない独立した監査担当へも必ず通知する。3人以上の場合も、申請者・承認者を除くactiveな役員と監査担当へ通知する。
 
 ## 8. 共通エラー契約
 
@@ -244,6 +382,16 @@ Shadow候補の読込・検証・ログ記録は旧判定から例外隔離す�
 | `CAPABILITY_FORBIDDEN` | 操作権限なし | 403 |
 | `SCOPE_FORBIDDEN` | 対象データが範囲外 | 403または存在非開示の404相当 |
 | `AUTHORIZATION_STALE` | 権限版が古い | 409。再取得を促す |
+| `ORGANIZATION_LEVEL_INVALID` | 階層値・上下関係が不正 | 400 |
+| `DIRECT_MANAGER_INVALID` | 直属管理者が不在・停止・不適合 | 400 |
+| `ORGANIZATION_CYCLE` | 直属関係が循環する | 409 |
+| `SELF_APPROVAL_FORBIDDEN` | 自己承認 | 403 |
+| `REVIEWER_MISMATCH` | 直属管理者または指定役員ではない | 403 |
+| `SELF_ESCALATION_FORBIDDEN` | 自分自身の昇格・権限追加 | 403 |
+| `TARGET_LEVEL_FORBIDDEN` | 同格以上の対象を変更しようとした | 403 |
+| `LAST_EXECUTIVE_PROTECTED` | 最後の役員を解除しようとした | 409 |
+| `VERSION_CONFLICT` | 組織・申請の版が更新済み | 409 |
+| `AUDIT_WRITE_FAILED` | 必須監査ログを保存できない | 503相当 |
 
 GAS WebアプリはHTTPステータスを常に使い分けられないため、JSONの `code` を正本とする。
 
@@ -271,8 +419,8 @@ IDを指定する操作では、IDの存在だけでなく、その行が操作�
 
 ### Stage 1: 保存先と読取API追加
 
-- `permission_assignments` をヘッダーだけで追加する。
-- Account APIへ読み取り専用の権限コンテキストを追加する。
+- `permission_assignments` と `authorization_shadow_logs` の空基盤、Account APIの読み取り専用Shadow応答は反映済み。
+- `users_master` の組織列と `authorization_change_logs` は未追加。実装承認までは追加しない。
 - 既存APIの許可・拒否は変えない。
 
 ### Stage 2: Shadow判定
@@ -286,11 +434,13 @@ IDを指定する操作では、IDの存在だけでなく、その行が操作�
 
 ### Stage 3: 重大箇所から新判定へ切替
 
-1. ShiftBuilder `self` の本人限定取得
-2. Account Consoleの権限変更操作
-3. OrderCase金額・アーカイブ
-4. ShiftBuilder確定・公開
-5. 勤怠管理・位置情報
+1. 組織列と監査ログを追加し、えいちが1人ずつ手動設定する。設定中も実効権限は旧判定のままにする
+2. 直属関係、循環、自己昇格、最後の役員、版競合をShadow検証する
+3. ShiftBuilder `self` の本人限定取得
+4. Account Consoleの組織・権限変更操作
+5. OrderCase金額・アーカイブ
+6. ShiftBuilder確定・公開
+7. 勤怠管理・位置情報と直属承認
 
 ### Stage 4: フロント統一
 
@@ -313,8 +463,11 @@ IDを指定する操作では、IDの存在だけでなく、その行が操作�
 - `apps/account-console/backend/account-apps-script/api.js`
 - `apps/account-console/backend/account-apps-script/token_auth.js`
 - `apps/account-console/backend/account-apps-script/account_console_users.js`
-- 新規候補 `permission_assignments.js`
-- 新規候補 `authorization.js`
+- `apps/account-console/backend/account-apps-script/permission_assignments.js`
+- `apps/account-console/backend/account-apps-script/authorization.js`
+- 新規候補 `organization_assignments.js`
+- 新規候補 `authorization_change_logs.js`
+- 新規候補 `approval_authorization.js`
 - `apps/account-console/js/account-console/main.js`
 - `apps/account-console/js/account-console/ui.js`
 - `apps/account-console/js/common/access-policy.mjs`
@@ -359,11 +512,11 @@ IDを指定する操作では、IDの存在だけでなく、その行が操作�
 2. OrderCase `edit` 2人に、金額編集・案件アーカイブ・店舗アーカイブが必要か。
 3. ShiftBuilder空欄6人は、利用継続が必要か。必要なら `self`、`view`、`edit` のどれか。
 4. `all` 4人全員へ例外解除権限が必要か。
-5. `manager` 1人へ確定・公開・配布をすべて許可するか。
-6. 組織・エリア制限を最初の移行から適用するか、全体権限の分離後に適用するか。
-7. 勤怠承認者と正確な位置情報閲覧者。
+5. 既存のShift専用 `manager` 1人と、組織上のマネージャーを混同せず個別割当できるか。
+6. 既存利用者の階層・直属管理者・Shift編集権限は、Account Consoleで1人ずつ手動設定する。個別の割当内容は運用時に確認する。
+7. 正確な位置情報閲覧者は、役員が個別に決定する。
 
-これらは実データ上の対象者をAccount Consoleで確認して決める。資料には個人名を残さない。
+1〜5は実データ上の対象者をAccount Consoleで確認して決める。資料には個人名を残さない。役員本人の申請は、指定された別の役員による承認、自己承認拒否、監査ログ、関係役員への通知を必須とする。
 
 ## 13. 実装開始条件
 

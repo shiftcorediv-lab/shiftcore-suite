@@ -7,8 +7,10 @@ import {
   listAccountUsers,
   createAccountUser,
   updateAccountUser,
+  getOrganizationAssignment,
+  updateOrganizationAssignment,
   getAccountLogs
-} from "./api.js";
+} from "./api.js?v=20260810-org-shadow-1";
 import {
   dashboardBtn,
   signupAdminBtn,
@@ -17,10 +19,12 @@ import {
   searchInput,
   userForm,
   contractTypeInput,
+  organizationLevelInput,
+  saveOrganizationBtn,
   clearFormBtn,
   loadLogsBtn,
   saveUserBtn
-} from "./dom.js";
+} from "./dom.js?v=20260810-org-shadow-1";
 import {
   setStatus,
   setOperator,
@@ -35,10 +39,14 @@ import {
   renderLogs,
   buildSaveConfirmMessage,
   updateClassificationMigrationHint,
+  resetOrganizationAssignment,
+  renderOrganizationAssignment,
+  renderOrganizationCandidateOptions,
+  collectOrganizationAssignment,
   showLoading,
   hideLoading,
   setLogsLoading
-} from "./ui.js?v=20260802-modules-2";
+} from "./ui.js?v=20260810-org-shadow-1";
 
 // ===== 状態ここから =====
 let session = null;
@@ -46,6 +54,7 @@ let idToken = "";
 let allUsers = [];
 let selectedUser = null;
 let currentUser = null;
+let organizationCandidates = [];
 // ===== 状態ここまで =====
 
 
@@ -140,6 +149,11 @@ function renderCurrentUsers() {
       .catch((error) => {
         setStatus("履歴取得エラー\n\n" + error.message);
       });
+
+    loadOrganizationForSelectedUser()
+      .catch((error) => {
+        resetOrganizationAssignment(error.message || "組織設定を取得できませんでした");
+      });
   });
 
   renderSummary(filtered, allUsers);
@@ -151,6 +165,80 @@ function findUserById(userId) {
   }) || null;
 }
 // ===== ユーザー一覧読み込みここまで =====
+
+async function loadOrganizationForSelectedUser() {
+  if (!selectedUser?.internal_user_id) {
+    organizationCandidates = [];
+    resetOrganizationAssignment();
+    return;
+  }
+
+  const result = await getOrganizationAssignment(idToken, selectedUser.internal_user_id);
+  if (!isOkResult(result)) {
+    throw new Error(result.message || result.code || "組織設定の取得に失敗しました");
+  }
+
+  organizationCandidates = Array.isArray(result.candidates) ? result.candidates : [];
+  renderOrganizationAssignment(
+    result.organization || {},
+    organizationCandidates,
+    result.editable === true
+  );
+}
+
+async function saveOrganizationAssignment() {
+  const organization = collectOrganizationAssignment();
+  if (!organization.target_internal_user_id) {
+    setStatus("先に既存アカウントを選択してください");
+    return;
+  }
+  if (!organization.organization_level) {
+    setStatus("組織階層を選択してください");
+    return;
+  }
+  if (organization.organization_level === "executive") {
+    organization.direct_manager_user_id = "";
+    if (!organization.executive_reviewer_user_id) {
+      setStatus("役員申請の承認者を選択してください");
+      return;
+    }
+  } else {
+    organization.executive_reviewer_user_id = "";
+    if (!organization.direct_manager_user_id) {
+      setStatus("直属管理者を選択してください");
+      return;
+    }
+  }
+  if (!organization.reason) {
+    setStatus("組織設定の変更理由を入力してください");
+    return;
+  }
+
+  const confirmed = window.confirm(
+    "組織階層と直属管理者を保存します。\n\n" +
+    "この情報は申請承認と閲覧範囲の判定に使用されます。よろしいですか？"
+  );
+  if (!confirmed) return;
+
+  saveOrganizationBtn.disabled = true;
+  showLoading("組織設定を保存中...");
+  try {
+    const result = await updateOrganizationAssignment(idToken, organization);
+    if (!isOkResult(result)) {
+      throw new Error(result.message || result.code || "組織設定の保存に失敗しました");
+    }
+    await loadUsers("組織設定の保存後に一覧を再取得中...");
+    selectedUser = findUserById(organization.target_internal_user_id) || selectedUser;
+    if (selectedUser) fillUserForm(selectedUser);
+    await loadOrganizationForSelectedUser();
+    setStatus("組織設定を保存しました");
+  } catch (error) {
+    setStatus("組織設定の保存エラー\n\n" + error.message);
+  } finally {
+    saveOrganizationBtn.disabled = false;
+    hideLoading();
+  }
+}
 
 
 // ===== 保存ここから =====
@@ -400,6 +488,12 @@ searchInput.addEventListener("input", () => {
 contractTypeInput.addEventListener("change", () => {
   updateClassificationMigrationHint();
 });
+
+organizationLevelInput.addEventListener("change", () => {
+  renderOrganizationCandidateOptions(organizationCandidates);
+});
+
+saveOrganizationBtn.addEventListener("click", saveOrganizationAssignment);
 
 userForm.addEventListener("submit", saveUser);
 

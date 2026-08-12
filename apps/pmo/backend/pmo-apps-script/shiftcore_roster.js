@@ -19,6 +19,10 @@ function normalizeRoster(roster) {
       workStatus: normalizeText(item.workStatus || item.work_status).toLowerCase()
     };
   }).filter(function(item) {
+    if (item.role.toLowerCase() === "developer") {
+      return false;
+    }
+
     if (!item.displayName || !item.employeeCode) {
       return false;
     }

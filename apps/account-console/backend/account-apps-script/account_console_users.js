@@ -74,6 +74,7 @@ function accountConsoleCreateUser(body) {
   const payload = body.payload || body.user || {};
 
   validateAccountConsoleUserPayload_(payload, true);
+  assertDeveloperAccountMutationAllowed_(operator, "", payload.role, "");
 
   const sheet = ensureAccountConsoleNameColumns_();
   const values = sheet.getDataRange().getValues();
@@ -193,6 +194,13 @@ function accountConsoleUpdateUser(body) {
 
   validateAccountConsoleUserPayload_(payload, false);
 
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) {
+    throw new Error("ACCOUNT_CONSOLE_LOCK_TIMEOUT");
+  }
+
+  try {
+
   const sheet = ensureAccountConsoleNameColumns_();
   const values = sheet.getDataRange().getValues();
   const headers = values[0].map(function(header) {
@@ -277,6 +285,13 @@ function accountConsoleUpdateUser(body) {
     afterUser.organization_id = "internal";
   }
 
+  assertDeveloperAccountMutationAllowed_(
+    operator,
+    beforeUser.role,
+    afterUser.role,
+    targetUserId
+  );
+
   afterUser.updated_at = getNowIsoStringJst();
   afterUser.updated_by = operator.email;
 
@@ -295,11 +310,15 @@ function accountConsoleUpdateUser(body) {
   }
   // ===== メール重複チェックここまで =====
 
-  const newRow = headers.map(function(header) {
-    return afterUser[header] == null ? "" : afterUser[header];
+  editableFields.concat(["updated_at", "updated_by"]).forEach(function(field) {
+    const columnIndex = headers.indexOf(field);
+    if (columnIndex === -1) {
+      return;
+    }
+    sheet.getRange(targetRowIndex, columnIndex + 1).setValue(
+      afterUser[field] == null ? "" : afterUser[field]
+    );
   });
-
-  sheet.getRange(targetRowIndex, 1, 1, newRow.length).setValues([newRow]);
 
   editableFields.forEach(function(field) {
     const beforeValue = normalizeText(beforeUser[field]);
@@ -324,8 +343,35 @@ function accountConsoleUpdateUser(body) {
     message: "ユーザーを更新しました",
     user: buildAccountConsoleUser_(afterUser)
   };
+  } finally {
+    lock.releaseLock();
+  }
 }
 // ===== ユーザー更新ここまで =====
+
+
+// ===== developer特権保護 ここから =====
+function assertDeveloperAccountMutationAllowed_(operator, beforeRole, afterRole, targetUserId) {
+  const operatorRole = normalizeText(operator && operator.role).toLowerCase();
+  const normalizedBeforeRole = normalizeText(beforeRole).toLowerCase();
+  const normalizedAfterRole = normalizeText(afterRole).toLowerCase();
+  const touchesDeveloper = normalizedBeforeRole === "developer" ||
+    normalizedAfterRole === "developer";
+
+  if (!touchesDeveloper) return true;
+
+  if (operatorRole !== "developer") {
+    throw new Error("DEVELOPER_ACCOUNT_MUTATION_FORBIDDEN");
+  }
+
+  if (normalizeText(targetUserId) === normalizeText(operator.internal_user_id) &&
+      normalizedBeforeRole !== normalizedAfterRole) {
+    throw new Error("SELF_ROLE_CHANGE_FORBIDDEN");
+  }
+
+  return true;
+}
+// ===== developer特権保護 ここまで =====
 
 
 // ===== Account Console 操作者確認ここから =====
@@ -351,7 +397,8 @@ function requireAccountConsoleOperator_(body) {
     throw new Error("このユーザーは停止中です");
   }
 
-  if (modules.indexOf(ACCOUNT_CONSOLE_MODULE_KEY) === -1) {
+  if (normalizeText(user.role).toLowerCase() !== "developer" &&
+      modules.indexOf(ACCOUNT_CONSOLE_MODULE_KEY) === -1) {
     throw new Error("Account Console の利用権限がありません");
   }
 

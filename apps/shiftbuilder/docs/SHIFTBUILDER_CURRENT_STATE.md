@@ -6,6 +6,7 @@
 
 ## 現在のコード
 
+- 2026-08-12、`developer` はShiftBuilderの全操作権限を持つ一方、配置候補と人員軸には表示しない方針をローカル実装した。本番GASは未反映。
 - 2026-08-07、Account Console権限基盤へのShadow確認呼出しを追加した。候補権限は操作可否に使用せず、呼出し失敗時も既存初期化を継続する。
 - 本番Apps Scriptの現行8ファイルを `backend/shiftbuilder-apps-script/` へ取得し、以後の権限監査・本番差分確認の正本とした。
 
