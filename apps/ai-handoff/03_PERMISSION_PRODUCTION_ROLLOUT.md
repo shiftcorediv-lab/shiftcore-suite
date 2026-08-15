@@ -191,11 +191,11 @@ GASを監査関数が存在しない版へ戻す場合は、先に `removeAuthor
 
 | 系統 | 反映直前の復帰基準 | 記録者・日時 |
 |---|---|---|
-| Account GAS | デプロイ版番号: `________` | `________` |
-| PMO GAS | デプロイ版番号: `________` | `________` |
-| ShiftBuilder GAS | デプロイ版番号: `________` | `________` |
-| OrderCase GAS | デプロイ版番号: `________` | `________` |
-| 静的フロント | 直前の公開コミットSHA: `________` | `________` |
+| Account GAS | デプロイ版番号: `49` | Codex読み取り確認・2026-08-15 |
+| PMO GAS | デプロイ版番号: `23` | Codex読み取り確認・2026-08-15 |
+| ShiftBuilder GAS | デプロイ版番号: `38` | Codex読み取り確認・2026-08-15 |
+| OrderCase GAS | デプロイ版番号: `51` | Codex読み取り確認・2026-08-15 |
+| 静的フロント | 直前の公開コミットSHA: `454500070df1c720825e2688db78ff08bfe7865b` | GitHub Pages成功確認・2026-08-15 |
 
 ### 8.1 反映順序
 
@@ -205,6 +205,19 @@ GASを監査関数が存在しない版へ戻す場合は、先に `removeAuthor
 4. Dashboardでdeveloperに全入口が表示され、各入口のGASが拒否しないことを確認する。
 
 GASを先行し、静的フロントを後にする。逆順にすると、フロントだけがdeveloperへ全入口を表示し、未更新GASがアクセスを拒否する不整合期間が生じる。
+
+### 8.1.1 2026-08-15 本番正本との再比較
+
+4系統GASを一時領域へ読み取り取得し、ローカル正本とファイル単位で比較した。デプロイID、利用者情報、認証情報は記録しない。
+
+- Account GAS: `account_console_users.js`、`api.js`、`authorization.js`、`organization_assignments.js`、`pmo_roster.js`、`signup_admin.js`、`signup_user_write.js` の7ファイルが差分。
+- PMO GAS: `shiftcore_roster.js` の1ファイルだけが差分。
+- ShiftBuilder GAS: `ShiftBuilderService.js`、`api.js`、`repositore.js`、`utils.js` の4ファイルが差分。
+- OrderCase GAS: 6ファイルに差分があるが、本変更の対象は `Service_OrderCasePermissions.js` の1ファイルだけ。ほか5ファイルは本番第51版とローカルブランチの既存差分であり、本変更へ含めない。
+
+OrderCaseはリポジトリ正本フォルダから直接一括pushしない。本番第51版を新しい一時領域へ取得し、`Service_OrderCasePermissions.js`だけをSHA固定済み内容へ置き換えた専用反映束を作り、その束の全ファイルを第51版と再比較して、差分が1ファイルだけであることを確認してから反映する。
+
+静的フロントの復帰基準はGitHub Pages成功コミット `454500070df1c720825e2688db78ff08bfe7865b`。ローカル作業ブランチはmainと分岐しているため直接pushしない。最新mainを基礎にした一時worktreeまたは専用ブランチへ、8.2の4ファイルの必要ハンクだけを適用し、公開差分を再確認する。
 
 ### 8.2 静的フロントの復帰
 
