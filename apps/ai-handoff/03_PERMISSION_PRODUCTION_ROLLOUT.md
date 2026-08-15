@@ -244,3 +244,14 @@ OrderCaseはリポジトリ正本フォルダから直接一括pushしない。�
 本変更は、利用者、権限割当、配置、PMO月次行、監査シートのデータ移行を伴わない。したがって、反映中に本番データ変更を行っていなければ、4系統GASと静的フロントを直前版へ戻すコード復帰だけで完全に戻る。
 
 作成済みPMO月次シートのdeveloper該当行を別途移行する場合は本節の対象外とし、別の承認、バックアップ、変更前後件数、個別ロールバック手順を用意する。
+
+## 9. 2026-08-15 developer権限変更の反映記録
+
+- Account GAS: 第50版。既存URLのpingで `success=true`、`message=pong` を確認。
+- PMO GAS: 第24版。既存URLのpingで `success=true`、`message=pong` を確認。
+- ShiftBuilder GAS: 第39版。既存URLのpingで `success=true`、`ok=true` を確認。
+- OrderCase GAS: 第52版。ping actionは未実装のため、認証必須の `getOrderCasePermission` がJSONで応答し、IDトークンなしを拒否することを確認。
+- 静的フロント: mainコミット `d2b865d28094ab8eb8dfc085182bfbca58749f8d`。GitHub Pages run `31871164600` が成功。
+- Pages公開後、`dashboard.html` → `dashboard/main.js` → `dashboard/modules.js` → `common/access-policy.mjs` の読込版番号と、developerへ4入口を返す実装をHTTPで再確認した。
+- 反映前後の本番件数は一致した。role=developer 1件、developer配置36件（有効扱い4件）、既存PMO月次該当行2件。データ削除・移行は行っていない。
+- 独立監査は、えいちの決定により全反映完了後のまとめ監査へ延期した。
