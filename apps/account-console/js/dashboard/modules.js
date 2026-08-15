@@ -1,7 +1,7 @@
 import { MODULE_NAME_MAP, MODULE_DESCRIPTION_MAP } from "./config.js?v=20260802-reorder-1";
 import { moduleList, userModuleList } from "./dom.js";
 import { openModule } from "./navigation.js?v=20260803-role-1";
-import { getEffectiveModuleCodes } from "../common/access-policy.mjs?v=20260806-permission-2";
+import { getEffectiveModuleCodes } from "../common/access-policy.mjs?v=20260812-developer-1";
 
 export function getEffectiveModules(modules, user) {
   return getEffectiveModuleCodes(modules, user);
