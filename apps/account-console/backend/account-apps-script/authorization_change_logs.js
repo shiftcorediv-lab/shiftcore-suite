@@ -97,6 +97,20 @@ function runAuthorizationIntegrityAudit() {
       normalizeText(verificationError.code || verificationError.message || "AUDIT_READ_FAILED")
     ], [], []);
   }
+  try {
+    const organizationErrors = verifyOrganizationGraphIntegrity_();
+    result = authorizationIntegrityResult_(
+      result.errors.concat(organizationErrors),
+      result.incomplete_events,
+      result.recovery_required
+    );
+  } catch (organizationError) {
+    result = authorizationIntegrityResult_(
+      result.errors.concat(["ORGANIZATION_GRAPH_AUDIT_FAILED"]),
+      result.incomplete_events,
+      result.recovery_required
+    );
+  }
   if (!result.healthy) {
     try {
       notifyAuthorizationIntegrityFailure_(result);
@@ -110,6 +124,20 @@ function runAuthorizationIntegrityAudit() {
     throw error;
   }
   return result;
+}
+
+function verifyOrganizationGraphIntegrity_() {
+  const validation = validateOrganizationGraph_(getUsersData());
+  if (validation.healthy) return [];
+
+  const counts = {};
+  (validation.errors || []).forEach(function(item) {
+    const code = normalizeText(item && item.code) || "UNKNOWN";
+    counts[code] = (counts[code] || 0) + 1;
+  });
+  return Object.keys(counts).sort().map(function(code) {
+    return "ORGANIZATION_GRAPH_UNHEALTHY:" + code + ":" + counts[code];
+  });
 }
 
 function rebaselineAuthorizationLogAnchor() {

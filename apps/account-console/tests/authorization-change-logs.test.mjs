@@ -89,6 +89,10 @@ function createContext(options = {}) {
     { internal_user_id: "U-E2", email: "executive2@example.com", status: "active" },
     { internal_user_id: "U-A1", email: "auditor@example.com", status: "active" }
   ];
+  context.validateOrganizationGraph_ = () => {
+    if (options.organizationGraphError) throw new Error("graph read failed");
+    return options.organizationValidation || { healthy: true, errors: [] };
+  };
   context.escapeAuthorizationSheetText_ = (value) => {
     const text = context.normalizeText(value);
     return /^[=+\-@]/.test(text) ? `'${text}` : text;
@@ -245,6 +249,42 @@ test("監査シートが削除されても日次検査は異常通知を試み�
   );
   assert.equal(sentEmails.length, 1);
   assert.match(sentEmails[0].body, /AUDIT_WRITE_FAILED/);
+});
+
+test("日次監査は組織グラフ不整合を件数だけで通知する", () => {
+  const { context, properties, sentEmails } = createContext({
+    organizationValidation: {
+      healthy: false,
+      errors: [
+        { internal_user_id: "U-E1", code: "EXECUTIVE_REVIEWER_GRAPH_INVALID" },
+        { internal_user_id: "U-E2", code: "EXECUTIVE_REVIEWER_GRAPH_INVALID" }
+      ]
+    }
+  });
+  properties.AUTHORIZATION_INTEGRITY_RECIPIENT_IDS = "U-E1,U-E2,U-A1";
+
+  assert.throws(
+    () => context.runAuthorizationIntegrityAudit(),
+    (error) => error.code === "AUTHORIZATION_INTEGRITY_FAILED"
+  );
+  assert.equal(sentEmails.length, 1);
+  assert.match(
+    sentEmails[0].body,
+    /ORGANIZATION_GRAPH_UNHEALTHY:EXECUTIVE_REVIEWER_GRAPH_INVALID:2/
+  );
+  assert.doesNotMatch(sentEmails[0].body, /internal_user_id|U-E1|U-E2/);
+});
+
+test("組織グラフの読取失敗も日次監査異常として通知する", () => {
+  const { context, properties, sentEmails } = createContext({ organizationGraphError: true });
+  properties.AUTHORIZATION_INTEGRITY_RECIPIENT_IDS = "U-E1,U-E2,U-A1";
+
+  assert.throws(
+    () => context.runAuthorizationIntegrityAudit(),
+    (error) => error.code === "AUTHORIZATION_INTEGRITY_FAILED"
+  );
+  assert.equal(sentEmails.length, 1);
+  assert.match(sentEmails[0].body, /ORGANIZATION_GRAPH_AUDIT_FAILED/);
 });
 
 test("人員マスターの有効な通知対象を解決し試験通知を送れる", () => {
