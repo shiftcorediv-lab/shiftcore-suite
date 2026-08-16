@@ -143,6 +143,67 @@ function requireOrderCaseEditor_(idToken) {
 
 
 /****************************************************
+ * requireOrderCaseCreator_ ここから
+ * 案件登録は共通権限コンテキストの実効capabilityでも必ず確認する
+ ****************************************************/
+function requireOrderCaseCreator_(idToken) {
+  const context = requireOrderCaseEditor_(idToken);
+  const authorizationResult = resolveOrderCaseAuthorizationByIdToken_(idToken);
+
+  if (!hasOrderCaseCapability_(
+    authorizationResult.authorization,
+    'ordercase.case.create'
+  )) {
+    throw new Error('案件を登録する権限がありません。');
+  }
+
+  return context;
+}
+
+function resolveOrderCaseAuthorizationByIdToken_(idToken) {
+  const safeIdToken = String(idToken || '').trim();
+
+  if (!safeIdToken) {
+    throw new Error('idToken が必要です。');
+  }
+
+  const response = UrlFetchApp.fetch(SHIFTCORE_ACCOUNT_API_URL, {
+    method: 'post',
+    contentType: 'text/plain;charset=utf-8',
+    payload: JSON.stringify({
+      action: 'resolveAuthorizationContextByIdToken',
+      idToken: safeIdToken
+    }),
+    muteHttpExceptions: true
+  });
+  const text = response.getContentText();
+  let result;
+
+  try {
+    result = JSON.parse(text);
+  } catch (error) {
+    throw new Error('共通権限APIの応答を確認できません。');
+  }
+  if (!result || result.ok !== true || !result.user || !result.authorization) {
+    throw new Error(result && result.message ? result.message : '共通権限を確認できません。');
+  }
+  return result;
+}
+
+function hasOrderCaseCapability_(authorization, capability) {
+  const modules = authorization && authorization.modules;
+  const orderCase = modules && modules.ordercase;
+  const capabilities = orderCase && Array.isArray(orderCase.capabilities)
+    ? orderCase.capabilities
+    : [];
+  return capabilities.indexOf(String(capability || '').trim()) !== -1;
+}
+/****************************************************
+ * requireOrderCaseCreator_ ここまで
+ ****************************************************/
+
+
+/****************************************************
  * getIdTokenFromParams_ ここから
  * GETパラメータからidTokenを取得
  ****************************************************/

@@ -272,3 +272,12 @@ OrderCaseはリポジトリ正本フォルダから直接一括pushしない。�
 - 静的フロント公開コミットは `95c8db0cf1e238b662645e35a62f5766e275b47d`。GitHub Pages run `31971757746` は成功した。
 - 実配信URLでHTMLが `main.js?v=20260812-developer-1`、main.jsが `navigation.js?v=20260812-developer-1` を参照し、旧navigation版番号が残っていないことを確認した。
 - 利用者、権限、配置、案件、必要人数、シートデータは変更していない。
+
+## 10. 実効切替ブロッカー2件の将来反映手順（未実施）
+
+- 対象はAccount GASの `api.js`・`organization_assignments.js` と、OrderCase GASの `Api_Post.js`・`Service_OrderCasePermissions.js`。ローカルの他差分を含めない。
+- 反映前に各本番正本とローカルを再比較し、各系統の既存URL・直前版番号・ファイル一覧を記録する。OrderCaseは本番正本を基礎に対象2ファイルだけを置換した専用束を使う。
+- Account GASを先に公開して一括更新actionと既存の共通権限actionを確認し、その後OrderCase GASを公開する。OrderCaseだけ先行させない。
+- OrderCase確認は、現行で案件登録可能な既存権限が維持されること、登録不可の利用者が拒否されること、共通権限API異常時に書込み前で拒否されることを、実データを作らない検証方法または専用検証デプロイで行う。
+- 異常時はAccount・OrderCaseとも記録した直前版へ戻す。本変更はシート列追加・権限割当・データ移行を伴わないため、検証で案件を作成しなければコード復帰だけで戻る。
+- 本節は手順の事前記録であり、commit、push、GAS反映、既存URL更新を承認するものではない。

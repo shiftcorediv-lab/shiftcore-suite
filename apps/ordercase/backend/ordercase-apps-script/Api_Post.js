@@ -13,7 +13,7 @@ function handlePost_(e) {
      * createCase ここから
      ****************************************************/
     if (action === 'createCase') {
-      const context = requireOrderCaseEditor_(getIdTokenFromBody_(body));
+      const context = requireOrderCaseCreator_(getIdTokenFromBody_(body));
 
       payload.created_by = context.user.name || context.user.displayName || context.user.email || '';
       payload.created_by_email = context.user.email || '';

@@ -319,6 +319,18 @@ Shadow候補の読込・検証・ログ記録は旧判定から例外隔離す�
 - 成功時は新しい `organization_version` と変更後の値だけを返す。
 - 組織情報と `permission_assignments` の同時変更は行わない。片方だけ成功する曖昧な更新を避ける。
 
+#### `accountConsoleBulkUpdateExecutives`
+
+役員の追加・解除・承認者付替えは、1人ずつ保存すると途中で承認者グラフが分断されるため、専用APIで全対象をまとめて更新する。
+
+- 入力: 必須の `reason` と、最大20件の `changes`。各変更は対象内部ID、変更後の組織3項目、`expected_organization_version` を持つ。
+- 許可: Shadow期間はactiveな内部 `developer` だけ。役員本人や同格者へ自己・相互変更権限を追加しない。
+- 対象: 変更前または変更後がexecutiveである利用者だけ。操作者自身、停止中、外部人員、重複対象を拒否する。
+- 検証: 更新後もactiveな役員を2人以上維持し、全役員が1つの承認循環を構成し、直属関係を含む新しい組織不整合がないことを保存前に確認する。
+- 一貫性: Script Lock内で操作者と全対象を再読取し、全行を書いた後にシート全体を再照合する。1行でも書込み・照合・成功ログに失敗した場合は全対象を変更前へ戻し、復元後も全行を再照合する。
+- 監査: 全変更を1つの `authorization_event_id` と `request_id` で束ね、`organization.executive.bulk_update` の開始・成功または失敗をハッシュ連鎖ログへ記録する。
+- このAPIは組織Shadowの保守APIであり、候補権限を実効権限へ切り替えない。通常画面への接続と本番反映は別承認とする。
+
 #### `reviewApprovalRequest`
 
 ```json
@@ -351,7 +363,7 @@ Shadow比較ログとは用途が違うため、`authorization_shadow_logs` へ�
 | `authorization_change_log_id` | `ACL-` から始まる一意ID |
 | `authorization_event_id` | 同じ変更の `started` と完了結果を結ぶ `ACE-` から始まる一意ID |
 | `occurred_at` | サーバー時刻 |
-| `event_type` | `organization.update`、`permission.update`、`approval.review`、`break_glass` |
+| `event_type` | `organization.update`、`organization.executive.bulk_update`、`permission.update`、`approval.review`、`break_glass` |
 | `request_id` | 申請がある場合のID |
 | `actor_internal_user_id` | 実行者 |
 | `target_internal_user_id` | 対象者 |

@@ -58,7 +58,8 @@ function accountConsoleUpdateOrganizationAssignment(body) {
     throw organizationAuthorizationError_("ORGANIZATION_SHADOW_DISABLED");
   }
   const operatorPublic = requireAccountConsoleOperator_(body);
-  const operator = findOrganizationUserById_(operatorPublic.internal_user_id || operatorPublic.userId);
+  const operatorId = normalizeText(operatorPublic.internal_user_id || operatorPublic.userId);
+  const operator = findOrganizationUserById_(operatorId);
   assertOrganizationOperator_(operator);
   const payload = body.payload || body;
   const reason = normalizeText(payload.reason);
@@ -153,6 +154,252 @@ function accountConsoleUpdateOrganizationAssignment(body) {
     };
   } finally {
     lock.releaseLock();
+  }
+}
+
+function accountConsoleBulkUpdateExecutives(body) {
+  if (!isOrganizationShadowEnabled_()) {
+    throw organizationAuthorizationError_("ORGANIZATION_SHADOW_DISABLED");
+  }
+  const operatorPublic = requireAccountConsoleOperator_(body);
+  const operatorId = normalizeText(operatorPublic.internal_user_id || operatorPublic.userId);
+  const operator = findOrganizationUserById_(operatorId);
+  assertExecutiveBulkOperator_(operator);
+  const payload = body.payload || body;
+  const reason = normalizeText(payload.reason);
+  if (!reason) {
+    throw organizationAuthorizationError_("REASON_REQUIRED");
+  }
+
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) {
+    throw organizationAuthorizationError_("ORGANIZATION_LOCK_TIMEOUT");
+  }
+
+  try {
+    const sheet = getUsersSheet();
+    const values = sheet.getDataRange().getValues();
+    const headers = values[0].map(normalizeText);
+    assertOrganizationHeaders_(headers);
+    const users = values.slice(1).map(function(row) {
+      return rowToOrganizationObject_(headers, row);
+    });
+    const lockedOperator = users.find(function(user) {
+      return normalizeText(user.internal_user_id) === operatorId;
+    });
+    if (!lockedOperator) {
+      throw organizationAuthorizationError_("USER_NOT_FOUND");
+    }
+    assertExecutiveBulkOperator_(lockedOperator);
+    const prepared = prepareExecutiveBulkUpdate_(
+      users,
+      Array.isArray(payload.changes) ? payload.changes : [],
+      lockedOperator
+    );
+    const eventId = "ACE-" + Utilities.getUuid();
+    const requestId = "ACB-" + Utilities.getUuid();
+    appendAuthorizationChangeLog_({
+      authorization_event_id: eventId,
+      event_type: "organization.executive.bulk_update",
+      request_id: requestId,
+      actor_internal_user_id: lockedOperator.internal_user_id,
+      before: { changes: prepared.items.map(function(item) {
+        return organizationAuditSnapshot_(item.before);
+      }) },
+      after: { changes: prepared.items.map(function(item) {
+        return organizationAuditSnapshot_(item.after);
+      }) },
+      reason: reason,
+      result: "started"
+    });
+
+    try {
+      prepared.items.forEach(function(item) {
+        writeOrganizationCandidate_(sheet, headers, item.row_number, item.after);
+      });
+      SpreadsheetApp.flush();
+      assertExecutiveBulkWriteVerified_(sheet, headers, prepared.candidate_users, true);
+      appendAuthorizationChangeLog_({
+        authorization_event_id: eventId,
+        event_type: "organization.executive.bulk_update",
+        request_id: requestId,
+        actor_internal_user_id: lockedOperator.internal_user_id,
+        before: { changes: prepared.items.map(function(item) {
+          return organizationAuditSnapshot_(item.before);
+        }) },
+        after: { changes: prepared.items.map(function(item) {
+          return organizationAuditSnapshot_(item.after);
+        }) },
+        reason: reason,
+        result: "success"
+      });
+    } catch (writeError) {
+      handleExecutiveBulkUpdateFailure_(
+        sheet, headers, prepared.items, prepared.original_users,
+        lockedOperator, eventId, requestId, reason, writeError
+      );
+      throw writeError;
+    }
+
+    return {
+      success: true,
+      ok: true,
+      request_id: requestId,
+      change_count: prepared.items.length,
+      organizations: prepared.items.map(function(item) {
+        return organizationAuditSnapshot_(item.after);
+      })
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function assertExecutiveBulkOperator_(operator) {
+  if (!isDeveloperOrganizationOperator_(operator) ||
+      getNormalizedPersonType(operator) !== "internal" ||
+      normalizeText(operator.status).toLowerCase() !== "active") {
+    throw organizationAuthorizationError_("CAPABILITY_FORBIDDEN");
+  }
+  return true;
+}
+
+function prepareExecutiveBulkUpdate_(users, rawChanges, operator) {
+  const changes = Array.isArray(rawChanges) ? rawChanges : [];
+  if (!changes.length || changes.length > 20) {
+    throw organizationAuthorizationError_("BULK_CHANGES_INVALID");
+  }
+  const operatorId = normalizeText(operator && operator.internal_user_id);
+  const seen = {};
+  const items = changes.map(function(change) {
+    const targetId = normalizeText(change && change.target_internal_user_id);
+    if (!targetId || seen[targetId]) {
+      throw organizationAuthorizationError_("BULK_TARGET_DUPLICATED");
+    }
+    seen[targetId] = true;
+    if (targetId === operatorId) {
+      throw organizationAuthorizationError_("SELF_ESCALATION_FORBIDDEN");
+    }
+    const index = users.findIndex(function(user) {
+      return normalizeText(user.internal_user_id) === targetId;
+    });
+    if (index < 0) {
+      throw organizationAuthorizationError_("USER_NOT_FOUND");
+    }
+    const before = users[index];
+    assertInternalOrganizationTarget_(before);
+    if (normalizeText(before.status).toLowerCase() !== "active") {
+      throw organizationAuthorizationError_("ORGANIZATION_TARGET_INACTIVE");
+    }
+    const hasExpectedVersion = Object.prototype.hasOwnProperty.call(
+      change, "expected_organization_version"
+    );
+    const expectedVersion = Number(change.expected_organization_version);
+    if (!hasExpectedVersion || !Number.isInteger(expectedVersion) || expectedVersion < 0 ||
+        expectedVersion !== normalizeOrganizationVersion_(before.organization_version)) {
+      throw organizationAuthorizationError_("VERSION_CONFLICT");
+    }
+    const after = buildOrganizationCandidate_(before, change, operator);
+    if (normalizeOrganizationLevel_(before.organization_level) !== "executive" &&
+        normalizeOrganizationLevel_(after.organization_level) !== "executive") {
+      throw organizationAuthorizationError_("BULK_EXECUTIVE_TARGET_REQUIRED");
+    }
+    return { before: before, after: after, row_number: index + 2 };
+  });
+
+  const candidateUsers = users.map(function(user) {
+    const item = items.find(function(candidate) {
+      return normalizeText(candidate.before.internal_user_id) ===
+        normalizeText(user.internal_user_id);
+    });
+    return item ? item.after : user;
+  });
+  if (countActiveExecutives_(candidateUsers) < 2) {
+    throw organizationAuthorizationError_("LAST_EXECUTIVE_PROTECTED");
+  }
+  const beforeValidation = validateOrganizationGraph_(users);
+  const afterValidation = validateOrganizationGraph_(candidateUsers);
+  const newErrors = findNewOrganizationErrors_(beforeValidation.errors, afterValidation.errors);
+  const executiveErrors = afterValidation.errors.filter(function(item) {
+    return normalizeText(item.code).indexOf("EXECUTIVE_REVIEWER_") === 0;
+  });
+  if (executiveErrors.length || newErrors.length) {
+    throw organizationAuthorizationError_((executiveErrors[0] || newErrors[0]).code);
+  }
+  return { items: items, candidate_users: candidateUsers, original_users: users };
+}
+
+function assertExecutiveBulkWriteVerified_(sheet, headers, expectedUsers, requireHealthyGraph) {
+  const values = sheet.getDataRange().getValues();
+  const actualUsers = values.slice(1).map(function(row) {
+    return rowToOrganizationObject_(headers, row);
+  });
+  const expectedById = {};
+  expectedUsers.forEach(function(user) {
+    expectedById[normalizeText(user.internal_user_id)] = organizationAuditSnapshot_(user);
+  });
+  const actualById = {};
+  actualUsers.forEach(function(user) {
+    actualById[normalizeText(user.internal_user_id)] = organizationAuditSnapshot_(user);
+  });
+  const mismatch = Object.keys(expectedById).length !== Object.keys(actualById).length ||
+    Object.keys(expectedById).some(function(userId) {
+      return !actualById[userId] ||
+        JSON.stringify(actualById[userId]) !== JSON.stringify(expectedById[userId]);
+    }) || actualUsers.some(function(user) {
+    const userId = normalizeText(user.internal_user_id);
+    return !expectedById[userId];
+  });
+  const validation = validateOrganizationGraph_(actualUsers);
+  if (mismatch || requireHealthyGraph && validation.errors.some(function(item) {
+    return normalizeText(item.code).indexOf("EXECUTIVE_REVIEWER_") === 0;
+  })) {
+    throw organizationAuthorizationError_("BULK_WRITE_VERIFICATION_FAILED");
+  }
+  return true;
+}
+
+function handleExecutiveBulkUpdateFailure_(
+  sheet, headers, items, originalUsers, operator, eventId, requestId, reason, originalError
+) {
+  let rollbackSucceeded = true;
+  try {
+    items.forEach(function(item) {
+      writeOrganizationCandidate_(sheet, headers, item.row_number, item.before);
+    });
+    SpreadsheetApp.flush();
+    assertExecutiveBulkWriteVerified_(sheet, headers, originalUsers, false);
+  } catch (rollbackError) {
+    rollbackSucceeded = false;
+    recordAuthorizationRecovery_({
+      authorization_event_id: eventId,
+      error_code: normalizeText(originalError.code || originalError.message),
+      rollback_error: normalizeText(rollbackError.code || rollbackError.message)
+    });
+  }
+  try {
+    appendAuthorizationChangeLog_({
+      authorization_event_id: eventId,
+      event_type: "organization.executive.bulk_update",
+      request_id: requestId,
+      actor_internal_user_id: operator.internal_user_id,
+      before: { changes: items.map(function(item) {
+        return organizationAuditSnapshot_(item.before);
+      }) },
+      after: { changes: items.map(function(item) {
+        return organizationAuditSnapshot_(item.after);
+      }) },
+      reason: reason,
+      result: rollbackSucceeded ? "error" : "recovery_required",
+      error_code: normalizeText(originalError.code || originalError.message)
+    });
+  } catch (auditError) {
+    recordAuthorizationRecovery_({
+      authorization_event_id: eventId,
+      error_code: normalizeText(originalError.code || originalError.message),
+      audit_error: normalizeText(auditError.code || auditError.message),
+      rollback_succeeded: rollbackSucceeded
+    });
   }
 }
 

@@ -576,3 +576,168 @@ test("組織列に同名ヘッダーがある場合は準備処理を拒否す�
     (error) => error.code === "ORGANIZATION_SCHEMA_MISMATCH"
   );
 });
+
+function usersWithExecutiveCandidate() {
+  return validUsers().concat({
+    internal_user_id: "U-E3",
+    status: "active",
+    person_type: "internal",
+    organization_level: "manager",
+    direct_manager_user_id: "U-E1",
+    organization_version: 0
+  });
+}
+
+function executiveBulkOperator() {
+  return {
+    internal_user_id: "U-DEV",
+    status: "active",
+    person_type: "internal",
+    role: "developer"
+  };
+}
+
+test("役員3名化を複数行まとめて健全な承認循環へ更新できる", () => {
+  const context = createContext();
+  const result = context.prepareExecutiveBulkUpdate_(
+    usersWithExecutiveCandidate(),
+    [
+      {
+        target_internal_user_id: "U-E2",
+        expected_organization_version: 0,
+        organization_level: "executive",
+        executive_reviewer_user_id: "U-E3"
+      },
+      {
+        target_internal_user_id: "U-E3",
+        expected_organization_version: 0,
+        organization_level: "executive",
+        executive_reviewer_user_id: "U-E1"
+      }
+    ],
+    executiveBulkOperator()
+  );
+
+  assert.equal(result.items.length, 2);
+  assert.equal(context.validateOrganizationGraph_(result.candidate_users).healthy, true);
+  assert.equal(result.items[1].after.organization_version, 1);
+});
+
+test("役員承認循環を壊す一部だけの一括更新は拒否する", () => {
+  const context = createContext();
+
+  assert.throws(
+    () => context.prepareExecutiveBulkUpdate_(
+      usersWithExecutiveCandidate(),
+      [{
+        target_internal_user_id: "U-E3",
+        expected_organization_version: 0,
+        organization_level: "executive",
+        executive_reviewer_user_id: "U-E1"
+      }],
+      executiveBulkOperator()
+    ),
+    (error) => error.code === "EXECUTIVE_REVIEWER_GRAPH_INVALID"
+  );
+});
+
+test("役員一括更新は重複対象と古い版を拒否する", () => {
+  const context = createContext();
+  const duplicate = {
+    target_internal_user_id: "U-E1",
+    expected_organization_version: 0,
+    organization_level: "executive",
+    executive_reviewer_user_id: "U-E2"
+  };
+
+  assert.throws(
+    () => context.prepareExecutiveBulkUpdate_(
+      validUsers(), [duplicate, duplicate], executiveBulkOperator()
+    ),
+    (error) => error.code === "BULK_TARGET_DUPLICATED"
+  );
+  assert.throws(
+    () => context.prepareExecutiveBulkUpdate_(
+      validUsers(), [{ ...duplicate, expected_organization_version: 9 }], executiveBulkOperator()
+    ),
+    (error) => error.code === "VERSION_CONFLICT"
+  );
+  const { expected_organization_version, ...missingVersion } = duplicate;
+  assert.throws(
+    () => context.prepareExecutiveBulkUpdate_(
+      validUsers(), [missingVersion], executiveBulkOperator()
+    ),
+    (error) => error.code === "VERSION_CONFLICT"
+  );
+});
+
+test("役員一括更新の実行者はactiveな内部開発者に限定する", () => {
+  const context = createContext();
+
+  assert.equal(context.assertExecutiveBulkOperator_(executiveBulkOperator()), true);
+  assert.throws(
+    () => context.assertExecutiveBulkOperator_({
+      ...executiveBulkOperator(),
+      role: "user"
+    }),
+    (error) => error.code === "CAPABILITY_FORBIDDEN"
+  );
+  assert.throws(
+    () => context.assertExecutiveBulkOperator_({
+      ...executiveBulkOperator(),
+      person_type: "alliance_individual"
+    }),
+    (error) => error.code === "CAPABILITY_FORBIDDEN"
+  );
+});
+
+test("役員一括更新APIは専用actionと一括監査イベントを持つ", () => {
+  const apiSource = readFileSync(
+    new URL("../backend/account-apps-script/api.js", import.meta.url),
+    "utf8"
+  );
+  const assignmentSource = readFileSync(
+    new URL("../backend/account-apps-script/organization_assignments.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(apiSource, /action === "accountConsoleBulkUpdateExecutives"/);
+  assert.match(assignmentSource, /event_type: "organization\.executive\.bulk_update"/);
+  assert.match(assignmentSource, /assertExecutiveBulkWriteVerified_/);
+  assert.match(assignmentSource, /handleExecutiveBulkUpdateFailure_/);
+});
+
+test("役員一括更新の書込み確認は欠落行も検出する", () => {
+  const context = createContext();
+  const headers = [
+    "internal_user_id", "status", "organization_level", "direct_manager_user_id",
+    "executive_reviewer_user_id", "organization_version", "organization_updated_at",
+    "organization_updated_by"
+  ];
+  const users = validUsers();
+  const rows = users.slice(0, -1).map((user) => headers.map((header) => user[header] || ""));
+  const sheet = {
+    getDataRange: () => ({ getValues: () => [headers, ...rows] })
+  };
+
+  assert.throws(
+    () => context.assertExecutiveBulkWriteVerified_(sheet, headers, users, true),
+    (error) => error.code === "BULK_WRITE_VERIFICATION_FAILED"
+  );
+});
+
+test("役員一括更新の失敗時は復元後にも全行照合する", () => {
+  const source = readFileSync(
+    new URL("../backend/account-apps-script/organization_assignments.js", import.meta.url),
+    "utf8"
+  );
+  const failureHandler = source.slice(
+    source.indexOf("function handleExecutiveBulkUpdateFailure_"),
+    source.indexOf("function recordAuthorizationRecovery_")
+  );
+
+  assert.match(
+    failureHandler,
+    /SpreadsheetApp\.flush\(\);\s*assertExecutiveBulkWriteVerified_\(sheet, headers, originalUsers, false\)/
+  );
+});

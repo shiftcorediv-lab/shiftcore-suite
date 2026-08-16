@@ -95,6 +95,10 @@ function doPost(e) {
       return jsonResponse_(accountConsoleUpdateOrganizationAssignment(body));
     }
 
+    if (action === "accountConsoleBulkUpdateExecutives") {
+      return jsonResponse_(accountConsoleBulkUpdateExecutives(body));
+    }
+
     if (action === "accountConsoleGetOrganizationAssignment") {
       return jsonResponse_(accountConsoleGetOrganizationAssignment(body));
     }
