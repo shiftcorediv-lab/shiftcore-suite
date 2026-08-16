@@ -273,7 +273,7 @@ OrderCaseはリポジトリ正本フォルダから直接一括pushしない。�
 - 実配信URLでHTMLが `main.js?v=20260812-developer-1`、main.jsが `navigation.js?v=20260812-developer-1` を参照し、旧navigation版番号が残っていないことを確認した。
 - 利用者、権限、配置、案件、必要人数、シートデータは変更していない。
 
-## 10. 実効切替ブロッカー2件の反映結果
+## 10. 実効切替前提機能2件のShadow反映結果
 
 - Account GASの既存URLは第52版 `03 executive bulk shadow API 2026-08-17`、OrderCase GASの既存URLは第53版 `03 case create capability guard 2026-08-17` を参照することを、認証済みデプロイ一覧で確認した。
 - Accountは複数役員一括更新action、OrderCaseは案件登録専用capabilityガードを反映した。シート列追加、権限割当、組織階層、案件、店舗、配置、利用者データの変更は行っていない。
