@@ -139,6 +139,94 @@ test("役員の承認者は自分以外のactiveな役員に限定する", () =>
   ));
 });
 
+test("activeな役員全員が1つの承認循環を構成する", () => {
+  const context = createContext();
+  const users = validUsers();
+  users[0].executive_reviewer_user_id = "U-E3";
+  users[1].executive_reviewer_user_id = "U-E1";
+  users.push({
+    internal_user_id: "U-E3",
+    status: "active",
+    organization_level: "executive",
+    executive_reviewer_user_id: "U-E2"
+  });
+
+  const result = context.validateOrganizationGraph_(users);
+  assert.equal(result.healthy, true);
+});
+
+test("役員承認者グラフが複数の循環へ分断される場合は検出する", () => {
+  const context = createContext();
+  const users = validUsers();
+  users.push(
+    {
+      internal_user_id: "U-E3",
+      status: "active",
+      organization_level: "executive",
+      executive_reviewer_user_id: "U-E4"
+    },
+    {
+      internal_user_id: "U-E4",
+      status: "active",
+      organization_level: "executive",
+      executive_reviewer_user_id: "U-E3"
+    }
+  );
+
+  const result = context.validateOrganizationGraph_(users);
+  assert.equal(result.healthy, false);
+  assert.equal(
+    result.errors.filter((item) => item.code === "EXECUTIVE_REVIEWER_GRAPH_INVALID").length,
+    4
+  );
+});
+
+test("役員2名から3名への段階更新では閉路警告だけを保存拒否対象から外す", () => {
+  const context = createContext();
+  const beforeUsers = validUsers();
+  const afterUsers = beforeUsers.concat({
+    internal_user_id: "U-E3",
+    status: "active",
+    organization_level: "executive",
+    executive_reviewer_user_id: "U-E1"
+  });
+  const before = context.validateOrganizationGraph_(beforeUsers);
+  const after = context.validateOrganizationGraph_(afterUsers);
+
+  assert.ok(after.errors.some((item) => item.code === "EXECUTIVE_REVIEWER_GRAPH_INVALID"));
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(context.findBlockingOrganizationErrors_(before.errors, after.errors))),
+    []
+  );
+
+  afterUsers.find((user) => user.internal_user_id === "U-E2").executive_reviewer_user_id = "U-E3";
+  assert.equal(context.validateOrganizationGraph_(afterUsers).healthy, true);
+});
+
+test("組織更新APIは閉路警告を除外した保存拒否判定を使う", () => {
+  const source = readFileSync(
+    new URL("../backend/account-apps-script/organization_assignments.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    source,
+    /const newErrors = findBlockingOrganizationErrors_\(currentGraph\.errors, candidateGraph\.errors\)/
+  );
+});
+
+test("閉路警告以外の新しい組織不整合は引き続き保存を拒否する", () => {
+  const context = createContext();
+  const result = context.findBlockingOrganizationErrors_([], [
+    { internal_user_id: "U-E1", code: "EXECUTIVE_REVIEWER_GRAPH_INVALID" },
+    { internal_user_id: "U-1", code: "DIRECT_MANAGER_INVALID" }
+  ]);
+
+  assert.deepEqual(JSON.parse(JSON.stringify(result)), [
+    { internal_user_id: "U-1", code: "DIRECT_MANAGER_INVALID" }
+  ]);
+});
+
 test("承認は記録された直属管理者本人だけに許可する", () => {
   const context = createContext();
   const users = validUsers();

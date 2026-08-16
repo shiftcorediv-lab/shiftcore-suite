@@ -102,7 +102,7 @@ function accountConsoleUpdateOrganizationAssignment(body) {
     });
     const currentGraph = validateOrganizationGraph_(users);
     const candidateGraph = validateOrganizationGraph_(candidateUsers);
-    const newErrors = findNewOrganizationErrors_(currentGraph.errors, candidateGraph.errors);
+    const newErrors = findBlockingOrganizationErrors_(currentGraph.errors, candidateGraph.errors);
     if (newErrors.length) {
       throw organizationAuthorizationError_(newErrors[0].code);
     }
@@ -281,6 +281,14 @@ function findNewOrganizationErrors_(beforeErrors, afterErrors) {
   });
   return (afterErrors || []).filter(function(item) {
     return !before[organizationErrorKey_(item)];
+  });
+}
+
+function findBlockingOrganizationErrors_(beforeErrors, afterErrors) {
+  return findNewOrganizationErrors_(beforeErrors, afterErrors).filter(function(item) {
+    // 役員の増減・承認者付替えは単一行APIでは一時的に閉路が崩れる。
+    // Shadow期間は健全性警告として残し、その他の構造エラーだけ保存を拒否する。
+    return normalizeText(item.code) !== "EXECUTIVE_REVIEWER_GRAPH_INVALID";
   });
 }
 

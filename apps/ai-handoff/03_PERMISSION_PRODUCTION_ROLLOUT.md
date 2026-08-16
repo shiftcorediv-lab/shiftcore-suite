@@ -221,14 +221,16 @@ OrderCaseはリポジトリ正本フォルダから直接一括pushしない。�
 
 ### 8.2 静的フロントの復帰
 
-静的フロントで本変更に直接関係するH-1の4ファイルは次のとおり。
+静的フロントで本変更に直接関係するH-1の6ファイルは次のとおり。
 
 - `apps/account-console/js/common/access-policy.mjs`
 - `apps/account-console/js/dashboard/modules.js`
 - `apps/account-console/js/dashboard/main.js`
 - `apps/account-console/dashboard.html`
+- `apps/account-console/js/signup-admin/main.js`
+- `apps/account-console/signup-admin.html`
 
-異常時は、新規の修正コミットを作成して上表の直前公開コミットから上記4ファイルの内容と読み込み版番号を復元し、通常のGitHub Pages公開経路で反映する。履歴を残すため、公開済みコミットのreset、強制push、履歴改変は行わない。ほかの同時公開差分がある場合はファイル単位で一括復元せず、本変更のハンクだけを戻す。
+異常時は、新規の修正コミットを作成して上表の直前公開コミットから上記6ファイルの内容と読み込み版番号を復元し、通常のGitHub Pages公開経路で反映する。履歴を残すため、公開済みコミットのreset、強制push、履歴改変は行わない。ほかの同時公開差分がある場合はファイル単位で一括復元せず、本変更のハンクだけを戻す。
 
 ### 8.3 GASの復帰
 
@@ -255,3 +257,9 @@ OrderCaseはリポジトリ正本フォルダから直接一括pushしない。�
 - Pages公開後、`dashboard.html` → `dashboard/main.js` → `dashboard/modules.js` → `common/access-policy.mjs` の読込版番号と、developerへ4入口を返す実装をHTTPで再確認した。
 - 反映前後の本番件数は一致した。role=developer 1件、developer配置36件（有効扱い4件）、既存PMO月次該当行2件。データ削除・移行は行っていない。
 - 独立監査は、えいちの決定により全反映完了後のまとめ監査へ延期した。
+
+### 9.1 2026-08-17 developer既存配置の移行
+
+- 独立監査後の読み取りで、有効扱い4行が重複のない4セルにあり、developer非表示後は各セルの不足数が1ずつ増えることを確認した。
+- えいちの別承認により、4行を理由付きでアーカイブした。削除は行わず、`shift_audit_logs` へ変更前後と理由を4行記録した。
+- 反映後はdeveloper配置36行のうちactive 0行。理由付きアーカイブ4行と対応する監査ログ4行を再読取した。

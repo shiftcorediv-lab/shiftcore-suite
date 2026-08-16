@@ -125,6 +125,7 @@ function validateOrganizationGraph_(rawUsers) {
   });
 
   detectOrganizationCycles_(byId, errors);
+  validateExecutiveReviewerGraph_(byId, errors);
   return { healthy: errors.length === 0, errors: errors };
 }
 
@@ -150,6 +151,40 @@ function validateExecutiveReviewer_(userId, reviewerId, byId, errors) {
       normalizeOrganizationLevel_(reviewer.organization_level) !== "executive") {
     errors.push(organizationError_(userId, "EXECUTIVE_REVIEWER_INVALID"));
   }
+}
+
+function validateExecutiveReviewerGraph_(byId, errors) {
+  const executiveIds = Object.keys(byId).filter(function(userId) {
+    const user = byId[userId];
+    return normalizeText(user.status).toLowerCase() === "active" &&
+      normalizeOrganizationLevel_(user.organization_level) === "executive";
+  });
+  if (executiveIds.length < 2) return;
+
+  const incomingCounts = {};
+  executiveIds.forEach(function(userId) { incomingCounts[userId] = 0; });
+  executiveIds.forEach(function(userId) {
+    const reviewerId = normalizeText(byId[userId].executive_reviewer_user_id);
+    if (Object.prototype.hasOwnProperty.call(incomingCounts, reviewerId)) {
+      incomingCounts[reviewerId] += 1;
+    }
+  });
+
+  const visited = {};
+  let currentId = executiveIds[0];
+  while (currentId && !visited[currentId] && byId[currentId]) {
+    visited[currentId] = true;
+    currentId = normalizeText(byId[currentId].executive_reviewer_user_id);
+  }
+
+  const isSingleClosedCycle = currentId === executiveIds[0] &&
+    Object.keys(visited).length === executiveIds.length &&
+    executiveIds.every(function(userId) { return incomingCounts[userId] === 1; });
+  if (isSingleClosedCycle) return;
+
+  executiveIds.forEach(function(userId) {
+    errors.push(organizationError_(userId, "EXECUTIVE_REVIEWER_GRAPH_INVALID"));
+  });
 }
 
 function detectOrganizationCycles_(byId, errors) {

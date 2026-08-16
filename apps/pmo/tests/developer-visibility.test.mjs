@@ -9,7 +9,7 @@ test("PMOは上流名簿に開発者が混入しても表示対象から除外�
     SETTINGS: { EXCLUDED_WORK_STATUSES_FOR_MONTHLY: ["off"] }
   });
   vm.runInContext(
-    readFileSync(new URL("./backend/pmo-apps-script/shiftcore_roster.js", import.meta.url), "utf8"),
+    readFileSync(new URL("../backend/pmo-apps-script/shiftcore_roster.js", import.meta.url), "utf8"),
     context
   );
 
