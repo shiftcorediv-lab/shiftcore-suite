@@ -57,6 +57,7 @@ test('createCase APIは編集判定ではなく案件登録専用判定を使う
   assert.match(createBranch, /requireOrderCaseCreator_\(/);
   assert.doesNotMatch(createBranch, /requireOrderCaseEditor_\(/);
   assert.match(permissionSource, /action: 'resolveAuthorizationContextByIdToken'/);
+  assert.match(apiSource, /if \(action === 'updateStoreMaster'\)/);
 });
 
 test('共通権限APIが通信例外なら案件登録用の権限取得をfail-closedにする', () => {

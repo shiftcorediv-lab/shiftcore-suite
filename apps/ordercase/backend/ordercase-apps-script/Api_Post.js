@@ -52,6 +52,11 @@ function handlePost_(e) {
         data: result
       });
     }
+
+    if (action === 'updateStoreMaster') {
+      const context = requireOrderCaseEditor_(getIdTokenFromBody_(body));
+      return jsonResponse_({ ok: true, action: action, permission: context.permission, data: updateStoreMaster_(payload) });
+    }
     /****************************************************
      * updateCase ここまで
      ****************************************************/

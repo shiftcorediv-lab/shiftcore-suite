@@ -58,8 +58,7 @@ function accountConsoleUpdateOrganizationAssignment(body) {
     throw organizationAuthorizationError_("ORGANIZATION_SHADOW_DISABLED");
   }
   const operatorPublic = requireAccountConsoleOperator_(body);
-  const operatorId = normalizeText(operatorPublic.internal_user_id || operatorPublic.userId);
-  const operator = findOrganizationUserById_(operatorId);
+  const operator = findOrganizationUserById_(operatorPublic.internal_user_id || operatorPublic.userId);
   assertOrganizationOperator_(operator);
   const payload = body.payload || body;
   const reason = normalizeText(payload.reason);
