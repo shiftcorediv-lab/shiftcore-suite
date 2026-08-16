@@ -273,11 +273,11 @@ OrderCaseはリポジトリ正本フォルダから直接一括pushしない。�
 - 実配信URLでHTMLが `main.js?v=20260812-developer-1`、main.jsが `navigation.js?v=20260812-developer-1` を参照し、旧navigation版番号が残っていないことを確認した。
 - 利用者、権限、配置、案件、必要人数、シートデータは変更していない。
 
-## 10. 実効切替ブロッカー2件の将来反映手順（未実施）
+## 10. 実効切替ブロッカー2件の反映結果
 
-- 対象はAccount GASの `api.js`・`organization_assignments.js` と、OrderCase GASの `Api_Post.js`・`Service_OrderCasePermissions.js`。ローカルの他差分を含めない。
-- 反映前に各本番正本とローカルを再比較し、各系統の既存URL・直前版番号・ファイル一覧を記録する。OrderCaseは本番正本を基礎に対象2ファイルだけを置換した専用束を使う。
-- Account GASを先に公開して一括更新actionと既存の共通権限actionを確認し、その後OrderCase GASを公開する。OrderCaseだけ先行させない。
-- OrderCase確認は、現行で案件登録可能な既存権限が維持されること、登録不可の利用者が拒否されること、共通権限API異常時に書込み前で拒否されることを、実データを作らない検証方法または専用検証デプロイで行う。
-- 異常時はAccount・OrderCaseとも記録した直前版へ戻す。本変更はシート列追加・権限割当・データ移行を伴わないため、検証で案件を作成しなければコード復帰だけで戻る。
-- 本節は手順の事前記録であり、commit、push、GAS反映、既存URL更新を承認するものではない。
+- Account GASの既存URLは第52版 `03 executive bulk shadow API 2026-08-17`、OrderCase GASの既存URLは第53版 `03 case create capability guard 2026-08-17` を参照することを、認証済みデプロイ一覧で確認した。
+- Accountは複数役員一括更新action、OrderCaseは案件登録専用capabilityガードを反映した。シート列追加、権限割当、組織階層、案件、店舗、配置、利用者データの変更は行っていない。
+- ローカル正本のAccount Console、OrderCase、ShiftBuilder、PMO全122テストは成功、失敗・スキップ0件。
+- 今回の監査環境から既存URLへのHTTP再確認は完了できていない。実行許可レビューの時間切れであり、本番応答失敗とは判定しない。デプロイ版指定の確認とHTTP到達確認を区別して記録する。
+- H-6の単一更新暫定回避はShadow中だけ維持する。developer全権が単一更新APIから一括検証を迂回できる競合を避けるため、実効権限切替前に役員グラフ変更を一括更新APIへ限定し、迂回拒否テストを追加する。
+- 異常時の復帰基準はAccount第51版、OrderCase第52版。本変更はデータ移行を伴わないため、書込みを伴う本番検証を行っていなければコード復帰だけで戻る。

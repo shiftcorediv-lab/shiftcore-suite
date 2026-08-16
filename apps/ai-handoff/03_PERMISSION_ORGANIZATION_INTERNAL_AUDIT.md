@@ -391,3 +391,26 @@
 - `createCase` の変更が `requireOrderCaseEditor_` から `requireOrderCaseCreator_` への1行だけとなり、既存 `updateStoreMaster` を保持するテストを追加した。
 - Accountの通常単一更新APIに混ざった無意味な操作者ID変数化を取り除き、一括更新APIとaction追加だけを本番差分として残した。
 - Claude確認で、復元した `updateStoreMaster` 分岐が呼ぶ実装関数群もローカル正本から欠落していることが判明した。本番第52版の `Service_StoresMaster.js` に存在する店舗位置列、管理一覧、状態正規化、店舗更新の実装をローカルへ同期し、関数定義を実行確認するテストを追加した。
+
+## 2026-08-17 第52版／第53版本番反映後の監査記録
+
+- 認証済みのデプロイ一覧を読み取り、Account GASの既存URLが第52版 `03 executive bulk shadow API 2026-08-17`、OrderCase GASの既存URLが第53版 `03 case create capability guard 2026-08-17` を参照していることを確認した。
+- 今回の監査では利用者、権限割当、組織階層、案件、店舗、配置、シートデータを変更していない。Git pushと追加の本番変更も実行していない。
+- 既存URLへのAccount pingとOrderCase未認証拒否の再確認は、実行許可レビューが2回とも時間切れとなり、別のWeb取得経路もApps Script URLを開けなかったため未確認。この失敗は本番応答の失敗ではなく監査実行環境側の制約であり、到達成功として扱わない。
+- ローカル正本でAccount Console、OrderCase、ShiftBuilder、PMOの全122テストを再実行し、122成功、失敗・スキップ0件を確認した。
+
+### 一括更新APIとOrderCase案件登録権限の差分・追加テスト
+
+- Account第52版は `accountConsoleBulkUpdateExecutives` と専用actionを追加する。activeな内部developer、理由、最大20件、対象重複、自己変更、対象状態、楽観ロック版を検証し、全対象を1つのevent ID・request IDで監査する。
+- 一括更新は、更新後のactive役員2名以上、役員承認者の単一閉路、その他の新規組織不整合を全件まとめて検証する。書込み後は全利用者分を再照合し、書込み・照合・成功ログの失敗時は全対象を復元して復元後も再照合する。
+- OrderCase第53版は `createCase` だけを `requireOrderCaseCreator_` へ分離し、従来の編集権限に加えて実効 `ordercase.case.create` capabilityを必須にする。編集API、店舗マスター更新API、既存店舗マスター実装は維持する。
+- OrderCaseは共通権限APIの通信例外、JSON不正、応答・capability欠落をすべて書込み前にfail-closedで拒否する。Account側がShadow中の現在は旧実効権限を返すため、既存 `all`・`edit`・developerの登録可否は従来どおりである。
+- 追加テストは、一括更新の健全な3名化、部分更新拒否、不正階層、重複、版競合、実行者制限、欠落行、成功ログ、成功ログ失敗時の全行復元・errorログ・ロック解放を対象とする。
+- OrderCase追加テストは、capability許可、欠落・不正応答、通信例外、JSON不正、旧編集権限があってもcreate capability欠落時の拒否、`createCase` 専用ガード接続、既存 `updateStoreMaster` 分岐と実装関数の保持を対象とする。
+
+### H-6暫定回避とdeveloper全権の競合
+
+- 判定: H-6暫定回避は現在のShadow運用中だけ残し、実効権限切替前に畳む。今回の監査対象では追加の本番変更を行わないため、Account第52版の挙動は変更しない。
+- 現状の単一更新APIは、2名から3名へ段階更新する途中の `EXECUTIVE_REVIEWER_GRAPH_INVALID` だけを保存拒否から除外する。developerは全権によりこの単一更新APIも呼べるため、一括更新API公開後も暫定回避を恒久化すると、developerが一括更新の全件検証・一括監査を迂回できる。
+- 実効権限切替前に、単一更新APIで役員の追加・解除・承認者変更を行えないようにし、役員グラフ変更を一括更新APIへ限定する。併せて、developer全権でも専用経路を迂回できない拒否テストを追加する。
+- この切替前対応、第三者監査担当の再決裁、通知対象2名の実受信確認、04申請データ契約確定と直属承認接続が揃うまで、組織階層を実効権限へ切り替えない。
