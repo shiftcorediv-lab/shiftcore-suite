@@ -263,3 +263,12 @@ OrderCaseはリポジトリ正本フォルダから直接一括pushしない。�
 - 独立監査後の読み取りで、有効扱い4行が重複のない4セルにあり、developer非表示後は各セルの不足数が1ずつ増えることを確認した。
 - えいちの別承認により、4行を理由付きでアーカイブした。削除は行わず、`shift_audit_logs` へ変更前後と理由を4行記録した。
 - 反映後はdeveloper配置36行のうちactive 0行。理由付きアーカイブ4行と対応する監査ログ4行を再読取した。
+
+### 9.2 2026-08-17 独立監査是正の最終反映
+
+- 本番Account GAS第50版を一時領域へ読み取り取得し、ローカル正本との差分が `organization_authorization.js`、`organization_assignments.js`、`authorization_change_logs.js` の3ファイルだけであることを確認した。
+- 正規のAccount GASフォルダから反映し、既存URLを第51版へ更新した。pingのJSON正常応答、デプロイ版番号、第51版の再取得ソースとローカル正本22ファイルの完全一致を確認した。
+- 最新main `d2b865d` を基礎とする専用公開ブランチへ、`signup-admin.html` と `js/signup-admin/main.js` の版番号2行だけを適用した。テーマその他の差分は含めていない。
+- 静的フロント公開コミットは `95c8db0cf1e238b662645e35a62f5766e275b47d`。GitHub Pages run `31971757746` は成功した。
+- 実配信URLでHTMLが `main.js?v=20260812-developer-1`、main.jsが `navigation.js?v=20260812-developer-1` を参照し、旧navigation版番号が残っていないことを確認した。
+- 利用者、権限、配置、案件、必要人数、シートデータは変更していない。
