@@ -58,3 +58,46 @@ test('createCase APIは編集判定ではなく案件登録専用判定を使う
   assert.doesNotMatch(createBranch, /requireOrderCaseEditor_\(/);
   assert.match(permissionSource, /action: 'resolveAuthorizationContextByIdToken'/);
 });
+
+test('共通権限APIが通信例外なら案件登録用の権限取得をfail-closedにする', () => {
+  const context = createContext();
+  context.SHIFTCORE_ACCOUNT_API_URL = 'https://example.invalid/account';
+  context.UrlFetchApp = {
+    fetch() {
+      throw new Error('network failed');
+    }
+  };
+
+  assert.throws(
+    () => context.resolveOrderCaseAuthorizationByIdToken_('token'),
+    /network failed/
+  );
+});
+
+test('共通権限APIがJSON以外を返したら案件登録用の権限取得を拒否する', () => {
+  const context = createContext();
+  context.SHIFTCORE_ACCOUNT_API_URL = 'https://example.invalid/account';
+  context.UrlFetchApp = {
+    fetch: () => ({ getContentText: () => '<!DOCTYPE html>' })
+  };
+
+  assert.throws(
+    () => context.resolveOrderCaseAuthorizationByIdToken_('token'),
+    /共通権限APIの応答を確認できません/
+  );
+});
+
+test('案件登録専用判定は旧編集権限があってもcreate capability欠落を拒否する', () => {
+  const context = createContext();
+  context.requireOrderCaseEditor_ = () => ({ permission: 'edit' });
+  context.resolveOrderCaseAuthorizationByIdToken_ = () => ({
+    authorization: {
+      modules: { ordercase: { capabilities: ['ordercase.view', 'ordercase.case.edit'] } }
+    }
+  });
+
+  assert.throws(
+    () => context.requireOrderCaseCreator_('token'),
+    /案件を登録する権限がありません/
+  );
+});

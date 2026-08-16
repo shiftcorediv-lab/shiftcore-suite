@@ -371,3 +371,6 @@
 - Claudeは、既存executiveへ不正な `organization_level` を送ると正規化後に空文字となり、一括更新側が専用エラーを出さず役員階層を消せる高リスク経路を指摘した。
 - `buildOrganizationCandidate_` の直後に正規化済み階層が有効であることを必須化し、不正値を `ORGANIZATION_LEVEL_INVALID` で書込み前に拒否した。
 - 既存役員を不正階層で空欄化できない再発防止テストを追加した。修正後は全体系116テストとClaude独立再監査を実施する。
+- Claude再監査は高リスク解消を確認した一方、一括更新API本体とOrderCase fail-closed経路がソース確認中心で、振る舞いテストが不足する中・低所見を残した。
+- 一括更新API本体について、全対象更新と共通event/request IDの開始・成功ログ、成功ログ失敗時の全行復元・errorログ・ロック解放をGASモックで実行するテストを追加した。
+- OrderCaseについて、共通権限APIの通信例外、JSON不正、旧編集権限があってもcreate capability欠落時の拒否を実行するテストを追加した。

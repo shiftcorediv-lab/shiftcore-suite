@@ -759,3 +759,119 @@ test("役員一括更新の失敗時は復元後にも全行照合する", () =>
     /SpreadsheetApp\.flush\(\);\s*assertExecutiveBulkWriteVerified_\(sheet, headers, originalUsers, false\)/
   );
 });
+
+function createExecutiveBulkApiHarness({ failSuccessAudit = false } = {}) {
+  const context = createContext();
+  const users = usersWithExecutiveCandidate().concat(executiveBulkOperator());
+  const headers = [
+    "internal_user_id", "status", "person_type", "role", "organization_level",
+    "direct_manager_user_id", "executive_reviewer_user_id", "organization_version",
+    "organization_updated_at", "organization_updated_by"
+  ];
+  const rows = users.map((user) => headers.map((header) => user[header] ?? ""));
+  const logs = [];
+  let uuid = 0;
+  let released = false;
+  const sheet = {
+    getDataRange: () => ({ getValues: () => [headers.slice(), ...rows.map((row) => row.slice())] }),
+    getRange: (rowNumber, columnNumber) => ({
+      setValue(value) {
+        rows[rowNumber - 2][columnNumber - 1] = value;
+      }
+    })
+  };
+
+  context.getUsersData = () => rows.map((row) => {
+    const user = {};
+    headers.forEach((header, index) => { user[header] = row[index]; });
+    return user;
+  });
+  context.getUsersSheet = () => sheet;
+  context.requireAccountConsoleOperator_ = () => ({ internal_user_id: "U-DEV" });
+  context.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => true,
+      releaseLock: () => { released = true; }
+    })
+  };
+  context.Utilities = { getUuid: () => `UUID-${++uuid}` };
+  context.SpreadsheetApp = { flush() {} };
+  context.appendAuthorizationChangeLog_ = (entry) => {
+    if (failSuccessAudit && entry.result === "success") {
+      const error = new Error("audit failed");
+      error.code = "AUDIT_WRITE_FAILED";
+      throw error;
+    }
+    logs.push(JSON.parse(JSON.stringify(entry)));
+  };
+  context.recordAuthorizationRecovery_ = () => {
+    throw new Error("recovery should not be required");
+  };
+
+  return {
+    context,
+    logs,
+    released: () => released,
+    snapshots: () => context.getUsersData().map((user) =>
+      JSON.parse(JSON.stringify(context.organizationAuditSnapshot_(user)))
+    )
+  };
+}
+
+function validThreeExecutiveBulkPayload() {
+  return {
+    reason: "役員承認経路の変更",
+    changes: [
+      {
+        target_internal_user_id: "U-E2",
+        expected_organization_version: 0,
+        organization_level: "executive",
+        direct_manager_user_id: "",
+        executive_reviewer_user_id: "U-E3"
+      },
+      {
+        target_internal_user_id: "U-E3",
+        expected_organization_version: 0,
+        organization_level: "executive",
+        direct_manager_user_id: "",
+        executive_reviewer_user_id: "U-E1"
+      }
+    ]
+  };
+}
+
+test("役員一括更新API本体は全対象を更新して開始・成功を同一イベントで記録する", () => {
+  const harness = createExecutiveBulkApiHarness();
+  const result = harness.context.accountConsoleBulkUpdateExecutives({
+    payload: validThreeExecutiveBulkPayload()
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.change_count, 2);
+  assert.deepEqual(harness.logs.map((entry) => entry.result), ["started", "success"]);
+  assert.equal(
+    harness.logs[0].authorization_event_id,
+    harness.logs[1].authorization_event_id
+  );
+  assert.equal(harness.logs[0].request_id, harness.logs[1].request_id);
+  assert.equal(harness.released(), true);
+  assert.equal(
+    harness.context.validateOrganizationGraph_(harness.context.getUsersData()).healthy,
+    true
+  );
+});
+
+test("役員一括更新API本体は成功監査ログ失敗時に全行を復元してerrorを記録する", () => {
+  const harness = createExecutiveBulkApiHarness({ failSuccessAudit: true });
+  const before = harness.snapshots();
+
+  assert.throws(
+    () => harness.context.accountConsoleBulkUpdateExecutives({
+      payload: validThreeExecutiveBulkPayload()
+    }),
+    (error) => error.code === "AUDIT_WRITE_FAILED"
+  );
+  assert.deepEqual(harness.snapshots(), before);
+  assert.deepEqual(harness.logs.map((entry) => entry.result), ["started", "error"]);
+  assert.equal(harness.released(), true);
+});
