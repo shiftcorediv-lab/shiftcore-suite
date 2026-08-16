@@ -300,6 +300,9 @@ function prepareExecutiveBulkUpdate_(users, rawChanges, operator) {
       throw organizationAuthorizationError_("VERSION_CONFLICT");
     }
     const after = buildOrganizationCandidate_(before, change, operator);
+    if (!normalizeOrganizationLevel_(after.organization_level)) {
+      throw organizationAuthorizationError_("ORGANIZATION_LEVEL_INVALID");
+    }
     if (normalizeOrganizationLevel_(before.organization_level) !== "executive" &&
         normalizeOrganizationLevel_(after.organization_level) !== "executive") {
       throw organizationAuthorizationError_("BULK_EXECUTIVE_TARGET_REQUIRED");

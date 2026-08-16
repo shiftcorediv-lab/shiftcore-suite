@@ -641,6 +641,24 @@ test("役員承認循環を壊す一部だけの一括更新は拒否する", ()
   );
 });
 
+test("役員一括更新は不正な組織階層で既存役員を空欄化しない", () => {
+  const context = createContext();
+
+  assert.throws(
+    () => context.prepareExecutiveBulkUpdate_(
+      validUsers(),
+      [{
+        target_internal_user_id: "U-E1",
+        expected_organization_version: 0,
+        organization_level: "invalid-level",
+        executive_reviewer_user_id: ""
+      }],
+      executiveBulkOperator()
+    ),
+    (error) => error.code === "ORGANIZATION_LEVEL_INVALID"
+  );
+});
+
 test("役員一括更新は重複対象と古い版を拒否する", () => {
   const context = createContext();
   const duplicate = {
