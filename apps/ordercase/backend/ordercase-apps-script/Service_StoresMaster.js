@@ -10,6 +10,7 @@
  * 既存マスターがあれば既存IDを返し、なければ仮登録する
  ****************************************************/
 function ensureStoreMaster_(payload, caseId) {
+  ensureStoreMasterLocationColumns_();
   const agencyName = String(payload.agency_name || '').trim();
   const storeName = String(payload.store_name || '').trim();
   const storeArea = String(payload.store_area || '').trim();
@@ -17,6 +18,9 @@ function ensureStoreMaster_(payload, caseId) {
   const existing = findStoreMasterByNames_(agencyName, storeName);
 
   if (existing) {
+    if (String(existing.status || 'active') === 'archived') {
+      throw new Error('この店舗はアーカイブ済みです。店舗マスターで復元してください。');
+    }
     return existing;
   }
 
@@ -31,6 +35,9 @@ function ensureStoreMaster_(payload, caseId) {
     store_id: storeId,
     store_name: storeName,
     store_area: storeArea,
+    store_short_name: String(payload.store_short_name || '').trim(),
+    address: String(payload.store_address || '').trim(),
+    nearest_station: String(payload.store_nearest_station || '').trim(),
 
     status: 'active',
     provisional: 'TRUE',
@@ -86,6 +93,86 @@ function getActiveStoresMaster_() {
   return rows.filter(function(row) {
     return String(row.status || 'active') === 'active';
   });
+}
+
+function getStoresMasterForManagement_() {
+  return getSheetObjects_(SHEET_STORES_MASTER);
+}
+
+function ensureStoreMasterLocationColumns_() {
+  const sheet = getSheetForUpdate_(SHEET_STORES_MASTER);
+  const lastColumn = Math.max(sheet.getLastColumn(), 1);
+  const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0].map(function(value) {
+    return String(value || '').trim();
+  });
+  let nextColumn = lastColumn + 1;
+  ['store_short_name', 'address', 'nearest_station'].forEach(function(header) {
+    if (headers.indexOf(header) === -1) {
+      sheet.getRange(1, nextColumn).setValue(header);
+      nextColumn += 1;
+    }
+  });
+
+  // 店舗画面の正式な状態値は「有効」と「アーカイブ」の2種類だけにする。
+  // 過去の入力規則には inactive が含まれているため、先頭のデータ行を
+  // 確認して必要な場合だけ規則を補正する。
+  const statusColumnIndex = headers.indexOf('status');
+  if (statusColumnIndex === -1) return;
+
+  const statusColumn = statusColumnIndex + 1;
+  const existingRule = sheet.getRange(2, statusColumn).getDataValidation();
+  const existingValues = existingRule && existingRule.getCriteriaValues
+    ? existingRule.getCriteriaValues()[0] || []
+    : [];
+  const hasExpectedStatusValues = existingValues.length === 2 &&
+    existingValues.some(function(value) { return String(value) === 'active'; }) &&
+    existingValues.some(function(value) { return String(value) === 'archived'; });
+
+  if (hasExpectedStatusValues) return;
+
+  const statusRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(['active', 'archived'], true)
+    .setAllowInvalid(false)
+    .build();
+  sheet.getRange(2, statusColumn, Math.max(sheet.getMaxRows() - 1, 1), 1)
+    .setDataValidation(statusRule);
+}
+
+function normalizeStoreStatus_(value) {
+  const status = String(value || 'active').trim();
+  if (status === 'active' || status === 'archived') return status;
+  throw new Error('店舗状態は「有効」または「アーカイブ」を指定してください。');
+}
+
+function updateStoreMaster_(payload) {
+  ensureStoreMasterLocationColumns_();
+  const storeId = String(payload.store_id || '').trim();
+  if (!storeId) throw new Error('店舗IDが必要です。');
+  const sheet = getSheetForUpdate_(SHEET_STORES_MASTER);
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0].map(function(value) { return String(value || '').trim(); });
+  const storeIdIndex = headers.indexOf('store_id');
+  let targetIndex = -1;
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][storeIdIndex] || '') === storeId) { targetIndex = i; break; }
+  }
+  if (targetIndex < 1) throw new Error('店舗が見つかりません: ' + storeId);
+  const record = {
+    agency_name: String(payload.agency_name || '').trim(),
+    store_name: String(payload.store_name || '').trim(),
+    store_short_name: String(payload.store_short_name || '').trim(),
+    store_area: String(payload.store_area || '').trim(),
+    address: String(payload.address || '').trim(),
+    nearest_station: String(payload.nearest_station || '').trim(),
+    status: normalizeStoreStatus_(payload.status),
+    updated_at: new Date()
+  };
+  if (!record.agency_name || !record.store_name) throw new Error('代理店名と店舗名は必須です。');
+  headers.forEach(function(header, index) {
+    if (Object.prototype.hasOwnProperty.call(record, header)) values[targetIndex][index] = record[header];
+  });
+  sheet.getRange(targetIndex + 1, 1, 1, headers.length).setValues([values[targetIndex]]);
+  return Object.assign({ store_id: storeId }, record);
 }
 /****************************************************
  * getActiveStoresMaster_ ここまで

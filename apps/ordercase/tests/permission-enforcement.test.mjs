@@ -7,6 +7,10 @@ const permissionSource = readFileSync(
   new URL('../backend/ordercase-apps-script/Service_OrderCasePermissions.js', import.meta.url),
   'utf8'
 );
+const storesMasterSource = readFileSync(
+  new URL('../backend/ordercase-apps-script/Service_StoresMaster.js', import.meta.url),
+  'utf8'
+);
 
 function createContext() {
   const context = vm.createContext({});
@@ -101,4 +105,13 @@ test('案件登録専用判定は旧編集権限があってもcreate capability
     () => context.requireOrderCaseCreator_('token'),
     /案件を登録する権限がありません/
   );
+});
+
+test('本番店舗マスター更新ルートの実装関数をローカル正本にも保持する', () => {
+  const context = vm.createContext({});
+  vm.runInContext(storesMasterSource, context);
+
+  assert.equal(typeof context.updateStoreMaster_, 'function');
+  assert.equal(typeof context.ensureStoreMasterLocationColumns_, 'function');
+  assert.equal(typeof context.getStoresMasterForManagement_, 'function');
 });

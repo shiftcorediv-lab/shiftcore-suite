@@ -390,3 +390,4 @@
 - OrderCaseのローカル `Api_Post.js` には、本番第52版に存在する `updateStoreMaster` 分岐が欠けていた。このままファイル単位で反映すると既存店舗マスター更新を消すため、本番の5行をローカル正本へ同期した。
 - `createCase` の変更が `requireOrderCaseEditor_` から `requireOrderCaseCreator_` への1行だけとなり、既存 `updateStoreMaster` を保持するテストを追加した。
 - Accountの通常単一更新APIに混ざった無意味な操作者ID変数化を取り除き、一括更新APIとaction追加だけを本番差分として残した。
+- Claude確認で、復元した `updateStoreMaster` 分岐が呼ぶ実装関数群もローカル正本から欠落していることが判明した。本番第52版の `Service_StoresMaster.js` に存在する店舗位置列、管理一覧、状態正規化、店舗更新の実装をローカルへ同期し、関数定義を実行確認するテストを追加した。
