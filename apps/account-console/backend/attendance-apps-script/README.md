@@ -15,3 +15,9 @@
 - 管理者通知先は勤怠管理ブックの `管理者` シートを優先します。未作成または空の場合は、Apps Scriptの実行所有者へ通知します。
 - `Code.gs` を変更した場合はApps Script側へ反映し、既存Webアプリの新バージョンを作成してください。デプロイIDは変更しません。
 - 公開範囲は「全員」ですが、各API操作はFirebase IDトークンを既存ログイン基盤で検証します。
+
+## 直属承認接続
+
+- Account Console側と勤怠API側のScript Propertiesへ、同一の十分に長いランダム値を `ATTENDANCE_APPROVAL_SERVICE_SECRET` として設定します。値をソース、シート、ログへ保存しないでください。
+- 新規申請では `applicant_internal_user_id`、`request_version`、`approval_reviewer_internal_user_id`、`applicant_organization_version` 列を自動追加して保存します。既存の承認待ち行は自動変換せず、本人確認後の再申請が必要です。
+- Account Consoleと勤怠APIの両方を反映するまで、実効承認へ切り替えないでください。片側だけの反映では新規申請または承認をfail-closedで拒否します。

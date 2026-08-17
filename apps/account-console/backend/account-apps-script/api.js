@@ -67,6 +67,9 @@ function doPost(e) {
     if (action === "resolveAuthorizationContextByIdToken") {
       return jsonResponse_(resolveAuthorizationContextByIdToken_(body));
     }
+    if (action === "attendanceApprovalContract") {
+      return jsonResponse_(attendanceApprovalContract_(body));
+    }
     // ===== oauth ここまで =====
 
 
@@ -161,6 +164,8 @@ function doPost(e) {
   } catch (error) {
     return jsonResponse_({
       success: false,
+      ok: false,
+      code: normalizeText(error.code || "SERVER_ERROR"),
       message: "POST処理中にエラーが発生しました: " + error.message
     });
   }
