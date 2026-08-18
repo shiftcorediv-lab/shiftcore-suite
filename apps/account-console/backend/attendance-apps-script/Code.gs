@@ -14,7 +14,7 @@ const SHEETS = {
 
 const HEADERS = {
   reports: ["report_id", "record_id", "開発予定ID", "開発予定名", "報告者メール", "報告者氏名", "実績内容", "課題・申し送り", "報告日時"],
-  requests: ["request_id", "record_id", "種別", "申請者メール", "申請者氏名", "対象日", "申請開始", "申請終了", "理由区分", "理由詳細", "状態", "承認者メール", "承認者氏名", "承認理由", "申請日時", "処理日時"],
+  requests: ["request_id", "record_id", "種別", "申請者メール", "申請者氏名", "実勤務日", "申請開始", "申請終了", "理由区分", "理由詳細", "状態", "承認者メール", "承認者氏名", "承認理由", "申請日時", "処理日時"],
   requestContract: ["applicant_internal_user_id", "request_version", "approval_reviewer_internal_user_id", "applicant_organization_version"]
 };
 
@@ -142,7 +142,7 @@ function submitCorrection_(user, payload, idToken) {
     ensureRequestContractHeaders_();
     appendObject_(SHEETS.requests, {
       request_id: requestId, record_id: payload.recordId || "", "種別": payload.type || "打刻修正",
-      "申請者メール": user.email, "申請者氏名": user.name || "", "対象日": payload.workDate || today_(),
+      "申請者メール": user.email, "申請者氏名": user.name || "", "実勤務日": payload.workDate || today_(),
       "申請開始": payload.actualStart || "", "申請終了": payload.actualEnd || "", "理由区分": payload.reasonType || "その他",
       "理由詳細": payload.reason || "", "状態": "申請中", "申請日時": new Date(),
       applicant_internal_user_id: approval.applicant_internal_user_id, request_version: 1,
