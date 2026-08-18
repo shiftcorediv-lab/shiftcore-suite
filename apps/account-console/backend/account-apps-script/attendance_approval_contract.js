@@ -86,16 +86,22 @@ function authorizeAttendanceApprovalReview_(body) {
 }
 
 function finalizeAttendanceApprovalReview_(body) {
+  let reviewerId = normalizeText(body.reviewer_internal_user_id);
+  try {
+    reviewerId = resolveAttendanceReviewer_(body.idToken).internal_user_id;
+  } catch (error) {
+    // 終端ログは認可結果ではなく処理結果の記録なので、開始時に確定したIDを使う。
+  }
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    return finalizeAttendanceApprovalReviewLocked_(body);
+    return finalizeAttendanceApprovalReviewLocked_(body, reviewerId);
   } finally {
     lock.releaseLock();
   }
 }
 
-function finalizeAttendanceApprovalReviewLocked_(body) {
+function finalizeAttendanceApprovalReviewLocked_(body, resolvedReviewerId) {
   const eventId = normalizeText(body.authorization_event_id);
   const result = normalizeText(body.result || "error");
   if (eventId.indexOf("ACE-") !== 0 ||
@@ -115,12 +121,7 @@ function finalizeAttendanceApprovalReviewLocked_(body) {
     });
     return { ok: false, code: "EVENT_ALREADY_FINALIZED", message: "監査イベントは別の結果で確定済みです" };
   }
-  let reviewerId = normalizeText(body.reviewer_internal_user_id);
-  try {
-    reviewerId = resolveAttendanceReviewer_(body.idToken).internal_user_id;
-  } catch (error) {
-    // 終端ログは認可結果ではなく処理結果の記録なので、開始時に確定したIDを使う。
-  }
+  const reviewerId = normalizeText(resolvedReviewerId || body.reviewer_internal_user_id);
   const succeeded = result === "success";
   if (result === "recovery_required") {
     recordAuthorizationRecovery_({
@@ -168,10 +169,11 @@ function findAttendanceApprovalTerminal_(eventId) {
   const matches = sheet.getRange(2, eventIndex + 1, sheet.getLastRow() - 1, 1)
     .createTextFinder(eventId)
     .matchEntireCell(true)
+    .matchCase(true)
     .findAll()
     .sort(function(left, right) { return right.getRow() - left.getRow(); });
   for (let index = 0; index < matches.length; index += 1) {
-    const result = normalizeText(sheet.getRange(matches[index].getRow(), resultIndex + 1).getDisplayValue()).replace(/^'/, "");
+    const result = normalizeText(sheet.getRange(matches[index].getRow(), resultIndex + 1).getDisplayValue());
     if (["success", "error", "conflict", "recovery_required", "rejected"].indexOf(result) !== -1) return result;
   }
   return "";

@@ -315,6 +315,27 @@ test("既存終端と異なるfinalize要求は復旧記録を残す", () => {
   assert.equal(recoveries[0].requested_result, "error");
 });
 
+test("finalizeは承認者解決をScript Lock取得前に完了する", () => {
+  let lockHeld = false;
+  const logs = [];
+  const context = {
+    normalizeText: value => String(value ?? "").trim(),
+    LockService: { getScriptLock: () => ({ waitLock: () => { lockHeld = true; }, releaseLock: () => { lockHeld = false; } }) },
+    resolveAttendanceReviewer_: () => { assert.equal(lockHeld, false); return { internal_user_id: "U-L1" }; },
+    findAttendanceApprovalTerminal_: () => { assert.equal(lockHeld, true); return ""; },
+    appendAuthorizationChangeLog_: entry => { assert.equal(lockHeld, true); logs.push(entry); return entry; },
+    recordAuthorizationRecovery_: () => assert.fail("recovery must not be used")
+  };
+  vm.createContext(context);
+  vm.runInContext(contractSource, context);
+  context.resolveAttendanceReviewer_ = () => { assert.equal(lockHeld, false); return { internal_user_id: "U-L1" }; };
+  context.findAttendanceApprovalTerminal_ = () => { assert.equal(lockHeld, true); return ""; };
+  const result = context.finalizeAttendanceApprovalReview_({ authorization_event_id: "ACE-1", reviewer_internal_user_id: "U-SAVED", idToken: "token", result: "success", request_version: 1 });
+  assert.equal(result.ok, true);
+  assert.equal(logs[0].reviewer_internal_user_id, "U-L1");
+  assert.equal(lockHeld, false);
+});
+
 test("同一利用者による同一申請の割当外試行は短時間に1件だけ監査記録する", () => {
   const logs = [];
   const cacheValues = new Map();
@@ -358,11 +379,20 @@ test("拒否抑制キャッシュが利用不能でも監査ログを記録す�
 
 test("承認終端検索は監査ログ全件読込みを使わずイベントID列を完全一致検索する", () => {
   const searched = [];
+  const finderOptions = [];
   const ranges = {
     header: { getDisplayValues: () => [["authorization_event_id", "result"]] },
-    events: { createTextFinder: eventId => { searched.push(eventId); return { matchEntireCell: exact => { assert.equal(exact, true); return { findAll: () => [{ getRow: () => 3 }, { getRow: () => 2 }] }; } }; } },
-    result2: { getDisplayValue: () => "started" },
-    result3: { getDisplayValue: () => "success" }
+    events: { createTextFinder: eventId => {
+      searched.push(eventId);
+      const finder = {
+        matchEntireCell: exact => { finderOptions.push(["entire", exact]); return finder; },
+        matchCase: exact => { finderOptions.push(["case", exact]); return finder; },
+        findAll: () => [{ getRow: () => 3 }, { getRow: () => 2 }]
+      };
+      return finder;
+    } },
+    result2: { getDisplayValue: () => "success" },
+    result3: { getDisplayValue: () => "started" }
   };
   const sheet = {
     getLastRow: () => 3,
@@ -381,4 +411,5 @@ test("承認終端検索は監査ログ全件読込みを使わずイベントID
   vm.runInContext(contractSource, context);
   assert.equal(context.findAttendanceApprovalTerminal_("ACE-1"), "success");
   assert.deepEqual(searched, ["ACE-1"]);
+  assert.deepEqual(finderOptions, [["entire", true], ["case", true]]);
 });
