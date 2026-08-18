@@ -111,7 +111,7 @@ test("割当外利用者の承認試行は申請状態を変更しない", () =>
   assert.throws(() => fixture.context.reviewRequest_({ internal_user_id: "U-X", email: "x@example.com" }, { requestId: "REQ-1", expectedRequestVersion: 1, decision: "承認" }, "token"), /この申請の承認者ではありません/);
   assert.equal(fixture.getCurrent()["状態"], "申請中");
   assert.equal(fixture.calls.some(call => call.type === "update"), false);
-  assert.equal(fixture.calls.some(call => call.type === "account"), false);
+  assert.equal(fixture.calls.some(call => call.type === "account" && call.phase === "authorize"), true);
 });
 
 test("Account外部呼出しはDocument Lock外で行う", () => {
@@ -128,6 +128,20 @@ test("版競合は業務行を更新せずconflict終端監査を残す", () => 
   assert.throws(() => fixture.context.reviewRequest_({ internal_user_id: "U-L1" }, { requestId: "REQ-1", expectedRequestVersion: 0, decision: "承認" }, "token"), /申請が更新されています/);
   assert.equal(fixture.getCurrent()["状態"], "申請中");
   assert.equal(fixture.calls.some(call => call.type === "account" && call.phase === "finalize" && call.result === "conflict"), true);
+});
+
+test("認可中に処理済みとなった申請はREQUEST_NOT_PENDINGで返す", () => {
+  const fixture = attendanceReviewContext();
+  fixture.context.accountApprovalRequest_ = payload => {
+    fixture.calls.push({ type: "account", phase: payload.phase, result: payload.result });
+    if (payload.phase === "authorize") {
+      fixture.getCurrent()["状態"] = "承認済み";
+      return { ok: true, authorization_event_id: "ACE-1", reviewer_internal_user_id: "U-L1" };
+    }
+    return { ok: true };
+  };
+  assert.throws(() => fixture.context.reviewRequest_({ internal_user_id: "U-L1" }, { requestId: "REQ-1", expectedRequestVersion: 1, decision: "承認" }, "token"), error => error.code === "REQUEST_NOT_PENDING");
+  assert.equal(fixture.calls.some(call => call.type === "account" && call.result === "conflict"), true);
 });
 
 test("通知失敗は確定済み承認を失敗応答へ変えない", () => {
@@ -167,6 +181,15 @@ test("申請シートのヘッダー不足は空欄保存せず拒否する", ()
   assert.throws(() => fixture.context.appendObject_("修正・予定外申請", { request_id: "REQ-1", applicant_internal_user_id: "U-1" }), /列が不足しています/);
 });
 
+test("承認経路のヘッダー整備は専用Document Lock内で行う", () => {
+  const fixture = attendanceReviewContext();
+  let ensuredWithLock = false;
+  fixture.context.ensureRequestContractHeaders_ = () => { ensuredWithLock = fixture.isLockHeld(); };
+  fixture.context.ensureRequestContractHeadersForReview_();
+  assert.equal(ensuredWithLock, true);
+  assert.equal(fixture.isLockHeld(), false);
+});
+
 test("非adminでも自分が直属承認者の申請だけを一覧取得できる", () => {
   const fixture = attendanceReviewContext();
   fixture.context.today_ = () => "2026-08-18";
@@ -184,6 +207,18 @@ test("非adminでも自分が直属承認者の申請だけを一覧取得でき
   assert.deepEqual(Object.keys(result.settings), []);
   assert.equal(result.preciseLocationAccess, false);
   assert.equal(fixture.context.hasApprovalReviewAccess_({ internal_user_id: "U-L1", role: "member" }), true);
+});
+
+test("非admin直属承認者は対象0件でも空配列を取得する", () => {
+  const fixture = attendanceReviewContext();
+  fixture.context.today_ = () => "2026-08-18";
+  fixture.context.nowIso_ = () => "2026-08-18T00:00:00+09:00";
+  fixture.context.getSchedules_ = () => [];
+  fixture.context.settings_ = () => ({});
+  fixture.context.canViewPreciseLocation_ = () => false;
+  fixture.context.rows_ = () => [];
+  const result = fixture.context.getAdminDashboard_({ internal_user_id: "U-L1", role: "member" }, "token");
+  assert.deepEqual(Array.from(result.requests), []);
 });
 
 test("startedとsuccessを同じ監査イベントIDで実際に記録する", () => {
@@ -220,4 +255,26 @@ test("startedとsuccessを同じ監査イベントIDで実際に記録する", (
   assert.equal(finalized.ok, true);
   assert.deepEqual(logs.map(log => log.result), ["started", "success"]);
   assert.equal(logs[0].authorization_event_id, logs[1].authorization_event_id);
+  const rejected = context.attendanceApprovalContract_({ ...base, phase: "authorize", approval_reviewer_internal_user_id: "U-L2" });
+  assert.equal(rejected.code, "NOT_ASSIGNED_REVIEWER");
+  assert.equal(logs.at(-1).result, "rejected");
+});
+
+test("既存終端と異なるfinalize要求は復旧記録を残す", () => {
+  const recoveries = [];
+  const context = {
+    console,
+    normalizeText: value => String(value ?? "").trim(),
+    findAttendanceApprovalTerminal_: () => "success",
+    recordAuthorizationRecovery_: item => recoveries.push(item)
+  };
+  vm.createContext(context);
+  vm.runInContext(contractSource, context);
+  context.findAttendanceApprovalTerminal_ = () => "success";
+  context.recordAuthorizationRecovery_ = item => recoveries.push(item);
+  const result = context.finalizeAttendanceApprovalReviewLocked_({ authorization_event_id: "ACE-1", request_id: "REQ-1", result: "error" });
+  assert.equal(result.code, "EVENT_ALREADY_FINALIZED");
+  assert.equal(recoveries[0].error_code, "TERMINAL_RESULT_CONFLICT");
+  assert.equal(recoveries[0].existing_result, "success");
+  assert.equal(recoveries[0].requested_result, "error");
 });

@@ -177,7 +177,6 @@ function getAdminDashboard_(user, idToken) {
   const requests = admin
     ? pendingRequests
     : pendingRequests.filter(r => String(r.approval_reviewer_internal_user_id || "") === reviewerId);
-  if (!admin && !requests.length) throw apiError_("FORBIDDEN", "承認対象の申請がありません。");
   const locations = admin && canViewPreciseLocation_(user) ? locationRows_() : [];
   const people = schedules.map(schedule => {
     const record = records.find(r => normalizeEmail_(r.email) === normalizeEmail_(schedule.email));
@@ -194,10 +193,13 @@ function getAdminDashboard_(user, idToken) {
 function reviewRequest_(user, payload, idToken) {
   if (!["承認", "却下"].includes(payload.decision)) throw apiError_("INVALID_DECISION", "承認または却下を指定してください。");
   if (payload.decision === "却下" && !String(payload.reason || "").trim()) throw apiError_("REASON_REQUIRED", "却下理由を入力してください。");
-  ensureRequestContractHeaders_();
+  ensureRequestContractHeadersForReview_();
   const initial = findRequestById_(payload.requestId);
   assertRequestContract_(initial);
-  if (String(initial.approval_reviewer_internal_user_id) !== internalUserId_(user)) throw apiError_("NOT_ASSIGNED_REVIEWER", "この申請の承認者ではありません。");
+  if (String(initial.approval_reviewer_internal_user_id) !== internalUserId_(user)) {
+    accountApprovalRequest_(approvalContractPayload_(initial, payload, idToken, "authorize"));
+    throw apiError_("NOT_ASSIGNED_REVIEWER", "この申請の承認者ではありません。");
+  }
 
   let authorization;
   try {
@@ -245,7 +247,7 @@ function reviewRequest_(user, payload, idToken) {
 
   if (conflictCode) {
     finalizeAttendanceAudit_(request || initial, payload, idToken, eventId, reviewerId, "conflict", "申請中", conflictCode);
-    throw apiError_("VERSION_CONFLICT", "申請が更新されています。再読込してください。");
+    throw apiError_(conflictCode, conflictCode === "REQUEST_NOT_PENDING" ? "申請はすでに処理されています。" : "申請が更新されています。再読込してください。");
   }
   if (processingError) {
     const result = writeRollbackSucceeded ? "error" : "recovery_required";
@@ -570,6 +572,7 @@ function updateById_(sheetName, idColumn, id, changes) { const sheet = Spreadshe
 function settings_() { return rows_(SHEETS.settings).reduce((o, r) => (o[String(r["設定キー"])] = String(r["設定値"]), o), {}); }
 function ensureReportSheet_() { const ss = SpreadsheetApp.getActive(); if (!ss.getSheetByName(SHEETS.reports)) { const s = ss.insertSheet(SHEETS.reports); s.appendRow(HEADERS.reports); s.setFrozenRows(1); } }
 function ensureRequestContractHeaders_() { const sheet = SpreadsheetApp.getActive().getSheetByName(SHEETS.requests); if (!sheet) throw apiError_("SHEET_NOT_FOUND", `${SHEETS.requests}シートがありません。`); const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String); const duplicate = headers.find((header, index) => header && headers.indexOf(header) !== index); if (duplicate) throw apiError_("SHEET_SCHEMA_MISMATCH", `${SHEETS.requests}シートに重複列があります: ${duplicate}`); const missingExisting = HEADERS.requests.filter(header => !headers.includes(header)); if (missingExisting.length) throw apiError_("SHEET_SCHEMA_MISMATCH", `${SHEETS.requests}シートの既存列が不足しています: ${missingExisting.join(",")}`); HEADERS.requestContract.forEach(header => { if (!headers.includes(header)) { sheet.getRange(1, sheet.getLastColumn() + 1).setValue(header); headers.push(header); } }); }
+function ensureRequestContractHeadersForReview_() { const lock = LockService.getDocumentLock(); lock.waitLock(20000); try { ensureRequestContractHeaders_(); } finally { lock.releaseLock(); } }
 function publicUser_(user) { return { internal_user_id: internalUserId_(user), name: user.name || "", email: user.email || "", role: user.role || "", organization_id: user.organization_id || "", employee_code: user.employee_code || "", employment_type: user.employment_type || user.contract_type || "" }; }
 function internalUserId_(user) { return String(user && (user.internal_user_id || user.internalUserId || user.user_id || user.userId) || "").trim(); }
 function hasApprovalReviewAccess_(user) { const userId = internalUserId_(user); return Boolean(userId) && rows_(SHEETS.requests).some(request => String(request["状態"]) === "申請中" && String(request.approval_reviewer_internal_user_id || "") === userId); }

@@ -102,9 +102,16 @@ function finalizeAttendanceApprovalReviewLocked_(body) {
   }
   const existingTerminal = findAttendanceApprovalTerminal_(eventId);
   if (existingTerminal) {
-    return existingTerminal === result
-      ? { ok: true, duplicate: true }
-      : { ok: false, code: "EVENT_ALREADY_FINALIZED", message: "監査イベントは別の結果で確定済みです" };
+    if (existingTerminal === result) return { ok: true, duplicate: true };
+    recordAuthorizationRecovery_({
+      authorization_event_id: eventId,
+      request_id: normalizeText(body.request_id),
+      error_code: "TERMINAL_RESULT_CONFLICT",
+      source: "attendance",
+      existing_result: existingTerminal,
+      requested_result: result
+    });
+    return { ok: false, code: "EVENT_ALREADY_FINALIZED", message: "監査イベントは別の結果で確定済みです" };
   }
   let reviewerId = normalizeText(body.reviewer_internal_user_id);
   try {

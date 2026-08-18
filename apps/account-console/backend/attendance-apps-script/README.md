@@ -19,6 +19,7 @@
 ## 直属承認接続
 
 - Account Console側と勤怠API側のScript Propertiesへ、同一の十分に長いランダム値を `ATTENDANCE_APPROVAL_SERVICE_SECRET` として設定します。値をソース、シート、ログへ保存しないでください。
+- Account側は、この秘密を保持する勤怠GASを終端監査ログの信頼主体として扱います。秘密を取得した主体は任意の終端結果を送信できるため、閲覧者を限定し、漏えい時は両側を同時にローテーションしてください。
 - 勤怠GASからAccount GASへは既存Account Webアプリの `/exec` URLを直接呼び出します。ログイン用Cloudflare Workerは許可アクションが限定されているため、直属承認契約の中継には使用しません。
 - 新規申請では `applicant_internal_user_id`、`request_version`、`approval_reviewer_internal_user_id`、`applicant_organization_version` 列を自動追加して保存します。既存の承認待ち行は自動変換せず、本人確認後の再申請が必要です。
 - Account Consoleと勤怠APIの両方を反映するまで、実効承認へ切り替えないでください。片側だけの反映では新規申請または承認をfail-closedで拒否します。
