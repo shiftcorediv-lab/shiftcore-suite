@@ -1,5 +1,5 @@
 const LOGIN_PROXY_URL = "https://shiftcore-login-proxy.shiftcore-div.workers.dev/";
-const ACCOUNT_APPROVAL_API_URL = LOGIN_PROXY_URL;
+const ACCOUNT_APPROVAL_API_URL = "https://script.google.com/macros/s/AKfycbx83rAzXDfQPJUEu9tX4dpULH4QHYUoqfaTnfzzySkW3KjGVbcH4tnq9PKCCvfuEx6eRA/exec";
 const SHIFTBUILDER_API_URL = "https://script.google.com/macros/s/AKfycbxlWX3iPy6b1LDjKDc91G7jvBHeee4b5kr7o2wBYy859Uv_R-XI9tLzB2Xu6fz4_-5X/exec";
 const TZ = "Asia/Tokyo";
 
@@ -14,6 +14,7 @@ const SHEETS = {
 
 const HEADERS = {
   reports: ["report_id", "record_id", "開発予定ID", "開発予定名", "報告者メール", "報告者氏名", "実績内容", "課題・申し送り", "報告日時"],
+  requests: ["request_id", "record_id", "種別", "申請者メール", "申請者氏名", "対象日", "申請開始", "申請終了", "理由区分", "理由詳細", "状態", "承認者メール", "承認者氏名", "承認理由", "申請日時", "処理日時"],
   requestContract: ["applicant_internal_user_id", "request_version", "approval_reviewer_internal_user_id", "applicant_organization_version"]
 };
 
@@ -77,7 +78,7 @@ function getDashboardData_(user, sourceSchedules) {
     upcoming,
     record: records[0] || null,
     notifications,
-    adminAccess: isAdmin_(user),
+    adminAccess: isAdmin_(user) || hasApprovalReviewAccess_(user),
     preciseLocationAccess: canViewPreciseLocation_(user)
   };
 }
@@ -167,12 +168,17 @@ function submitReport_(user, payload) {
 }
 
 function getAdminDashboard_(user, idToken) {
-  requireAdmin_(user);
   const today = today_();
-  const schedules = getSchedules_(idToken).filter(r => dateKey_(r["勤務日"]) === today);
-  const records = rows_(SHEETS.records).filter(r => dateKey_(r["勤務日"]) === today);
-  const requests = rows_(SHEETS.requests).filter(r => String(r["状態"]) === "申請中");
-  const locations = canViewPreciseLocation_(user) ? locationRows_() : [];
+  const admin = isAdmin_(user);
+  const schedules = admin ? getSchedules_(idToken).filter(r => dateKey_(r["勤務日"]) === today) : [];
+  const records = admin ? rows_(SHEETS.records).filter(r => dateKey_(r["勤務日"]) === today) : [];
+  const pendingRequests = rows_(SHEETS.requests).filter(r => String(r["状態"]) === "申請中");
+  const reviewerId = internalUserId_(user);
+  const requests = admin
+    ? pendingRequests
+    : pendingRequests.filter(r => String(r.approval_reviewer_internal_user_id || "") === reviewerId);
+  if (!admin && !requests.length) throw apiError_("FORBIDDEN", "承認対象の申請がありません。");
+  const locations = admin && canViewPreciseLocation_(user) ? locationRows_() : [];
   const people = schedules.map(schedule => {
     const record = records.find(r => normalizeEmail_(r.email) === normalizeEmail_(schedule.email));
     const loc = record && locations.find(l => String(l.attendance_record_id) === String(record.record_id));
@@ -182,54 +188,157 @@ function getAdminDashboard_(user, idToken) {
     const loc = locations.find(l => String(l.attendance_record_id) === String(record.record_id));
     people.push({ schedule: null, record, location: loc || null });
   });
-  return { ok: true, serverNow: nowIso_(), people, requests, settings: settings_(), preciseLocationAccess: canViewPreciseLocation_(user) };
+  return { ok: true, serverNow: nowIso_(), people, requests, settings: admin ? settings_() : {}, preciseLocationAccess: admin && canViewPreciseLocation_(user) };
 }
 
 function reviewRequest_(user, payload, idToken) {
   if (!["承認", "却下"].includes(payload.decision)) throw apiError_("INVALID_DECISION", "承認または却下を指定してください。");
   if (payload.decision === "却下" && !String(payload.reason || "").trim()) throw apiError_("REASON_REQUIRED", "却下理由を入力してください。");
+  ensureRequestContractHeaders_();
+  const initial = findRequestById_(payload.requestId);
+  assertRequestContract_(initial);
+  if (String(initial.approval_reviewer_internal_user_id) !== internalUserId_(user)) throw apiError_("NOT_ASSIGNED_REVIEWER", "この申請の承認者ではありません。");
+
+  let authorization;
+  try {
+    authorization = accountApprovalRequest_(approvalContractPayload_(initial, payload, idToken, "authorize"));
+  } catch (error) {
+    if (error.code === "APPROVAL_ROUTE_CHANGED") markRouteForReconfirmation_(initial);
+    throw error;
+  }
+  const eventId = authorization.authorization_event_id;
+  const reviewerId = authorization.reviewer_internal_user_id;
+  const lock = LockService.getDocumentLock();
+  lock.waitLock(20000);
+  let request;
+  let record;
+  let conflictCode = "";
+  let processingError;
+  let writeRollbackSucceeded = true;
+  try {
+    request = findRequestById_(payload.requestId);
+    if (!request || request["状態"] !== "申請中") {
+      conflictCode = "REQUEST_NOT_PENDING";
+    } else {
+      assertRequestContract_(request);
+      const currentVersion = Number(request.request_version);
+      if (!Number.isInteger(Number(payload.expectedRequestVersion)) || Number(payload.expectedRequestVersion) !== currentVersion || currentVersion !== Number(initial.request_version)) {
+        conflictCode = "VERSION_CONFLICT";
+      } else {
+        const nextStatus = payload.decision + "済み";
+        record = request.record_id ? rows_(SHEETS.records).find(r => String(r.record_id) === String(request.record_id)) : null;
+        updateById_(SHEETS.requests, "request_id", payload.requestId, { "状態": nextStatus, request_version: currentVersion + 1, "承認者メール": user.email, "承認者氏名": user.name || "", "承認理由": payload.reason || "", "処理日時": new Date() });
+        if (payload.decision === "承認" && request.record_id) updateById_(SHEETS.records, "record_id", request.record_id, { "正式開始": request["申請開始"] || "", "正式終了": request["申請終了"] || "", "更新日時": new Date() });
+      }
+    }
+  } catch (error) {
+    processingError = error;
+    try {
+      if (request) restoreAttendanceReview_(request, record);
+    } catch (rollbackError) {
+      writeRollbackSucceeded = false;
+      processingError.rollback_error = rollbackError.code || rollbackError.message;
+    }
+  } finally {
+    lock.releaseLock();
+  }
+
+  if (conflictCode) {
+    finalizeAttendanceAudit_(request || initial, payload, idToken, eventId, reviewerId, "conflict", "申請中", conflictCode);
+    throw apiError_("VERSION_CONFLICT", "申請が更新されています。再読込してください。");
+  }
+  if (processingError) {
+    const result = writeRollbackSucceeded ? "error" : "recovery_required";
+    finalizeAttendanceAudit_(request || initial, payload, idToken, eventId, reviewerId, result, "申請中", `${processingError.code || processingError.message}${processingError.rollback_error ? ":" + processingError.rollback_error : ""}`);
+    if (!writeRollbackSucceeded) throw apiError_("RECOVERY_REQUIRED", "承認更新の復元に失敗しました。管理者確認が必要です。");
+    throw processingError;
+  }
+
+  const nextStatus = payload.decision + "済み";
+  try {
+    finalizeAttendanceAudit_(request, payload, idToken, eventId, reviewerId, "success", nextStatus, "");
+  } catch (finalizeError) {
+    handleAttendanceFinalizeFailure_(request, record, payload, idToken, eventId, reviewerId, finalizeError);
+  }
+  try {
+    createNotification_(request["申請者メール"], request["申請者氏名"], "申請結果", `${request["種別"]}は${payload.decision}されました。`, payload.requestId);
+  } catch (notificationError) {
+    console.error("Attendance approval notification failed", notificationError);
+  }
+  return { ok: true, requestVersion: Number(request.request_version) + 1 };
+}
+
+function approvalContractPayload_(request, payload, idToken, phase) {
+  return { phase: phase, idToken: idToken, request_id: request.request_id, decision: payload.decision, reason: payload.reason || "", request_version: Number(request.request_version), applicant_internal_user_id: request.applicant_internal_user_id, approval_reviewer_internal_user_id: request.approval_reviewer_internal_user_id, applicant_organization_version: Number(request.applicant_organization_version) };
+}
+
+function finalizeAttendanceAudit_(request, payload, idToken, eventId, reviewerId, result, resultStatus, errorCode) {
+  return accountApprovalRequest_(Object.assign(approvalContractPayload_(request, payload, idToken, "finalize"), {
+    authorization_event_id: eventId,
+    reviewer_internal_user_id: reviewerId,
+    result: result,
+    result_status: resultStatus,
+    error_code: errorCode || ""
+  }));
+}
+
+function handleAttendanceFinalizeFailure_(request, record, payload, idToken, eventId, reviewerId, originalError) {
+  try {
+    finalizeAttendanceAudit_(request, payload, idToken, eventId, reviewerId, "success", payload.decision + "済み", "");
+    return;
+  } catch (retryError) {
+    originalError = retryError;
+  }
+  const lock = LockService.getDocumentLock();
+  lock.waitLock(20000);
+  let rollbackSucceeded = false;
+  let rollbackError;
+  try {
+    const current = findRequestById_(request.request_id);
+    const expectedStatus = payload.decision + "済み";
+    if (!current || String(current["状態"]) !== expectedStatus || Number(current.request_version) !== Number(request.request_version) + 1) {
+      throw apiError_("ROLLBACK_STATE_CHANGED", "復元対象の申請状態が変わっています。");
+    }
+    restoreAttendanceReview_(request, record);
+    rollbackSucceeded = true;
+  } catch (error) {
+    rollbackError = error;
+  } finally {
+    lock.releaseLock();
+  }
+
+  const result = rollbackSucceeded ? "error" : "recovery_required";
+  const errorCode = rollbackSucceeded
+    ? (originalError.code || "AUDIT_FINALIZE_FAILED")
+    : `${originalError.code || "AUDIT_FINALIZE_FAILED"}:${rollbackError.code || rollbackError.message || "ROLLBACK_FAILED"}`;
+  try {
+    finalizeAttendanceAudit_(request, payload, idToken, eventId, reviewerId, result, "申請中", errorCode);
+  } catch (auditError) {
+    throw apiError_("RECOVERY_REQUIRED", "承認結果の整合性を自動確定できませんでした。管理者確認が必要です。");
+  }
+  if (!rollbackSucceeded) throw apiError_("RECOVERY_REQUIRED", "承認結果の復元に失敗しました。管理者確認が必要です。");
+  throw originalError;
+}
+
+function markRouteForReconfirmation_(request) {
   const lock = LockService.getDocumentLock();
   lock.waitLock(20000);
   try {
-    ensureRequestContractHeaders_();
-    const request = rows_(SHEETS.requests).find(r => String(r.request_id) === String(payload.requestId));
-    if (!request || request["状態"] !== "申請中") throw apiError_("REQUEST_NOT_FOUND", "申請が見つからないか、処理済みです。");
-    if (!request.applicant_internal_user_id || !request.request_version) throw apiError_("LEGACY_REQUEST_REAPPLY_REQUIRED", "旧形式の申請です。本人確認後に再申請してください。");
-    const currentVersion = Number(request.request_version);
-    if (!Number.isInteger(Number(payload.expectedRequestVersion)) || Number(payload.expectedRequestVersion) !== currentVersion) throw apiError_("VERSION_CONFLICT", "申請が更新されています。再読込してください。");
-
-    let authorization;
-    try {
-      authorization = accountApprovalRequest_(approvalContractPayload_(request, payload, idToken, "authorize"));
-    } catch (error) {
-      if (error.code === "APPROVAL_ROUTE_CHANGED") updateById_(SHEETS.requests, "request_id", payload.requestId, { "状態": "経路再確認", request_version: currentVersion + 1, "処理日時": new Date() });
-      throw error;
-    }
-
-    const nextStatus = payload.decision + "済み";
-    const record = request.record_id ? rows_(SHEETS.records).find(r => String(r.record_id) === String(request.record_id)) : null;
-    try {
-      updateById_(SHEETS.requests, "request_id", payload.requestId, { "状態": nextStatus, request_version: currentVersion + 1, "承認者メール": user.email, "承認者氏名": user.name || "", "承認理由": payload.reason || "", "処理日時": new Date() });
-      if (payload.decision === "承認" && request.record_id) updateById_(SHEETS.records, "record_id", request.record_id, { "正式開始": request["申請開始"] || "", "正式終了": request["申請終了"] || "", "更新日時": new Date() });
-      accountApprovalRequest_(Object.assign(approvalContractPayload_(request, payload, idToken, "finalize"), { authorization_event_id: authorization.authorization_event_id, result: "success", result_status: nextStatus }));
-    } catch (error) {
-      restoreAttendanceReview_(request, record);
-      try {
-        accountApprovalRequest_(Object.assign(approvalContractPayload_(request, payload, idToken, "finalize"), { authorization_event_id: authorization.authorization_event_id, result: "error", result_status: "申請中", error_code: error.code || "ATTENDANCE_UPDATE_FAILED" }));
-      } catch (auditError) {
-        throw apiError_("AUDIT_WRITE_FAILED", "処理を取り消しましたが、失敗監査ログを記録できませんでした。");
-      }
-      throw error;
-    }
-    createNotification_(request["申請者メール"], request["申請者氏名"], "申請結果", `${request["種別"]}は${payload.decision}されました。`, payload.requestId);
-    return { ok: true, requestVersion: currentVersion + 1 };
+    const current = findRequestById_(request.request_id);
+    if (!current || String(current["状態"]) !== "申請中" || Number(current.request_version) !== Number(request.request_version)) return;
+    updateById_(SHEETS.requests, "request_id", request.request_id, { "状態": "経路再確認", request_version: Number(request.request_version) + 1, "処理日時": new Date() });
   } finally {
     lock.releaseLock();
   }
 }
 
-function approvalContractPayload_(request, payload, idToken, phase) {
-  return { phase: phase, idToken: idToken, request_id: request.request_id, decision: payload.decision, reason: payload.reason || "", request_version: Number(request.request_version), applicant_internal_user_id: request.applicant_internal_user_id, approval_reviewer_internal_user_id: request.approval_reviewer_internal_user_id, applicant_organization_version: Number(request.applicant_organization_version) };
+function findRequestById_(requestId) {
+  return rows_(SHEETS.requests).find(r => String(r.request_id) === String(requestId)) || null;
+}
+
+function assertRequestContract_(request) {
+  if (!request || String(request["状態"]) !== "申請中") throw apiError_("REQUEST_NOT_FOUND", "申請が見つからないか、処理済みです。");
+  if (!request.applicant_internal_user_id || !request.request_version || !request.approval_reviewer_internal_user_id) throw apiError_("LEGACY_REQUEST_REAPPLY_REQUIRED", "旧形式の申請です。本人確認後に再申請してください。");
 }
 
 function accountApprovalRequest_(payload) {
@@ -456,12 +565,14 @@ function locationSpreadsheetId_() {
 }
 function objects_(sheet) { const values = sheet.getDataRange().getValues(); if (values.length < 2) return []; const headers = values.shift().map(String); return values.filter(row => row.some(v => v !== "")).map(row => headers.reduce((o, h, i) => (o[h] = row[i], o), {})); }
 function append_(name, values) { const sheet = SpreadsheetApp.getActive().getSheetByName(name); if (!sheet) throw apiError_("SHEET_NOT_FOUND", `${name}シートがありません。`); sheet.appendRow(values); }
-function appendObject_(name, value) { const sheet = SpreadsheetApp.getActive().getSheetByName(name); if (!sheet) throw apiError_("SHEET_NOT_FOUND", `${name}シートがありません。`); const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String); sheet.appendRow(headers.map(header => value[header] == null ? "" : value[header])); }
+function appendObject_(name, value) { const sheet = SpreadsheetApp.getActive().getSheetByName(name); if (!sheet) throw apiError_("SHEET_NOT_FOUND", `${name}シートがありません。`); const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String); const missing = Object.keys(value).filter(key => !headers.includes(key)); if (missing.length) throw apiError_("SHEET_SCHEMA_MISMATCH", `${name}シートの列が不足しています: ${missing.join(",")}`); sheet.appendRow(headers.map(header => value[header] == null ? "" : value[header])); }
 function updateById_(sheetName, idColumn, id, changes) { const sheet = SpreadsheetApp.getActive().getSheetByName(sheetName); const values = sheet.getDataRange().getValues(); const headers = values[0].map(String); const rowIndex = values.findIndex((r, i) => i > 0 && String(r[headers.indexOf(idColumn)]) === String(id)); if (rowIndex < 1) throw apiError_("NOT_FOUND", "対象データが見つかりません。"); Object.keys(changes).forEach(k => { const col = headers.indexOf(k); if (col >= 0) sheet.getRange(rowIndex + 1, col + 1).setValue(changes[k]); }); }
 function settings_() { return rows_(SHEETS.settings).reduce((o, r) => (o[String(r["設定キー"])] = String(r["設定値"]), o), {}); }
 function ensureReportSheet_() { const ss = SpreadsheetApp.getActive(); if (!ss.getSheetByName(SHEETS.reports)) { const s = ss.insertSheet(SHEETS.reports); s.appendRow(HEADERS.reports); s.setFrozenRows(1); } }
-function ensureRequestContractHeaders_() { const sheet = SpreadsheetApp.getActive().getSheetByName(SHEETS.requests); if (!sheet) throw apiError_("SHEET_NOT_FOUND", `${SHEETS.requests}シートがありません。`); const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String); HEADERS.requestContract.forEach(header => { if (!headers.includes(header)) { sheet.getRange(1, sheet.getLastColumn() + 1).setValue(header); headers.push(header); } }); }
-function publicUser_(user) { return { name: user.name || "", email: user.email || "", role: user.role || "", organization_id: user.organization_id || "", employee_code: user.employee_code || "", employment_type: user.employment_type || user.contract_type || "" }; }
+function ensureRequestContractHeaders_() { const sheet = SpreadsheetApp.getActive().getSheetByName(SHEETS.requests); if (!sheet) throw apiError_("SHEET_NOT_FOUND", `${SHEETS.requests}シートがありません。`); const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String); const duplicate = headers.find((header, index) => header && headers.indexOf(header) !== index); if (duplicate) throw apiError_("SHEET_SCHEMA_MISMATCH", `${SHEETS.requests}シートに重複列があります: ${duplicate}`); const missingExisting = HEADERS.requests.filter(header => !headers.includes(header)); if (missingExisting.length) throw apiError_("SHEET_SCHEMA_MISMATCH", `${SHEETS.requests}シートの既存列が不足しています: ${missingExisting.join(",")}`); HEADERS.requestContract.forEach(header => { if (!headers.includes(header)) { sheet.getRange(1, sheet.getLastColumn() + 1).setValue(header); headers.push(header); } }); }
+function publicUser_(user) { return { internal_user_id: internalUserId_(user), name: user.name || "", email: user.email || "", role: user.role || "", organization_id: user.organization_id || "", employee_code: user.employee_code || "", employment_type: user.employment_type || user.contract_type || "" }; }
+function internalUserId_(user) { return String(user && (user.internal_user_id || user.internalUserId || user.user_id || user.userId) || "").trim(); }
+function hasApprovalReviewAccess_(user) { const userId = internalUserId_(user); return Boolean(userId) && rows_(SHEETS.requests).some(request => String(request["状態"]) === "申請中" && String(request.approval_reviewer_internal_user_id || "") === userId); }
 function isAdminRole_(role) { return ["admin", "manager", "team_leader", "leader", "executive", "labor", "hr", "developer", "dev"].includes(String(role || "").toLowerCase()); }
 function isAdmin_(user) { return isAdminRole_(user.role); }
 function canViewPreciseLocation_(user) { return ["admin", "executive", "labor", "hr", "developer", "dev"].includes(String(user.role || "").toLowerCase()); }

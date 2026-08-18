@@ -84,25 +84,84 @@ function authorizeAttendanceApprovalReview_(body) {
 }
 
 function finalizeAttendanceApprovalReview_(body) {
-  const reviewer = resolveAttendanceReviewer_(body.idToken);
-  const applicant = findOrganizationUserById_(normalizeText(body.applicant_internal_user_id));
-  assertAttendanceApprovalRouteUnchanged_(applicant, reviewer, body);
-  const succeeded = normalizeText(body.result || "success") === "success";
-  appendAuthorizationChangeLog_({
-    authorization_event_id: normalizeText(body.authorization_event_id),
-    event_type: "approval.review",
-    request_id: normalizeText(body.request_id),
-    actor_internal_user_id: reviewer.internal_user_id,
-    target_internal_user_id: applicant.internal_user_id,
-    reviewer_internal_user_id: reviewer.internal_user_id,
-    before: { status: "pending", request_version: Number(body.request_version) },
-    after: { status: succeeded ? normalizeText(body.result_status) : "pending", request_version: succeeded ? Number(body.request_version) + 1 : Number(body.request_version) },
-    reason: normalizeText(body.reason) || normalizeText(body.decision),
-    result: normalizeText(body.result || "success"),
-    error_code: normalizeText(body.error_code),
-    source: "attendance"
-  });
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    return finalizeAttendanceApprovalReviewLocked_(body);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function finalizeAttendanceApprovalReviewLocked_(body) {
+  const eventId = normalizeText(body.authorization_event_id);
+  const result = normalizeText(body.result || "error");
+  if (eventId.indexOf("ACE-") !== 0 ||
+      ["success", "error", "conflict", "recovery_required"].indexOf(result) === -1) {
+    return { ok: false, code: "INVALID_FINALIZE", message: "終端監査情報が不正です" };
+  }
+  const existingTerminal = findAttendanceApprovalTerminal_(eventId);
+  if (existingTerminal) {
+    return existingTerminal === result
+      ? { ok: true, duplicate: true }
+      : { ok: false, code: "EVENT_ALREADY_FINALIZED", message: "監査イベントは別の結果で確定済みです" };
+  }
+  let reviewerId = normalizeText(body.reviewer_internal_user_id);
+  try {
+    reviewerId = resolveAttendanceReviewer_(body.idToken).internal_user_id;
+  } catch (error) {
+    // 終端ログは認可結果ではなく処理結果の記録なので、開始時に確定したIDを使う。
+  }
+  const succeeded = result === "success";
+  if (result === "recovery_required") {
+    recordAuthorizationRecovery_({
+      authorization_event_id: eventId,
+      request_id: normalizeText(body.request_id),
+      error_code: normalizeText(body.error_code),
+      source: "attendance"
+    });
+  }
+  try {
+    appendAuthorizationChangeLog_({
+      authorization_event_id: eventId,
+      event_type: "approval.review",
+      request_id: normalizeText(body.request_id),
+      actor_internal_user_id: reviewerId,
+      target_internal_user_id: normalizeText(body.applicant_internal_user_id),
+      reviewer_internal_user_id: reviewerId,
+      before: { status: "pending", request_version: Number(body.request_version) },
+      after: { status: succeeded ? normalizeText(body.result_status) : "pending", request_version: succeeded ? Number(body.request_version) + 1 : Number(body.request_version) },
+      reason: normalizeText(body.reason) || normalizeText(body.decision),
+      result: result,
+      error_code: normalizeText(body.error_code),
+      source: "attendance"
+    });
+  } catch (error) {
+    recordAuthorizationRecovery_({
+      authorization_event_id: eventId,
+      request_id: normalizeText(body.request_id),
+      error_code: normalizeText(error.code || error.message),
+      source: "attendance",
+      result: result
+    });
+    return { ok: false, code: "AUDIT_WRITE_FAILED", message: "終端監査ログを記録できません" };
+  }
   return { ok: true };
+}
+
+function findAttendanceApprovalTerminal_(eventId) {
+  const sheet = getAuthorizationChangeLogsSheet_();
+  const values = sheet.getDataRange().getDisplayValues();
+  if (values.length < 2) return "";
+  const headers = values[0].map(normalizeText);
+  const eventIndex = headers.indexOf("authorization_event_id");
+  const resultIndex = headers.indexOf("result");
+  for (let index = values.length - 1; index >= 1; index -= 1) {
+    if (normalizeText(values[index][eventIndex]).replace(/^'/, "") !== eventId) continue;
+    const result = normalizeText(values[index][resultIndex]).replace(/^'/, "");
+    if (["success", "error", "conflict", "recovery_required", "rejected"].indexOf(result) !== -1) return result;
+  }
+  return "";
 }
 
 function resolveAttendanceReviewer_(idToken) {
@@ -124,9 +183,16 @@ function assertAttendanceApprovalRouteUnchanged_(applicant, reviewer, body) {
   }
   const savedReviewerId = normalizeText(body.approval_reviewer_internal_user_id);
   if (savedReviewerId !== normalizeText(reviewer.internal_user_id)) {
-    throw organizationAuthorizationError_("APPROVAL_ROUTE_CHANGED");
+    throw organizationAuthorizationError_("NOT_ASSIGNED_REVIEWER");
   }
-  assertApprovalReviewer_(applicant, reviewer);
+  try {
+    assertApprovalReviewer_(applicant, reviewer);
+  } catch (error) {
+    if (normalizeText(error.code) === "REVIEWER_MISMATCH") {
+      throw organizationAuthorizationError_("APPROVAL_ROUTE_CHANGED");
+    }
+    throw error;
+  }
 }
 
 function requireAttendanceApprovalService_(providedSecret) {
