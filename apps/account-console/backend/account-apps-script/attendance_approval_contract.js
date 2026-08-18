@@ -1,5 +1,7 @@
 // ===== 勤怠申請の直属承認契約 ここから =====
 
+const ATTENDANCE_REJECTION_AUDIT_CACHE_SECONDS = 300;
+
 function attendanceApprovalContract_(body) {
   const phase = normalizeText(body.phase);
   requireAttendanceApprovalService_(body.service_secret);
@@ -49,7 +51,7 @@ function authorizeAttendanceApprovalReview_(body) {
     reviewer = resolveAttendanceReviewer_(body.idToken);
     applicant = findOrganizationUserById_(applicantId);
     assertAttendanceApprovalRouteUnchanged_(applicant, reviewer, body);
-    appendAuthorizationChangeLog_({
+    appendAttendanceAuthorizationLog_({
       authorization_event_id: eventId,
       event_type: "approval.review",
       request_id: requestId,
@@ -64,7 +66,7 @@ function authorizeAttendanceApprovalReview_(body) {
     return { ok: true, authorization_event_id: eventId, reviewer_internal_user_id: reviewer.internal_user_id };
   } catch (error) {
     try {
-      appendAuthorizationChangeLog_({
+      appendAttendanceRejectionLog_({
         authorization_event_id: eventId,
         event_type: "approval.review",
         request_id: requestId,
@@ -158,17 +160,71 @@ function finalizeAttendanceApprovalReviewLocked_(body) {
 
 function findAttendanceApprovalTerminal_(eventId) {
   const sheet = getAuthorizationChangeLogsSheet_();
-  const values = sheet.getDataRange().getDisplayValues();
-  if (values.length < 2) return "";
-  const headers = values[0].map(normalizeText);
+  if (sheet.getLastRow() < 2) return "";
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0].map(normalizeText);
   const eventIndex = headers.indexOf("authorization_event_id");
   const resultIndex = headers.indexOf("result");
-  for (let index = values.length - 1; index >= 1; index -= 1) {
-    if (normalizeText(values[index][eventIndex]).replace(/^'/, "") !== eventId) continue;
-    const result = normalizeText(values[index][resultIndex]).replace(/^'/, "");
+  if (eventIndex === -1 || resultIndex === -1) throw organizationAuthorizationError_("AUDIT_READ_FAILED");
+  const matches = sheet.getRange(2, eventIndex + 1, sheet.getLastRow() - 1, 1)
+    .createTextFinder(eventId)
+    .matchEntireCell(true)
+    .findAll()
+    .sort(function(left, right) { return right.getRow() - left.getRow(); });
+  for (let index = 0; index < matches.length; index += 1) {
+    const result = normalizeText(sheet.getRange(matches[index].getRow(), resultIndex + 1).getDisplayValue()).replace(/^'/, "");
     if (["success", "error", "conflict", "recovery_required", "rejected"].indexOf(result) !== -1) return result;
   }
   return "";
+}
+
+function appendAttendanceAuthorizationLog_(entry) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    return appendAuthorizationChangeLog_(entry);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function appendAttendanceRejectionLog_(entry) {
+  const reviewerId = normalizeText(entry.actor_internal_user_id);
+  const errorCode = normalizeText(entry.error_code);
+  if (!reviewerId || errorCode !== "NOT_ASSIGNED_REVIEWER") {
+    return appendAttendanceAuthorizationLog_(entry);
+  }
+  let cache;
+  let cacheKey;
+  try {
+    cache = CacheService.getScriptCache();
+    cacheKey = attendanceRejectionAuditCacheKey_(entry.request_id, reviewerId);
+  } catch (cacheError) {
+    return appendAttendanceAuthorizationLog_(entry);
+  }
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    try {
+      if (cache.get(cacheKey)) return null;
+    } catch (cacheReadError) {
+      // キャッシュはログ抑制専用。読取失敗時も監査記録を優先する。
+    }
+    const result = appendAuthorizationChangeLog_(entry);
+    try {
+      cache.put(cacheKey, "1", ATTENDANCE_REJECTION_AUDIT_CACHE_SECONDS);
+    } catch (cacheWriteError) {
+      // 記録済みの監査ログをキャッシュ障害で失敗扱いにしない。
+    }
+    return result;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function attendanceRejectionAuditCacheKey_(requestId, reviewerId) {
+  const source = normalizeText(requestId) + "\u001f" + normalizeText(reviewerId);
+  const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, source, Utilities.Charset.UTF_8);
+  return "attendance-rejection-" + Utilities.base64EncodeWebSafe(digest).replace(/=+$/, "");
 }
 
 function resolveAttendanceReviewer_(idToken) {

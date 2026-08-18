@@ -259,7 +259,13 @@ test("startedとsuccessを同じ監査イベントIDで実際に記録する", (
     ATTENDANCE_APPROVAL_SERVICE_SECRET_PROPERTY: "SECRET",
     PropertiesService: { getScriptProperties: () => ({ getProperty: () => "secret" }) },
     LockService: { getScriptLock: () => ({ waitLock: () => {}, releaseLock: () => {} }) },
-    Utilities: { getUuid: () => "event-1" },
+    Utilities: {
+      getUuid: () => "event-1",
+      DigestAlgorithm: { SHA_256: "SHA_256" }, Charset: { UTF_8: "UTF_8" },
+      computeDigest: (_algorithm, source) => Array.from(String(source), character => character.charCodeAt(0)),
+      base64EncodeWebSafe: digest => digest.join("-")
+    },
+    CacheService: { getScriptCache: () => ({ get: () => null, put: () => {} }) },
     normalizeText: value => String(value ?? "").trim(),
     normalizeOrganizationVersion_: value => Number(value || 0),
     normalizeOrganizationLevel_: value => String(value || ""),
@@ -271,7 +277,7 @@ test("startedとsuccessを同じ監査イベントIDで実際に記録する", (
     },
     appendAuthorizationChangeLog_: entry => { logs.push(entry); return entry; },
     recordAuthorizationRecovery_: () => assert.fail("recovery must not be used"),
-    getAuthorizationChangeLogsSheet_: () => ({ getDataRange: () => ({ getDisplayValues: () => [["authorization_event_id", "result"]] }) })
+    getAuthorizationChangeLogsSheet_: () => ({ getLastRow: () => 1 })
   };
   vm.createContext(context);
   vm.runInContext(contractSource, context);
@@ -307,4 +313,72 @@ test("既存終端と異なるfinalize要求は復旧記録を残す", () => {
   assert.equal(recoveries[0].source, "attendance");
   assert.equal(recoveries[0].existing_result, "success");
   assert.equal(recoveries[0].requested_result, "error");
+});
+
+test("同一利用者による同一申請の割当外試行は短時間に1件だけ監査記録する", () => {
+  const logs = [];
+  const cacheValues = new Map();
+  let lockHeld = false;
+  const context = {
+    normalizeText: value => String(value ?? "").trim(),
+    CacheService: { getScriptCache: () => ({ get: key => cacheValues.get(key), put: (key, value) => cacheValues.set(key, value) }) },
+    LockService: { getScriptLock: () => ({ waitLock: () => { lockHeld = true; }, releaseLock: () => { lockHeld = false; } }) },
+    Utilities: {
+      DigestAlgorithm: { SHA_256: "SHA_256" }, Charset: { UTF_8: "UTF_8" },
+      computeDigest: (_algorithm, source) => Array.from(String(source), character => character.charCodeAt(0)),
+      base64EncodeWebSafe: digest => digest.join("-")
+    },
+    appendAuthorizationChangeLog_: entry => { assert.equal(lockHeld, true); logs.push(entry); return entry; }
+  };
+  vm.createContext(context);
+  vm.runInContext(contractSource, context);
+  const entry = { request_id: "REQ-1", actor_internal_user_id: "U-X", error_code: "NOT_ASSIGNED_REVIEWER" };
+  context.appendAttendanceRejectionLog_(entry);
+  context.appendAttendanceRejectionLog_(entry);
+  assert.equal(logs.length, 1);
+  assert.equal(lockHeld, false);
+});
+
+test("拒否抑制キャッシュが利用不能でも監査ログを記録する", () => {
+  const logs = [];
+  let lockHeld = false;
+  const context = {
+    normalizeText: value => String(value ?? "").trim(),
+    CacheService: { getScriptCache: () => { throw new Error("cache unavailable"); } },
+    LockService: { getScriptLock: () => ({ waitLock: () => { lockHeld = true; }, releaseLock: () => { lockHeld = false; } }) },
+    Utilities: {},
+    appendAuthorizationChangeLog_: entry => { assert.equal(lockHeld, true); logs.push(entry); return entry; }
+  };
+  vm.createContext(context);
+  vm.runInContext(contractSource, context);
+  context.appendAttendanceRejectionLog_({ request_id: "REQ-1", actor_internal_user_id: "U-X", error_code: "NOT_ASSIGNED_REVIEWER" });
+  assert.equal(logs.length, 1);
+  assert.equal(lockHeld, false);
+});
+
+test("承認終端検索は監査ログ全件読込みを使わずイベントID列を完全一致検索する", () => {
+  const searched = [];
+  const ranges = {
+    header: { getDisplayValues: () => [["authorization_event_id", "result"]] },
+    events: { createTextFinder: eventId => { searched.push(eventId); return { matchEntireCell: exact => { assert.equal(exact, true); return { findAll: () => [{ getRow: () => 3 }, { getRow: () => 2 }] }; } }; } },
+    result2: { getDisplayValue: () => "started" },
+    result3: { getDisplayValue: () => "success" }
+  };
+  const sheet = {
+    getLastRow: () => 3,
+    getLastColumn: () => 2,
+    getDataRange: () => assert.fail("full log read must not be used"),
+    getRange: (row, column, rowCount, columnCount) => {
+      if (row === 1) return ranges.header;
+      if (row === 2 && column === 1 && rowCount === 2 && columnCount === 1) return ranges.events;
+      if (row === 2 && column === 2) return ranges.result2;
+      if (row === 3 && column === 2) return ranges.result3;
+      assert.fail(`unexpected range ${row},${column},${rowCount},${columnCount}`);
+    }
+  };
+  const context = { normalizeText: value => String(value ?? "").trim(), getAuthorizationChangeLogsSheet_: () => sheet, organizationAuthorizationError_: code => Object.assign(new Error(code), { code }) };
+  vm.createContext(context);
+  vm.runInContext(contractSource, context);
+  assert.equal(context.findAttendanceApprovalTerminal_("ACE-1"), "success");
+  assert.deepEqual(searched, ["ACE-1"]);
 });
