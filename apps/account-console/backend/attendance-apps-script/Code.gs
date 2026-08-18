@@ -196,8 +196,11 @@ function reviewRequest_(user, payload, idToken) {
   ensureRequestContractHeadersForReview_();
   const initial = findRequestById_(payload.requestId);
   assertRequestContract_(initial);
-  if (String(initial.approval_reviewer_internal_user_id) !== internalUserId_(user)) {
-    accountApprovalRequest_(approvalContractPayload_(initial, payload, idToken, "authorize"));
+  if (String(initial.approval_reviewer_internal_user_id || "").trim() !== internalUserId_(user)) {
+    const unexpectedAuthorization = accountApprovalRequest_(approvalContractPayload_(initial, payload, idToken, "authorize"));
+    if (unexpectedAuthorization && unexpectedAuthorization.authorization_event_id) {
+      finalizeAttendanceAudit_(initial, payload, idToken, unexpectedAuthorization.authorization_event_id, unexpectedAuthorization.reviewer_internal_user_id, "error", "申請中", "REVIEWER_ID_NORMALIZATION_MISMATCH");
+    }
     throw apiError_("NOT_ASSIGNED_REVIEWER", "この申請の承認者ではありません。");
   }
 

@@ -112,12 +112,23 @@ test("割当外利用者の承認試行は申請状態を変更しない", () =>
   assert.equal(fixture.getCurrent()["状態"], "申請中");
   assert.equal(fixture.calls.some(call => call.type === "update"), false);
   assert.equal(fixture.calls.some(call => call.type === "account" && call.phase === "authorize"), true);
+  assert.equal(fixture.calls.some(call => call.type === "account" && call.phase === "finalize" && call.result === "error"), true);
+});
+
+test("前後空白を含む保存済み承認者IDでも正規承認者を締め出さない", () => {
+  const fixture = attendanceReviewContext({ approval_reviewer_internal_user_id: " U-L1 " });
+  const result = fixture.context.reviewRequest_({ internal_user_id: "U-L1", email: "leader@example.com" }, { requestId: "REQ-1", expectedRequestVersion: 1, decision: "承認" }, "token");
+  assert.equal(result.ok, true);
+  assert.equal(fixture.getCurrent()["状態"], "承認済み");
 });
 
 test("Account外部呼出しはDocument Lock外で行う", () => {
   const fixture = attendanceReviewContext();
+  let schemaEnsuredWithLock = false;
+  fixture.context.ensureRequestContractHeaders_ = () => { schemaEnsuredWithLock = fixture.isLockHeld(); };
   const result = fixture.context.reviewRequest_({ internal_user_id: "U-L1", email: "leader@example.com", name: "承認者" }, { requestId: "REQ-1", expectedRequestVersion: 1, decision: "承認" }, "token");
   assert.equal(result.ok, true);
+  assert.equal(schemaEnsuredWithLock, true);
   const accountCalls = fixture.calls.filter(call => call.type === "account");
   assert.deepEqual(accountCalls.map(call => call.phase), ["authorize", "finalize"]);
   assert.equal(accountCalls.some(call => call.lockHeld), false);
@@ -275,6 +286,9 @@ test("既存終端と異なるfinalize要求は復旧記録を残す", () => {
   const result = context.finalizeAttendanceApprovalReviewLocked_({ authorization_event_id: "ACE-1", request_id: "REQ-1", result: "error" });
   assert.equal(result.code, "EVENT_ALREADY_FINALIZED");
   assert.equal(recoveries[0].error_code, "TERMINAL_RESULT_CONFLICT");
+  assert.equal(recoveries[0].authorization_event_id, "ACE-1");
+  assert.equal(recoveries[0].request_id, "REQ-1");
+  assert.equal(recoveries[0].source, "attendance");
   assert.equal(recoveries[0].existing_result, "success");
   assert.equal(recoveries[0].requested_result, "error");
 });
