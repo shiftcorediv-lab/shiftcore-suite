@@ -26,6 +26,16 @@ test("新規勤怠申請は本番シート契約の実勤務日列へ対象日�
   assert.doesNotMatch(attendanceSource, /"対象日":\s*payload\.workDate/);
 });
 
+test("承認一覧と確認画面は実勤務日・申請開始・申請終了を表示する", () => {
+  const renderRequestsSource = adminUiSource.match(/function renderRequests\(\)[\s\S]*?\nfunction openReview/)[0];
+  const openReviewSource = adminUiSource.match(/function openReview\(id\)[\s\S]*?\n\$\("reviewDialog"\)/)[0];
+  for (const field of ["実勤務日", "申請開始", "申請終了"]) {
+    assert.match(renderRequestsSource, new RegExp(field));
+    assert.match(openReviewSource, new RegExp(field));
+  }
+  assert.match(openReviewSource, /対象日時/);
+});
+
 test("承認は版一致とDocument Lockを必須にし管理roleの全件承認へ戻さない", () => {
   const reviewFunction = attendanceSource.match(/function reviewRequest_\([\s\S]*?\n}\n\nfunction approvalContractPayload_/)[0];
   assert.match(reviewFunction, /LockService\.getDocumentLock\(\)/);
