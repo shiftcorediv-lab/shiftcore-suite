@@ -67,6 +67,9 @@ function doPost(e) {
     if (action === "resolveAuthorizationContextByIdToken") {
       return jsonResponse_(resolveAuthorizationContextByIdToken_(body));
     }
+    if (action === "attendanceApprovalContract") {
+      return jsonResponse_(attendanceApprovalContract_(body));
+    }
     // ===== oauth ここまで =====
 
 
@@ -89,6 +92,18 @@ function doPost(e) {
 
     if (action === "accountConsoleUpdateUser") {
       return jsonResponse_(accountConsoleUpdateUser(body));
+    }
+
+    if (action === "accountConsoleUpdateOrganizationAssignment") {
+      return jsonResponse_(accountConsoleUpdateOrganizationAssignment(body));
+    }
+
+    if (action === "accountConsoleBulkUpdateExecutives") {
+      return jsonResponse_(accountConsoleBulkUpdateExecutives(body));
+    }
+
+    if (action === "accountConsoleGetOrganizationAssignment") {
+      return jsonResponse_(accountConsoleGetOrganizationAssignment(body));
     }
 
     if (action === "accountConsoleGetLogs") {
@@ -123,7 +138,9 @@ function doPost(e) {
       const requestId = normalizeText(body.requestId);
       const approval = body.approval || {};
 
-      return jsonResponse_(approveSignupRequest(requestId, approval, operator.operatorId));
+      return jsonResponse_(
+        approveSignupRequest(requestId, approval, operator.operatorId, operator.user)
+      );
     }
 
     if (action === "rejectSignupRequest") {
@@ -147,6 +164,8 @@ function doPost(e) {
   } catch (error) {
     return jsonResponse_({
       success: false,
+      ok: false,
+      code: normalizeText(error.code || "SERVER_ERROR"),
       message: "POST処理中にエラーが発生しました: " + error.message
     });
   }

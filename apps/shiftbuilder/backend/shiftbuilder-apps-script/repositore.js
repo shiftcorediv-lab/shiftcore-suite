@@ -818,7 +818,10 @@ function buildUsersById_() {
 function buildAssignedMembers_(assignments, usersById) {
   const safeUsersById = usersById || {};
 
-  return assignments.map(function(assignment) {
+  return assignments.filter(function(assignment) {
+    const user = safeUsersById[normalizeText(assignment.internal_user_id)] || {};
+    return normalizeLowerText(user.role) !== "developer";
+  }).map(function(assignment) {
     const internalUserId = normalizeText(assignment.internal_user_id);
     const user = safeUsersById[internalUserId] || {};
     const familyName = normalizeText(user.family_name);

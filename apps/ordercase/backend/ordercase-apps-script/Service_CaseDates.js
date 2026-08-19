@@ -1,0 +1,66 @@
+function createCaseDates_(caseId, targetMonth, caseDates, options) {
+  const safeOptions = options || {};
+  const createdRows = [];
+
+  caseDates.forEach(function(dateItem) {
+    const workDate = dateItem.work_date;
+
+    if (!workDate) {
+      return;
+    }
+
+    const forceSinglePerson = safeOptions.force_single_person === true;
+
+    const requiredLines = forceSinglePerson
+      ? 1
+      : toNumber_(dateItem.required_lines, safeOptions.default_required_lines);
+
+    const peoplePerLine = forceSinglePerson
+      ? 1
+      : toNumber_(dateItem.people_per_line, safeOptions.default_people_per_line);
+
+    const requiredPeople = requiredLines * peoplePerLine;
+
+    const caseDateId = generateCaseDateId_(targetMonth);
+
+    const record = {
+      case_date_id: caseDateId,
+      case_id: caseId,
+      work_date: workDate,
+
+      required_lines: requiredLines,
+      people_per_line: peoplePerLine,
+      required_people: requiredPeople,
+
+      // 空欄は cases の共通条件を使用する。既存案件との後方互換を保つ。
+      work_start_time: dateItem.work_start_time || '',
+      work_end_time: dateItem.work_end_time || '',
+      unit_amount_override: dateItem.unit_amount_override === undefined
+        ? ''
+        : dateItem.unit_amount_override,
+
+      memo: dateItem.memo || '',
+
+      created_at: safeOptions.now,
+      updated_at: safeOptions.now
+    };
+
+    appendObjectRow_(SHEET_CASE_DATES, record);
+    createdRows.push(record);
+  });
+
+  return createdRows;
+}
+
+function generateCaseDateId_(targetMonth) {
+  const ym = String(targetMonth).replace('-', '');
+  const prefix = 'CD-' + ym + '-';
+
+  const rows = getSheetObjects_(SHEET_CASE_DATES);
+
+  const count = rows.filter(function(row) {
+    return String(row.case_date_id || '').indexOf(prefix) === 0;
+  }).length;
+
+  return prefix + String(count + 1).padStart(6, '0');
+}

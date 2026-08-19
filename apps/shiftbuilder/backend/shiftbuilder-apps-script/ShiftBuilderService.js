@@ -255,6 +255,13 @@ function buildCreateAssignmentParams_(body, operator) {
     throw new Error("アサイン対象ユーザーが見つかりません: " + internalUserId);
   }
 
+  // developer は配置対象の人員ではない。候補一覧と配置済み表示から除外するだけでは
+  // internal_user_id を直接指定したリクエストで配置できてしまうため、書込み側でも拒否する。
+  // 作成と入替の両方がこの関数を通るので、ここが唯一の防御点になる。
+  if (normalizeLowerText(targetUser.role) === "developer") {
+    throw new Error("開発者アカウントはシフトへ配置できません: " + internalUserId);
+  }
+
   return {
     target_month: targetMonth,
     area: area,
@@ -628,6 +635,9 @@ function buildShiftBuilderAssignmentCandidates_(targetMonth, area) {
   return getUsersMasterRows_()
     .filter(function(user) {
       return normalizeLowerText(user.status) === "active";
+    })
+    .filter(function(user) {
+      return normalizeLowerText(user.role) !== "developer";
     })
     .filter(function(user) {
       return includesCsvValue(user.allowed_modules, SHIFTBUILDER_MODULE_KEY);

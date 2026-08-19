@@ -147,6 +147,9 @@ function buildShiftBuilderCandidatesFromUsers_(users, targetMonth, area) {
       return normalizeLowerText(user.status) === "active";
     })
     .filter(function(user) {
+      return normalizeLowerText(user.role) !== "developer";
+    })
+    .filter(function(user) {
       return includesCsvValue(user.allowed_modules, SHIFTBUILDER_MODULE_KEY);
     })
     .filter(function(user) {
