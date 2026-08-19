@@ -114,6 +114,57 @@ test("developerは他のdeveloperを管理できるが自分のroleは変更で�
   );
 });
 
+test("最後のactive developerは停止・降格できない", () => {
+  const context = vm.createContext({});
+  context.normalizeText = (value) => String(value == null ? "" : value).trim();
+  vm.runInContext(
+    readFileSync(
+      new URL("../backend/account-apps-script/account_console_users.js", import.meta.url),
+      "utf8"
+    ),
+    context
+  );
+
+  const onlyDeveloper = [{ internal_user_id: "U-DEV1", role: "developer", status: "active" }];
+  assert.throws(
+    () => context.assertLastActiveDeveloperProtected_(
+      onlyDeveloper,
+      onlyDeveloper[0],
+      { ...onlyDeveloper[0], status: "inactive" }
+    ),
+    /LAST_ACTIVE_DEVELOPER_PROTECTED/
+  );
+  assert.throws(
+    () => context.assertLastActiveDeveloperProtected_(
+      onlyDeveloper,
+      onlyDeveloper[0],
+      { ...onlyDeveloper[0], role: "admin" }
+    ),
+    /LAST_ACTIVE_DEVELOPER_PROTECTED/
+  );
+
+  const twoDevelopers = [
+    ...onlyDeveloper,
+    { internal_user_id: "U-DEV2", role: "developer", status: "active" }
+  ];
+  assert.equal(
+    context.assertLastActiveDeveloperProtected_(
+      twoDevelopers,
+      twoDevelopers[0],
+      { ...twoDevelopers[0], status: "inactive" }
+    ),
+    true
+  );
+  assert.equal(
+    context.assertLastActiveDeveloperProtected_(
+      onlyDeveloper,
+      onlyDeveloper[0],
+      { ...onlyDeveloper[0], memo: "変更" }
+    ),
+    true
+  );
+});
+
 test("developerの付与・剥奪をハッシュ連鎖対象の権限監査ログへ記録する", () => {
   const calls = [];
   const context = vm.createContext({

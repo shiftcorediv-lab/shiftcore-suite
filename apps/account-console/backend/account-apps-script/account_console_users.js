@@ -307,6 +307,13 @@ function accountConsoleUpdateUser(body) {
     afterUser.role,
     targetUserId
   );
+  assertLastActiveDeveloperProtected_(
+    values.slice(1).map(function(row) {
+      return rowToAccountConsoleObject_(headers, row);
+    }),
+    beforeUser,
+    afterUser
+  );
 
   const developerAuthorizationEventId = beginDeveloperAccountAuthorizationEvent_(
     operator,
@@ -400,6 +407,26 @@ function assertDeveloperAccountMutationAllowed_(operator, beforeRole, afterRole,
   if (normalizeText(targetUserId) === normalizeText(operator.internal_user_id) &&
       normalizedBeforeRole !== normalizedAfterRole) {
     throw new Error("SELF_ROLE_CHANGE_FORBIDDEN");
+  }
+
+  return true;
+}
+
+function assertLastActiveDeveloperProtected_(users, beforeUser, afterUser) {
+  const wasActiveDeveloper = normalizeText(beforeUser && beforeUser.role).toLowerCase() === "developer" &&
+    normalizeText(beforeUser && beforeUser.status).toLowerCase() === "active";
+  const remainsActiveDeveloper = normalizeText(afterUser && afterUser.role).toLowerCase() === "developer" &&
+    normalizeText(afterUser && afterUser.status).toLowerCase() === "active";
+
+  if (!wasActiveDeveloper || remainsActiveDeveloper) return true;
+
+  const activeDeveloperCount = (users || []).filter(function(user) {
+    return normalizeText(user && user.role).toLowerCase() === "developer" &&
+      normalizeText(user && user.status).toLowerCase() === "active";
+  }).length;
+
+  if (activeDeveloperCount <= 1) {
+    throw new Error("LAST_ACTIVE_DEVELOPER_PROTECTED");
   }
 
   return true;
