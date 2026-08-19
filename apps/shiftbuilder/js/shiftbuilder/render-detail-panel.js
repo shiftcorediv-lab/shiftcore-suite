@@ -176,6 +176,9 @@ function getCellSummary(found) {
     caseTitle: caseItem.title || "案件名未設定",
     client: caseItem.client || "代理店未設定",
     area: caseItem.area || "エリア未設定",
+    workLocation: caseItem.workLocation || "",
+    workAddress: caseItem.workAddress || "",
+    nearestStation: caseItem.nearestStation || "",
     caseId: caseItem.caseId || "",
     dateLabel: dateItem.label || dateItem.date || "日付未設定",
     weekday: dateItem.weekday || "",
@@ -210,7 +213,11 @@ export function renderSelectedCell(found, elements) {
 
   if (selectedCellSummary) {
     selectedCellSummary.textContent =
-      `${summary.client} / ${summary.area} / 状態：${summary.statusLabel} / ${summary.assignedCount}/${summary.required}`;
+      `${summary.client} / ${summary.area}` +
+      `${summary.workLocation ? ` / ${summary.workLocation}` : ""}` +
+      `${summary.nearestStation ? ` / 最寄り：${summary.nearestStation}` : ""}` +
+      `${summary.workAddress ? ` / ${summary.workAddress}` : ""}` +
+      ` / 状態：${summary.statusLabel} / ${summary.assignedCount}/${summary.required}`;
   }
 
   renderAssignedMembers(cell.assigned || [], {

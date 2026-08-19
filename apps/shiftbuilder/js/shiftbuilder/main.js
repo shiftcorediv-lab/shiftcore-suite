@@ -2001,8 +2001,6 @@ async function loadAssignmentCandidates(session, resultPromise = null) {
       area: area
     }));
 
-    console.log("[ShiftBuilder] assignment candidates result:", result);
-
     if (!result || result.success !== true) {
       throw new Error(result?.message || "候補者一覧の取得に失敗しました");
     }
@@ -2190,8 +2188,6 @@ async function loadShiftData(options = {}) {
         bypassCache: options.bypassCache === true
       });
 
-      console.log("[ShiftBuilder] month data API result:", apiResult);
-
       if (!apiResult || apiResult.success !== true) {
         throw new Error(apiResult?.message || "月次シフトデータAPIの取得に失敗しました");
       }
@@ -2249,7 +2245,7 @@ async function loadShiftData(options = {}) {
         };
         isPreviousMonthDataAvailable = true;
       } else {
-        console.warn("[ShiftBuilder] previous month data was unavailable for consecutive-work alerts:", previousMonthResult);
+        console.warn("[ShiftBuilder] previous month data was unavailable for consecutive-work alerts");
       }
     } catch (error) {
       console.warn("[ShiftBuilder] previous month data request failed for consecutive-work alerts:", error);
@@ -2521,8 +2517,6 @@ async function createAssignmentFromSelectedCell(internalUserId) {
       assignmentNote: "ShiftBuilder画面から作成"
     });
 
-    console.log("[ShiftBuilder] create assignment result:", result);
-
     if (!result || result.success !== true) {
       throw new Error(result?.message || "アサイン作成に失敗しました");
     }
@@ -2696,10 +2690,10 @@ async function replaceAssignmentFromSelectedCell(internalUserId, replaceAssignme
       caseDateId: cell.case_date_id || "",
       workDate: workDate,
       internalUserId: targetInternalUserId,
+      startTime: cell.start_time || "",
+      endTime: cell.end_time || "",
       assignmentNote: "ShiftBuilder画面から入れ替え"
     });
-
-    console.log("[ShiftBuilder] replace assignment result:", createResult);
 
     if (!createResult || createResult.success !== true) {
       throw new Error(createResult?.message || "アサイン入れ替えに失敗しました");
@@ -2824,8 +2818,6 @@ async function archiveAssignmentFromButton(assignmentId) {
       assignmentId
     );
 
-    console.log("[ShiftBuilder] archive assignment result:", result);
-
     if (!result || result.success !== true) {
       throw new Error(result?.message || "アサイン解除に失敗しました");
     }
@@ -2873,8 +2865,6 @@ async function init() {
 
     setCurrentSession(session);
 
-    console.log("[ShiftBuilder] auth session:", session);
-
     if (!session.isLoggedIn) {
       renderNoLogin(session);
       if (IS_DEMO_MODE) {
@@ -2900,8 +2890,6 @@ async function init() {
     elements.apiStatusText.textContent = "接続OK";
 
     setCurrentUser(normalizeCurrentUser(currentUserResult));
-
-    console.log("[ShiftBuilder] current user:", currentUserResult);
 
     renderUser(currentUserResult);
     authRefreshRequired = false;

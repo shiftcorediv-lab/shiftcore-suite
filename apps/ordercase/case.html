@@ -136,6 +136,8 @@
       }
     }
   </style>
+  <script src="../theme/shiftcore-theme.js"></script>
+  <link rel="stylesheet" href="../theme/shiftcore-theme.css">
 </head>
 
 <body>
@@ -428,6 +430,8 @@ applyPermissionView();
           <div class="grid two">
             ${fieldHtml('実稼働場所', item.work_location)}
             ${fieldHtml('実稼働エリア', item.work_area)}
+            ${fieldHtml('実稼働先住所', item.work_address)}
+            ${fieldHtml('実稼働先最寄り駅', item.work_nearest_station)}
             ${fieldHtml('稼働開始時間', item.work_start_time)}
             ${fieldHtml('稼働終了時間', item.work_end_time)}
             ${fieldHtml('集合時間', item.meeting_time)}

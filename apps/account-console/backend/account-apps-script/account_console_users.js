@@ -549,7 +549,7 @@ function buildAccountConsoleUser_(user) {
     sortOrder: normalizeText(user.sortOrder),
     allowed_modules: normalizeAccountConsoleModules_(user.allowed_modules),
     ordercase_permission: normalizeText(user.ordercase_permission),
-    
+
     shiftbuilder_permission: normalizeText(user.shiftbuilder_permission),
 
     // ===== 人員区分・契約区分ここから =====

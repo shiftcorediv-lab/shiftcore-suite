@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { runAuthorizationShadowCheck } from "../js/shiftbuilder/authorization-shadow-policy.mjs";
 
 test("IDトークンがなければShadow APIを呼ばない", async () => {
@@ -31,4 +32,17 @@ test("Shadow API失敗を隔離して既存初期化へ例外を漏らさない"
 
   assert.deepEqual(result, { attempted: true, healthy: false });
   assert.equal(warnings.length, 1);
+});
+
+test("利用者・配置・API結果をブラウザコンソールへ出力しない", () => {
+  const mainSource = readFileSync(
+    new URL("../js/shiftbuilder/main.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.doesNotMatch(mainSource, /console\.log\s*\(/);
+  assert.doesNotMatch(
+    mainSource,
+    /console\.(?:warn|error)\s*\([^\n]*(?:\bresult\b|\w+Result\b)/
+  );
 });
