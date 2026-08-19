@@ -14,6 +14,10 @@ test("承認payloadへ申請版と判断を設定する", () => {
     decision: "承認",
     reason: "確認済み"
   });
+  assert.equal(buildReviewPayload({ request_id: "REQ-1", request_version: 3 }, "reject").decision, "却下");
+  for (const decision of ["", "APPROVE", "pending", undefined]) {
+    assert.throws(() => buildReviewPayload({ request_id: "REQ-1", request_version: 3 }, decision), /承認または却下/);
+  }
 });
 
 test("申請版が欠損または不正なら送信payloadを作らない", () => {
@@ -25,7 +29,13 @@ test("申請版が欠損または不正なら送信payloadを作らない", () =
 test("オフセットなしの申請日時をJSTとして表示する", () => {
   assert.equal(formatJapanDay("2026-08-19T09:05"), "2026/08/19");
   assert.equal(formatJapanTime("2026-08-19T09:05"), "09:05");
+  assert.equal(formatJapanTime("2026-08-19 09:05:30"), "09:05");
+  assert.equal(formatJapanTime("2026/08/19 09:05:30.1234"), "09:05");
   assert.equal(formatJapanTime("2026-08-19T00:05:30.000Z"), "09:05");
+  assert.equal(formatJapanTime("2026-08-19T09:05+09:00"), "09:05");
+  assert.equal(formatJapanTime("09:05"), "09:05");
+  assert.equal(formatJapanTime("2026-08-19"), "—");
+  assert.equal(formatJapanTime("invalid time"), "—");
 });
 
 test("構造化エラーと通信結果不明を区別して表示する", () => {
@@ -35,4 +45,5 @@ test("構造化エラーと通信結果不明を区別して表示する", () =>
 
 test("承認画面JavaScriptのキャッシュキーを更新する", () => {
   assert.match(adminHtmlSource, /main\.js\?v=20260819-approval-version-2/);
+  assert.match(adminUiSource, /attendance-review\.js\?v=20260819-approval-version-2/);
 });

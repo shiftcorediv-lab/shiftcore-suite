@@ -1,6 +1,6 @@
 import { auth, onAuthStateChanged } from "../dashboard/auth.js";
 import { attendanceRequest } from "../dashboard/attendance-api.js";
-import { buildReviewPayload, formatJapanDay as day, formatJapanTime as t } from "./attendance-review.js";
+import { buildReviewPayload, formatJapanDay as day, formatJapanTime as t } from "./attendance-review.js?v=20260819-approval-version-2";
 
 const $=id=>document.getElementById(id); let data=null; let reviewRequest=null;
 onAuthStateChanged(auth,user=>user?load():window.location.replace("./index.html"));
