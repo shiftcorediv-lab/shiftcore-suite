@@ -42,7 +42,7 @@ test("承認は版一致とDocument Lockを必須にし管理roleの全件承認
   assert.match(reviewFunction, /expectedRequestVersion/);
   assert.match(reviewFunction, /VERSION_CONFLICT/);
   assert.doesNotMatch(reviewFunction, /requireAdmin_/);
-  assert.match(adminUiSource, /expectedRequestVersion:Number\(reviewRequest\.request_version\)/);
+  assert.match(adminUiSource, /buildReviewPayload\(reviewRequest,decision,reason\)/);
 });
 
 test("旧申請は自動変換せず再申請を要求し、異動後は経路再確認へ移す", () => {
