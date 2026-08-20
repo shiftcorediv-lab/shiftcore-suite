@@ -507,6 +507,7 @@ function assertCanUpdateOrganizationAssignment_(operator, target, candidate, use
   if (currentLevel === "executive" && countActiveExecutives_(users) <= 1) {
     throw organizationAuthorizationError_("LAST_EXECUTIVE_PROTECTED");
   }
+  assertExecutiveGraphMutationUsesBulk_(target, candidate);
   if (developerOperator) return true;
   if (ORGANIZATION_LEVEL_RANKS[currentLevel] >= ORGANIZATION_LEVEL_RANKS[operatorLevel] ||
       ORGANIZATION_LEVEL_RANKS[nextLevel] >= ORGANIZATION_LEVEL_RANKS[operatorLevel]) {
@@ -531,6 +532,21 @@ function assertCanUpdateOrganizationAssignment_(operator, target, candidate, use
       throw organizationAuthorizationError_("SCOPE_FORBIDDEN");
   }
 
+}
+
+function assertExecutiveGraphMutationUsesBulk_(target, candidate) {
+  const currentLevel = normalizeOrganizationLevel_(target && target.organization_level);
+  const nextLevel = normalizeOrganizationLevel_(candidate && candidate.organization_level);
+  const changesExecutiveMembership = currentLevel !== nextLevel &&
+    (currentLevel === "executive" || nextLevel === "executive");
+  const changesExecutiveReviewer = currentLevel === "executive" &&
+    nextLevel === "executive" &&
+    normalizeText(target && target.executive_reviewer_user_id) !==
+      normalizeText(candidate && candidate.executive_reviewer_user_id);
+  if (changesExecutiveMembership || changesExecutiveReviewer) {
+    throw organizationAuthorizationError_("EXECUTIVE_BULK_UPDATE_REQUIRED");
+  }
+  return true;
 }
 
 function canDeveloperBootstrapOwnOrganization_(operator, target, candidate) {
@@ -560,11 +576,7 @@ function findNewOrganizationErrors_(beforeErrors, afterErrors) {
 }
 
 function findBlockingOrganizationErrors_(beforeErrors, afterErrors) {
-  return findNewOrganizationErrors_(beforeErrors, afterErrors).filter(function(item) {
-    // 役員の増減・承認者付替えは単一行APIでは一時的に閉路が崩れる。
-    // Shadow期間は健全性警告として残し、その他の構造エラーだけ保存を拒否する。
-    return normalizeText(item.code) !== "EXECUTIVE_REVIEWER_GRAPH_INVALID";
-  });
+  return findNewOrganizationErrors_(beforeErrors, afterErrors);
 }
 
 function organizationErrorKey_(item) {

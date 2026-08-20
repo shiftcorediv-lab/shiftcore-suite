@@ -181,7 +181,7 @@ test("役員承認者グラフが複数の循環へ分断される場合は検�
   );
 });
 
-test("役員2名から3名への段階更新では閉路警告だけを保存拒否対象から外す", () => {
+test("役員2名から3名への段階更新も単一行の閉路エラーとして保存を拒否する", () => {
   const context = createContext();
   const beforeUsers = validUsers();
   const afterUsers = beforeUsers.concat({
@@ -194,16 +194,16 @@ test("役員2名から3名への段階更新では閉路警告だけを保存拒
   const after = context.validateOrganizationGraph_(afterUsers);
 
   assert.ok(after.errors.some((item) => item.code === "EXECUTIVE_REVIEWER_GRAPH_INVALID"));
-  assert.deepEqual(
-    JSON.parse(JSON.stringify(context.findBlockingOrganizationErrors_(before.errors, after.errors))),
-    []
+  assert.ok(
+    context.findBlockingOrganizationErrors_(before.errors, after.errors)
+      .some((item) => item.code === "EXECUTIVE_REVIEWER_GRAPH_INVALID")
   );
 
   afterUsers.find((user) => user.internal_user_id === "U-E2").executive_reviewer_user_id = "U-E3";
   assert.equal(context.validateOrganizationGraph_(afterUsers).healthy, true);
 });
 
-test("組織更新APIは閉路警告を除外した保存拒否判定を使う", () => {
+test("組織更新APIは閉路エラーを含む保存拒否判定を使う", () => {
   const source = readFileSync(
     new URL("../backend/account-apps-script/organization_assignments.js", import.meta.url),
     "utf8"
@@ -215,7 +215,7 @@ test("組織更新APIは閉路警告を除外した保存拒否判定を使う",
   );
 });
 
-test("閉路警告以外の新しい組織不整合は引き続き保存を拒否する", () => {
+test("閉路エラーを含む新しい組織不整合はすべて保存を拒否する", () => {
   const context = createContext();
   const result = context.findBlockingOrganizationErrors_([], [
     { internal_user_id: "U-E1", code: "EXECUTIVE_REVIEWER_GRAPH_INVALID" },
@@ -223,8 +223,33 @@ test("閉路警告以外の新しい組織不整合は引き続き保存を拒�
   ]);
 
   assert.deepEqual(JSON.parse(JSON.stringify(result)), [
+    { internal_user_id: "U-E1", code: "EXECUTIVE_REVIEWER_GRAPH_INVALID" },
     { internal_user_id: "U-1", code: "DIRECT_MANAGER_INVALID" }
   ]);
+});
+
+test("developerでも単一更新APIから役員追加・解除・承認者変更を迂回できない", () => {
+  const context = createContext();
+  const users = validUsers();
+  const developer = {
+    internal_user_id: "U-DEV",
+    status: "active",
+    person_type: "internal",
+    role: "developer"
+  };
+  const manager = users.find((user) => user.internal_user_id === "U-M1");
+  const executive = users.find((user) => user.internal_user_id === "U-E1");
+
+  [
+    [manager, { ...manager, organization_level: "executive", executive_reviewer_user_id: "U-E1" }],
+    [executive, { ...executive, organization_level: "manager", executive_reviewer_user_id: "" }],
+    [executive, { ...executive, executive_reviewer_user_id: "U-E1" }]
+  ].forEach(([target, candidate]) => {
+    assert.throws(
+      () => context.assertCanUpdateOrganizationAssignment_(developer, target, candidate, users),
+      (error) => error.code === "EXECUTIVE_BULK_UPDATE_REQUIRED"
+    );
+  });
 });
 
 test("承認は記録された直属管理者本人だけに許可する", () => {
