@@ -341,7 +341,42 @@ test("開発者は組織階層未設定でも役員を含む他者を変更で�
   ));
 });
 
-test("開発者でも自分自身の組織設定は変更できない", () => {
+test("組織階層未設定の開発者は自分を一度だけリーダーまたはマネージャーへ設定できる", () => {
+  const context = createContext();
+  const developer = {
+    internal_user_id: "U-DEV",
+    status: "active",
+    role: "developer",
+    organization_level: ""
+  };
+  const candidate = {
+    ...developer,
+    organization_level: "leader",
+    direct_manager_user_id: "U-M1",
+    executive_reviewer_user_id: ""
+  };
+
+  assert.equal(context.canOperatorEditOrganizationTarget_(developer, developer, []), true);
+  assert.doesNotThrow(() => context.assertCanUpdateOrganizationAssignment_(
+    developer,
+    developer,
+    candidate,
+    validUsers().concat(developer)
+  ));
+  assert.doesNotThrow(() => context.assertCanUpdateOrganizationAssignment_(
+    developer,
+    developer,
+    {
+      ...developer,
+      organization_level: "manager",
+      direct_manager_user_id: "U-E1",
+      executive_reviewer_user_id: ""
+    },
+    validUsers().concat(developer)
+  ));
+});
+
+test("開発者の自己組織ブートストラップは役員化と再変更を拒否する", () => {
   const context = createContext();
   const developer = {
     internal_user_id: "U-DEV",
@@ -350,12 +385,27 @@ test("開発者でも自分自身の組織設定は変更できない", () => {
     organization_level: ""
   };
 
-  assert.equal(context.canOperatorEditOrganizationTarget_(developer, developer, []), false);
   assert.throws(
     () => context.assertCanUpdateOrganizationAssignment_(
       developer,
       developer,
       { ...developer, organization_level: "executive" },
+      []
+    ),
+    (error) => error.code === "SELF_ESCALATION_FORBIDDEN"
+  );
+
+  const configured = {
+    ...developer,
+    organization_level: "leader",
+    direct_manager_user_id: "U-M1"
+  };
+  assert.equal(context.canOperatorEditOrganizationTarget_(configured, configured, []), false);
+  assert.throws(
+    () => context.assertCanUpdateOrganizationAssignment_(
+      configured,
+      configured,
+      { ...configured, direct_manager_user_id: "U-M2" },
       []
     ),
     (error) => error.code === "SELF_ESCALATION_FORBIDDEN"

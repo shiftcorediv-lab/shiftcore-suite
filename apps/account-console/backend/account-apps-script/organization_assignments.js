@@ -42,7 +42,10 @@ function canOperatorEditOrganizationTarget_(operator, target, users) {
   const targetId = normalizeText(target.internal_user_id);
   const operatorLevel = normalizeOrganizationLevel_(operator.organization_level);
   const targetLevel = normalizeOrganizationLevel_(target.organization_level);
-  if (!operatorId || operatorId === targetId) return false;
+  if (!operatorId) return false;
+  if (operatorId === targetId) {
+    return canDeveloperBootstrapOwnOrganization_(operator, target);
+  }
   if (isDeveloperOrganizationOperator_(operator)) return true;
   if (operatorLevel === "executive") return targetLevel !== "executive";
   if (operatorLevel === "manager") {
@@ -491,7 +494,7 @@ function assertCanUpdateOrganizationAssignment_(operator, target, candidate, use
   if (!operatorId || !targetId || !nextLevel || !operatorLevel && !developerOperator) {
     throw organizationAuthorizationError_("ORGANIZATION_LEVEL_INVALID");
   }
-  if (operatorId === targetId) {
+  if (operatorId === targetId && !canDeveloperBootstrapOwnOrganization_(operator, target, candidate)) {
     throw organizationAuthorizationError_("SELF_ESCALATION_FORBIDDEN");
   }
   if (currentLevel === "executive" && countActiveExecutives_(users) <= 1) {
@@ -521,6 +524,22 @@ function assertCanUpdateOrganizationAssignment_(operator, target, candidate, use
       throw organizationAuthorizationError_("SCOPE_FORBIDDEN");
   }
 
+}
+
+function canDeveloperBootstrapOwnOrganization_(operator, target, candidate) {
+  if (!isDeveloperOrganizationOperator_(operator) ||
+      getNormalizedPersonType(operator) !== "internal" ||
+      normalizeText(operator.status).toLowerCase() !== "active" ||
+      normalizeText(operator.internal_user_id) !== normalizeText(target.internal_user_id) ||
+      normalizeOrganizationLevel_(target.organization_level)) {
+    return false;
+  }
+  if (!candidate) return true;
+  return ["leader", "manager"].indexOf(
+    normalizeOrganizationLevel_(candidate.organization_level)
+  ) !== -1 &&
+    Boolean(normalizeText(candidate.direct_manager_user_id)) &&
+    !normalizeText(candidate.executive_reviewer_user_id);
 }
 
 function findNewOrganizationErrors_(beforeErrors, afterErrors) {
