@@ -379,6 +379,8 @@ Shiftの配置・入替・解除は組織階層ではなく、Shift編集権限�
 
 実効権限への切替は、H-6暫定回避の撤去が完了するまで行わない。H-6は現在のShadow運用中だけ残し、切替直前に単一更新APIからの役員グラフ変更を禁止して一括更新APIへ限定し、developer全権でも迂回できない拒否テストを追加する。
 
+H-6撤去はローカル実装まで進め、単一更新APIで役員の追加・解除・承認者変更を `EXECUTIVE_BULK_UPDATE_REQUIRED` として拒否し、`EXECUTIVE_REVIEWER_GRAPH_INVALID` の保存拒否除外を撤去した。developer全権による3経路の迂回拒否、一括更新APIの成功・拒否・復元を含むAccount Console定常テスト129件は成功した。独立監査、GitHub mainへの統合、Account GAS本番反映、反映版の拒否確認は未実施であり、現行本番のShadow運用とH-6暫定回避は変更していない。
+
 重大な判断が残っている間は、`role`、権限値、シート列、API契約を推測で変更しない。
 
 ### 2026-08-20 developer直属承認の実動作結果
