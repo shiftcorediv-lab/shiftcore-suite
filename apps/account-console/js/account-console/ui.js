@@ -569,6 +569,7 @@ export function collectUserForm() {
 
 export function resetOrganizationAssignment(message = "既存アカウントを選択すると設定できます。") {
   organizationAuthorityFieldset.disabled = true;
+  restrictOrganizationLevelOptions_([]);
   organizationLevelInput.value = "";
   organizationVersionInput.value = "0";
   directManagerInput.innerHTML = '<option value="">選択してください</option>';
@@ -578,9 +579,10 @@ export function resetOrganizationAssignment(message = "既存アカウントを�
   updateOrganizationFieldVisibility();
 }
 
-export function renderOrganizationAssignment(organization, candidates, editable) {
+export function renderOrganizationAssignment(organization, candidates, editable, allowedLevels = []) {
   const level = text(organization?.organization_level);
   organizationAuthorityFieldset.disabled = !editable;
+  restrictOrganizationLevelOptions_(allowedLevels);
   organizationLevelInput.value = level;
   organizationVersionInput.value = String(organization?.organization_version || 0);
   organizationReasonInput.value = "";
@@ -593,8 +595,17 @@ export function renderOrganizationAssignment(organization, candidates, editable)
     ? "このアカウントの組織設定は変更できません。"
     : level
       ? `現在：${ORGANIZATION_LEVEL_LABELS[level] || level}`
-      : "組織階層は未設定です。保存前に階層と管理者を確認してください。";
+      : allowedLevels.length
+        ? "developer初回設定：リーダーまたはマネージャーを選択してください。"
+        : "組織階層は未設定です。保存前に階層と管理者を確認してください。";
   updateOrganizationFieldVisibility();
+}
+
+function restrictOrganizationLevelOptions_(allowedLevels) {
+  const allowed = Array.isArray(allowedLevels) ? allowedLevels.map(text) : [];
+  Array.from(organizationLevelInput.options).forEach((option) => {
+    option.disabled = Boolean(option.value) && allowed.length > 0 && !allowed.includes(option.value);
+  });
 }
 
 export function renderOrganizationCandidateOptions(candidates, managerValue = "", reviewerValue = "") {

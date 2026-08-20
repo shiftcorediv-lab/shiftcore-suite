@@ -46,7 +46,7 @@ import {
   showLoading,
   hideLoading,
   setLogsLoading
-} from "./ui.js?v=20260810-org-shadow-1";
+} from "./ui.js?v=20260820-developer-self-bootstrap-1";
 
 // ===== 状態ここから =====
 let session = null;
@@ -182,7 +182,8 @@ async function loadOrganizationForSelectedUser() {
   renderOrganizationAssignment(
     result.organization || {},
     organizationCandidates,
-    result.editable === true
+    result.editable === true,
+    result.self_bootstrap === true ? result.allowed_organization_levels : []
   );
 }
 

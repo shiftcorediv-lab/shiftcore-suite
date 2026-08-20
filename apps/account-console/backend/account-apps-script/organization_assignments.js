@@ -11,11 +11,14 @@ function accountConsoleGetOrganizationAssignment(body) {
   const users = getUsersData();
   const operatorLevel = normalizeOrganizationLevel_(operator.organization_level);
   const editable = canOperatorEditOrganizationTarget_(operator, target, users);
+  const selfBootstrap = editable && canDeveloperBootstrapOwnOrganization_(operator, target);
 
   return {
     success: true,
     ok: true,
     editable: editable,
+    self_bootstrap: selfBootstrap,
+    allowed_organization_levels: selfBootstrap ? ["leader", "manager"] : [],
     organization: organizationAuditSnapshot_(target),
     candidates: (editable ? users : []).filter(function(user) {
       if (normalizeText(user.status).toLowerCase() !== "active") return false;
@@ -42,7 +45,10 @@ function canOperatorEditOrganizationTarget_(operator, target, users) {
   const targetId = normalizeText(target.internal_user_id);
   const operatorLevel = normalizeOrganizationLevel_(operator.organization_level);
   const targetLevel = normalizeOrganizationLevel_(target.organization_level);
-  if (!operatorId || operatorId === targetId) return false;
+  if (!operatorId) return false;
+  if (operatorId === targetId) {
+    return canDeveloperBootstrapOwnOrganization_(operator, target);
+  }
   if (isDeveloperOrganizationOperator_(operator)) return true;
   if (operatorLevel === "executive") return targetLevel !== "executive";
   if (operatorLevel === "manager") {
@@ -108,9 +114,12 @@ function accountConsoleUpdateOrganizationAssignment(body) {
     }
 
     const eventId = "ACE-" + Utilities.getUuid();
+    const eventType = canDeveloperBootstrapOwnOrganization_(operator, target, candidate)
+      ? "organization.self_bootstrap"
+      : "organization.update";
     appendAuthorizationChangeLog_({
       authorization_event_id: eventId,
-      event_type: "organization.update",
+      event_type: eventType,
       actor_internal_user_id: operator.internal_user_id,
       target_internal_user_id: targetUserId,
       before: organizationAuditSnapshot_(target),
@@ -123,7 +132,7 @@ function accountConsoleUpdateOrganizationAssignment(body) {
       writeOrganizationCandidate_(sheet, headers, targetIndex + 1, candidate);
       appendAuthorizationChangeLog_({
         authorization_event_id: eventId,
-        event_type: "organization.update",
+        event_type: eventType,
         actor_internal_user_id: operator.internal_user_id,
         target_internal_user_id: targetUserId,
         before: organizationAuditSnapshot_(target),
@@ -141,6 +150,7 @@ function accountConsoleUpdateOrganizationAssignment(body) {
         operator,
         eventId,
         reason,
+        eventType,
         writeError
       );
       throw writeError;
@@ -424,7 +434,7 @@ function isDeveloperOrganizationOperator_(operator) {
 }
 
 function handleOrganizationUpdateFailure_(
-  sheet, headers, rowNumber, before, after, operator, eventId, reason, originalError
+  sheet, headers, rowNumber, before, after, operator, eventId, reason, eventType, originalError
 ) {
   let rollbackSucceeded = false;
   try {
@@ -442,7 +452,7 @@ function handleOrganizationUpdateFailure_(
   try {
     appendAuthorizationChangeLog_({
       authorization_event_id: eventId,
-      event_type: "organization.update",
+      event_type: eventType,
       actor_internal_user_id: operator.internal_user_id,
       target_internal_user_id: before.internal_user_id,
       before: organizationAuditSnapshot_(before),
@@ -491,7 +501,7 @@ function assertCanUpdateOrganizationAssignment_(operator, target, candidate, use
   if (!operatorId || !targetId || !nextLevel || !operatorLevel && !developerOperator) {
     throw organizationAuthorizationError_("ORGANIZATION_LEVEL_INVALID");
   }
-  if (operatorId === targetId) {
+  if (operatorId === targetId && !canDeveloperBootstrapOwnOrganization_(operator, target, candidate)) {
     throw organizationAuthorizationError_("SELF_ESCALATION_FORBIDDEN");
   }
   if (currentLevel === "executive" && countActiveExecutives_(users) <= 1) {
@@ -521,6 +531,22 @@ function assertCanUpdateOrganizationAssignment_(operator, target, candidate, use
       throw organizationAuthorizationError_("SCOPE_FORBIDDEN");
   }
 
+}
+
+function canDeveloperBootstrapOwnOrganization_(operator, target, candidate) {
+  if (!isDeveloperOrganizationOperator_(operator) ||
+      getNormalizedPersonType(operator) !== "internal" ||
+      normalizeText(operator.status).toLowerCase() !== "active" ||
+      normalizeText(operator.internal_user_id) !== normalizeText(target.internal_user_id) ||
+      normalizeOrganizationLevel_(target.organization_level)) {
+    return false;
+  }
+  if (!candidate) return true;
+  return ["leader", "manager"].indexOf(
+    normalizeOrganizationLevel_(candidate.organization_level)
+  ) !== -1 &&
+    Boolean(normalizeText(candidate.direct_manager_user_id)) &&
+    !normalizeText(candidate.executive_reviewer_user_id);
 }
 
 function findNewOrganizationErrors_(beforeErrors, afterErrors) {
