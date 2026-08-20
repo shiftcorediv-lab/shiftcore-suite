@@ -26,7 +26,7 @@ function accountConsoleGetBootstrap(body) {
       return buildAccountConsoleUser_(user);
     })
     .filter(function(user) {
-      return normalizeText(user.employee_code).toUpperCase() !== "AN0000";
+      return shouldIncludeAccountConsoleUser_(operator, user);
     });
 
   const logsResult = accountConsoleGetLogs(body);
@@ -47,7 +47,7 @@ function accountConsoleGetBootstrap(body) {
 
 // ===== ユーザー一覧取得ここから =====
 function accountConsoleListUsers(body) {
-  requireAccountConsoleOperator_(body);
+  const operator = requireAccountConsoleOperator_(body);
 
   ensureAccountConsoleNameColumns_();
 
@@ -56,7 +56,7 @@ function accountConsoleListUsers(body) {
       return buildAccountConsoleUser_(user);
     })
     .filter(function(user) {
-      return normalizeText(user.employee_code).toUpperCase() !== "AN0000";
+      return shouldIncludeAccountConsoleUser_(operator, user);
     });
 
   return {
@@ -66,6 +66,15 @@ function accountConsoleListUsers(body) {
   };
 }
 // ===== ユーザー一覧取得ここまで =====
+
+function shouldIncludeAccountConsoleUser_(operator, user) {
+  if (normalizeText(user && user.employee_code).toUpperCase() !== "AN0000") {
+    return true;
+  }
+  return normalizeText(operator && operator.role).toLowerCase() === "developer" &&
+    normalizeText(operator && operator.internal_user_id) ===
+      normalizeText(user && user.internal_user_id);
+}
 
 
 // ===== ユーザー新規作成ここから =====

@@ -23,6 +23,33 @@ test("developerはAccount Console・OrderCase・Shadow候補でも全権扱い�
   assert.match(orderCase, /developer\s*\? ORDERCASE_PERMISSION_ALL/);
 });
 
+test("Account ConsoleはAN0000のうちログイン中developer本人だけを一覧へ含める", () => {
+  const context = vm.createContext({});
+  context.normalizeText = (value) => String(value == null ? "" : value).trim();
+  vm.runInContext(
+    readFileSync(
+      new URL("../backend/account-apps-script/account_console_users.js", import.meta.url),
+      "utf8"
+    ),
+    context
+  );
+
+  const developer = { internal_user_id: "U-DEV1", role: "developer" };
+  assert.equal(context.shouldIncludeAccountConsoleUser_(developer, {
+    internal_user_id: "U-DEV1", employee_code: "AN0000"
+  }), true);
+  assert.equal(context.shouldIncludeAccountConsoleUser_(developer, {
+    internal_user_id: "U-DEV2", employee_code: "AN0000"
+  }), false);
+  assert.equal(context.shouldIncludeAccountConsoleUser_(
+    { internal_user_id: "U-ADMIN", role: "admin" },
+    { internal_user_id: "U-ADMIN", employee_code: "AN0000" }
+  ), false);
+  assert.equal(context.shouldIncludeAccountConsoleUser_(developer, {
+    internal_user_id: "U-1", employee_code: "AN0004"
+  }), true);
+});
+
 test("申請承認経路もdeveloper新設ガードを通す", () => {
   const signupAdmin = readFileSync(
     new URL("../backend/account-apps-script/signup_admin.js", import.meta.url),
