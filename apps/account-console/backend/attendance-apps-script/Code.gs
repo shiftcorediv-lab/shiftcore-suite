@@ -197,20 +197,14 @@ function reviewRequest_(user, payload, idToken) {
   const initial = findRequestById_(payload.requestId);
   assertRequestContract_(initial);
   if (String(initial.approval_reviewer_internal_user_id || "").trim() !== internalUserId_(user)) {
-    const unexpectedAuthorization = accountApprovalRequest_(approvalContractPayload_(initial, payload, idToken, "authorize"));
+    const unexpectedAuthorization = authorizeAttendanceReview_(initial, payload, idToken);
     if (unexpectedAuthorization && unexpectedAuthorization.authorization_event_id) {
       finalizeAttendanceAudit_(initial, payload, idToken, unexpectedAuthorization.authorization_event_id, unexpectedAuthorization.reviewer_internal_user_id, "error", "申請中", "REVIEWER_ID_NORMALIZATION_MISMATCH");
     }
     throw apiError_("NOT_ASSIGNED_REVIEWER", "この申請の承認者ではありません。");
   }
 
-  let authorization;
-  try {
-    authorization = accountApprovalRequest_(approvalContractPayload_(initial, payload, idToken, "authorize"));
-  } catch (error) {
-    if (error.code === "APPROVAL_ROUTE_CHANGED") markRouteForReconfirmation_(initial);
-    throw error;
-  }
+  const authorization = authorizeAttendanceReview_(initial, payload, idToken);
   const eventId = authorization.authorization_event_id;
   const reviewerId = authorization.reviewer_internal_user_id;
   const lock = LockService.getDocumentLock();
@@ -275,6 +269,15 @@ function reviewRequest_(user, payload, idToken) {
 
 function approvalContractPayload_(request, payload, idToken, phase) {
   return { phase: phase, idToken: idToken, request_id: request.request_id, decision: payload.decision, reason: payload.reason || "", request_version: Number(request.request_version), applicant_internal_user_id: request.applicant_internal_user_id, approval_reviewer_internal_user_id: request.approval_reviewer_internal_user_id, applicant_organization_version: Number(request.applicant_organization_version) };
+}
+
+function authorizeAttendanceReview_(request, payload, idToken) {
+  try {
+    return accountApprovalRequest_(approvalContractPayload_(request, payload, idToken, "authorize"));
+  } catch (error) {
+    if (error.code === "APPROVAL_ROUTE_CHANGED") markRouteForReconfirmation_(request);
+    throw error;
+  }
 }
 
 function finalizeAttendanceAudit_(request, payload, idToken, eventId, reviewerId, result, resultStatus, errorCode) {

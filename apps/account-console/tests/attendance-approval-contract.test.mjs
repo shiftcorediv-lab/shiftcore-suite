@@ -131,6 +131,35 @@ test("割当外利用者の承認試行は申請状態を変更しない", () =>
   assert.equal(fixture.calls.some(call => call.type === "account" && call.phase === "finalize" && call.result === "error"), true);
 });
 
+test("保存済み承認者と現在の承認者が違っても経路変更時は経路再確認へ移す", () => {
+  const fixture = attendanceReviewContext({ approval_reviewer_internal_user_id: "U-OLD" });
+  fixture.context.accountApprovalRequest_ = payload => {
+    fixture.calls.push({ type: "account", phase: payload.phase, result: payload.result });
+    throw Object.assign(new Error("現在の直属承認経路では処理できません"), { code: "APPROVAL_ROUTE_CHANGED" });
+  };
+  assert.throws(
+    () => fixture.context.reviewRequest_({ internal_user_id: "U-L1", email: "leader@example.com" }, { requestId: "REQ-1", expectedRequestVersion: 1, decision: "承認" }, "token"),
+    error => error.code === "APPROVAL_ROUTE_CHANGED"
+  );
+  assert.equal(fixture.getCurrent()["状態"], "経路再確認");
+  assert.equal(fixture.getCurrent().request_version, 2);
+});
+
+test("保存済み承認者と異なる利用者が未割当なら経路再確認へ移さない", () => {
+  const fixture = attendanceReviewContext({ approval_reviewer_internal_user_id: "U-OLD" });
+  fixture.context.accountApprovalRequest_ = payload => {
+    fixture.calls.push({ type: "account", phase: payload.phase, result: payload.result });
+    throw Object.assign(new Error("この申請の承認者ではありません"), { code: "NOT_ASSIGNED_REVIEWER" });
+  };
+  assert.throws(
+    () => fixture.context.reviewRequest_({ internal_user_id: "U-X", email: "x@example.com" }, { requestId: "REQ-1", expectedRequestVersion: 1, decision: "承認" }, "token"),
+    error => error.code === "NOT_ASSIGNED_REVIEWER"
+  );
+  assert.equal(fixture.getCurrent()["状態"], "申請中");
+  assert.equal(fixture.getCurrent().request_version, 1);
+  assert.equal(fixture.calls.some(call => call.type === "update"), false);
+});
+
 test("前後空白を含む保存済み承認者IDでも正規承認者を締め出さない", () => {
   const fixture = attendanceReviewContext({ approval_reviewer_internal_user_id: " U-L1 " });
   const result = fixture.context.reviewRequest_({ internal_user_id: "U-L1", email: "leader@example.com" }, { requestId: "REQ-1", expectedRequestVersion: 1, decision: "承認" }, "token");
