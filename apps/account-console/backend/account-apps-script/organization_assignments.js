@@ -11,11 +11,14 @@ function accountConsoleGetOrganizationAssignment(body) {
   const users = getUsersData();
   const operatorLevel = normalizeOrganizationLevel_(operator.organization_level);
   const editable = canOperatorEditOrganizationTarget_(operator, target, users);
+  const selfBootstrap = editable && canDeveloperBootstrapOwnOrganization_(operator, target);
 
   return {
     success: true,
     ok: true,
     editable: editable,
+    self_bootstrap: selfBootstrap,
+    allowed_organization_levels: selfBootstrap ? ["leader", "manager"] : [],
     organization: organizationAuditSnapshot_(target),
     candidates: (editable ? users : []).filter(function(user) {
       if (normalizeText(user.status).toLowerCase() !== "active") return false;
@@ -111,9 +114,12 @@ function accountConsoleUpdateOrganizationAssignment(body) {
     }
 
     const eventId = "ACE-" + Utilities.getUuid();
+    const eventType = canDeveloperBootstrapOwnOrganization_(operator, target, candidate)
+      ? "organization.self_bootstrap"
+      : "organization.update";
     appendAuthorizationChangeLog_({
       authorization_event_id: eventId,
-      event_type: "organization.update",
+      event_type: eventType,
       actor_internal_user_id: operator.internal_user_id,
       target_internal_user_id: targetUserId,
       before: organizationAuditSnapshot_(target),
@@ -126,7 +132,7 @@ function accountConsoleUpdateOrganizationAssignment(body) {
       writeOrganizationCandidate_(sheet, headers, targetIndex + 1, candidate);
       appendAuthorizationChangeLog_({
         authorization_event_id: eventId,
-        event_type: "organization.update",
+        event_type: eventType,
         actor_internal_user_id: operator.internal_user_id,
         target_internal_user_id: targetUserId,
         before: organizationAuditSnapshot_(target),
@@ -144,6 +150,7 @@ function accountConsoleUpdateOrganizationAssignment(body) {
         operator,
         eventId,
         reason,
+        eventType,
         writeError
       );
       throw writeError;
@@ -427,7 +434,7 @@ function isDeveloperOrganizationOperator_(operator) {
 }
 
 function handleOrganizationUpdateFailure_(
-  sheet, headers, rowNumber, before, after, operator, eventId, reason, originalError
+  sheet, headers, rowNumber, before, after, operator, eventId, reason, eventType, originalError
 ) {
   let rollbackSucceeded = false;
   try {
@@ -445,7 +452,7 @@ function handleOrganizationUpdateFailure_(
   try {
     appendAuthorizationChangeLog_({
       authorization_event_id: eventId,
-      event_type: "organization.update",
+      event_type: eventType,
       actor_internal_user_id: operator.internal_user_id,
       target_internal_user_id: before.internal_user_id,
       before: organizationAuditSnapshot_(before),

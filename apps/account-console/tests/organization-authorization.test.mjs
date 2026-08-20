@@ -412,6 +412,104 @@ test("開発者の自己組織ブートストラップは役員化と再変更�
   );
 });
 
+test("開発者の自己組織ブートストラップは不正な本人属性とpayloadを拒否する", () => {
+  const context = createContext();
+  const base = {
+    internal_user_id: "U-DEV",
+    status: "active",
+    role: "developer",
+    organization_level: ""
+  };
+  const validCandidate = {
+    ...base,
+    organization_level: "leader",
+    direct_manager_user_id: "U-M1",
+    executive_reviewer_user_id: ""
+  };
+  const expectSelfRejection = (
+    operator,
+    candidate,
+    expectedCodes = ["SELF_ESCALATION_FORBIDDEN"]
+  ) => assert.throws(
+    () => context.assertCanUpdateOrganizationAssignment_(operator, operator, candidate, validUsers()),
+    (error) => expectedCodes.includes(error.code)
+  );
+
+  expectSelfRejection(base, { ...validCandidate, direct_manager_user_id: "" });
+  expectSelfRejection(base, { ...validCandidate, executive_reviewer_user_id: "U-E1" });
+  expectSelfRejection(base, { ...validCandidate, organization_level: "member" });
+  expectSelfRejection({ ...base, status: "inactive" }, validCandidate);
+  expectSelfRejection({ ...base, person_type: "external" }, validCandidate);
+  expectSelfRejection(
+    { ...base, role: "admin" },
+    validCandidate,
+    ["ORGANIZATION_LEVEL_INVALID"]
+  );
+});
+
+test("開発者の自己組織ブートストラップも組織グラフで上位の実在と階層を検証する", () => {
+  const context = createContext();
+  const users = validUsers();
+  const developer = {
+    internal_user_id: "U-DEV",
+    status: "active",
+    role: "developer",
+    organization_level: ""
+  };
+  const assertGraphRejected = (candidate) => {
+    context.assertCanUpdateOrganizationAssignment_(developer, developer, candidate, users);
+    const before = context.validateOrganizationGraph_(users.concat(developer));
+    const after = context.validateOrganizationGraph_(users.concat(candidate));
+    const errors = context.findBlockingOrganizationErrors_(before.errors, after.errors);
+    assert.ok(errors.some((item) =>
+      item.internal_user_id === "U-DEV" && item.code === "DIRECT_MANAGER_INVALID"
+    ));
+  };
+
+  assertGraphRejected({
+    ...developer,
+    organization_level: "leader",
+    direct_manager_user_id: "U-NOT-FOUND"
+  });
+  assertGraphRejected({
+    ...developer,
+    organization_level: "leader",
+    direct_manager_user_id: "U-E1"
+  });
+  assertGraphRejected({
+    ...developer,
+    organization_level: "leader",
+    direct_manager_user_id: "U-DEV"
+  });
+});
+
+test("自己ブートストラップ状態をUIへ公開し専用監査イベントへ記録する", () => {
+  const assignmentSource = readFileSync(
+    new URL("../backend/account-apps-script/organization_assignments.js", import.meta.url),
+    "utf8"
+  );
+  const mainSource = readFileSync(
+    new URL("../js/account-console/main.js", import.meta.url),
+    "utf8"
+  );
+  const uiSource = readFileSync(
+    new URL("../js/account-console/ui.js", import.meta.url),
+    "utf8"
+  );
+  const htmlSource = readFileSync(
+    new URL("../account-console.html", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(assignmentSource, /self_bootstrap:\s*selfBootstrap/);
+  assert.match(assignmentSource, /allowed_organization_levels:\s*selfBootstrap \? \["leader", "manager"\]/);
+  assert.match(assignmentSource, /eventType[\s\S]*"organization\.self_bootstrap"/);
+  assert.match(mainSource, /result\.self_bootstrap === true \? result\.allowed_organization_levels : \[\]/);
+  assert.match(mainSource, /ui\.js\?v=20260820-developer-self-bootstrap-1/);
+  assert.match(uiSource, /restrictOrganizationLevelOptions_\(allowedLevels\)/);
+  assert.match(htmlSource, /main\.js\?v=20260820-developer-self-bootstrap-1/);
+});
+
 test("開発者でも最後の役員を変更できない", () => {
   const context = createContext();
   const users = validUsers().filter((user) => user.internal_user_id !== "U-E2");
