@@ -491,3 +491,11 @@
 - 割当なしを移行漏れと意図的な全剥奪に区別するため、公開リポジトリへIDを保存せず、`AUTHORIZATION_CUTOVER_MIGRATED_USER_IDS` の確認済み内部ID集合とactive内部利用者を照合する件数プレビューを追加した。不足、無効な割当、active内部利用者に存在しない確認済みIDが1件でもあれば切替を拒否する。
 - 切替は有効化フラグ、実行者内部ID、理由、実行中Googleアカウントとactive内部developerのメール一致、切替前整合性監査、Script Lockを必須とする。同一イベントへstarted/successを記録し、successログ失敗時はShadowへの自動復帰とerror記録を試みる。Shadow復帰にも失敗した場合はeffective継続を`recovery_required`として記録し、元のエラーと復帰エラーを保持した`AUTHORIZATION_CUTOVER_RECOVERY_REQUIRED`を返す。ロールバックは先にShadowへ戻してから監査ログを記録し、監査ログ障害が旧権限への復帰を妨げない。
 - 初回実装の追加9件を含む権限Shadow・切替テスト23件、Account Console全138テストは成功、失敗・スキップ0件だった。その後commit・pushと独立監査を行い、監査は差戻しとなった。移行集合をactive内部利用者全員へ適用し、切替決裁をScript Lock内で再確認・一回消費し、対象外moduleを割当異常時も維持し、started後の失敗をerror記録する修正を行った。さらにShadow自動復帰失敗を`recovery_required`として残す回帰テストを加え、修正後は権限Shadow・切替テスト26件、Account Console全141テストが成功し、失敗・スキップ0件。PR、merge、Account GAS本番反映、移行確認済みID設定、実効権限切替は未実施であり、本番第56版のShadow運用は変更していない。
+
+## 2026-08-22 実効権限切替機構のmain統合・第57版本番反映
+
+- 最終差分監査は前回高所見の解消、新規の重大・高・中所見なしで承認された。PR #45はsquash mergeされ、GitHub mainは `4d3d9eca431a41a5a5313841eac1153895ef7d9a` となった。
+- 本番Account GAS第56版を一時領域へ読み取り取得し、GitHub mainとの差分が今回対象の `authorization.js`、`config.js` と、対象外の `account_console_logs.js` 先頭空行だけであることを確認した。対象外空行を維持した第56版ソースへ今回の2ファイルだけを重ね、本番プロジェクトへ反映した。
+- Account GAS第57版 `03 effective authorization cutover implementation 2026-08-22` を作成し、既存WebアプリURLを第56版から第57版へ更新した。既存URLのpingは `success=true`、`message=pong` を返した。
+- 反映後の本番ソース23ファイルを別の一時領域へ再取得し、送信元23ファイルと完全一致することを確認した。利用者、権限割当、組織、監査ログ、Script Properties、申請データは変更していない。
+- `AUTHORIZATION_ENFORCEMENT_MODE` は未設定時に`shadow`となる実装であり、`AUTHORIZATION_CUTOVER_*`を含むScript Properties設定と`runAuthorizationEffectiveCutover`は未実施である。本節で完了したのは切替機構のコード反映までで、組織Shadowから実効権限への切替決裁・操作・切替直後の補償監査・7日間監視は未実施として残る。
