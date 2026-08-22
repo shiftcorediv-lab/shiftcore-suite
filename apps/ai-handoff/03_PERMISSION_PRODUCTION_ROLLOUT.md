@@ -282,9 +282,9 @@ OrderCaseはリポジトリ正本フォルダから直接一括pushしない。�
 - H-6の単一更新暫定回避はShadow中だけ維持する。developer全権が単一更新APIから一括検証を迂回できる競合を避けるため、実効権限切替前に役員グラフ変更を一括更新APIへ限定し、迂回拒否テストを追加する。
 - 異常時の復帰基準はAccount第51版、OrderCase第52版。本変更はデータ移行を伴わないため、書込みを伴う本番検証を行っていなければコード復帰だけで戻る。
 
-## 11. 実効権限切替機構（未反映）
+## 11. 実効権限切替機構（第57版反映済み・切替未実施）
 
-切替実装の監査・main統合・Account GAS反映が完了するまでは、以下を本番で実行しない。
+切替実装の独立監査、main統合、Account GAS第57版への反映、既存URLのping、反映後ソース一致は完了した。Script Properties設定と実効切替は未実施であり、次の操作にはえいちの別決裁を必要とする。
 
 1. `previewAuthorizationEffectiveCutover` を実行し、`ok=true`、`unconfigured_users=0`、`invalid_users=0`、`unknown_migrated_users=0` を確認する。
 2. Script Propertiesへ `AUTHORIZATION_CUTOVER_MIGRATED_USER_IDS=<移行確認済みactive内部利用者IDのCSV>`、`AUTHORIZATION_CUTOVER_ACTOR_ID=<実行者内部ID>`、`AUTHORIZATION_CUTOVER_REASON=<承認済み理由>`、`AUTHORIZATION_CUTOVER_ENABLED=true` を設定する。IDやメールを公開資料へ転記しない。
@@ -292,4 +292,4 @@ OrderCaseはリポジトリ正本フォルダから直接一括pushしない。�
 4. 直後に共通権限APIで `mode=effective`、`legacy_fallback=false` と対象テストアカウントの許可・拒否を確認し、`runAuthorizationIntegrityAudit` を手動実行する。切替操作ログと監査結果を保存し、7日間の日次監視を開始する。
 5. 異常時は `AUTHORIZATION_CUTOVER_ACTOR_ID` と理由を設定し、`runAuthorizationEffectiveRollback` を実行する。ロールバック関数は監査ログの成否より先に `AUTHORIZATION_ENFORCEMENT_MODE=shadow` へ戻す。再試行には今回限りの例外を適用せず、新たな例外決裁または第三者監査担当の再決裁を必要とする。
 
-本節の初回追加時点ではローカル実装だけだった。その後commit・pushと独立監査を行い、監査指摘への修正を継続している。PR、merge、GAS反映、Script Property設定、本番切替はいずれも未実施である。
+PR #45はsquash mergeされ、GitHub mainは `4d3d9eca431a41a5a5313841eac1153895ef7d9a` となった。本番第56版を読み取り取得した結果、mainとの差分は今回対象の `authorization.js`、`config.js` と、対象外の `account_console_logs.js` 先頭空行だけだった。対象外空行を維持して今回の2ファイルだけを重ね、Account GAS第57版 `03 effective authorization cutover implementation 2026-08-22` として既存URLへ反映した。pingは `success=true`、`message=pong`、反映後に再取得した23ファイルは送信元と完全一致した。Script Property設定、本番実効切替、切替直後の補償監査、7日間監視は未実施である。
