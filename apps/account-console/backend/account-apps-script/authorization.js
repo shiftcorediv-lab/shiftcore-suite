@@ -247,14 +247,6 @@ function runAuthorizationEffectiveCutover() {
     AUTHORIZATION_CUTOVER_REASON_PROPERTY
   ));
   const actor = assertAuthorizationCutoverActor_(actorId, reason);
-  const preview = previewAuthorizationEffectiveCutover();
-  if (!preview.ok) {
-    const error = authorizationCutoverError_("AUTHORIZATION_CUTOVER_NOT_READY");
-    error.details = preview;
-    throw error;
-  }
-  runAuthorizationIntegrityAudit();
-
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(10000)) {
     throw authorizationCutoverError_("AUTHORIZATION_CUTOVER_LOCK_TIMEOUT");
@@ -265,6 +257,13 @@ function runAuthorizationEffectiveCutover() {
     if (resolveAuthorizationEnforcementMode_() !== "shadow") {
       throw authorizationCutoverError_("AUTHORIZATION_CUTOVER_ALREADY_EFFECTIVE");
     }
+    const preview = previewAuthorizationEffectiveCutover();
+    if (!preview.ok) {
+      const error = authorizationCutoverError_("AUTHORIZATION_CUTOVER_NOT_READY");
+      error.details = preview;
+      throw error;
+    }
+    runAuthorizationIntegrityAudit();
     appendAuthorizationChangeLog_({
       authorization_event_id: eventId,
       event_type: "authorization.effective.cutover",
