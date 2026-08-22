@@ -499,3 +499,11 @@
 - Account GAS第57版 `03 effective authorization cutover implementation 2026-08-22` を作成し、既存WebアプリURLを第56版から第57版へ更新した。既存URLのpingは `success=true`、`message=pong` を返した。
 - 反映後の本番ソース23ファイルを別の一時領域へ再取得し、送信元23ファイルと完全一致することを確認した。利用者、権限割当、組織、監査ログ、Script Properties、申請データは変更していない。
 - `AUTHORIZATION_ENFORCEMENT_MODE` は未設定時に`shadow`となる実装であり、`AUTHORIZATION_CUTOVER_*`を含むScript Properties設定と`runAuthorizationEffectiveCutover`は未実施である。本節で完了したのは切替機構のコード反映までで、組織Shadowから実効権限への切替決裁・操作・切替直後の補償監査・7日間監視は未実施として残る。
+
+## 2026-08-22 切替プレビューの実行ログ出力対応
+
+- 第57版反映後に `clasp run previewAuthorizationEffectiveCutover` を試行したが、storage `NOT_FOUND`で結果を取得できなかった。Execution API未設定のWebアプリであり、この失敗を移行不備または本番データ異常とは判定しない。
+- Apps Scriptエディタでは `previewAuthorizationEffectiveCutover` を選択できるが、通常実行は関数戻り値を表示しないため、切替可否の件数を確認できない。関数実行、Script Properties設定、実効切替は行わず停止した。
+- 読み取り専用の `runAuthorizationEffectiveCutoverPreview` を追加し、既存previewの戻り値を `AUTHORIZATION_CUTOVER_PREVIEW` に続くJSONとして実行ログへ出す。出力はmodeと件数だけで、内部ID一覧を含めず、権限modeやScript Propertiesを変更しない。
+- 内部ID非出力と件数ログを固定する回帰テストを追加し、権限Shadow・切替テスト27件、Account Console全142テストが成功、失敗・スキップ0件だった。
+- 第58版への反映、実行ログの件数確認、移行対象確定が完了するまで、切替用Script Properties設定と `runAuthorizationEffectiveCutover` は行わない。

@@ -223,6 +223,12 @@ function previewAuthorizationEffectiveCutover() {
   };
 }
 
+function runAuthorizationEffectiveCutoverPreview() {
+  const result = previewAuthorizationEffectiveCutover();
+  console.log("AUTHORIZATION_CUTOVER_PREVIEW " + JSON.stringify(result));
+  return result;
+}
+
 function normalizeAuthorizationCutoverUserIds_(value) {
   const seen = {};
   return normalizeText(value).split(",").map(normalizeText).filter(function(userId) {

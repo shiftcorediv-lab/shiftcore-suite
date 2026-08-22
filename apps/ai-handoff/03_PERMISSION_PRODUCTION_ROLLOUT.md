@@ -286,10 +286,12 @@ OrderCaseはリポジトリ正本フォルダから直接一括pushしない。�
 
 切替実装の独立監査、main統合、Account GAS第57版への反映、既存URLのping、反映後ソース一致は完了した。Script Properties設定と実効切替は未実施であり、次の操作にはえいちの別決裁を必要とする。
 
-1. `previewAuthorizationEffectiveCutover` を実行し、`ok=true`、`unconfigured_users=0`、`invalid_users=0`、`unknown_migrated_users=0` を確認する。
+1. Apps Scriptエディタから `runAuthorizationEffectiveCutoverPreview` を実行し、実行ログの `AUTHORIZATION_CUTOVER_PREVIEW` に続く件数結果で、`ok=true`、`unconfigured_users=0`、`invalid_users=0`、`unknown_migrated_users=0` を確認する。この関数は内部ID一覧を出力せず、権限modeとScript Propertiesを変更しない。
 2. Script Propertiesへ `AUTHORIZATION_CUTOVER_MIGRATED_USER_IDS=<移行確認済みactive内部利用者IDのCSV>`、`AUTHORIZATION_CUTOVER_ACTOR_ID=<実行者内部ID>`、`AUTHORIZATION_CUTOVER_REASON=<承認済み理由>`、`AUTHORIZATION_CUTOVER_ENABLED=true` を設定する。IDやメールを公開資料へ転記しない。
 3. えいちの切替実行決裁後に `runAuthorizationEffectiveCutover` を1回だけ実行する。関数は切替前整合性監査、active内部developer本人照合、Script Lock、移行件数、監査開始ログを再検証してから `AUTHORIZATION_ENFORCEMENT_MODE=effective` とする。
 4. 直後に共通権限APIで `mode=effective`、`legacy_fallback=false` と対象テストアカウントの許可・拒否を確認し、`runAuthorizationIntegrityAudit` を手動実行する。切替操作ログと監査結果を保存し、7日間の日次監視を開始する。
 5. 異常時は `AUTHORIZATION_CUTOVER_ACTOR_ID` と理由を設定し、`runAuthorizationEffectiveRollback` を実行する。ロールバック関数は監査ログの成否より先に `AUTHORIZATION_ENFORCEMENT_MODE=shadow` へ戻す。再試行には今回限りの例外を適用せず、新たな例外決裁または第三者監査担当の再決裁を必要とする。
 
 PR #45はsquash mergeされ、GitHub mainは `4d3d9eca431a41a5a5313841eac1153895ef7d9a` となった。本番第56版を読み取り取得した結果、mainとの差分は今回対象の `authorization.js`、`config.js` と、対象外の `account_console_logs.js` 先頭空行だけだった。対象外空行を維持して今回の2ファイルだけを重ね、Account GAS第57版 `03 effective authorization cutover implementation 2026-08-22` として既存URLへ反映した。pingは `success=true`、`message=pong`、反映後に再取得した23ファイルは送信元と完全一致した。Script Property設定、本番実効切替、切替直後の補償監査、7日間監視は未実施である。
+
+第57版反映後、`clasp run previewAuthorizationEffectiveCutover` はstorage `NOT_FOUND`で結果を取得できず、Apps Scriptエディタの通常実行も関数戻り値を表示しないことを確認した。件数を検証できないまま切替準備へ進まないため、件数だけを実行ログへ出す `runAuthorizationEffectiveCutoverPreview` と回帰テストを追加し、Account Console全142テストが成功した。第58版への反映と実行結果確認が完了するまで、Script Properties設定と実効切替は行わない。
