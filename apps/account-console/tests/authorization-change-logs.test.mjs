@@ -175,6 +175,20 @@ test("Sheetsが監査日時を表示形式へ変換してもハッシュを検�
   assert.equal(result.healthy, true);
 });
 
+test("Sheetsが朝の時刻を1桁表示にしてもハッシュを検証できる", () => {
+  const { context, rows } = createContext();
+  context.getNowIsoStringJst = () => "2026-08-23T08:07:09";
+  context.appendAuthorizationChangeLog_({
+    authorization_event_id: "ACE-1",
+    event_type: "authorization.effective.cutover",
+    result: "success"
+  });
+  rows[1][headers.indexOf("occurred_at")] = "2026-08-23 8:07:09";
+
+  const result = context.verifyAuthorizationChangeLogIntegrity_();
+  assert.equal(result.healthy, true);
+});
+
 test("startedのままのイベントと復旧プロパティを異常として検出する", () => {
   const { context } = createContext({
     recoveryProperties: { AUTHORIZATION_RECOVERY_ACE_2: "{}" }

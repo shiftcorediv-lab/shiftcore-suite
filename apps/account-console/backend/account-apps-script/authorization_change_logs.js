@@ -82,8 +82,9 @@ function calculateAuthorizationLogHash_(entry) {
 
 function normalizeAuthorizationLogHashValue_(header, value) {
   const text = normalizeText(value);
-  if (header === "occurred_at" && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(text)) {
-    return text.replace(" ", "T");
+  if (header === "occurred_at" && /^\d{4}-\d{2}-\d{2} \d{1,2}:\d{2}:\d{2}$/.test(text)) {
+    const parts = text.split(" ");
+    return parts[0] + "T" + parts[1].padStart(8, "0");
   }
   return text;
 }
