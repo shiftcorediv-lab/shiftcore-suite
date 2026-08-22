@@ -59,6 +59,7 @@ function createAuthorizationContext(assignmentRows = [], options = {}) {
     AUTHORIZATION_CUTOVER_MIGRATED_USER_IDS: options.migratedUserIds || ""
   };
   const authorizationLogs = [];
+  const executionLogs = [];
   const permissionSheet = createSheet([assignmentHeaders, ...assignmentRows]);
   const shadowSheet = createSheet([shadowHeaders]);
   const spreadsheet = {
@@ -152,7 +153,10 @@ function createAuthorizationContext(assignmentRows = [], options = {}) {
     },
     parseAllowedModules: (value) => String(value || "").split(",").map((item) => item.trim()).filter(Boolean),
     getNowIsoStringJst: () => "2026-08-07T10:00:00",
-    console: { error() {} }
+    console: {
+      error() {},
+      log(value) { executionLogs.push(String(value)); }
+    }
   });
 
   [
@@ -165,7 +169,14 @@ function createAuthorizationContext(assignmentRows = [], options = {}) {
     vm.runInContext(readFileSync(new URL(path, import.meta.url), "utf8"), context);
   });
 
-  return { context, permissionSheet, shadowSheet, propertyValues, authorizationLogs };
+  return {
+    context,
+    permissionSheet,
+    shadowSheet,
+    propertyValues,
+    authorizationLogs,
+    executionLogs
+  };
 }
 
 test("新権限が未登録なら旧判定へ戻しShadowログを作らない", () => {
@@ -375,6 +386,22 @@ test("切替プレビューは旧管理権限0件でも移行未確認の割当�
   assert.equal(result.ok, false);
   assert.equal(result.users_with_legacy_access, 0);
   assert.equal(result.unconfigured_users, 1);
+});
+
+test("切替プレビュー実行関数は内部IDを含めず件数結果だけをログ出力する", () => {
+  const { context, executionLogs } = createAuthorizationContext([], {
+    migratedUserIds: "U-1"
+  });
+  const result = context.runAuthorizationEffectiveCutoverPreview();
+
+  assert.equal(result.ok, true);
+  assert.equal(executionLogs.length, 1);
+  assert.match(executionLogs[0], /^AUTHORIZATION_CUTOVER_PREVIEW /);
+  assert.equal(executionLogs[0].includes("U-1"), false);
+  const logged = JSON.parse(executionLogs[0].replace(/^AUTHORIZATION_CUTOVER_PREVIEW /, ""));
+  assert.equal(logged.active_internal_users, 1);
+  assert.equal(logged.configured_users, 1);
+  assert.equal(Object.hasOwn(logged, "internal_user_ids"), false);
 });
 
 test("承認済み切替は監査開始成功を記録してeffectiveへ移る", () => {
