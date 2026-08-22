@@ -281,3 +281,15 @@ OrderCaseはリポジトリ正本フォルダから直接一括pushしない。�
 - 今回の監査環境から既存URLへのHTTP再確認は完了できていない。実行許可レビューの時間切れであり、本番応答失敗とは判定しない。デプロイ版指定の確認とHTTP到達確認を区別して記録する。
 - H-6の単一更新暫定回避はShadow中だけ維持する。developer全権が単一更新APIから一括検証を迂回できる競合を避けるため、実効権限切替前に役員グラフ変更を一括更新APIへ限定し、迂回拒否テストを追加する。
 - 異常時の復帰基準はAccount第51版、OrderCase第52版。本変更はデータ移行を伴わないため、書込みを伴う本番検証を行っていなければコード復帰だけで戻る。
+
+## 11. 実効権限切替機構（未反映）
+
+切替実装の監査・main統合・Account GAS反映が完了するまでは、以下を本番で実行しない。
+
+1. `previewAuthorizationEffectiveCutover` を実行し、`ok=true`、`unconfigured_users=0`、`invalid_users=0`、`unknown_migrated_users=0` を確認する。
+2. Script Propertiesへ `AUTHORIZATION_CUTOVER_MIGRATED_USER_IDS=<移行確認済みactive内部利用者IDのCSV>`、`AUTHORIZATION_CUTOVER_ACTOR_ID=<実行者内部ID>`、`AUTHORIZATION_CUTOVER_REASON=<承認済み理由>`、`AUTHORIZATION_CUTOVER_ENABLED=true` を設定する。IDやメールを公開資料へ転記しない。
+3. えいちの切替実行決裁後に `runAuthorizationEffectiveCutover` を1回だけ実行する。関数は切替前整合性監査、active内部developer本人照合、Script Lock、移行件数、監査開始ログを再検証してから `AUTHORIZATION_ENFORCEMENT_MODE=effective` とする。
+4. 直後に共通権限APIで `mode=effective`、`legacy_fallback=false` と対象テストアカウントの許可・拒否を確認し、`runAuthorizationIntegrityAudit` を手動実行する。切替操作ログと監査結果を保存し、7日間の日次監視を開始する。
+5. 異常時は `AUTHORIZATION_CUTOVER_ACTOR_ID` と理由を設定し、`runAuthorizationEffectiveRollback` を実行する。ロールバック関数は監査ログの成否より先に `AUTHORIZATION_ENFORCEMENT_MODE=shadow` へ戻す。再試行には今回限りの例外を適用せず、新たな例外決裁または第三者監査担当の再決裁を必要とする。
+
+本節の初回追加時点ではローカル実装だけだった。その後commit・pushと独立監査を行い、監査指摘への修正を継続している。PR、merge、GAS反映、Script Property設定、本番切替はいずれも未実施である。

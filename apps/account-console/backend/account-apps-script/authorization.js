@@ -24,7 +24,23 @@ function resolveAuthorizationContextByIdToken_(body) {
   const organizationUser = findAuthorizationOrganizationUser_(user);
   const legacyModules = buildLegacyAuthorizationModules_(user);
   const organizationShadow = resolveOrganizationShadowContext_(organizationUser);
+  let enforcementMode;
+
+  try {
+    enforcementMode = resolveAuthorizationEnforcementMode_();
+  } catch (error) {
+    return {
+      ok: false,
+      code: "AUTHORIZATION_MODE_INVALID",
+      message: "実効権限モードの設定を確認できません"
+    };
+  }
+
+  const effectiveMode = enforcementMode === "effective";
   let assignedModules = {};
+  let effectiveModules = effectiveMode
+    ? buildEffectiveAuthorizationModules_(legacyModules, {})
+    : {};
   let configured = false;
   let shadowError = false;
   let shadowEnabled = false;
@@ -36,13 +52,16 @@ function resolveAuthorizationContextByIdToken_(body) {
     console.error("Authorization Shadow switch resolution failed", error);
   }
 
-  if (shadowEnabled) {
+  if (shadowEnabled || effectiveMode) {
     try {
       const assignments = getActivePermissionAssignmentsForUser_(user.internal_user_id);
       configured = assignments.length > 0;
       assignedModules = configured
         ? buildAssignedAuthorizationModules_(assignments)
         : {};
+      if (effectiveMode) {
+        effectiveModules = buildEffectiveAuthorizationModules_(legacyModules, assignedModules);
+      }
     } catch (error) {
       shadowError = true;
       configured = false;
@@ -53,7 +72,7 @@ function resolveAuthorizationContextByIdToken_(body) {
 
   let differences = [];
 
-  if (configured && !shadowError) {
+  if (!effectiveMode && configured && !shadowError) {
     try {
       differences = compareAuthorizationModules_(legacyModules, assignedModules);
     } catch (error) {
@@ -65,15 +84,17 @@ function resolveAuthorizationContextByIdToken_(body) {
   let loggingAvailable = false;
   let shadowLogSheet = null;
 
-  try {
-    shadowLogSheet = getAuthorizationShadowLogsSheet_();
-    loggingAvailable = Boolean(shadowLogSheet);
-  } catch (error) {
-    shadowError = true;
-    console.error("Authorization Shadow log sheet resolution failed", error);
+  if (!effectiveMode) {
+    try {
+      shadowLogSheet = getAuthorizationShadowLogsSheet_();
+      loggingAvailable = Boolean(shadowLogSheet);
+    } catch (error) {
+      shadowError = true;
+      console.error("Authorization Shadow log sheet resolution failed", error);
+    }
   }
 
-  if (configured && !shadowError) {
+  if (!effectiveMode && configured && !shadowError) {
     try {
       loggingAvailable = appendAuthorizationShadowDifferences_(
         shadowLogSheet,
@@ -94,13 +115,15 @@ function resolveAuthorizationContextByIdToken_(body) {
     user: buildAuthorizationPublicUser_(user, organizationUser),
     authorization: {
       version: 1,
-      mode: "shadow",
-      source: configured ? "legacy_shadow" : "legacy",
-      legacy_fallback: true,
-      modules: legacyModules,
-      candidate_modules: configured ? assignedModules : {},
+      mode: enforcementMode,
+      source: effectiveMode
+        ? (shadowError ? "assigned_unavailable" : "assigned_effective")
+        : (configured ? "legacy_shadow" : "legacy"),
+      legacy_fallback: !effectiveMode,
+      modules: effectiveMode ? effectiveModules : legacyModules,
+      candidate_modules: effectiveMode ? {} : (configured ? assignedModules : {}),
       shadow: {
-        enabled: configured,
+        enabled: !effectiveMode && configured,
         healthy: !shadowError,
         logging_available: loggingAvailable,
         differences: differences
@@ -108,6 +131,268 @@ function resolveAuthorizationContextByIdToken_(body) {
       organization_shadow: organizationShadow
     }
   };
+}
+
+function resolveAuthorizationEnforcementMode_() {
+  const value = normalizeText(
+    PropertiesService.getScriptProperties().getProperty(
+      AUTHORIZATION_ENFORCEMENT_MODE_PROPERTY
+    )
+  ).toLowerCase();
+
+  if (!value || value === "shadow") {
+    return "shadow";
+  }
+
+  if (value === "effective") {
+    return "effective";
+  }
+
+  throw new Error("AUTHORIZATION_ENFORCEMENT_MODE_INVALID");
+}
+
+function buildEffectiveAuthorizationModules_(legacyModules, assignedModules) {
+  const modules = {};
+  Object.keys(legacyModules || {}).forEach(function(moduleCode) {
+    if (AUTHORIZATION_SHADOW_MODULE_CODES.indexOf(moduleCode) === -1) {
+      modules[moduleCode] = legacyModules[moduleCode];
+    }
+  });
+  Object.keys(assignedModules || {}).forEach(function(moduleCode) {
+    if (AUTHORIZATION_SHADOW_MODULE_CODES.indexOf(moduleCode) !== -1) {
+      modules[moduleCode] = assignedModules[moduleCode];
+    }
+  });
+  sortAuthorizationModules_(modules);
+  return modules;
+}
+
+function previewAuthorizationEffectiveCutover() {
+  const users = getUsersData();
+  const migratedUserIds = normalizeAuthorizationCutoverUserIds_(
+    PropertiesService.getScriptProperties().getProperty(
+      AUTHORIZATION_CUTOVER_MIGRATED_USER_IDS_PROPERTY
+    )
+  );
+  const activeInternalUserIds = {};
+  let activeInternalUsers = 0;
+  let usersWithLegacyAccess = 0;
+  let configuredUsers = 0;
+  let unconfiguredUsers = 0;
+  let invalidUsers = 0;
+
+  users.forEach(function(user) {
+    if (normalizeText(user.status).toLowerCase() !== "active" ||
+        getNormalizedPersonType(user) !== "internal") {
+      return;
+    }
+    activeInternalUsers += 1;
+    activeInternalUserIds[normalizeText(user.internal_user_id)] = true;
+    const managedLegacyModules = Object.keys(buildLegacyAuthorizationModules_(user)).filter(
+      function(moduleCode) {
+        return AUTHORIZATION_SHADOW_MODULE_CODES.indexOf(moduleCode) !== -1;
+      }
+    );
+    if (managedLegacyModules.length) usersWithLegacyAccess += 1;
+    if (migratedUserIds.indexOf(normalizeText(user.internal_user_id)) === -1) {
+      unconfiguredUsers += 1;
+      return;
+    }
+    try {
+      const assignments = getActivePermissionAssignmentsForUser_(user.internal_user_id);
+      buildAssignedAuthorizationModules_(assignments);
+      configuredUsers += 1;
+    } catch (error) {
+      invalidUsers += 1;
+    }
+  });
+
+  const unknownMigratedUsers = migratedUserIds.filter(function(userId) {
+    return !activeInternalUserIds[userId];
+  }).length;
+
+  return {
+    ok: unconfiguredUsers === 0 && invalidUsers === 0 && unknownMigratedUsers === 0,
+    mode: resolveAuthorizationEnforcementMode_(),
+    active_internal_users: activeInternalUsers,
+    users_with_legacy_access: usersWithLegacyAccess,
+    configured_users: configuredUsers,
+    unconfigured_users: unconfiguredUsers,
+    invalid_users: invalidUsers,
+    unknown_migrated_users: unknownMigratedUsers
+  };
+}
+
+function normalizeAuthorizationCutoverUserIds_(value) {
+  const seen = {};
+  return normalizeText(value).split(",").map(normalizeText).filter(function(userId) {
+    if (!userId || seen[userId]) return false;
+    seen[userId] = true;
+    return true;
+  });
+}
+
+function runAuthorizationEffectiveCutover() {
+  const properties = PropertiesService.getScriptProperties();
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) {
+    throw authorizationCutoverError_("AUTHORIZATION_CUTOVER_LOCK_TIMEOUT");
+  }
+  const eventId = "ACE-" + Utilities.getUuid();
+  let actor = null;
+  let reason = "";
+  let startedLogged = false;
+  let effectiveReached = false;
+  try {
+    if (normalizeText(properties.getProperty(
+      AUTHORIZATION_CUTOVER_ENABLED_PROPERTY
+    )).toLowerCase() !== "true") {
+      throw authorizationCutoverError_("AUTHORIZATION_CUTOVER_NOT_APPROVED");
+    }
+    const actorId = normalizeText(properties.getProperty(
+      AUTHORIZATION_CUTOVER_ACTOR_ID_PROPERTY
+    ));
+    reason = normalizeText(properties.getProperty(
+      AUTHORIZATION_CUTOVER_REASON_PROPERTY
+    ));
+    actor = assertAuthorizationCutoverActor_(actorId, reason);
+    if (resolveAuthorizationEnforcementMode_() !== "shadow") {
+      throw authorizationCutoverError_("AUTHORIZATION_CUTOVER_ALREADY_EFFECTIVE");
+    }
+    const preview = previewAuthorizationEffectiveCutover();
+    if (!preview.ok) {
+      const error = authorizationCutoverError_("AUTHORIZATION_CUTOVER_NOT_READY");
+      error.details = preview;
+      throw error;
+    }
+    runAuthorizationIntegrityAudit();
+    properties.setProperty(AUTHORIZATION_CUTOVER_ENABLED_PROPERTY, "false");
+    appendAuthorizationChangeLog_({
+      authorization_event_id: eventId,
+      event_type: "authorization.effective.cutover",
+      actor_internal_user_id: actor.internal_user_id,
+      before: { mode: "shadow" },
+      after: { mode: "effective" },
+      reason: reason,
+      result: "started",
+      source: "authorization_cutover"
+    });
+    startedLogged = true;
+    properties.setProperty(AUTHORIZATION_ENFORCEMENT_MODE_PROPERTY, "effective");
+    effectiveReached = true;
+    appendAuthorizationChangeLog_({
+      authorization_event_id: eventId,
+      event_type: "authorization.effective.cutover",
+      actor_internal_user_id: actor.internal_user_id,
+      before: { mode: "shadow" },
+      after: { mode: "effective" },
+      reason: reason,
+      result: "success",
+      source: "authorization_cutover"
+    });
+    properties.deleteProperty(AUTHORIZATION_CUTOVER_ACTOR_ID_PROPERTY);
+    properties.deleteProperty(AUTHORIZATION_CUTOVER_REASON_PROPERTY);
+    properties.deleteProperty(AUTHORIZATION_CUTOVER_MIGRATED_USER_IDS_PROPERTY);
+    return { ok: true, mode: "effective", authorization_event_id: eventId };
+  } catch (error) {
+    let rollbackError = null;
+    if (effectiveReached) {
+      try {
+        properties.setProperty(AUTHORIZATION_ENFORCEMENT_MODE_PROPERTY, "shadow");
+      } catch (caughtRollbackError) {
+        rollbackError = caughtRollbackError;
+      }
+    }
+    if (startedLogged) {
+      try {
+        appendAuthorizationChangeLog_({
+          authorization_event_id: eventId,
+          event_type: "authorization.effective.cutover",
+          actor_internal_user_id: actor.internal_user_id,
+          before: { mode: effectiveReached ? "effective" : "shadow" },
+          after: rollbackError ? {
+            mode: "effective",
+            original_error_code: normalizeText(error.code || error.message),
+            rollback_error_code: normalizeText(rollbackError.code || rollbackError.message)
+          } : { mode: "shadow" },
+          reason: reason,
+          result: rollbackError ? "recovery_required" : "error",
+          error_code: rollbackError
+            ? "AUTHORIZATION_CUTOVER_RECOVERY_REQUIRED"
+            : normalizeText(error.code || error.message),
+          source: "authorization_cutover"
+        });
+      } catch (logError) {
+        console.error("Authorization cutover rollback logging failed", logError);
+      }
+    }
+    if (rollbackError) {
+      const recoveryError = authorizationCutoverError_(
+        "AUTHORIZATION_CUTOVER_RECOVERY_REQUIRED"
+      );
+      recoveryError.original_error_code = normalizeText(error.code || error.message);
+      recoveryError.rollback_error_code = normalizeText(
+        rollbackError.code || rollbackError.message
+      );
+      throw recoveryError;
+    }
+    throw error;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function runAuthorizationEffectiveRollback() {
+  const properties = PropertiesService.getScriptProperties();
+  const actorId = normalizeText(properties.getProperty(
+    AUTHORIZATION_CUTOVER_ACTOR_ID_PROPERTY
+  ));
+  const reason = normalizeText(properties.getProperty(
+    AUTHORIZATION_CUTOVER_REASON_PROPERTY
+  ));
+  const actor = assertAuthorizationCutoverActor_(actorId, reason);
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) {
+    throw authorizationCutoverError_("AUTHORIZATION_CUTOVER_LOCK_TIMEOUT");
+  }
+  try {
+    const beforeMode = resolveAuthorizationEnforcementMode_();
+    properties.setProperty(AUTHORIZATION_ENFORCEMENT_MODE_PROPERTY, "shadow");
+    appendAuthorizationChangeLog_({
+      authorization_event_id: "ACE-" + Utilities.getUuid(),
+      event_type: "authorization.effective.rollback",
+      actor_internal_user_id: actor.internal_user_id,
+      before: { mode: beforeMode },
+      after: { mode: "shadow" },
+      reason: reason,
+      result: "success",
+      source: "authorization_cutover"
+    });
+    return { ok: true, mode: "shadow" };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function assertAuthorizationCutoverActor_(actorId, reason) {
+  const activeEmail = normalizeAccountConsoleEmail_(Session.getActiveUser().getEmail());
+  const actor = getUsersData().find(function(user) {
+    return normalizeText(user.internal_user_id) === normalizeText(actorId);
+  });
+  if (!actor || !normalizeText(reason) || !activeEmail ||
+      normalizeAccountConsoleEmail_(actor.email) !== activeEmail ||
+      normalizeText(actor.status).toLowerCase() !== "active" ||
+      getNormalizedPersonType(actor) !== "internal" ||
+      normalizeText(actor.role).toLowerCase() !== "developer") {
+    throw authorizationCutoverError_("AUTHORIZATION_CUTOVER_ACTOR_INVALID");
+  }
+  return actor;
+}
+
+function authorizationCutoverError_(code) {
+  const error = new Error(code);
+  error.code = code;
+  return error;
 }
 
 function findAuthorizationOrganizationUser_(user) {
