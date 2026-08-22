@@ -482,3 +482,12 @@
 - 拒否試験後に `runAuthorizationIntegrityAudit` を手動実行し、Apps Script実行ログで開始後の実行完了を確認した。この関数は監査結果が不健全な場合に例外を送出する実装であり、今回の実行では例外が発生していない。
 - 本節で完了したのはH-6撤去、本番拒否確認、切替前整合性監査までである。組織Shadowから実効権限への切替そのものは未実施であり、今回の監査を例外決裁で定めた「切替直後」の補償監査には算入しない。
 - これにより今回の実効権限切替前ブロッカーは解消した。ただし、ブロッカー解消は切替実行の決裁を意味せず、実行にはえいちの別決裁を必要とする。決裁後は例外対象となる最初の1回の切替操作を行い、直後に整合性監査と切替操作ログを保存して7日間の日次監視を開始する。段階追加またはロールバック後の再試行には本例外を適用しない。
+
+## 2026-08-22 実効権限切替機構のローカル実装
+
+- main統合後の再確認で、Account共通権限APIは `mode: shadow`、`modules: legacyModules`、`legacy_fallback: true` を固定返却しており、既存Script Propertyだけでは候補権限を実効化できないことを確認した。以前の「次は切替操作」という記述は、切替機構の実装前提が欠けていた。
+- `AUTHORIZATION_ENFORCEMENT_MODE` を追加し、未設定または `shadow` は旧権限、明示的な `effective` だけは03管理対象モジュールの割当権限を `authorization.modules` へ返すようにした。不正なモード値は `AUTHORIZATION_MODE_INVALID`、effective中の割当読取・検証失敗は旧権限へ戻さず権限なしで拒否側に倒す。
+- 移行対象外モジュールは既存判定を維持する。Shadow差分ログ基盤はeffective判定の可用性条件にせず、effective中はShadow差分の追記を行わない。
+- 割当なしを移行漏れと意図的な全剥奪に区別するため、公開リポジトリへIDを保存せず、`AUTHORIZATION_CUTOVER_MIGRATED_USER_IDS` の確認済み内部ID集合とactive内部利用者を照合する件数プレビューを追加した。不足、無効な割当、active内部利用者に存在しない確認済みIDが1件でもあれば切替を拒否する。
+- 切替は有効化フラグ、実行者内部ID、理由、実行中Googleアカウントとactive内部developerのメール一致、切替前整合性監査、Script Lockを必須とする。同一イベントへstarted/successを記録し、successログ失敗時はShadowへ自動復帰してerrorを記録する。ロールバックは先にShadowへ戻してから監査ログを記録し、監査ログ障害が旧権限への復帰を妨げない。
+- 追加9件を含む権限Shadow・切替テスト23件、Account Console全138テストは成功、失敗・スキップ0件。独立監査、commit、push、PR、merge、Account GAS本番反映、移行確認済みID設定、実効権限切替は未実施であり、本番第56版のShadow運用は変更していない。
