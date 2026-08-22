@@ -92,6 +92,11 @@ function createAuthorizationContext(assignmentRows = [], options = {}) {
               key === "AUTHORIZATION_ENFORCEMENT_MODE" && value === "effective") {
             throw new Error("MODE_WRITE_FAILED");
           }
+          if (options.failShadowRollbackWrite &&
+              key === "AUTHORIZATION_ENFORCEMENT_MODE" && value === "shadow" &&
+              propertyValues.AUTHORIZATION_ENFORCEMENT_MODE === "effective") {
+            throw new Error("SHADOW_ROLLBACK_FAILED");
+          }
           propertyValues[key] = String(value);
         },
         deleteProperty: (key) => { delete propertyValues[key]; }
@@ -419,6 +424,37 @@ test("effectiveモード書込み失敗でも決裁を消費してerrorを記録
   assert.deepEqual(authorizationLogs.map((item) => item.result), ["started", "error"]);
   assert.equal(authorizationLogs[1].before.mode, "shadow");
   assert.equal(authorizationLogs[1].after.mode, "shadow");
+});
+
+test("Shadow自動復帰失敗はrecovery_requiredを記録して構造化エラーにする", () => {
+  const { context, propertyValues, authorizationLogs } = createAuthorizationContext([
+    ["PA-1", "U-1", "shift", "shift.view.self", "self", "", "active", "", "", "", "", ""]
+  ], {
+    cutoverEnabled: true,
+    migratedUserIds: "U-1",
+    failCutoverSuccessLog: true,
+    failShadowRollbackWrite: true
+  });
+
+  let caught;
+  try {
+    context.runAuthorizationEffectiveCutover();
+  } catch (error) {
+    caught = error;
+  }
+  assert.equal(caught.code, "AUTHORIZATION_CUTOVER_RECOVERY_REQUIRED");
+  assert.equal(caught.original_error_code, "AUDIT_WRITE_FAILED");
+  assert.equal(caught.rollback_error_code, "SHADOW_ROLLBACK_FAILED");
+  assert.equal(propertyValues.AUTHORIZATION_ENFORCEMENT_MODE, "effective");
+  assert.equal(propertyValues.AUTHORIZATION_CUTOVER_ENABLED, "false");
+  assert.deepEqual(
+    authorizationLogs.map((item) => item.result),
+    ["started", "success", "recovery_required"]
+  );
+  assert.equal(authorizationLogs[2].before.mode, "effective");
+  assert.equal(authorizationLogs[2].after.mode, "effective");
+  assert.equal(authorizationLogs[2].after.original_error_code, "AUDIT_WRITE_FAILED");
+  assert.equal(authorizationLogs[2].after.rollback_error_code, "SHADOW_ROLLBACK_FAILED");
 });
 
 test("ロールバックは実効モードをshadowへ戻して監査記録する", () => {

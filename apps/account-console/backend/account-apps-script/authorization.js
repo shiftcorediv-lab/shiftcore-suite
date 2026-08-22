@@ -295,8 +295,13 @@ function runAuthorizationEffectiveCutover() {
     properties.deleteProperty(AUTHORIZATION_CUTOVER_MIGRATED_USER_IDS_PROPERTY);
     return { ok: true, mode: "effective", authorization_event_id: eventId };
   } catch (error) {
+    let rollbackError = null;
     if (effectiveReached) {
-      properties.setProperty(AUTHORIZATION_ENFORCEMENT_MODE_PROPERTY, "shadow");
+      try {
+        properties.setProperty(AUTHORIZATION_ENFORCEMENT_MODE_PROPERTY, "shadow");
+      } catch (caughtRollbackError) {
+        rollbackError = caughtRollbackError;
+      }
     }
     if (startedLogged) {
       try {
@@ -305,15 +310,31 @@ function runAuthorizationEffectiveCutover() {
           event_type: "authorization.effective.cutover",
           actor_internal_user_id: actor.internal_user_id,
           before: { mode: effectiveReached ? "effective" : "shadow" },
-          after: { mode: "shadow" },
+          after: rollbackError ? {
+            mode: "effective",
+            original_error_code: normalizeText(error.code || error.message),
+            rollback_error_code: normalizeText(rollbackError.code || rollbackError.message)
+          } : { mode: "shadow" },
           reason: reason,
-          result: "error",
-          error_code: normalizeText(error.code || error.message),
+          result: rollbackError ? "recovery_required" : "error",
+          error_code: rollbackError
+            ? "AUTHORIZATION_CUTOVER_RECOVERY_REQUIRED"
+            : normalizeText(error.code || error.message),
           source: "authorization_cutover"
         });
       } catch (logError) {
         console.error("Authorization cutover rollback logging failed", logError);
       }
+    }
+    if (rollbackError) {
+      const recoveryError = authorizationCutoverError_(
+        "AUTHORIZATION_CUTOVER_RECOVERY_REQUIRED"
+      );
+      recoveryError.original_error_code = normalizeText(error.code || error.message);
+      recoveryError.rollback_error_code = normalizeText(
+        rollbackError.code || rollbackError.message
+      );
+      throw recoveryError;
     }
     throw error;
   } finally {
