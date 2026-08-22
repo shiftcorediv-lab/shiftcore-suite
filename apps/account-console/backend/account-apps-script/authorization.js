@@ -38,7 +38,9 @@ function resolveAuthorizationContextByIdToken_(body) {
 
   const effectiveMode = enforcementMode === "effective";
   let assignedModules = {};
-  let effectiveModules = {};
+  let effectiveModules = effectiveMode
+    ? buildEffectiveAuthorizationModules_(legacyModules, {})
+    : {};
   let configured = false;
   let shadowError = false;
   let shadowEnabled = false;
@@ -118,7 +120,7 @@ function resolveAuthorizationContextByIdToken_(body) {
         ? (shadowError ? "assigned_unavailable" : "assigned_effective")
         : (configured ? "legacy_shadow" : "legacy"),
       legacy_fallback: !effectiveMode,
-      modules: effectiveMode && !shadowError ? effectiveModules : (effectiveMode ? {} : legacyModules),
+      modules: effectiveMode ? effectiveModules : legacyModules,
       candidate_modules: effectiveMode ? {} : (configured ? assignedModules : {}),
       shadow: {
         enabled: !effectiveMode && configured,
@@ -191,10 +193,7 @@ function previewAuthorizationEffectiveCutover() {
         return AUTHORIZATION_SHADOW_MODULE_CODES.indexOf(moduleCode) !== -1;
       }
     );
-    if (!managedLegacyModules.length) {
-      return;
-    }
-    usersWithLegacyAccess += 1;
+    if (managedLegacyModules.length) usersWithLegacyAccess += 1;
     if (migratedUserIds.indexOf(normalizeText(user.internal_user_id)) === -1) {
       unconfiguredUsers += 1;
       return;
@@ -235,25 +234,28 @@ function normalizeAuthorizationCutoverUserIds_(value) {
 
 function runAuthorizationEffectiveCutover() {
   const properties = PropertiesService.getScriptProperties();
-  if (normalizeText(properties.getProperty(
-    AUTHORIZATION_CUTOVER_ENABLED_PROPERTY
-  )).toLowerCase() !== "true") {
-    throw authorizationCutoverError_("AUTHORIZATION_CUTOVER_NOT_APPROVED");
-  }
-  const actorId = normalizeText(properties.getProperty(
-    AUTHORIZATION_CUTOVER_ACTOR_ID_PROPERTY
-  ));
-  const reason = normalizeText(properties.getProperty(
-    AUTHORIZATION_CUTOVER_REASON_PROPERTY
-  ));
-  const actor = assertAuthorizationCutoverActor_(actorId, reason);
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(10000)) {
     throw authorizationCutoverError_("AUTHORIZATION_CUTOVER_LOCK_TIMEOUT");
   }
   const eventId = "ACE-" + Utilities.getUuid();
-  let changed = false;
+  let actor = null;
+  let reason = "";
+  let startedLogged = false;
+  let effectiveReached = false;
   try {
+    if (normalizeText(properties.getProperty(
+      AUTHORIZATION_CUTOVER_ENABLED_PROPERTY
+    )).toLowerCase() !== "true") {
+      throw authorizationCutoverError_("AUTHORIZATION_CUTOVER_NOT_APPROVED");
+    }
+    const actorId = normalizeText(properties.getProperty(
+      AUTHORIZATION_CUTOVER_ACTOR_ID_PROPERTY
+    ));
+    reason = normalizeText(properties.getProperty(
+      AUTHORIZATION_CUTOVER_REASON_PROPERTY
+    ));
+    actor = assertAuthorizationCutoverActor_(actorId, reason);
     if (resolveAuthorizationEnforcementMode_() !== "shadow") {
       throw authorizationCutoverError_("AUTHORIZATION_CUTOVER_ALREADY_EFFECTIVE");
     }
@@ -264,6 +266,7 @@ function runAuthorizationEffectiveCutover() {
       throw error;
     }
     runAuthorizationIntegrityAudit();
+    properties.setProperty(AUTHORIZATION_CUTOVER_ENABLED_PROPERTY, "false");
     appendAuthorizationChangeLog_({
       authorization_event_id: eventId,
       event_type: "authorization.effective.cutover",
@@ -274,8 +277,9 @@ function runAuthorizationEffectiveCutover() {
       result: "started",
       source: "authorization_cutover"
     });
+    startedLogged = true;
     properties.setProperty(AUTHORIZATION_ENFORCEMENT_MODE_PROPERTY, "effective");
-    changed = true;
+    effectiveReached = true;
     appendAuthorizationChangeLog_({
       authorization_event_id: eventId,
       event_type: "authorization.effective.cutover",
@@ -286,20 +290,21 @@ function runAuthorizationEffectiveCutover() {
       result: "success",
       source: "authorization_cutover"
     });
-    properties.setProperty(AUTHORIZATION_CUTOVER_ENABLED_PROPERTY, "false");
     properties.deleteProperty(AUTHORIZATION_CUTOVER_ACTOR_ID_PROPERTY);
     properties.deleteProperty(AUTHORIZATION_CUTOVER_REASON_PROPERTY);
     properties.deleteProperty(AUTHORIZATION_CUTOVER_MIGRATED_USER_IDS_PROPERTY);
     return { ok: true, mode: "effective", authorization_event_id: eventId };
   } catch (error) {
-    if (changed) {
+    if (effectiveReached) {
       properties.setProperty(AUTHORIZATION_ENFORCEMENT_MODE_PROPERTY, "shadow");
+    }
+    if (startedLogged) {
       try {
         appendAuthorizationChangeLog_({
           authorization_event_id: eventId,
           event_type: "authorization.effective.cutover",
           actor_internal_user_id: actor.internal_user_id,
-          before: { mode: "shadow" },
+          before: { mode: effectiveReached ? "effective" : "shadow" },
           after: { mode: "shadow" },
           reason: reason,
           result: "error",

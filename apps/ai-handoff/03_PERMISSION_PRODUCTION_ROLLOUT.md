@@ -292,4 +292,4 @@ OrderCaseはリポジトリ正本フォルダから直接一括pushしない。�
 4. 直後に共通権限APIで `mode=effective`、`legacy_fallback=false` と対象テストアカウントの許可・拒否を確認し、`runAuthorizationIntegrityAudit` を手動実行する。切替操作ログと監査結果を保存し、7日間の日次監視を開始する。
 5. 異常時は `AUTHORIZATION_CUTOVER_ACTOR_ID` と理由を設定し、`runAuthorizationEffectiveRollback` を実行する。ロールバック関数は監査ログの成否より先に `AUTHORIZATION_ENFORCEMENT_MODE=shadow` へ戻す。再試行には今回限りの例外を適用せず、新たな例外決裁または第三者監査担当の再決裁を必要とする。
 
-本節の追加時点ではローカル実装だけであり、commit、push、PR、merge、GAS反映、Script Property設定、本番切替はいずれも未実施である。
+本節の初回追加時点ではローカル実装だけだった。その後commit・pushと独立監査を行い、監査指摘への修正を継続している。PR、merge、GAS反映、Script Property設定、本番切替はいずれも未実施である。

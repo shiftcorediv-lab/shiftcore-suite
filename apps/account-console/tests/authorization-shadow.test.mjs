@@ -87,7 +87,13 @@ function createAuthorizationContext(assignmentRows = [], options = {}) {
           }
           return options.shadowEnabled === false ? "false" : "true";
         },
-        setProperty: (key, value) => { propertyValues[key] = String(value); },
+        setProperty: (key, value) => {
+          if (options.failEffectiveModeWrite &&
+              key === "AUTHORIZATION_ENFORCEMENT_MODE" && value === "effective") {
+            throw new Error("MODE_WRITE_FAILED");
+          }
+          propertyValues[key] = String(value);
+        },
         deleteProperty: (key) => { delete propertyValues[key]; }
       })
     },
@@ -108,7 +114,7 @@ function createAuthorizationContext(assignmentRows = [], options = {}) {
         role: "member",
         organization_id: "ORG-1",
         base_area: "関西",
-        allowed_modules: ["ordercase", "shift"],
+        allowed_modules: options.allowedModules || ["ordercase", "shift"],
         ordercase_permission: "edit",
         shiftbuilder_permission: "self"
       }
@@ -118,10 +124,10 @@ function createAuthorizationContext(assignmentRows = [], options = {}) {
       return [{
         internal_user_id: "U-1",
         status: "active",
-        role: "developer",
+        role: options.userRole || "developer",
         email: "developer@example.com",
         person_type: "internal",
-        allowed_modules: ["ordercase", "shift"],
+        allowed_modules: options.allowedModules || ["ordercase", "shift"],
         ordercase_permission: "edit",
         shiftbuilder_permission: "self",
         organization_level: options.organizationLevel || ""
@@ -306,13 +312,20 @@ test("effectiveモードの割当検証失敗は旧権限へ戻さず拒否側�
   const { context } = createAuthorizationContext([
     ["PA-1", "U-1", "shift", "shift.unknown", "self", "", "active", "", "", "", "", ""]
   ], { enforcementMode: "effective" });
+  const originalBuildLegacy = context.buildLegacyAuthorizationModules_;
+  context.buildLegacyAuthorizationModules_ = (user) => {
+    const modules = originalBuildLegacy(user);
+    modules.pmo = { capabilities: ["pmo.view"], scopes: [{ type: "all", value: "" }] };
+    return modules;
+  };
   const result = context.resolveAuthorizationContextByIdToken_({ idToken: "TOKEN" });
 
   assert.equal(result.ok, true);
   assert.equal(result.authorization.source, "assigned_unavailable");
   assert.equal(result.authorization.legacy_fallback, false);
   assert.equal(result.authorization.shadow.healthy, false);
-  assert.equal(Object.keys(result.authorization.modules).length, 0);
+  assert.equal(Object.hasOwn(result.authorization.modules, "shift"), false);
+  assert.equal(Object.hasOwn(result.authorization.modules, "pmo"), true);
 });
 
 test("effectiveモードはShadowログ基盤へ依存しない", () => {
@@ -348,6 +361,17 @@ test("切替プレビューは旧権限利用者の割当不足を検出する",
   assert.equal(result.unconfigured_users, 1);
 });
 
+test("切替プレビューは旧管理権限0件でも移行未確認の割当利用者を拒否する", () => {
+  const { context } = createAuthorizationContext([
+    ["PA-1", "U-1", "shift", "shift.view.self", "self", "", "active", "", "", "", "", ""]
+  ], { allowedModules: ["pmo"], userRole: "member" });
+  const result = context.previewAuthorizationEffectiveCutover();
+
+  assert.equal(result.ok, false);
+  assert.equal(result.users_with_legacy_access, 0);
+  assert.equal(result.unconfigured_users, 1);
+});
+
 test("承認済み切替は監査開始成功を記録してeffectiveへ移る", () => {
   const { context, propertyValues, authorizationLogs } = createAuthorizationContext([
     ["PA-1", "U-1", "shift", "shift.view.self", "self", "", "active", "", "", "", "", ""]
@@ -370,7 +394,31 @@ test("切替成功ログに失敗した場合はshadowへ自動復帰する", ()
     /AUDIT_WRITE_FAILED/
   );
   assert.equal(propertyValues.AUTHORIZATION_ENFORCEMENT_MODE, "shadow");
+  assert.equal(propertyValues.AUTHORIZATION_CUTOVER_ENABLED, "false");
   assert.deepEqual(authorizationLogs.map((item) => item.result), ["started", "success", "error"]);
+  assert.equal(authorizationLogs[2].before.mode, "effective");
+  assert.equal(authorizationLogs[2].after.mode, "shadow");
+  assert.throws(
+    () => context.runAuthorizationEffectiveCutover(),
+    /AUTHORIZATION_CUTOVER_NOT_APPROVED/
+  );
+});
+
+test("effectiveモード書込み失敗でも決裁を消費してerrorを記録する", () => {
+  const { context, propertyValues, authorizationLogs } = createAuthorizationContext([
+    ["PA-1", "U-1", "shift", "shift.view.self", "self", "", "active", "", "", "", "", ""]
+  ], {
+    cutoverEnabled: true,
+    migratedUserIds: "U-1",
+    failEffectiveModeWrite: true
+  });
+
+  assert.throws(() => context.runAuthorizationEffectiveCutover(), /MODE_WRITE_FAILED/);
+  assert.equal(propertyValues.AUTHORIZATION_ENFORCEMENT_MODE, "shadow");
+  assert.equal(propertyValues.AUTHORIZATION_CUTOVER_ENABLED, "false");
+  assert.deepEqual(authorizationLogs.map((item) => item.result), ["started", "error"]);
+  assert.equal(authorizationLogs[1].before.mode, "shadow");
+  assert.equal(authorizationLogs[1].after.mode, "shadow");
 });
 
 test("ロールバックは実効モードをshadowへ戻して監査記録する", () => {

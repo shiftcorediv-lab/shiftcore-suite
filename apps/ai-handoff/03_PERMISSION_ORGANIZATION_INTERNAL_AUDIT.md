@@ -490,4 +490,4 @@
 - 移行対象外モジュールは既存判定を維持する。Shadow差分ログ基盤はeffective判定の可用性条件にせず、effective中はShadow差分の追記を行わない。
 - 割当なしを移行漏れと意図的な全剥奪に区別するため、公開リポジトリへIDを保存せず、`AUTHORIZATION_CUTOVER_MIGRATED_USER_IDS` の確認済み内部ID集合とactive内部利用者を照合する件数プレビューを追加した。不足、無効な割当、active内部利用者に存在しない確認済みIDが1件でもあれば切替を拒否する。
 - 切替は有効化フラグ、実行者内部ID、理由、実行中Googleアカウントとactive内部developerのメール一致、切替前整合性監査、Script Lockを必須とする。同一イベントへstarted/successを記録し、successログ失敗時はShadowへ自動復帰してerrorを記録する。ロールバックは先にShadowへ戻してから監査ログを記録し、監査ログ障害が旧権限への復帰を妨げない。
-- 追加9件を含む権限Shadow・切替テスト23件、Account Console全138テストは成功、失敗・スキップ0件。独立監査、commit、push、PR、merge、Account GAS本番反映、移行確認済みID設定、実効権限切替は未実施であり、本番第56版のShadow運用は変更していない。
+- 初回実装の追加9件を含む権限Shadow・切替テスト23件、Account Console全138テストは成功、失敗・スキップ0件だった。その後commit・pushと独立監査を行い、初回監査は差戻しとなった。移行集合をactive内部利用者全員へ適用し、切替決裁をScript Lock内で再確認・一回消費し、対象外moduleを割当異常時も維持し、started後の失敗をerror記録する修正と2件の回帰テストを追加した。修正後は権限Shadow・切替テスト25件、Account Console全140テストが成功し、失敗・スキップ0件。PR、merge、Account GAS本番反映、移行確認済みID設定、実効権限切替は未実施であり、本番第56版のShadow運用は変更していない。
