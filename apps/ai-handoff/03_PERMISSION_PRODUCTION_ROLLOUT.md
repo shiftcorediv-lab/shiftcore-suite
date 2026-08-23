@@ -295,3 +295,10 @@ OrderCaseはリポジトリ正本フォルダから直接一括pushしない。�
 PR #45はsquash mergeされ、GitHub mainは `4d3d9eca431a41a5a5313841eac1153895ef7d9a` となった。本番第56版を読み取り取得した結果、mainとの差分は今回対象の `authorization.js`、`config.js` と、対象外の `account_console_logs.js` 先頭空行だけだった。対象外空行を維持して今回の2ファイルだけを重ね、Account GAS第57版 `03 effective authorization cutover implementation 2026-08-22` として既存URLへ反映した。pingは `success=true`、`message=pong`、反映後に再取得した23ファイルは送信元と完全一致した。Script Property設定、本番実効切替、切替直後の補償監査、7日間監視は未実施である。
 
 第57版反映後、`clasp run previewAuthorizationEffectiveCutover` はstorage `NOT_FOUND`で結果を取得できず、Apps Scriptエディタの通常実行も関数戻り値を表示しないことを確認した。件数を検証できないまま切替準備へ進まないため、件数だけを実行ログへ出す `runAuthorizationEffectiveCutoverPreview` と回帰テストを追加し、Account Console全142テストが成功した。第58版への反映と実行結果確認が完了するまで、Script Properties設定と実効切替は行わない。
+
+## 12. 2026-08-23 実効切替後のShadow復帰
+
+- 第59版で切替前監査を正常化した後、えいちの決裁により実効切替を1回実行し、直後の整合性監査まで完了した。
+- 切替後の読み取り確認で、移行済みID集合の件数確認だけでは旧管理対象権限と新割当の同等性を保証できず、割当0件を意図的な剥奪として通過させることが判明した。旧権限を持つ利用者の業務アクセス喪失を避けるため、実効運用と7日間監視は開始せず、えいちの承認後に手動ロールバックした。
+- ロールバック後は `AUTHORIZATION_ENFORCEMENT_MODE=shadow`、`AUTHORIZATION_CUTOVER_ENABLED=false`、一時的な実行者・理由が残っていないことを実画面で確認し、`runAuthorizationIntegrityAudit` も例外なく完了した。権限割当データ自体は変更していない。
+- 今回限りの監査独立性例外は失効済みである。再切替前に、読み取り専用の旧権限同等性診断を本番反映・実行し、不足・余剰capabilityとscope差を0件にするか、各差分を意図的な変更として個別承認する。続いて新たな監査例外決裁または第三者監査担当の再決裁、独立監査、切替決裁を経る。件数プレビューだけで再切替しない。

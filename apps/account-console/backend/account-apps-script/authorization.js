@@ -229,6 +229,124 @@ function runAuthorizationEffectiveCutoverPreview() {
   return result;
 }
 
+function runAuthorizationLegacyAssignmentMigrationPreview() {
+  const analysis = analyzeAuthorizationLegacyAssignmentMigration_();
+  const summary = analysis.summary;
+  console.log("AUTHORIZATION_LEGACY_MIGRATION_PREVIEW " + JSON.stringify(summary));
+  return summary;
+}
+
+function analyzeAuthorizationLegacyAssignmentMigration_() {
+  const summary = {
+    mode: resolveAuthorizationEnforcementMode_(),
+    active_internal_users: 0,
+    users_with_legacy_access: 0,
+    users_with_active_assignments: 0,
+    equivalent_users: 0,
+    users_requiring_additions: 0,
+    users_requiring_removals: 0,
+    missing_capabilities: 0,
+    extra_capabilities: 0,
+    missing_scopes: 0,
+    extra_scopes: 0,
+    invalid_users: 0
+  };
+  const users = [];
+
+  getUsersData().forEach(function(user) {
+    if (normalizeText(user.status).toLowerCase() !== "active" ||
+        getNormalizedPersonType(user) !== "internal") {
+      return;
+    }
+
+    summary.active_internal_users += 1;
+    const internalUserId = normalizeText(user.internal_user_id);
+    if (!internalUserId) {
+      summary.invalid_users += 1;
+      users.push({ internal_user_id: "", invalid: true, modules: [] });
+      return;
+    }
+    const legacyModules = buildLegacyAuthorizationModules_(user);
+    const managedLegacyModules = {};
+    AUTHORIZATION_SHADOW_MODULE_CODES.forEach(function(moduleCode) {
+      if (legacyModules[moduleCode]) managedLegacyModules[moduleCode] = legacyModules[moduleCode];
+    });
+    if (Object.keys(managedLegacyModules).length) summary.users_with_legacy_access += 1;
+
+    let assignments;
+    let assignedModules;
+    try {
+      assignments = getActivePermissionAssignmentsForUser_(internalUserId);
+      assignedModules = buildAssignedAuthorizationModules_(assignments);
+    } catch (error) {
+      summary.invalid_users += 1;
+      users.push({ internal_user_id: internalUserId, invalid: true, modules: [] });
+      return;
+    }
+
+    if (assignments.length) summary.users_with_active_assignments += 1;
+    const moduleCodes = {};
+    Object.keys(managedLegacyModules).forEach(function(moduleCode) { moduleCodes[moduleCode] = true; });
+    Object.keys(assignedModules).forEach(function(moduleCode) {
+      if (AUTHORIZATION_SHADOW_MODULE_CODES.indexOf(moduleCode) !== -1) moduleCodes[moduleCode] = true;
+    });
+
+    const modules = Object.keys(moduleCodes).sort().map(function(moduleCode) {
+      const legacyCapabilities = managedLegacyModules[moduleCode]
+        ? managedLegacyModules[moduleCode].capabilities : [];
+      const assignedCapabilities = assignedModules[moduleCode]
+        ? assignedModules[moduleCode].capabilities : [];
+      const legacyScopes = authorizationScopeKeys_(managedLegacyModules[moduleCode]);
+      const assignedScopes = authorizationScopeKeys_(assignedModules[moduleCode]);
+      return {
+        module_code: moduleCode,
+        missing_capabilities: legacyCapabilities.filter(function(capability) {
+          return assignedCapabilities.indexOf(capability) === -1;
+        }),
+        extra_capabilities: assignedCapabilities.filter(function(capability) {
+          return legacyCapabilities.indexOf(capability) === -1;
+        }),
+        missing_scopes: legacyScopes.filter(function(scope) {
+          return assignedScopes.indexOf(scope) === -1;
+        }),
+        extra_scopes: assignedScopes.filter(function(scope) {
+          return legacyScopes.indexOf(scope) === -1;
+        })
+      };
+    }).filter(function(module) {
+      return module.missing_capabilities.length || module.extra_capabilities.length ||
+        module.missing_scopes.length || module.extra_scopes.length;
+    });
+
+    const missingCapabilities = modules.reduce(function(total, module) {
+      return total + module.missing_capabilities.length;
+    }, 0);
+    const extraCapabilities = modules.reduce(function(total, module) {
+      return total + module.extra_capabilities.length;
+    }, 0);
+    const missingScopes = modules.reduce(function(total, module) {
+      return total + module.missing_scopes.length;
+    }, 0);
+    const extraScopes = modules.reduce(function(total, module) {
+      return total + module.extra_scopes.length;
+    }, 0);
+
+    summary.missing_capabilities += missingCapabilities;
+    summary.extra_capabilities += extraCapabilities;
+    summary.missing_scopes += missingScopes;
+    summary.extra_scopes += extraScopes;
+    if (missingCapabilities || missingScopes) summary.users_requiring_additions += 1;
+    if (extraCapabilities || extraScopes) summary.users_requiring_removals += 1;
+    if (!modules.length) summary.equivalent_users += 1;
+    users.push({ internal_user_id: internalUserId, invalid: false, modules: modules });
+  });
+
+  summary.ok = summary.invalid_users === 0 &&
+    summary.users_requiring_additions === 0 &&
+    summary.users_requiring_removals === 0;
+  return { summary: summary, users: users };
+}
+
 function normalizeAuthorizationCutoverUserIds_(value) {
   const seen = {};
   return normalizeText(value).split(",").map(normalizeText).filter(function(userId) {
