@@ -699,3 +699,26 @@ test("旧権限移行プレビューは内部ID欠損と対象外利用者のact
   assert.equal(result.invalid_users, 0);
   assert.equal(result.invalid_assignments, 2);
 });
+
+test("旧権限移行分析は重複したactive内部IDを通常差分へ二重計上しない", () => {
+  const duplicateUser = {
+    internal_user_id: "U-DUPLICATE",
+    status: "active",
+    role: "member",
+    person_type: "internal",
+    allowed_modules: ["account_console"]
+  };
+  const { context } = createAuthorizationContext([], {
+    usersData: [duplicateUser, { ...duplicateUser }]
+  });
+  const analysis = context.analyzeAuthorizationLegacyAssignmentMigration_();
+
+  assert.equal(analysis.summary.ok, false);
+  assert.equal(analysis.summary.active_internal_users, 2);
+  assert.equal(analysis.summary.invalid_users, 2);
+  assert.equal(analysis.summary.missing_capabilities, 0);
+  assert.equal(analysis.summary.missing_scopes, 0);
+  assert.equal(analysis.users.length, 2);
+  assert.ok(analysis.users.every((user) => user.invalid === true));
+  assert.ok(analysis.users.every((user) => user.classification === "invalid_user"));
+});

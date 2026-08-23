@@ -260,14 +260,26 @@ function analyzeAuthorizationLegacyAssignmentMigration_() {
       getNormalizedPersonType(user) === "internal";
   });
   const activeInternalUserIds = {};
+  const activeInternalUserIdCounts = {};
+  const invalidInternalUserIds = {};
   const assignmentRowsByUser = {};
   const today = Utilities.formatDate(new Date(), "Asia/Tokyo", "yyyy-MM-dd");
 
   summary.active_internal_users = activeUsers.length;
   activeUsers.forEach(function(user) {
     const internalUserId = normalizeText(user.internal_user_id);
-    if (!internalUserId || activeInternalUserIds[internalUserId]) {
+    if (!internalUserId) {
       summary.invalid_users += 1;
+      return;
+    }
+    activeInternalUserIdCounts[internalUserId] =
+      (activeInternalUserIdCounts[internalUserId] || 0) + 1;
+  });
+  Object.keys(activeInternalUserIdCounts).forEach(function(internalUserId) {
+    const count = activeInternalUserIdCounts[internalUserId];
+    if (count > 1) {
+      summary.invalid_users += count;
+      invalidInternalUserIds[internalUserId] = true;
       return;
     }
     activeInternalUserIds[internalUserId] = true;
@@ -302,9 +314,9 @@ function analyzeAuthorizationLegacyAssignmentMigration_() {
 
   activeUsers.forEach(function(user) {
     const internalUserId = normalizeText(user.internal_user_id);
-    if (!internalUserId) {
+    if (!internalUserId || invalidInternalUserIds[internalUserId]) {
       users.push({
-        internal_user_id: "",
+        internal_user_id: internalUserId,
         invalid: true,
         classification: "invalid_user",
         modules: []
