@@ -514,5 +514,6 @@
 - 切替後の読み取り確認で、active内部利用者9名に対して有効な新権限割当は開発管理用アカウントのShift権限だけであり、旧管理対象権限を持つ利用者は8名だったことを確認した。移行済みID集合への包含は「割当内容を確認済み」であることを表さず、割当0件を意図的な剥奪として許容する契約のため、件数プレビューだけでは業務アクセス喪失を検出できなかった。
 - 業務アクセス喪失を避けるため、えいちの明示承認後に `runAuthorizationEffectiveRollback` を実行し、`AUTHORIZATION_ENFORCEMENT_MODE=shadow`、`AUTHORIZATION_CUTOVER_ENABLED=false`、一時的な実行者・理由の削除を実画面で確認した。復帰後の `runAuthorizationIntegrityAudit` は開始後に例外なく完了した。利用者、権限割当、組織、申請データはこのロールバックで変更していない。
 - 今回限りの監査独立性例外は、最初の切替操作とその後のロールバックによって失効した。再切替には、既存記録どおり新たな例外決裁または実装者・承認者とは別の第三者監査担当の再決裁を必要とする。
-- 再切替前に旧権限と新割当を利用者ごとに比較するため、読み取り専用の `runAuthorizationLegacyAssignmentMigrationPreview` と内部分析関数をローカル実装した。不足capability、余剰capability、scope不足、scope余剰、意図的な権限なしを分けて件数化し、実行ログと公開戻り値には内部ID・氏名・メールを含めない。詳細な内部ID対応は実行時メモリだけで扱い、公開リポジトリへ保存しない。
-- 回帰テスト2件を追加し、権限Shadow・切替テスト29件、Account Console全145テストが成功、失敗・スキップ0件だった。本節末時点ではローカル変更であり、commit、push、PR、merge、Account GAS反映、権限割当変更、再切替は未実施である。
+- 再切替前に旧権限と新割当を利用者ごとに比較するため、読み取り専用の `runAuthorizationLegacyAssignmentMigrationPreview` と内部分析関数をローカル実装した。不足capability、余剰capability、scope不足、scope余剰、旧権限・新割当とも0件、非0件の完全一致を分けて件数化する。active割当行は全件を先に検証し、内部ID欠損、不正な権限契約、現在のactive内部利用者に属さない割当を `invalid_assignments` として安全側で拒否する。人間の承認記録がない0件を「意図的」とは断定しない。
+- 実行ログと公開戻り値には内部ID・氏名・メール・利用者一覧を含めない。詳細な内部ID対応は実行時メモリだけで扱い、公開リポジトリへ保存しない。PII非出力テストは内部ID、氏名、メール、識別用キーを戻り値とログの両方で検証する。
+- 初回回帰テスト2件に監査指摘対応1件を加え、権限Shadow・切替テスト30件、Account Console全146テストを対象とする。本節末時点ではローカル修正であり、再テスト、追加commit、push、PR、merge、Account GAS反映、権限割当変更、再切替は未実施である。
