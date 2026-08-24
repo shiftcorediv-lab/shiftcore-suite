@@ -507,3 +507,13 @@
 - 読み取り専用の `runAuthorizationEffectiveCutoverPreview` を追加し、既存previewの戻り値を `AUTHORIZATION_CUTOVER_PREVIEW` に続くJSONとして実行ログへ出す。出力はmodeと件数だけで、内部ID一覧を含めず、権限modeやScript Propertiesを変更しない。
 - 内部ID非出力と件数ログを固定する回帰テストを追加し、権限Shadow・切替テスト27件、Account Console全142テストが成功、失敗・スキップ0件だった。
 - 第58版への反映、実行ログの件数確認、移行対象確定が完了するまで、切替用Script Properties設定と `runAuthorizationEffectiveCutover` は行わない。
+
+## 2026-08-23 実効切替の即時ロールバックと移行診断の追加
+
+- Account GAS第59版で監査ログ日時の1桁時刻表示を正規化し、切替前の整合性監査が例外なく完了した。その後、えいちの明示決裁により実効切替を1回実行し、`mode=effective`、切替許可の消費、直後の整合性監査完了を確認した。
+- 切替後の読み取り確認で、active内部利用者9名に対して有効な新権限割当は開発管理用アカウントのShift権限だけであり、旧管理対象権限を持つ利用者は8名だったことを確認した。移行済みID集合への包含は「割当内容を確認済み」であることを表さず、割当0件を意図的な剥奪として許容する契約のため、件数プレビューだけでは業務アクセス喪失を検出できなかった。
+- 業務アクセス喪失を避けるため、えいちの明示承認後に `runAuthorizationEffectiveRollback` を実行し、`AUTHORIZATION_ENFORCEMENT_MODE=shadow`、`AUTHORIZATION_CUTOVER_ENABLED=false`、一時的な実行者・理由の削除を実画面で確認した。復帰後の `runAuthorizationIntegrityAudit` は開始後に例外なく完了した。利用者、権限割当、組織、申請データはこのロールバックで変更していない。
+- 今回限りの監査独立性例外は、最初の切替操作とその後のロールバックによって失効した。再切替には、既存記録どおり新たな例外決裁または実装者・承認者とは別の第三者監査担当の再決裁を必要とする。
+- 再切替前に旧権限と新割当を利用者ごとに比較するため、読み取り専用の `runAuthorizationLegacyAssignmentMigrationPreview` と内部分析関数をローカル実装した。不足capability、余剰capability、scope不足、scope余剰、旧権限・新割当とも0件、非0件の完全一致を分けて件数化する。active割当行は全件を先に検証し、内部ID欠損、不正な権限契約、現在のactive内部利用者に属さない割当を `invalid_assignments` として安全側で拒否する。人間の承認記録がない0件を「意図的」とは断定しない。
+- 実行ログと公開戻り値には内部ID・氏名・メール・利用者一覧を含めない。詳細な内部ID対応は実行時メモリだけで扱い、公開リポジトリへ保存しない。PII非出力テストは内部ID、氏名、メール、識別用キーを戻り値とログの両方で検証する。
+- 初回回帰テスト2件に監査指摘対応2件を加え、権限Shadow・切替テスト31件、Account Console全147テストが成功し、失敗・スキップ0件だった。最初の再監査ではactive内部利用者ID重複時の二重集計がLow所見となったため、重複IDに属する全利用者行を通常差分から除外して `invalid_user` とし、差分件数を水増ししない回帰テストを追加した。本節末時点ではローカル修正であり、追加commit、push、PR、merge、Account GAS反映、権限割当変更、再切替は未実施である。

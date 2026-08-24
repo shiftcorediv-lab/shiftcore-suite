@@ -127,6 +127,7 @@ function createAuthorizationContext(assignmentRows = [], options = {}) {
     }),
     getUsersData: () => {
       if (options.organizationReadFails) throw new Error("READ_FAILED");
+      if (options.usersData) return options.usersData;
       return [{
         internal_user_id: "U-1",
         status: "active",
@@ -589,4 +590,135 @@ test("Shadowログへ書く文字列が数式記号から始まる場合は無�
   assert.equal(logRow[12], "organization:=IMPORTDATA(\"https://example.invalid\")");
   assert.equal(context.escapeAuthorizationSheetText_("=1+1"), "'=1+1");
   assert.equal(context.escapeAuthorizationSheetText_("@SUM(A1)"), "'@SUM(A1)");
+});
+
+test("旧権限移行プレビューは不足を集計し利用者IDをログへ出さない", () => {
+  const usersData = [
+    {
+      internal_user_id: "U-SECRET-1",
+      status: "active",
+      role: "member",
+      person_type: "internal",
+      display_name: "秘密太郎",
+      email: "secret-one@example.com",
+      allowed_modules: ["account_console", "ordercase"],
+      ordercase_permission: "view"
+    },
+    {
+      internal_user_id: "U-SECRET-2",
+      status: "active",
+      role: "member",
+      person_type: "internal",
+      allowed_modules: []
+    },
+    {
+      internal_user_id: "U-EXTERNAL",
+      status: "active",
+      role: "member",
+      person_type: "external",
+      allowed_modules: ["account_console"]
+    }
+  ];
+  const { context, executionLogs } = createAuthorizationContext([], { usersData });
+  const result = context.runAuthorizationLegacyAssignmentMigrationPreview();
+
+  assert.equal(result.ok, false);
+  assert.equal(result.active_internal_users, 2);
+  assert.equal(result.users_with_legacy_access, 1);
+  assert.equal(result.users_requiring_additions, 1);
+  assert.equal(result.missing_capabilities, 8);
+  assert.equal(result.missing_scopes, 2);
+  assert.equal(executionLogs.length, 1);
+  assert.match(executionLogs[0], /^AUTHORIZATION_LEGACY_MIGRATION_PREVIEW /);
+  const publicOutput = JSON.stringify({ result, executionLogs });
+  assert.doesNotMatch(publicOutput, /U-SECRET|秘密太郎|secret-one@example\.com/);
+  assert.doesNotMatch(publicOutput, /"users"|"internal_user_id"|"email"|"display_name"/);
+});
+
+test("旧権限移行分析は余剰権限・ゼロ権限・非ゼロ完全一致を区別する", () => {
+  const usersData = [
+    {
+      internal_user_id: "U-1",
+      status: "active",
+      role: "member",
+      person_type: "internal",
+      allowed_modules: ["ordercase"],
+      ordercase_permission: "view_without_amount"
+    },
+    {
+      internal_user_id: "U-2",
+      status: "active",
+      role: "member",
+      person_type: "internal",
+      allowed_modules: []
+    },
+    {
+      internal_user_id: "U-3",
+      status: "active",
+      role: "member",
+      person_type: "internal",
+      allowed_modules: ["ordercase"],
+      ordercase_permission: "view_without_amount"
+    }
+  ];
+  const rows = [
+    ["PA-1", "U-1", "ordercase", "ordercase.view", "all", "", "active", "", "", "", "", ""],
+    ["PA-2", "U-1", "ordercase", "ordercase.amount.view", "all", "", "active", "", "", "", "", ""],
+    ["PA-3", "U-3", "ordercase", "ordercase.view", "all", "", "active", "", "", "", "", ""]
+  ];
+  const { context } = createAuthorizationContext(rows, { usersData });
+  const analysis = context.analyzeAuthorizationLegacyAssignmentMigration_();
+
+  assert.equal(analysis.summary.active_internal_users, 3);
+  assert.equal(analysis.summary.equivalent_users, 2);
+  assert.equal(analysis.summary.users_with_no_legacy_or_assignments, 1);
+  assert.equal(analysis.summary.equivalent_nonzero_users, 1);
+  assert.equal(analysis.summary.users_requiring_additions, 0);
+  assert.equal(analysis.summary.users_requiring_removals, 1);
+  assert.equal(analysis.summary.extra_capabilities, 1);
+  assert.equal(analysis.users[1].classification, "no_legacy_or_assignments");
+  assert.equal(analysis.users[2].classification, "equivalent_nonzero");
+});
+
+test("旧権限移行プレビューは内部ID欠損と対象外利用者のactive割当を拒否する", () => {
+  const usersData = [{
+    internal_user_id: "U-1",
+    status: "active",
+    role: "member",
+    person_type: "internal",
+    allowed_modules: []
+  }];
+  const rows = [
+    ["PA-1", "", "ordercase", "ordercase.view", "all", "", "active", "", "", "", "", ""],
+    ["PA-2", "U-UNKNOWN", "ordercase", "ordercase.view", "all", "", "active", "", "", "", "", ""]
+  ];
+  const { context } = createAuthorizationContext(rows, { usersData });
+  const result = context.runAuthorizationLegacyAssignmentMigrationPreview();
+
+  assert.equal(result.ok, false);
+  assert.equal(result.invalid_users, 0);
+  assert.equal(result.invalid_assignments, 2);
+});
+
+test("旧権限移行分析は重複したactive内部IDを通常差分へ二重計上しない", () => {
+  const duplicateUser = {
+    internal_user_id: "U-DUPLICATE",
+    status: "active",
+    role: "member",
+    person_type: "internal",
+    allowed_modules: ["account_console"]
+  };
+  const { context } = createAuthorizationContext([], {
+    usersData: [duplicateUser, { ...duplicateUser }]
+  });
+  const analysis = context.analyzeAuthorizationLegacyAssignmentMigration_();
+
+  assert.equal(analysis.summary.ok, false);
+  assert.equal(analysis.summary.active_internal_users, 2);
+  assert.equal(analysis.summary.invalid_users, 2);
+  assert.equal(analysis.summary.missing_capabilities, 0);
+  assert.equal(analysis.summary.missing_scopes, 0);
+  assert.equal(analysis.users.length, 2);
+  assert.ok(analysis.users.every((user) => user.invalid === true));
+  assert.ok(analysis.users.every((user) => user.classification === "invalid_user"));
 });
