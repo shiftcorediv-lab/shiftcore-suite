@@ -338,3 +338,12 @@ PR #45はsquash mergeされ、GitHub mainは `4d3d9eca431a41a5a5313841eac1153895
 - Account GAS第62版 `03 guarded authorization migration apply 2026-08-24` を作成し、既存WebアプリURLを第62版へ更新した。既存URLのpingは `success=true`、`message=pong` を返し、反映後に再取得した23ファイルは送信元と完全一致した。
 - Apps Scriptエディタから `runAuthorizationLegacyAssignmentMigrationPlanPreview` を1回実行し、開始、件数と計画ハッシュ、完了を確認した。結果はShadow、計画ハッシュ `DWyknJz-j34g4h7CYmpo04WXfkPJRSaqe_VvmkrDbYA`、Account Console 36行追加、OrderCase 56行追加、Shift 12行追加・4行アーカイブ・3行維持、合計104行追加・4行アーカイブ・3行維持、不正利用者・不正割当0件で、承認済み計画と一致した。
 - 本節では権限割当、Script Properties、組織、利用者、申請データ、監査ログ、実効modeを変更していない。権限移行とShadowからの再切替は未実施である。移行用Script Propertiesの設定と移行関数の実行は、えいちの別決裁まで行わない。
+
+## 17. 2026-08-24 旧権限同等の一括移行実行結果
+
+- えいちの別決裁後、移行中は権限割当シートを手動編集しないよう依頼し、移行実行者、理由、承認済み計画ハッシュ、一回許可をScript Propertiesへ設定した。他writerの実行有無は未確認である。内部ユーザーID、メール、設定値の実値は本記録へ転記していない。
+- Apps Scriptエディタから `runAuthorizationLegacyAssignmentMigrationApply` を1回だけ実行した。実行ログは開始と完了を記録し、例外、`AUTHORIZATION_MIGRATION_RECOVERY_REQUIRED`、`recovery_required` は表示されなかった。
+- 実行直後の読み取り専用計画プレビューは `mode=shadow`、`ok=true`、追加0行、アーカイブ0行、維持107行、Account Console・OrderCase・Shiftの追加・アーカイブ0行、不正利用者0件、不正割当0件だった。移行前の固定計画である追加104行、Shift 4行アーカイブ、既存3行維持は解消された。
+- Script Propertiesは `AUTHORIZATION_MIGRATION_ENABLED=false`、`AUTHORIZATION_ENFORCEMENT_MODE=shadow` で、移行実行者、理由、承認済み計画ハッシュの一時設定は削除済みだった。
+- Codexが本工程で実行した業務データ変更は、固定計画に基づく権限割当104行の追加と既存Shift割当4行のアーカイブだけである。利用者、組織、申請データ、実効modeを変更する操作は行っていない。内部ユーザーID、割当ID、氏名、メール、対象一覧は公開ログと本記録へ含めていない。
+- 権限移行完了後もShadow運用を維持する。読み取り専用の移行診断と切替プレビュー、独立監査、既存の監査独立性条件、えいちの再切替決裁が完了するまで `runAuthorizationEffectiveCutover` を実行しない。
