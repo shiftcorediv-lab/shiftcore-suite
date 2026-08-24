@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import vm from "node:vm";
 
 const assignmentHeaders = [
@@ -61,6 +62,7 @@ function createAuthorizationContext(assignmentRows = [], options = {}) {
   const authorizationLogs = [];
   const executionLogs = [];
   const permissionSheet = createSheet([assignmentHeaders, ...assignmentRows]);
+  let usersReadCount = 0;
   const shadowSheet = createSheet([shadowHeaders]);
   const spreadsheet = {
     getSheetByName(name) {
@@ -77,7 +79,13 @@ function createAuthorizationContext(assignmentRows = [], options = {}) {
     },
     Utilities: {
       formatDate: () => "2026-08-07",
-      getUuid: () => "UUID-1"
+      getUuid: () => "UUID-1",
+      DigestAlgorithm: { SHA_256: "SHA_256" },
+      Charset: { UTF_8: "UTF_8" },
+      computeDigest: (_algorithm, value) => Array.from(
+        createHash("sha256").update(String(value), "utf8").digest()
+      ),
+      base64EncodeWebSafe: (bytes) => Buffer.from(bytes).toString("base64url")
     },
     PropertiesService: {
       getScriptProperties: () => ({
@@ -122,10 +130,11 @@ function createAuthorizationContext(assignmentRows = [], options = {}) {
         base_area: "関西",
         allowed_modules: options.allowedModules || ["ordercase", "shift"],
         ordercase_permission: "edit",
-        shiftbuilder_permission: "self"
+        shiftbuilder_permission: options.shiftbuilderPermission || "self"
       }
     }),
     getUsersData: () => {
+      usersReadCount += 1;
       if (options.organizationReadFails) throw new Error("READ_FAILED");
       if (options.usersData) return options.usersData;
       return [{
@@ -136,7 +145,7 @@ function createAuthorizationContext(assignmentRows = [], options = {}) {
         person_type: "internal",
         allowed_modules: options.allowedModules || ["ordercase", "shift"],
         ordercase_permission: "edit",
-        shiftbuilder_permission: "self",
+        shiftbuilder_permission: options.shiftbuilderPermission || "self",
         organization_level: options.organizationLevel || ""
       }];
     },
@@ -176,7 +185,8 @@ function createAuthorizationContext(assignmentRows = [], options = {}) {
     shadowSheet,
     propertyValues,
     authorizationLogs,
-    executionLogs
+    executionLogs,
+    get usersReadCount() { return usersReadCount; }
   };
 }
 
@@ -403,6 +413,117 @@ test("切替プレビュー実行関数は内部IDを含めず件数結果だけ
   assert.equal(logged.active_internal_users, 1);
   assert.equal(logged.configured_users, 1);
   assert.equal(Object.hasOwn(logged, "internal_user_ids"), false);
+});
+
+test("移行計画は旧権限同等の追加と余剰割当のアーカイブを集計する", () => {
+  const { context } = createAuthorizationContext([
+    ["PA-KEEP", "U-1", "shift", "shift.view.all", "all", "", "active", "", "", "", "", ""],
+    ["PA-EXTRA", "U-1", "shift", "shift.override", "all", "", "active", "", "", "", "", ""]
+  ], { allowedModules: ["shift"], userRole: "member", shiftbuilderPermission: "edit" });
+  const result = context.buildAuthorizationLegacyAssignmentMigrationPlan_();
+
+  assert.equal(result.summary.additions, 2);
+  assert.equal(result.summary.archives, 1);
+  assert.equal(result.summary.unchanged_assignments, 1);
+  assert.equal(result.summary.by_module.shift.additions, 2);
+  assert.equal(result.summary.by_module.shift.archives, 1);
+  assert.equal(result.additions.every((item) => item.scope_type === "all"), true);
+  assert.deepEqual(Array.from(result.archives, (item) => item.permission_assignment_id), ["PA-EXTRA"]);
+});
+
+test("移行計画ログは内部IDと割当IDを公開しない", () => {
+  const { context, executionLogs } = createAuthorizationContext([], {
+    allowedModules: ["shift"],
+    userRole: "member",
+    shiftbuilderPermission: "edit"
+  });
+  const summary = context.runAuthorizationLegacyAssignmentMigrationPlanPreview();
+
+  assert.equal(summary.additions, 3);
+  assert.equal(executionLogs.length, 1);
+  assert.match(executionLogs[0], /^AUTHORIZATION_LEGACY_MIGRATION_PLAN /);
+  assert.equal(executionLogs[0].includes("U-1"), false);
+  assert.equal(executionLogs[0].includes("permission_assignment_id"), false);
+  assert.equal(executionLogs[0].includes("developer@example.com"), false);
+  assert.equal(Object.hasOwn(summary, "additions"), true);
+  assert.equal(Array.isArray(summary.additions), false);
+  assert.equal(Object.hasOwn(summary, "archives"), true);
+  assert.equal(Array.isArray(summary.archives), false);
+  assert.equal(typeof summary.plan_hash, "string");
+  assert.ok(summary.plan_hash.length > 20);
+});
+
+test("移行計画は同一スナップショットを検証・計画・ハッシュへ使用する", () => {
+  const state = createAuthorizationContext([], {
+    allowedModules: ["shift"],
+    userRole: "member",
+    shiftbuilderPermission: "edit"
+  });
+  state.context.buildAuthorizationLegacyAssignmentMigrationPlan_();
+
+  assert.equal(state.usersReadCount, 1);
+  assert.equal(state.permissionSheet.readCount, 1);
+});
+
+test("移行計画は同一組合せを1行維持し別IDの重複行だけをアーカイブする", () => {
+  const { context } = createAuthorizationContext([
+    ["PA-KEEP", "U-1", "shift", "shift.view.all", "all", "", "active", "", "", "", "", ""],
+    ["PA-DUP", "U-1", "shift", "shift.view.all", "all", "", "active", "", "", "", "", ""]
+  ], { allowedModules: ["shift"], userRole: "member" });
+  const result = context.buildAuthorizationLegacyAssignmentMigrationPlan_();
+
+  assert.equal(result.summary.unchanged_assignments, 1);
+  assert.equal(result.summary.archives, 1);
+  assert.equal(result.archives[0].permission_assignment_id, "PA-DUP");
+});
+
+test("移行計画は停止中・期限外・対象外moduleをアーカイブ候補にしない", () => {
+  const { context } = createAuthorizationContext([
+    ["PA-INACTIVE", "U-1", "shift", "shift.override", "all", "", "inactive", "", "", "", "", ""],
+    ["PA-EXPIRED", "U-1", "shift", "shift.override", "all", "", "active", "2026-01-01", "2026-01-02", "", "", ""],
+    ["PA-ATTENDANCE", "U-1", "attendance", "attendance.team.view", "self", "", "active", "", "", "", "", ""]
+  ], { allowedModules: ["shift"], userRole: "member" });
+  const result = context.buildAuthorizationLegacyAssignmentMigrationPlan_();
+
+  assert.equal(result.summary.archives, 0);
+});
+
+test("移行計画は現在有効な管理対象割当のID欠損と重複を拒否する", () => {
+  const missing = createAuthorizationContext([
+    ["", "U-1", "shift", "shift.override", "all", "", "active", "", "", "", "", ""]
+  ], { allowedModules: ["shift"], userRole: "member" });
+  assert.throws(
+    () => missing.context.buildAuthorizationLegacyAssignmentMigrationPlan_(),
+    /AUTHORIZATION_MIGRATION_SOURCE_INVALID/
+  );
+
+  const duplicate = createAuthorizationContext([
+    ["PA-DUP", "U-1", "shift", "shift.view.all", "all", "", "active", "", "", "", "", ""],
+    ["PA-DUP", "U-1", "shift", "shift.override", "all", "", "active", "", "", "", "", ""]
+  ], { allowedModules: ["shift"], userRole: "member" });
+  assert.throws(
+    () => duplicate.context.buildAuthorizationLegacyAssignmentMigrationPlan_(),
+    /AUTHORIZATION_MIGRATION_SOURCE_INVALID/
+  );
+});
+
+test("移行計画ハッシュは同一入力で安定しアーカイブ割当ID変更を検出する", () => {
+  const rows = [[
+    "PA-EXTRA", "U-1", "shift", "shift.override", "all", "", "active", "", "", "", "", ""
+  ]];
+  const first = createAuthorizationContext(rows, {
+    allowedModules: ["shift"], userRole: "member"
+  }).context.buildAuthorizationLegacyAssignmentMigrationPlan_().summary.plan_hash;
+  const second = createAuthorizationContext(rows, {
+    allowedModules: ["shift"], userRole: "member"
+  }).context.buildAuthorizationLegacyAssignmentMigrationPlan_().summary.plan_hash;
+  const changed = createAuthorizationContext([
+    ["PA-CHANGED", "U-1", "shift", "shift.override", "all", "", "active", "", "", "", "", ""]
+  ], { allowedModules: ["shift"], userRole: "member" })
+    .context.buildAuthorizationLegacyAssignmentMigrationPlan_().summary.plan_hash;
+
+  assert.equal(first, second);
+  assert.notEqual(first, changed);
 });
 
 test("承認済み切替は監査開始成功を記録してeffectiveへ移る", () => {
