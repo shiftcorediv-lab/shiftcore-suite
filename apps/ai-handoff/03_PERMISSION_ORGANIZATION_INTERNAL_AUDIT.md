@@ -517,3 +517,13 @@
 - 再切替前に旧権限と新割当を利用者ごとに比較するため、読み取り専用の `runAuthorizationLegacyAssignmentMigrationPreview` と内部分析関数をローカル実装した。不足capability、余剰capability、scope不足、scope余剰、旧権限・新割当とも0件、非0件の完全一致を分けて件数化する。active割当行は全件を先に検証し、内部ID欠損、不正な権限契約、現在のactive内部利用者に属さない割当を `invalid_assignments` として安全側で拒否する。人間の承認記録がない0件を「意図的」とは断定しない。
 - 実行ログと公開戻り値には内部ID・氏名・メール・利用者一覧を含めない。詳細な内部ID対応は実行時メモリだけで扱い、公開リポジトリへ保存しない。PII非出力テストは内部ID、氏名、メール、識別用キーを戻り値とログの両方で検証する。
 - 初回回帰テスト2件に監査指摘対応2件を加え、権限Shadow・切替テスト31件、Account Console全147テストが成功し、失敗・スキップ0件だった。最初の再監査ではactive内部利用者ID重複時の二重集計がLow所見となったため、重複IDに属する全利用者行を通常差分から除外して `invalid_user` とし、差分件数を水増ししない回帰テストを追加した。本節末時点ではローカル修正であり、追加commit、push、PR、merge、Account GAS反映、権限割当変更、再切替は未実施である。
+
+## 2026-08-24 移行診断のmain統合・第60版本番結果
+
+- 最終独立再監査は、重複active内部利用者IDの拒否を含む固定head `f806d836a69c34701d8ba5e6a47a7ab685cce3e3` を承認した。PR #49はmerge commit `4e09bcb8c9583fd7d4288cdbd6744407c30082ec` としてmainへ統合した。
+- 本番第59版を一時領域へ読み取り取得し、ローカル正本との差分が今回対象の `authorization.js` と、対象外の `account_console_logs.js` 先頭空行だけであることを確認した。対象外空行を維持し、第59版ソースへ `authorization.js` だけを重ねた。
+- Account GAS第60版 `03 legacy authorization migration preview 2026-08-24` を作成し、既存WebアプリURLを第59版から第60版へ更新した。既存URLのpingは `success=true`、`message=pong` を返し、反映後に再取得した23ファイルは送信元と完全一致した。
+- `clasp run runAuthorizationLegacyAssignmentMigrationPreview` は既知のstorage `NOT_FOUND`で結果を取得できなかったため、同じ経路を再試行せずApps Scriptエディタへ切り替えた。エディタ実行ログは開始、`AUTHORIZATION_LEGACY_MIGRATION_PREVIEW`、完了の順で記録された。
+- 診断結果は `mode=shadow`、active内部利用者9名、旧管理対象権限あり8名、新管理対象割当あり1名、完全一致1名、そのうち旧権限・新割当とも0件が1名、追加が必要な利用者8名、削除が必要な利用者1名、不足capability 104件、余剰capability 4件、不足scope 18件、余剰scope 0件、不正利用者0件、不正割当0件、`ok=false`だった。非0件の完全一致は0名である。
+- 実行ログと本記録に内部ユーザーID、氏名、メール、利用者一覧は含めていない。第60版反映と読み取り専用診断において、権限割当、Script Properties、組織、利用者、申請、監査ログのデータ変更は行っていない。
+- `ok=false`のため実効切替は行わない。不足・余剰capabilityとscope差を、旧権限同等の移行案または意図的な変更として個別承認できる単位へ分解する。再切替には、差分解消または個別承認に加え、新たな監査例外決裁または実装者・承認者とは別の第三者監査担当の再決裁、独立監査、えいちの切替決裁を必要とする。
