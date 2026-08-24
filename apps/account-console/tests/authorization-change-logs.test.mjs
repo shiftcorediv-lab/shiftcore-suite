@@ -205,6 +205,30 @@ test("startedのままのイベントと復旧プロパティを異常として�
   assert.deepEqual(Array.from(result.recovery_required), ["AUTHORIZATION_RECOVERY_ACE_2"]);
 });
 
+test("処理中イベントだけ未完了判定から除外し他の異常は維持する", () => {
+  const { context } = createContext({
+    recoveryProperties: { AUTHORIZATION_RECOVERY_ACE_3: "{}" }
+  });
+  context.appendAuthorizationChangeLog_({
+    authorization_event_id: "ACE-CURRENT",
+    event_type: "authorization.assignment.migration",
+    result: "started"
+  });
+  context.appendAuthorizationChangeLog_({
+    authorization_event_id: "ACE-OTHER",
+    event_type: "organization.update",
+    result: "started"
+  });
+
+  const result = context.verifyAuthorizationChangeLogIntegrity_({
+    ignore_incomplete_event_id: "ACE-CURRENT"
+  });
+
+  assert.equal(result.healthy, false);
+  assert.deepEqual(Array.from(result.incomplete_events), ["ACE-OTHER"]);
+  assert.deepEqual(Array.from(result.recovery_required), ["AUTHORIZATION_RECOVERY_ACE_3"]);
+});
+
 test("監査ログの改変をハッシュ不一致として検出する", () => {
   const { context, rows } = createContext();
   context.appendAuthorizationChangeLog_({

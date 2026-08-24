@@ -318,3 +318,15 @@ PR #45はsquash mergeされ、GitHub mainは `4d3d9eca431a41a5a5313841eac1153895
 - Apps Scriptエディタから `runAuthorizationLegacyAssignmentMigrationPlanPreview` を1回実行した。実行ログは開始、件数と計画ハッシュだけを含む `AUTHORIZATION_LEGACY_MIGRATION_PLAN`、完了の順で記録され、内部ID、割当ID、氏名、メール、対象一覧を出力していない。
 - 本番計画はShadowのまま、Account Console 36行追加、OrderCase 56行追加、Shift 12行追加・4行アーカイブ・3行維持、合計104行追加・4行アーカイブ・3行維持、不正利用者・不正割当0件だった。計画ハッシュは `DWyknJz-j34g4h7CYmpo04WXfkPJRSaqe_VvmkrDbYA` である。
 - 本節では権限割当、Script Properties、組織、利用者、申請データ、監査ログ、実効modeを変更していない。一括移行本体は未実装、権限移行は未実施である。実効切替機構は実装・本番反映済みだが、Shadowからの再切替は未実施である。権限移行と再切替は、それぞれ既存の独立監査・監査独立性条件と、えいちの別決裁を必要とする。
+
+## 15. 旧権限同等の一括移行実行条件
+
+一括移行本体はローカル実装済みだが、本番未反映・未実行である。独立監査とmain統合後も、Account GASへのコード反映と、権限割当を書き換える移行実行を同じ決裁で扱わない。
+
+1. Account GASへ反映後、読み取り専用プレビューを再実行し、計画ハッシュが `DWyknJz-j34g4h7CYmpo04WXfkPJRSaqe_VvmkrDbYA`、追加104行、アーカイブ4行、維持3行、不正利用者・不正割当0件であることを確認する。異なる場合はScript Propertiesを設定せず停止する。
+2. 権限移行のえいち決裁後に限り、Script Propertiesへ移行実行者、理由、承認済み計画ハッシュ、一回許可を設定する。実値、内部ID、メールを公開資料へ記録しない。
+3. 移行開始から事後確認完了まで、権限割当シートの手動編集と、同じシートへ書き込む他処理を停止する。Script LockはApps Script間の協調には使えるが、人がGoogle Sheetsを直接編集する操作を遮断しない。
+4. Apps Scriptエディタから `runAuthorizationLegacyAssignmentMigrationApply` を1回だけ実行する。関数はShadow、Script Lock、active内部developer本人照合、承認ハッシュ、事前整合性監査を再確認し、一回許可を消費してから書き込む。事後監査は現在処理中のイベントだけを未完了判定から除外し、他の異常検出を維持する。
+5. startedとsuccessが同じ監査イベントで記録され、実行後プレビューが追加0行・アーカイブ0行・不正0件となることを確認する。success後にerrorまたはrecovery_requiredがある場合は時系列上で最後の終端状態を採用し、成功扱いしない。権限割当行数、active／archived件数、実効modeがShadowであることも読み取り確認する。
+6. `AUTHORIZATION_MIGRATION_RECOVERY_REQUIRED` または `recovery_required` が出た場合は再実行せず、実効切替を禁止し、追加行とアーカイブ対象行を固定ハッシュ時点の計画および監査ログと照合して手動復旧を判断する。
+7. 権限移行完了後も直ちに再切替しない。読み取り専用診断と切替プレビュー、独立監査、既存の監査独立性条件、えいちの再切替決裁を別工程として実施する。
