@@ -243,6 +243,383 @@ function runAuthorizationLegacyAssignmentMigrationPlanPreview() {
   return summary;
 }
 
+function runAuthorizationLegacyAssignmentMigrationApply() {
+  const properties = PropertiesService.getScriptProperties();
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) {
+    throw authorizationCutoverError_("AUTHORIZATION_MIGRATION_LOCK_TIMEOUT");
+  }
+
+  const eventId = "AME-" + Utilities.getUuid();
+  let actor = null;
+  let reason = "";
+  let plan = null;
+  let startedLogged = false;
+  let writeSnapshot = null;
+  try {
+    if (resolveAuthorizationEnforcementMode_() !== "shadow") {
+      throw authorizationCutoverError_("AUTHORIZATION_MIGRATION_REQUIRES_SHADOW");
+    }
+    if (normalizeText(properties.getProperty(
+      AUTHORIZATION_MIGRATION_ENABLED_PROPERTY
+    )).toLowerCase() !== "true") {
+      throw authorizationCutoverError_("AUTHORIZATION_MIGRATION_NOT_APPROVED");
+    }
+    const actorId = normalizeText(properties.getProperty(
+      AUTHORIZATION_MIGRATION_ACTOR_ID_PROPERTY
+    ));
+    reason = normalizeText(properties.getProperty(
+      AUTHORIZATION_MIGRATION_REASON_PROPERTY
+    ));
+    actor = assertAuthorizationMigrationActor_(actorId, reason);
+    const approvedPlanHash = normalizeText(properties.getProperty(
+      AUTHORIZATION_MIGRATION_APPROVED_PLAN_HASH_PROPERTY
+    ));
+    if (!approvedPlanHash) {
+      throw authorizationCutoverError_("AUTHORIZATION_MIGRATION_PLAN_NOT_APPROVED");
+    }
+
+    plan = buildAuthorizationLegacyAssignmentMigrationPlan_();
+    if (plan.summary.plan_hash !== approvedPlanHash) {
+      const mismatch = authorizationCutoverError_("AUTHORIZATION_MIGRATION_PLAN_CHANGED");
+      mismatch.details = {
+        expected_plan_hash: approvedPlanHash,
+        actual_plan_hash: plan.summary.plan_hash
+      };
+      throw mismatch;
+    }
+    if (plan.summary.invalid_users || plan.summary.invalid_assignments) {
+      throw authorizationCutoverError_("AUTHORIZATION_MIGRATION_SOURCE_INVALID");
+    }
+    if (plan.summary.ok) {
+      throw authorizationCutoverError_("AUTHORIZATION_MIGRATION_NOT_REQUIRED");
+    }
+    runAuthorizationIntegrityAudit();
+    properties.setProperty(AUTHORIZATION_MIGRATION_ENABLED_PROPERTY, "false");
+    appendAuthorizationChangeLog_({
+      authorization_event_id: eventId,
+      event_type: "authorization.assignment.migration",
+      actor_internal_user_id: actor.internal_user_id,
+      before: { mode: "shadow", plan_hash: approvedPlanHash },
+      after: authorizationMigrationLogSummary_(plan.summary),
+      reason: reason,
+      result: "started",
+      source: "authorization_migration"
+    });
+    startedLogged = true;
+
+    writeSnapshot = applyAuthorizationMigrationPlan_(plan, actor.internal_user_id, reason);
+    const verification = buildAuthorizationLegacyAssignmentMigrationPlan_();
+    if (!verification.summary.ok || verification.summary.invalid_users ||
+        verification.summary.invalid_assignments) {
+      const verificationError = authorizationCutoverError_(
+        "AUTHORIZATION_MIGRATION_POST_VERIFY_FAILED"
+      );
+      verificationError.details = authorizationMigrationLogSummary_(verification.summary);
+      throw verificationError;
+    }
+    runAuthorizationIntegrityAudit({ ignore_incomplete_event_id: eventId });
+    appendAuthorizationChangeLog_({
+      authorization_event_id: eventId,
+      event_type: "authorization.assignment.migration",
+      actor_internal_user_id: actor.internal_user_id,
+      before: { mode: "shadow", plan_hash: approvedPlanHash },
+      after: authorizationMigrationLogSummary_(plan.summary),
+      reason: reason,
+      result: "success",
+      source: "authorization_migration"
+    });
+    properties.deleteProperty(AUTHORIZATION_MIGRATION_ACTOR_ID_PROPERTY);
+    properties.deleteProperty(AUTHORIZATION_MIGRATION_REASON_PROPERTY);
+    properties.deleteProperty(AUTHORIZATION_MIGRATION_APPROVED_PLAN_HASH_PROPERTY);
+    return {
+      ok: true,
+      authorization_event_id: eventId,
+      plan_hash: approvedPlanHash,
+      additions: plan.summary.additions,
+      archives: plan.summary.archives,
+      unchanged_assignments: plan.summary.unchanged_assignments
+    };
+  } catch (error) {
+    let rollbackError = null;
+    if (writeSnapshot) {
+      try {
+        rollbackAuthorizationMigrationPlan_(writeSnapshot);
+      } catch (caughtRollbackError) {
+        rollbackError = caughtRollbackError;
+      }
+    }
+    const recoveryRequired = Boolean(rollbackError) ||
+      normalizeText(error.code || error.message) ===
+        "AUTHORIZATION_MIGRATION_RECOVERY_REQUIRED";
+    if (startedLogged) {
+      try {
+        appendAuthorizationChangeLog_({
+          authorization_event_id: eventId,
+          event_type: "authorization.assignment.migration",
+          actor_internal_user_id: actor.internal_user_id,
+          before: { mode: "shadow", plan_hash: plan && plan.summary.plan_hash },
+          after: recoveryRequired ? {
+            mode: "shadow",
+            recovery_required: true,
+            original_error_code: normalizeText(
+              error.original_error_code || error.code || error.message
+            ),
+            rollback_error_code: normalizeText(
+              error.rollback_error_code || rollbackError &&
+                (rollbackError.code || rollbackError.message)
+            ),
+            rollback_error_codes: authorizationMigrationRollbackErrorCodes_(
+              rollbackError || error
+            )
+          } : {
+            mode: "shadow",
+            restored: Boolean(writeSnapshot || error.migration_restored)
+          },
+          reason: reason,
+          result: recoveryRequired ? "recovery_required" : "error",
+          error_code: recoveryRequired
+            ? "AUTHORIZATION_MIGRATION_RECOVERY_REQUIRED"
+            : normalizeText(error.code || error.message),
+          source: "authorization_migration"
+        });
+      } catch (logError) {
+        console.error("Authorization migration recovery logging failed", logError);
+      }
+    }
+    if (rollbackError) {
+      const recoveryError = authorizationCutoverError_(
+        "AUTHORIZATION_MIGRATION_RECOVERY_REQUIRED"
+      );
+      recoveryError.original_error_code = normalizeText(error.code || error.message);
+      recoveryError.rollback_error_code = normalizeText(
+        rollbackError.code || rollbackError.message
+      );
+      recoveryError.rollback_error_codes = authorizationMigrationRollbackErrorCodes_(
+        rollbackError
+      );
+      throw recoveryError;
+    }
+    throw error;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function applyAuthorizationMigrationPlan_(plan, actorId, reason) {
+  const sheet = getPermissionAssignmentsSheet_();
+  if (!sheet) {
+    throw authorizationCutoverError_("AUTHORIZATION_MIGRATION_SHEET_MISSING");
+  }
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn())
+    .getDisplayValues()[0]
+    .map(normalizeText);
+  if (PERMISSION_ASSIGNMENT_HEADERS.some(function(header) {
+    return headers.indexOf(header) === -1;
+  })) {
+    throw authorizationCutoverError_("AUTHORIZATION_MIGRATION_SHEET_INVALID");
+  }
+  const snapshot = {
+    sheet: sheet,
+    headers: headers,
+    added_assignments: [],
+    archived_rows: []
+  };
+  const updatedAt = getNowIsoStringJst();
+  try {
+    plan.archives.forEach(function(item) {
+      const row = sheet.getRange(item.row_index, 1, 1, headers.length).getValues()[0];
+      assertAuthorizationMigrationArchiveTarget_(headers, row, item);
+      const next = row.slice();
+      next[headers.indexOf("status")] = "archived";
+      next[headers.indexOf("updated_at")] = updatedAt;
+      next[headers.indexOf("updated_by")] = actorId;
+      next[headers.indexOf("memo")] = escapeAuthorizationSheetText_(reason);
+      snapshot.archived_rows.push({
+        permission_assignment_id: item.permission_assignment_id,
+        values: row.slice(),
+        archived_values: next.slice()
+      });
+      sheet.getRange(item.row_index, 1, 1, headers.length).setValues([next]);
+    });
+    plan.additions.forEach(function(item) {
+      const entry = {
+        permission_assignment_id: "PA-" + Utilities.getUuid(),
+        internal_user_id: item.internal_user_id,
+        module_code: item.module_code,
+        capability_code: item.capability_code,
+        scope_type: item.scope_type,
+        scope_value: item.scope_value,
+        status: "active",
+        valid_from: "",
+        valid_to: "",
+        updated_at: updatedAt,
+        updated_by: actorId,
+        memo: normalizeText(reason)
+      };
+      const rowValues = headers.map(function(header) {
+        return escapeAuthorizationSheetText_(entry[header] || "");
+      });
+      sheet.appendRow(rowValues);
+      snapshot.added_assignments.push({
+        permission_assignment_id: entry.permission_assignment_id,
+        values: rowValues.slice()
+      });
+    });
+    return snapshot;
+  } catch (error) {
+    try {
+      rollbackAuthorizationMigrationPlan_(snapshot);
+    } catch (rollbackError) {
+      const recoveryError = authorizationCutoverError_(
+        "AUTHORIZATION_MIGRATION_RECOVERY_REQUIRED"
+      );
+      recoveryError.original_error_code = normalizeText(error.code || error.message);
+      recoveryError.rollback_error_code = normalizeText(
+        rollbackError.code || rollbackError.message
+      );
+      recoveryError.rollback_error_codes = authorizationMigrationRollbackErrorCodes_(
+        rollbackError
+      );
+      throw recoveryError;
+    }
+    error.migration_restored = true;
+    throw error;
+  }
+}
+
+function rollbackAuthorizationMigrationPlan_(snapshot) {
+  let errors = [];
+  try {
+    rollbackAuthorizationMigrationAdditions_(snapshot);
+  } catch (error) {
+    errors = errors.concat(error.rollback_error_codes || [
+      normalizeText(error.code || error.message)
+    ]);
+  }
+  try {
+    rollbackAuthorizationMigrationArchives_(snapshot);
+  } catch (error) {
+    errors = errors.concat(error.rollback_error_codes || [
+      normalizeText(error.code || error.message)
+    ]);
+  }
+  if (errors.length) {
+    const rollbackError = authorizationCutoverError_(
+      "AUTHORIZATION_MIGRATION_ROLLBACK_FAILED"
+    );
+    rollbackError.rollback_error_codes = errors;
+    rollbackError.details = { rollback_error_codes: errors.slice() };
+    throw rollbackError;
+  }
+}
+
+function authorizationMigrationRollbackErrorCodes_(error) {
+  if (!error) return [];
+  const direct = error.rollback_error_codes || [];
+  if (direct.length) return direct;
+  return error.details && error.details.rollback_error_codes || [];
+}
+
+function rollbackAuthorizationMigrationAdditions_(snapshot) {
+  const rows = snapshot.sheet.getDataRange().getValues();
+  const idIndex = snapshot.headers.indexOf("permission_assignment_id");
+  const rowNumbers = [];
+  snapshot.added_assignments.forEach(function(item) {
+    const matches = [];
+    rows.slice(1).forEach(function(row, index) {
+      if (normalizeText(row[idIndex]) === item.permission_assignment_id) {
+        matches.push({ row_number: index + 2, values: row });
+      }
+    });
+    if (matches.length !== 1 || !authorizationMigrationRowsEqual_(
+      matches[0] && matches[0].values,
+      item.values
+    )) {
+      throw authorizationCutoverError_("AUTHORIZATION_MIGRATION_ADDITION_CHANGED");
+    }
+    rowNumbers.push(matches[0].row_number);
+  });
+  rowNumbers.sort(function(a, b) { return b - a; }).forEach(function(rowNumber) {
+    snapshot.sheet.deleteRow(rowNumber);
+  });
+}
+
+function rollbackAuthorizationMigrationArchives_(snapshot) {
+  const idIndex = snapshot.headers.indexOf("permission_assignment_id");
+  const errors = [];
+  snapshot.archived_rows.forEach(function(item) {
+    try {
+      const rows = snapshot.sheet.getDataRange().getValues();
+      const matches = [];
+      rows.slice(1).forEach(function(row, index) {
+        if (normalizeText(row[idIndex]) === item.permission_assignment_id) {
+          matches.push({ row_number: index + 2, values: row });
+        }
+      });
+      if (matches.length !== 1) {
+        throw authorizationCutoverError_("AUTHORIZATION_MIGRATION_ARCHIVE_CHANGED");
+      }
+      if (authorizationMigrationRowsEqual_(matches[0].values, item.values)) return;
+      if (!authorizationMigrationRowsEqual_(matches[0].values, item.archived_values)) {
+        throw authorizationCutoverError_("AUTHORIZATION_MIGRATION_ARCHIVE_CHANGED");
+      }
+      snapshot.sheet.getRange(matches[0].row_number, 1, 1, snapshot.headers.length)
+        .setValues([item.values]);
+    } catch (error) {
+      errors.push(normalizeText(error.code || error.message));
+    }
+  });
+  if (errors.length) {
+    const restoreError = authorizationCutoverError_(errors[0]);
+    restoreError.rollback_error_codes = errors;
+    throw restoreError;
+  }
+}
+
+function assertAuthorizationMigrationArchiveTarget_(headers, row, item) {
+  const expected = {
+    permission_assignment_id: item.permission_assignment_id,
+    internal_user_id: item.internal_user_id,
+    module_code: item.module_code,
+    capability_code: item.capability_code,
+    scope_type: item.scope_type,
+    scope_value: item.scope_value,
+    status: "active"
+  };
+  const unchanged = Object.keys(expected).every(function(header) {
+    return normalizeText(row[headers.indexOf(header)]) === normalizeText(expected[header]);
+  });
+  if (!unchanged) {
+    throw authorizationCutoverError_("AUTHORIZATION_MIGRATION_TARGET_CHANGED");
+  }
+}
+
+function authorizationMigrationRowsEqual_(left, right) {
+  if (!left || !right || left.length !== right.length) return false;
+  return left.every(function(value, index) {
+    return String(value == null ? "" : value) === String(right[index] == null ? "" : right[index]);
+  });
+}
+
+function authorizationMigrationLogSummary_(summary) {
+  return {
+    mode: normalizeText(summary.mode),
+    plan_hash: normalizeText(summary.plan_hash),
+    additions: Number(summary.additions || 0),
+    archives: Number(summary.archives || 0),
+    unchanged_assignments: Number(summary.unchanged_assignments || 0)
+  };
+}
+
+function assertAuthorizationMigrationActor_(actorId, reason) {
+  try {
+    return assertAuthorizationCutoverActor_(actorId, reason);
+  } catch (error) {
+    throw authorizationCutoverError_("AUTHORIZATION_MIGRATION_ACTOR_INVALID");
+  }
+}
+
 function buildAuthorizationLegacyAssignmentMigrationPlan_() {
   const source = {
     users: getUsersData(),

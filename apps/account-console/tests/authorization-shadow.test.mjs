@@ -35,18 +35,78 @@ const shadowHeaders = [
   "assigned_only_scopes"
 ];
 
-function createSheet(values) {
+const authorizationLogHeaders = [
+  "authorization_change_log_id", "authorization_event_id", "occurred_at",
+  "event_type", "request_id", "actor_internal_user_id",
+  "target_internal_user_id", "reviewer_internal_user_id", "before_json",
+  "after_json", "reason", "result", "error_code", "source",
+  "previous_log_hash", "log_hash"
+];
+
+function createSheet(values, options = {}) {
+  let appendCount = 0;
   return {
     values,
     readCount: 0,
     getDataRange() {
       this.readCount += 1;
       return {
-        getDisplayValues: () => this.values.map((row) => row.slice())
+        getDisplayValues: () => this.values.map((row) => row.slice()),
+        getValues: () => this.values.map((row) => row.slice())
       };
     },
     appendRow(row) {
+      appendCount += 1;
+      if (options.failAppendAt === appendCount) throw new Error("APPEND_FAILED");
       this.values.push(row.slice());
+      if (options.injectForeignAfterAppendAt === appendCount) {
+        this.values.push(options.foreignRow.slice());
+      }
+    },
+    getLastRow() {
+      return this.values.length;
+    },
+    getLastColumn() {
+      return this.values[0]?.length || 0;
+    },
+    getRange(row, column, rowCount, columnCount) {
+      const sheet = this;
+      return {
+        getDisplayValues: () => sheet.values
+          .slice(row - 1, row - 1 + rowCount)
+          .map((source) => source.slice(column - 1, column - 1 + columnCount)),
+        getValues: () => sheet.values
+          .slice(row - 1, row - 1 + rowCount)
+          .map((source) => {
+            const copy = source.slice(column - 1, column - 1 + columnCount);
+            if (options.mutateArchiveTargetOnRead && copy[0] === "PA-EXTRA") {
+              copy[3] = "shift.view.all";
+            }
+            return copy;
+          }),
+        getDisplayValue: () => String(sheet.values[row - 1]?.[column - 1] || ""),
+        setValues(nextValues) {
+          if (options.failArchiveWrite && nextValues[0]?.[6] === "archived") {
+            throw new Error("ARCHIVE_WRITE_FAILED");
+          }
+          if (options.failRestore && nextValues[0]?.[6] === "active" &&
+              sheet.values[row - 1]?.[6] === "archived") {
+            throw new Error("RESTORE_FAILED");
+          }
+          nextValues.forEach((source, rowOffset) => {
+            source.forEach((value, columnOffset) => {
+              sheet.values[row - 1 + rowOffset][column - 1 + columnOffset] = value;
+            });
+          });
+          if (options.injectArchiveConcurrentChange && nextValues[0]?.[6] === "archived") {
+            sheet.values[row - 1][8] = "2099-12-31";
+          }
+        }
+      };
+    },
+    deleteRow(row) {
+      if (options.failDeleteRows) throw new Error("DELETE_FAILED");
+      this.values.splice(row - 1, 1);
     }
   };
 }
@@ -57,29 +117,47 @@ function createAuthorizationContext(assignmentRows = [], options = {}) {
     AUTHORIZATION_CUTOVER_ENABLED: options.cutoverEnabled ? "true" : "false",
     AUTHORIZATION_CUTOVER_ACTOR_ID: options.cutoverActorId || "U-1",
     AUTHORIZATION_CUTOVER_REASON: options.cutoverReason || "03 effective cutover test",
-    AUTHORIZATION_CUTOVER_MIGRATED_USER_IDS: options.migratedUserIds || ""
+    AUTHORIZATION_CUTOVER_MIGRATED_USER_IDS: options.migratedUserIds || "",
+    AUTHORIZATION_MIGRATION_ENABLED: options.migrationEnabled ? "true" : "false",
+    AUTHORIZATION_MIGRATION_ACTOR_ID: options.migrationActorId || "U-1",
+    AUTHORIZATION_MIGRATION_REASON: options.migrationReason || "03 assignment migration test",
+    AUTHORIZATION_MIGRATION_APPROVED_PLAN_HASH: options.approvedPlanHash || ""
   };
   const authorizationLogs = [];
   const executionLogs = [];
-  const permissionSheet = createSheet([assignmentHeaders, ...assignmentRows]);
+  let integrityAuditCount = 0;
+  const permissionSheet = createSheet([assignmentHeaders, ...assignmentRows], {
+    failAppendAt: options.failMigrationAppendAt,
+    failDeleteRows: options.failMigrationDeleteRows,
+    failRestore: options.failMigrationRestore,
+    mutateArchiveTargetOnRead: options.mutateArchiveTargetOnRead,
+    injectForeignAfterAppendAt: options.injectForeignAfterAppendAt,
+    foreignRow: options.foreignRow,
+    injectArchiveConcurrentChange: options.injectArchiveConcurrentChange,
+    failArchiveWrite: options.failMigrationArchiveWrite
+  });
   let usersReadCount = 0;
   const shadowSheet = createSheet([shadowHeaders]);
+  const authorizationLogSheet = createSheet([authorizationLogHeaders]);
   const spreadsheet = {
     getSheetByName(name) {
       if (name === "permission_assignments") return permissionSheet;
       if (name === "authorization_shadow_logs") {
         return options.missingShadowSheet ? null : shadowSheet;
       }
+      if (name === "authorization_change_logs") return authorizationLogSheet;
       return null;
     }
   };
+  let uuidCount = 0;
+  let anchorWriteCount = 0;
   const context = vm.createContext({
     SpreadsheetApp: {
       openById: () => spreadsheet
     },
     Utilities: {
       formatDate: () => "2026-08-07",
-      getUuid: () => "UUID-1",
+      getUuid: () => `UUID-${++uuidCount}`,
       DigestAlgorithm: { SHA_256: "SHA_256" },
       Charset: { UTF_8: "UTF_8" },
       computeDigest: (_algorithm, value) => Array.from(
@@ -91,12 +169,22 @@ function createAuthorizationContext(assignmentRows = [], options = {}) {
       getScriptProperties: () => ({
         getProperty: (key) => {
           if (Object.hasOwn(propertyValues, key)) return propertyValues[key];
+          if (key === "AUTHORIZATION_LOG_ANCHOR") return "";
           if (key === "ORGANIZATION_SHADOW_ENABLED") {
             return options.organizationShadowEnabled === false ? "false" : "true";
           }
           return options.shadowEnabled === false ? "false" : "true";
         },
+        getProperties: () => ({ ...propertyValues }),
         setProperty: (key, value) => {
+          if (key === "AUTHORIZATION_LOG_ANCHOR") {
+            anchorWriteCount += 1;
+            if (options.failAuditAnchorAt === anchorWriteCount) {
+              const error = new Error("AUDIT_ANCHOR_WRITE_FAILED");
+              error.code = "AUDIT_ANCHOR_WRITE_FAILED";
+              throw error;
+            }
+          }
           if (options.failEffectiveModeWrite &&
               key === "AUTHORIZATION_ENFORCEMENT_MODE" && value === "effective") {
             throw new Error("MODE_WRITE_FAILED");
@@ -150,11 +238,25 @@ function createAuthorizationContext(assignmentRows = [], options = {}) {
       }];
     },
     getNormalizedPersonType: (user) => String(user && user.person_type || "").trim().toLowerCase(),
+    validateOrganizationGraph_: () => ({ healthy: true, errors: [] }),
     normalizeAccountConsoleEmail_: (email) => String(email || "").trim().toLowerCase(),
-    runAuthorizationIntegrityAudit: () => ({ healthy: true }),
+    runAuthorizationIntegrityAudit: () => {
+      integrityAuditCount += 1;
+      if (options.failMigrationPostIntegrity && integrityAuditCount === 2) {
+        throw new Error("INTEGRITY_FAILED");
+      }
+      return { healthy: true };
+    },
     appendAuthorizationChangeLog_: (entry) => {
       authorizationLogs.push({ ...entry });
       if (options.failCutoverSuccessLog && entry.result === "success") {
+        const error = new Error("AUDIT_WRITE_FAILED");
+        error.code = "AUDIT_WRITE_FAILED";
+        throw error;
+      }
+      if (options.failMigrationSuccessLog &&
+          entry.event_type === "authorization.assignment.migration" &&
+          entry.result === "success") {
         const error = new Error("AUDIT_WRITE_FAILED");
         error.code = "AUDIT_WRITE_FAILED";
         throw error;
@@ -178,6 +280,12 @@ function createAuthorizationContext(assignmentRows = [], options = {}) {
   ].forEach((path) => {
     vm.runInContext(readFileSync(new URL(path, import.meta.url), "utf8"), context);
   });
+  if (options.useRealAuthorizationLog) {
+    vm.runInContext(readFileSync(new URL(
+      "../backend/account-apps-script/authorization_change_logs.js",
+      import.meta.url
+    ), "utf8"), context);
+  }
 
   return {
     context,
@@ -185,6 +293,7 @@ function createAuthorizationContext(assignmentRows = [], options = {}) {
     shadowSheet,
     propertyValues,
     authorizationLogs,
+    authorizationLogSheet,
     executionLogs,
     get usersReadCount() { return usersReadCount; }
   };
@@ -842,4 +951,397 @@ test("旧権限移行分析は重複したactive内部IDを通常差分へ二重
   assert.equal(analysis.users.length, 2);
   assert.ok(analysis.users.every((user) => user.invalid === true));
   assert.ok(analysis.users.every((user) => user.classification === "invalid_user"));
+});
+
+test("一括移行は承認済み計画ハッシュをLock内で照合しShadowのまま反映する", () => {
+  const usersData = [{
+    internal_user_id: "U-1",
+    status: "active",
+    role: "developer",
+    email: "developer@example.com",
+    person_type: "internal",
+    allowed_modules: []
+  }];
+  const rows = [
+    ["PA-EXTRA", "U-1", "shift", "shift.view.self", "self", "", "active", "", "", "", "", ""]
+  ];
+  const fixture = createAuthorizationContext(rows, {
+    usersData,
+    migrationEnabled: true
+  });
+  const preview = fixture.context.buildAuthorizationLegacyAssignmentMigrationPlan_();
+  fixture.propertyValues.AUTHORIZATION_MIGRATION_APPROVED_PLAN_HASH = preview.summary.plan_hash;
+
+  const result = fixture.context.runAuthorizationLegacyAssignmentMigrationApply();
+  const verified = fixture.context.buildAuthorizationLegacyAssignmentMigrationPlan_();
+
+  assert.equal(result.ok, true);
+  assert.equal(result.plan_hash, preview.summary.plan_hash);
+  assert.equal(verified.summary.ok, true);
+  assert.equal(verified.summary.additions, 0);
+  assert.equal(verified.summary.archives, 0);
+  assert.equal(fixture.propertyValues.AUTHORIZATION_ENFORCEMENT_MODE, "shadow");
+  assert.equal(fixture.propertyValues.AUTHORIZATION_MIGRATION_ENABLED, "false");
+  assert.equal("AUTHORIZATION_MIGRATION_ACTOR_ID" in fixture.propertyValues, false);
+  assert.equal("AUTHORIZATION_MIGRATION_REASON" in fixture.propertyValues, false);
+  assert.equal("AUTHORIZATION_MIGRATION_APPROVED_PLAN_HASH" in fixture.propertyValues, false);
+  assert.deepEqual(
+    fixture.authorizationLogs.map((entry) => entry.result),
+    ["started", "success"]
+  );
+  assert.ok(fixture.permissionSheet.values.some((row) => row[0] === "PA-EXTRA" && row[6] === "archived"));
+});
+
+test("一括移行は計画ハッシュ不一致なら許可を消費せず書き込まない", () => {
+  const fixture = createAuthorizationContext([], {
+    migrationEnabled: true,
+    approvedPlanHash: "DIFFERENT_PLAN"
+  });
+  const before = fixture.permissionSheet.values.map((row) => row.slice());
+
+  assert.throws(
+    () => fixture.context.runAuthorizationLegacyAssignmentMigrationApply(),
+    /AUTHORIZATION_MIGRATION_PLAN_CHANGED/
+  );
+  assert.deepEqual(fixture.permissionSheet.values, before);
+  assert.equal(fixture.propertyValues.AUTHORIZATION_MIGRATION_ENABLED, "true");
+  assert.equal(fixture.authorizationLogs.length, 0);
+});
+
+test("一括移行は差分0件の空計画を実行しない", () => {
+  const usersData = [{
+    internal_user_id: "U-1",
+    status: "active",
+    role: "developer",
+    email: "developer@example.com",
+    person_type: "internal",
+    allowed_modules: []
+  }];
+  const seed = createAuthorizationContext([], { usersData });
+  const desiredRows = Array.from(
+    seed.context.buildAuthorizationLegacyAssignmentMigrationPlan_().additions,
+    (item, index) => [
+      `PA-${index + 1}`,
+      item.internal_user_id,
+      item.module_code,
+      item.capability_code,
+      item.scope_type,
+      item.scope_value,
+      "active", "", "", "", "", ""
+    ]
+  );
+  const fixture = createAuthorizationContext(desiredRows, {
+    usersData,
+    migrationEnabled: true
+  });
+  const preview = fixture.context.buildAuthorizationLegacyAssignmentMigrationPlan_();
+  fixture.propertyValues.AUTHORIZATION_MIGRATION_APPROVED_PLAN_HASH = preview.summary.plan_hash;
+
+  assert.equal(preview.summary.ok, true);
+  assert.throws(
+    () => fixture.context.runAuthorizationLegacyAssignmentMigrationApply(),
+    /AUTHORIZATION_MIGRATION_NOT_REQUIRED/
+  );
+  assert.equal(fixture.propertyValues.AUTHORIZATION_MIGRATION_ENABLED, "true");
+  assert.equal(fixture.authorizationLogs.length, 0);
+});
+
+test("一括移行は理由を権限割当シートへ安全な文字列として保存する", () => {
+  const fixture = createAuthorizationContext([
+    ["PA-KEEP", "U-1", "shift", "shift.view.self", "self", "", "active", "", "", "", "", ""],
+    ["PA-DUP", "U-1", "shift", "shift.view.self", "self", "", "active", "", "", "", "", ""]
+  ], {
+    migrationEnabled: true,
+    migrationReason: "=IMPORTDATA(\"https://example.invalid\")"
+  });
+  const preview = fixture.context.buildAuthorizationLegacyAssignmentMigrationPlan_();
+  fixture.propertyValues.AUTHORIZATION_MIGRATION_APPROVED_PLAN_HASH = preview.summary.plan_hash;
+
+  fixture.context.runAuthorizationLegacyAssignmentMigrationApply();
+
+  const memoIndex = assignmentHeaders.indexOf("memo");
+  const updatedByIndex = assignmentHeaders.indexOf("updated_by");
+  assert.ok(fixture.permissionSheet.values.slice(1).filter(
+    (row) => row[updatedByIndex] === "U-1"
+  ).every(
+    (row) => String(row[memoIndex]).startsWith("'=")
+  ));
+  assert.ok(fixture.permissionSheet.values.some(
+    (row) => row[0] === "PA-DUP" && String(row[memoIndex]).startsWith("'=")
+  ));
+});
+
+test("一括移行はsuccess監査ログ失敗時に追加とアーカイブを復元する", () => {
+  const usersData = [{
+    internal_user_id: "U-1",
+    status: "active",
+    role: "developer",
+    email: "developer@example.com",
+    person_type: "internal",
+    allowed_modules: []
+  }];
+  const fixture = createAuthorizationContext([
+    ["PA-EXTRA", "U-1", "shift", "shift.view.self", "self", "", "active", "", "", "", "", ""]
+  ], {
+    usersData,
+    migrationEnabled: true,
+    failMigrationSuccessLog: true
+  });
+  const before = fixture.permissionSheet.values.map((row) => row.slice());
+  const preview = fixture.context.buildAuthorizationLegacyAssignmentMigrationPlan_();
+  fixture.propertyValues.AUTHORIZATION_MIGRATION_APPROVED_PLAN_HASH = preview.summary.plan_hash;
+
+  assert.throws(
+    () => fixture.context.runAuthorizationLegacyAssignmentMigrationApply(),
+    /AUDIT_WRITE_FAILED/
+  );
+  assert.deepEqual(fixture.permissionSheet.values, before);
+  assert.equal(fixture.propertyValues.AUTHORIZATION_MIGRATION_ENABLED, "false");
+  assert.equal(fixture.authorizationLogs.at(-1).result, "error");
+  assert.equal(fixture.authorizationLogs.at(-1).after.restored, true);
+});
+
+test("一括移行は途中書込み失敗時にも追加済み行を復元する", () => {
+  const fixture = createAuthorizationContext([], {
+    migrationEnabled: true,
+    failMigrationAppendAt: 2
+  });
+  const before = fixture.permissionSheet.values.map((row) => row.slice());
+  const preview = fixture.context.buildAuthorizationLegacyAssignmentMigrationPlan_();
+  fixture.propertyValues.AUTHORIZATION_MIGRATION_APPROVED_PLAN_HASH = preview.summary.plan_hash;
+
+  assert.throws(
+    () => fixture.context.runAuthorizationLegacyAssignmentMigrationApply(),
+    /APPEND_FAILED/
+  );
+  assert.deepEqual(fixture.permissionSheet.values, before);
+  assert.equal(fixture.propertyValues.AUTHORIZATION_MIGRATION_ENABLED, "false");
+  assert.equal(fixture.authorizationLogs.at(-1).result, "error");
+  assert.equal(fixture.authorizationLogs.at(-1).after.restored, true);
+});
+
+test("一括移行は復元失敗をrecovery_requiredとして返す", () => {
+  const usersData = [{
+    internal_user_id: "U-1",
+    status: "active",
+    role: "developer",
+    email: "developer@example.com",
+    person_type: "internal",
+    allowed_modules: []
+  }];
+  const fixture = createAuthorizationContext([
+    ["PA-EXTRA", "U-1", "shift", "shift.view.self", "self", "", "active", "", "", "", "", ""]
+  ], {
+    usersData,
+    migrationEnabled: true,
+    failMigrationSuccessLog: true,
+    failMigrationRestore: true
+  });
+  const preview = fixture.context.buildAuthorizationLegacyAssignmentMigrationPlan_();
+  fixture.propertyValues.AUTHORIZATION_MIGRATION_APPROVED_PLAN_HASH = preview.summary.plan_hash;
+
+  assert.throws(
+    () => fixture.context.runAuthorizationLegacyAssignmentMigrationApply(),
+    /AUTHORIZATION_MIGRATION_RECOVERY_REQUIRED/
+  );
+  assert.equal(fixture.propertyValues.AUTHORIZATION_MIGRATION_ENABLED, "false");
+  assert.equal(fixture.authorizationLogs.at(-1).result, "recovery_required");
+  assert.equal(fixture.authorizationLogs.at(-1).error_code, "AUTHORIZATION_MIGRATION_RECOVERY_REQUIRED");
+});
+
+test("一括移行は事後整合性監査失敗時に追加とアーカイブを復元する", () => {
+  const fixture = createAuthorizationContext([
+    ["PA-EXTRA", "U-1", "shift", "shift.view.self", "self", "", "active", "", "", "", "", ""]
+  ], {
+    migrationEnabled: true,
+    failMigrationPostIntegrity: true
+  });
+  const before = fixture.permissionSheet.values.map((row) => row.slice());
+  const preview = fixture.context.buildAuthorizationLegacyAssignmentMigrationPlan_();
+  fixture.propertyValues.AUTHORIZATION_MIGRATION_APPROVED_PLAN_HASH = preview.summary.plan_hash;
+
+  assert.throws(
+    () => fixture.context.runAuthorizationLegacyAssignmentMigrationApply(),
+    /INTEGRITY_FAILED/
+  );
+  assert.deepEqual(fixture.permissionSheet.values, before);
+  assert.equal(fixture.authorizationLogs.at(-1).result, "error");
+});
+
+test("一括移行は事後計画検証失敗時に追加とアーカイブを復元する", () => {
+  const fixture = createAuthorizationContext([
+    ["PA-EXTRA", "U-1", "shift", "shift.view.self", "self", "", "active", "", "", "", "", ""]
+  ], { migrationEnabled: true });
+  const before = fixture.permissionSheet.values.map((row) => row.slice());
+  const preview = fixture.context.buildAuthorizationLegacyAssignmentMigrationPlan_();
+  fixture.propertyValues.AUTHORIZATION_MIGRATION_APPROVED_PLAN_HASH = preview.summary.plan_hash;
+  const originalBuild = fixture.context.buildAuthorizationLegacyAssignmentMigrationPlan_;
+  let buildCount = 0;
+  fixture.context.buildAuthorizationLegacyAssignmentMigrationPlan_ = () => {
+    buildCount += 1;
+    const plan = originalBuild();
+    if (buildCount === 2) plan.summary.ok = false;
+    return plan;
+  };
+
+  assert.throws(
+    () => fixture.context.runAuthorizationLegacyAssignmentMigrationApply(),
+    /AUTHORIZATION_MIGRATION_POST_VERIFY_FAILED/
+  );
+  assert.deepEqual(fixture.permissionSheet.values, before);
+});
+
+test("一括移行はアーカイブ対象が計画後に変われば書込み前に拒否する", () => {
+  const fixture = createAuthorizationContext([
+    ["PA-EXTRA", "U-1", "shift", "shift.view.self", "self", "", "active", "", "", "", "", ""]
+  ], {
+    migrationEnabled: true,
+    mutateArchiveTargetOnRead: true
+  });
+  const before = fixture.permissionSheet.values.map((row) => row.slice());
+  const preview = fixture.context.buildAuthorizationLegacyAssignmentMigrationPlan_();
+  fixture.propertyValues.AUTHORIZATION_MIGRATION_APPROVED_PLAN_HASH = preview.summary.plan_hash;
+
+  assert.throws(
+    () => fixture.context.runAuthorizationLegacyAssignmentMigrationApply(),
+    /AUTHORIZATION_MIGRATION_TARGET_CHANGED/
+  );
+  assert.deepEqual(fixture.permissionSheet.values, before);
+});
+
+test("一括移行の復元は移行中に追加された無関係な行を削除しない", () => {
+  const foreignRow = [
+    "PA-FOREIGN", "U-X", "pmo", "", "", "", "archived", "", "", "", "", "manual"
+  ];
+  const fixture = createAuthorizationContext([], {
+    migrationEnabled: true,
+    failMigrationSuccessLog: true,
+    injectForeignAfterAppendAt: 1,
+    foreignRow
+  });
+  const preview = fixture.context.buildAuthorizationLegacyAssignmentMigrationPlan_();
+  fixture.propertyValues.AUTHORIZATION_MIGRATION_APPROVED_PLAN_HASH = preview.summary.plan_hash;
+
+  assert.throws(
+    () => fixture.context.runAuthorizationLegacyAssignmentMigrationApply(),
+    /AUDIT_WRITE_FAILED/
+  );
+  assert.deepEqual(fixture.permissionSheet.values, [assignmentHeaders, foreignRow]);
+});
+
+test("一括移行の復元はアーカイブ後に別変更された行を上書きしない", () => {
+  const usersData = [{
+    internal_user_id: "U-1", status: "active", role: "developer",
+    email: "developer@example.com", person_type: "internal", allowed_modules: []
+  }];
+  const fixture = createAuthorizationContext([
+    ["PA-EXTRA", "U-1", "shift", "shift.view.self", "self", "", "active", "", "", "", "", ""]
+  ], {
+    usersData,
+    migrationEnabled: true,
+    failMigrationSuccessLog: true,
+    injectArchiveConcurrentChange: true
+  });
+  const preview = fixture.context.buildAuthorizationLegacyAssignmentMigrationPlan_();
+  fixture.propertyValues.AUTHORIZATION_MIGRATION_APPROVED_PLAN_HASH = preview.summary.plan_hash;
+
+  assert.throws(
+    () => fixture.context.runAuthorizationLegacyAssignmentMigrationApply(),
+    /AUTHORIZATION_MIGRATION_RECOVERY_REQUIRED/
+  );
+  const row = fixture.permissionSheet.values.find((item) => item[0] === "PA-EXTRA");
+  assert.equal(row[6], "archived");
+  assert.equal(row[8], "2099-12-31");
+  assert.equal(fixture.authorizationLogs.at(-1).result, "recovery_required");
+});
+
+test("一括移行はアーカイブ書込み前の失敗を復元済みとしてerror終端にする", () => {
+  const usersData = [{
+    internal_user_id: "U-1", status: "active", role: "developer",
+    email: "developer@example.com", person_type: "internal", allowed_modules: []
+  }];
+  const fixture = createAuthorizationContext([
+    ["PA-EXTRA", "U-1", "shift", "shift.view.self", "self", "", "active", "", "", "", "", ""]
+  ], {
+    usersData,
+    migrationEnabled: true,
+    failMigrationArchiveWrite: true
+  });
+  const before = fixture.permissionSheet.values.map((row) => row.slice());
+  const preview = fixture.context.buildAuthorizationLegacyAssignmentMigrationPlan_();
+  fixture.propertyValues.AUTHORIZATION_MIGRATION_APPROVED_PLAN_HASH = preview.summary.plan_hash;
+
+  assert.throws(
+    () => fixture.context.runAuthorizationLegacyAssignmentMigrationApply(),
+    /ARCHIVE_WRITE_FAILED/
+  );
+  assert.deepEqual(fixture.permissionSheet.values, before);
+  assert.equal(fixture.authorizationLogs.at(-1).result, "error");
+  assert.equal(fixture.authorizationLogs.at(-1).after.restored, true);
+});
+
+test("一括移行は追加削除失敗でもアーカイブ復元を試みる", () => {
+  const fixture = createAuthorizationContext([
+    ["PA-EXTRA", "U-2", "shift", "shift.view.self", "self", "", "active", "", "", "", "", ""]
+  ], {
+    usersData: [{
+      internal_user_id: "U-1", status: "active", role: "developer",
+      email: "developer@example.com", person_type: "internal",
+      allowed_modules: ["ordercase", "shift"], ordercase_permission: "edit",
+      shiftbuilder_permission: "self"
+    }, {
+      internal_user_id: "U-2", status: "active", role: "member",
+      email: "member@example.com", person_type: "internal", allowed_modules: []
+    }, {
+      internal_user_id: "U-3", status: "active", role: "member",
+      email: "member3@example.com", person_type: "internal",
+      allowed_modules: ["ordercase"], ordercase_permission: "edit"
+    }],
+    migrationEnabled: true,
+    failMigrationSuccessLog: true,
+    failMigrationDeleteRows: true
+  });
+  const preview = fixture.context.buildAuthorizationLegacyAssignmentMigrationPlan_();
+  assert.ok(preview.summary.additions > 0);
+  assert.ok(preview.summary.archives > 0);
+  fixture.propertyValues.AUTHORIZATION_MIGRATION_APPROVED_PLAN_HASH = preview.summary.plan_hash;
+
+  assert.throws(
+    () => fixture.context.runAuthorizationLegacyAssignmentMigrationApply(),
+    (error) => {
+      assert.equal(error.code, "AUTHORIZATION_MIGRATION_RECOVERY_REQUIRED");
+      assert.equal(error.rollback_error_code, "AUTHORIZATION_MIGRATION_ROLLBACK_FAILED");
+      assert.deepEqual(Array.from(error.rollback_error_codes), ["DELETE_FAILED"]);
+      return true;
+    }
+  );
+  assert.equal(fixture.authorizationLogs.at(-1).result, "recovery_required");
+  assert.deepEqual(
+    Array.from(fixture.authorizationLogs.at(-1).after.rollback_error_codes),
+    ["DELETE_FAILED"]
+  );
+  assert.equal(fixture.permissionSheet.values.find((row) => row[0] === "PA-EXTRA")[6], "active");
+});
+
+test("一括移行は実監査ログのsuccessアンカー保存失敗後に復元しerrorを終端にする", () => {
+  const fixture = createAuthorizationContext([], {
+    migrationEnabled: true,
+    useRealAuthorizationLog: true,
+    failAuditAnchorAt: 2
+  });
+  const before = fixture.permissionSheet.values.map((row) => row.slice());
+  const preview = fixture.context.buildAuthorizationLegacyAssignmentMigrationPlan_();
+  fixture.propertyValues.AUTHORIZATION_MIGRATION_APPROVED_PLAN_HASH = preview.summary.plan_hash;
+
+  assert.throws(
+    () => fixture.context.runAuthorizationLegacyAssignmentMigrationApply(),
+    /AUDIT_ANCHOR_WRITE_FAILED/
+  );
+  assert.deepEqual(fixture.permissionSheet.values, before);
+  const resultIndex = authorizationLogHeaders.indexOf("result");
+  assert.deepEqual(
+    fixture.authorizationLogSheet.values.slice(1).map((row) => row[resultIndex]),
+    ["started", "success", "error"]
+  );
+  assert.equal(fixture.context.verifyAuthorizationChangeLogIntegrity_().healthy, true);
 });

@@ -89,10 +89,10 @@ function normalizeAuthorizationLogHashValue_(header, value) {
   return text;
 }
 
-function runAuthorizationIntegrityAudit() {
+function runAuthorizationIntegrityAudit(options) {
   let result;
   try {
-    result = verifyAuthorizationChangeLogIntegrity_();
+    result = verifyAuthorizationChangeLogIntegrity_(options);
   } catch (verificationError) {
     result = authorizationIntegrityResult_([
       normalizeText(verificationError.code || verificationError.message || "AUDIT_READ_FAILED")
@@ -245,7 +245,8 @@ function verifyAuthorizationChangeLogIntegrity_(options) {
     if (states.indexOf("recovery_required") !== -1) {
       recoveryRequiredEvents.push(eventId);
     }
-    if (states.indexOf("started") !== -1 &&
+    if (eventId !== normalizeText(settings.ignore_incomplete_event_id) &&
+        states.indexOf("started") !== -1 &&
         !states.some(function(state) {
           return ["success", "error", "rejected", "conflict", "recovery_required"].indexOf(state) !== -1;
         })) {
