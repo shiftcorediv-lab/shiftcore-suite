@@ -574,3 +574,11 @@
 - Script Propertiesを読み取り確認し、`AUTHORIZATION_MIGRATION_ENABLED=false`、`AUTHORIZATION_ENFORCEMENT_MODE=shadow`、移行実行者、理由、承認済み計画ハッシュの一時プロパティが削除済みであることを確認した。
 - Codexが本工程で実行した業務データ変更は、固定計画に含まれる権限割当104行の追加と既存Shift割当4行のアーカイブだけである。利用者、組織、申請データ、実効modeを変更する操作は行っていない。内部ユーザーID、割当ID、氏名、メール、対象一覧は公開ログと本記録へ含めていない。
 - 旧権限同等の割当移行完了は、実効権限への再切替決裁を意味しない。次工程は読み取り専用の移行診断と切替プレビュー、固定差分の独立監査、既存の監査独立性条件、えいちの再切替決裁であり、それらが揃うまでShadow運用を維持する。
+
+## 2026-08-24 実効切替プレビューの停止・再確認結果
+
+- 権限移行後に読み取り専用の `runAuthorizationEffectiveCutoverPreview` を1回実行した。結果は `ok=false`、`mode=shadow`、active内部利用者9名、旧管理対象権限あり8名、設定済み0名、未設定9名、不正利用者0件、未知の移行済みID 0件で、確認済み利用者集合の未設定を理由に安全側で停止した。
+- Google Sheets正本の `users_master` のヘッダーと必要列だけを読み取り、実装の `getNormalizedPersonType` と同じくperson type未設定時は外部系roleだけを除外する判定で、active内部利用者9名・重複なしを確認した。内部ユーザーID、氏名、メール、対象一覧は公開ログと本記録へ含めていない。
+- えいちが9名の内部ID送信と本番Script Property設定を別途決裁した後、`AUTHORIZATION_CUTOVER_MIGRATED_USER_IDS` へ9名を設定した。Codexはこの操作で `AUTHORIZATION_CUTOVER_ENABLED` を有効化せず、権限割当、利用者、組織、申請データ、実効modeを変更する操作を行っていない。
+- 設定後に同じ読み取り専用プレビューを1回再実行した。結果は `ok=true`、`mode=shadow`、active内部利用者9名、旧管理対象権限あり8名、設定済み9名、未設定0名、不正利用者0件、未知の移行済みID 0件だった。
+- Script Propertiesは `AUTHORIZATION_CUTOVER_ENABLED=false`、`AUTHORIZATION_ENFORCEMENT_MODE=shadow` を維持している。切替プレビュー合格は実効切替の完了または承認を意味しない。次工程は本記録の固定差分独立監査と既存の監査独立性条件の確認であり、`runAuthorizationEffectiveCutover` の実行にはえいちの別決裁を必要とする。
