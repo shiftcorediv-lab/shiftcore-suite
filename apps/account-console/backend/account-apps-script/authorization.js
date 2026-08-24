@@ -236,7 +236,155 @@ function runAuthorizationLegacyAssignmentMigrationPreview() {
   return summary;
 }
 
-function analyzeAuthorizationLegacyAssignmentMigration_() {
+function runAuthorizationLegacyAssignmentMigrationPlanPreview() {
+  const plan = buildAuthorizationLegacyAssignmentMigrationPlan_();
+  const summary = plan.summary;
+  console.log("AUTHORIZATION_LEGACY_MIGRATION_PLAN " + JSON.stringify(summary));
+  return summary;
+}
+
+function buildAuthorizationLegacyAssignmentMigrationPlan_() {
+  const source = {
+    users: getUsersData(),
+    assignment_rows: getPermissionAssignmentRows_()
+  };
+  const analysis = analyzeAuthorizationLegacyAssignmentMigration_(source);
+  if (analysis.summary.invalid_users || analysis.summary.invalid_assignments) {
+    throw authorizationCutoverError_("AUTHORIZATION_MIGRATION_SOURCE_INVALID");
+  }
+
+  const today = Utilities.formatDate(new Date(), "Asia/Tokyo", "yyyy-MM-dd");
+  const usersById = {};
+  source.users.filter(function(user) {
+    return normalizeText(user.status).toLowerCase() === "active" &&
+      getNormalizedPersonType(user) === "internal";
+  }).forEach(function(user) {
+    usersById[normalizeText(user.internal_user_id)] = user;
+  });
+
+  const currentRowsByUser = {};
+  const activeManagedAssignmentIds = {};
+  source.assignment_rows.forEach(function(item, rowIndex) {
+    if (normalizeText(item.status).toLowerCase() !== "active") return;
+    const dates = validatePermissionAssignmentDates_(item);
+    if ((dates.valid_from && dates.valid_from > today) ||
+        (dates.valid_to && dates.valid_to < today)) return;
+    const normalized = validatePermissionAssignment_(item);
+    if (AUTHORIZATION_SHADOW_MODULE_CODES.indexOf(normalized.module_code) === -1) return;
+    const assignmentId = normalizeText(item.permission_assignment_id);
+    if (!assignmentId || activeManagedAssignmentIds[assignmentId]) {
+      const error = authorizationCutoverError_("AUTHORIZATION_MIGRATION_SOURCE_INVALID");
+      error.details = {
+        invalid_users: analysis.summary.invalid_users,
+        invalid_assignments: analysis.summary.invalid_assignments + 1
+      };
+      throw error;
+    }
+    activeManagedAssignmentIds[assignmentId] = true;
+    const userId = normalizeText(item.internal_user_id);
+    if (!currentRowsByUser[userId]) currentRowsByUser[userId] = [];
+    currentRowsByUser[userId].push({
+      row_index: rowIndex + 2,
+      permission_assignment_id: assignmentId,
+      internal_user_id: userId,
+      module_code: normalized.module_code,
+      capability_code: normalized.capability_code,
+      scope_type: normalized.scope_type,
+      scope_value: normalized.scope_value
+    });
+  });
+
+  const additions = [];
+  const archives = [];
+  let unchangedAssignments = 0;
+  Object.keys(usersById).sort().forEach(function(userId) {
+    const desired = {};
+    const legacyModules = buildLegacyAuthorizationModules_(usersById[userId]);
+    AUTHORIZATION_SHADOW_MODULE_CODES.forEach(function(moduleCode) {
+      const module = legacyModules[moduleCode];
+      if (!module) return;
+      module.capabilities.forEach(function(capabilityCode) {
+        module.scopes.forEach(function(scope) {
+          const key = authorizationMigrationAssignmentKey_(
+            moduleCode,
+            capabilityCode,
+            scope.type,
+            scope.value
+          );
+          desired[key] = {
+            internal_user_id: userId,
+            module_code: moduleCode,
+            capability_code: capabilityCode,
+            scope_type: normalizeText(scope.type),
+            scope_value: normalizeText(scope.value)
+          };
+        });
+      });
+    });
+
+    const retained = {};
+    (currentRowsByUser[userId] || []).forEach(function(item) {
+      const key = authorizationMigrationAssignmentKey_(
+        item.module_code,
+        item.capability_code,
+        item.scope_type,
+        item.scope_value
+      );
+      if (desired[key] && !retained[key]) {
+        retained[key] = true;
+        unchangedAssignments += 1;
+      } else {
+        archives.push(item);
+      }
+    });
+    Object.keys(desired).sort().forEach(function(key) {
+      if (!retained[key]) additions.push(desired[key]);
+    });
+  });
+
+  const canonical = additions.map(function(item) {
+    return ["add", item.internal_user_id, item.module_code, item.capability_code,
+      item.scope_type, item.scope_value].join("\u001f");
+  }).concat(archives.map(function(item) {
+    return ["archive", item.permission_assignment_id, item.internal_user_id,
+      item.module_code, item.capability_code, item.scope_type, item.scope_value]
+      .join("\u001f");
+  })).sort().join("\n");
+  const digest = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    canonical,
+    Utilities.Charset.UTF_8
+  );
+  const byModule = {};
+  AUTHORIZATION_SHADOW_MODULE_CODES.forEach(function(moduleCode) {
+    byModule[moduleCode] = { additions: 0, archives: 0 };
+  });
+  additions.forEach(function(item) { byModule[item.module_code].additions += 1; });
+  archives.forEach(function(item) { byModule[item.module_code].archives += 1; });
+
+  return {
+    summary: {
+      mode: analysis.summary.mode,
+      ok: additions.length === 0 && archives.length === 0,
+      plan_hash: Utilities.base64EncodeWebSafe(digest).replace(/=+$/, ""),
+      additions: additions.length,
+      archives: archives.length,
+      unchanged_assignments: unchangedAssignments,
+      by_module: byModule,
+      invalid_users: analysis.summary.invalid_users,
+      invalid_assignments: analysis.summary.invalid_assignments
+    },
+    additions: additions,
+    archives: archives
+  };
+}
+
+function authorizationMigrationAssignmentKey_(moduleCode, capabilityCode, scopeType, scopeValue) {
+  return [moduleCode, capabilityCode, scopeType, scopeValue].map(normalizeText).join("\u001f");
+}
+
+function analyzeAuthorizationLegacyAssignmentMigration_(snapshot) {
+  const source = snapshot || {};
   const summary = {
     mode: resolveAuthorizationEnforcementMode_(),
     active_internal_users: 0,
@@ -255,7 +403,7 @@ function analyzeAuthorizationLegacyAssignmentMigration_() {
     invalid_assignments: 0
   };
   const users = [];
-  const activeUsers = getUsersData().filter(function(user) {
+  const activeUsers = (source.users || getUsersData()).filter(function(user) {
     return normalizeText(user.status).toLowerCase() === "active" &&
       getNormalizedPersonType(user) === "internal";
   });
@@ -285,7 +433,7 @@ function analyzeAuthorizationLegacyAssignmentMigration_() {
     activeInternalUserIds[internalUserId] = true;
   });
 
-  getPermissionAssignmentRows_().forEach(function(item) {
+  (source.assignment_rows || getPermissionAssignmentRows_()).forEach(function(item) {
     if (normalizeText(item.status).toLowerCase() !== "active") return;
     const internalUserId = normalizeText(item.internal_user_id);
     if (!internalUserId) {
