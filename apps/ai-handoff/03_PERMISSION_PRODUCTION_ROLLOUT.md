@@ -321,7 +321,7 @@ PR #45はsquash mergeされ、GitHub mainは `4d3d9eca431a41a5a5313841eac1153895
 
 ## 15. 旧権限同等の一括移行実行条件
 
-一括移行本体はローカル実装済みだが、本番未反映・未実行である。独立監査とmain統合後も、Account GASへのコード反映と、権限割当を書き換える移行実行を同じ決裁で扱わない。
+一括移行本体は独立監査、main統合、Account GAS第62版へのコード反映まで完了したが、権限割当を書き換える移行実行は未実施である。コード反映と移行実行を同じ決裁で扱わない。
 
 1. Account GASへ反映後、読み取り専用プレビューを再実行し、計画ハッシュが `DWyknJz-j34g4h7CYmpo04WXfkPJRSaqe_VvmkrDbYA`、追加104行、アーカイブ4行、維持3行、不正利用者・不正割当0件であることを確認する。異なる場合はScript Propertiesを設定せず停止する。
 2. 権限移行のえいち決裁後に限り、Script Propertiesへ移行実行者、理由、承認済み計画ハッシュ、一回許可を設定する。実値、内部ID、メールを公開資料へ記録しない。
@@ -330,3 +330,11 @@ PR #45はsquash mergeされ、GitHub mainは `4d3d9eca431a41a5a5313841eac1153895
 5. startedとsuccessが同じ監査イベントで記録され、実行後プレビューが追加0行・アーカイブ0行・不正0件となることを確認する。success後にerrorまたはrecovery_requiredがある場合は時系列上で最後の終端状態を採用し、成功扱いしない。権限割当行数、active／archived件数、実効modeがShadowであることも読み取り確認する。
 6. `AUTHORIZATION_MIGRATION_RECOVERY_REQUIRED` または `recovery_required` が出た場合は再実行せず、実効切替を禁止し、追加行とアーカイブ対象行を固定ハッシュ時点の計画および監査ログと照合して手動復旧を判断する。
 7. 権限移行完了後も直ちに再切替しない。読み取り専用診断と切替プレビュー、独立監査、既存の監査独立性条件、えいちの再切替決裁を別工程として実施する。
+
+## 16. 2026-08-24 一括移行本体の第62版反映・再プレビュー結果
+
+- PR #53の最終独立再監査は承認され、squash merge後のmain統合commit `a8837ab7c152476aabf91877134b8b0e82149d06` としてmainへ統合した。
+- 本番第61版との差分は今回対象の `authorization.js`、`authorization_change_logs.js`、`config.js` と、対象外の `account_console_logs.js` 先頭差分だけだった。対象外差分を維持し、今回対象3ファイルだけを第61版ソースへ重ねた。
+- Account GAS第62版 `03 guarded authorization migration apply 2026-08-24` を作成し、既存WebアプリURLを第62版へ更新した。既存URLのpingは `success=true`、`message=pong` を返し、反映後に再取得した23ファイルは送信元と完全一致した。
+- Apps Scriptエディタから `runAuthorizationLegacyAssignmentMigrationPlanPreview` を1回実行し、開始、件数と計画ハッシュ、完了を確認した。結果はShadow、計画ハッシュ `DWyknJz-j34g4h7CYmpo04WXfkPJRSaqe_VvmkrDbYA`、Account Console 36行追加、OrderCase 56行追加、Shift 12行追加・4行アーカイブ・3行維持、合計104行追加・4行アーカイブ・3行維持、不正利用者・不正割当0件で、承認済み計画と一致した。
+- 本節では権限割当、Script Properties、組織、利用者、申請データ、監査ログ、実効modeを変更していない。権限移行とShadowからの再切替は未実施である。移行用Script Propertiesの設定と移行関数の実行は、えいちの別決裁まで行わない。
