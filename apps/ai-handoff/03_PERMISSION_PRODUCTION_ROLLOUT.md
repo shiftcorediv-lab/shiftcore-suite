@@ -310,3 +310,11 @@ PR #45はsquash mergeされ、GitHub mainは `4d3d9eca431a41a5a5313841eac1153895
 - `clasp run`はstorage `NOT_FOUND`となったため再試行せず、Apps Scriptエディタから `runAuthorizationLegacyAssignmentMigrationPreview` を1回実行した。実行ログは開始と完了を記録し、内部ID・氏名・メール・利用者一覧を出力していない。
 - 診断はShadowのまま完了し、active内部利用者9名、旧管理対象権限あり8名、新管理対象割当あり1名、追加が必要な利用者8名、削除が必要な利用者1名、不足capability 104件、余剰capability 4件、不足scope 18件、余剰scope 0件、不正利用者・不正割当0件、`ok=false`だった。
 - 第60版反映と診断では、権限割当、Script Properties、組織、利用者、申請データを変更していない。`ok=false`のため実効切替、補償監査、7日間監視は開始しない。次工程は差分の移行案または個別承認単位への分解であり、再切替には別途監査独立性と切替の決裁を必要とする。
+
+## 14. 2026-08-24 移行計画プレビューの第61版反映・実行結果
+
+- PR #51の最終独立再監査は承認され、merge commit `ea69585a88c6fa49b27205d42574af6d2df94589` としてmainへ統合した。本番第60版との差分は今回対象の `authorization.js` と、対象外の `account_console_logs.js` 先頭空行だけだったため、対象外空行を維持して `authorization.js` だけを重ねた。
+- Account GAS第61版 `03 authorization migration plan preview 2026-08-24` を作成し、既存WebアプリURLを第61版へ更新した。デプロイ版番号、既存URLのping正常応答、反映後に再取得した23ファイルと送信元の完全一致を確認した。
+- Apps Scriptエディタから `runAuthorizationLegacyAssignmentMigrationPlanPreview` を1回実行した。実行ログは開始、件数と計画ハッシュだけを含む `AUTHORIZATION_LEGACY_MIGRATION_PLAN`、完了の順で記録され、内部ID、割当ID、氏名、メール、対象一覧を出力していない。
+- 本番計画はShadowのまま、Account Console 36行追加、OrderCase 56行追加、Shift 12行追加・4行アーカイブ・3行維持、合計104行追加・4行アーカイブ・3行維持、不正利用者・不正割当0件だった。計画ハッシュは `DWyknJz-j34g4h7CYmpo04WXfkPJRSaqe_VvmkrDbYA` である。
+- 本節では権限割当、Script Properties、組織、利用者、申請データ、監査ログ、実効modeを変更していない。一括移行本体は未実装、権限移行は未実施である。実効切替機構は実装・本番反映済みだが、Shadowからの再切替は未実施である。権限移行と再切替は、それぞれ既存の独立監査・監査独立性条件と、えいちの別決裁を必要とする。
