@@ -302,3 +302,11 @@ PR #45はsquash mergeされ、GitHub mainは `4d3d9eca431a41a5a5313841eac1153895
 - 切替後の読み取り確認で、移行済みID集合の件数確認だけでは旧管理対象権限と新割当の同等性を保証できず、割当0件を意図的な剥奪として通過させることが判明した。旧権限を持つ利用者の業務アクセス喪失を避けるため、実効運用と7日間監視は開始せず、えいちの承認後に手動ロールバックした。
 - ロールバック後は `AUTHORIZATION_ENFORCEMENT_MODE=shadow`、`AUTHORIZATION_CUTOVER_ENABLED=false`、一時的な実行者・理由が残っていないことを実画面で確認し、`runAuthorizationIntegrityAudit` も例外なく完了した。権限割当データ自体は変更していない。
 - 今回限りの監査独立性例外は失効済みである。再切替前に、読み取り専用の旧権限同等性診断を本番反映・実行し、不足・余剰capabilityとscope差を0件にするか、各差分を意図的な変更として個別承認する。続いて新たな監査例外決裁または第三者監査担当の再決裁、独立監査、切替決裁を経る。件数プレビューだけで再切替しない。
+
+## 13. 2026-08-24 移行診断の第60版反映・実行結果
+
+- PR #49をmainへ統合した後、本番第59版を一時領域へ読み取り取得した。差分は今回対象の `authorization.js` と、対象外の `account_console_logs.js` 先頭空行だけだったため、対象外空行を維持して診断関数を含む `authorization.js` だけを重ねた。
+- Account GAS第60版 `03 legacy authorization migration preview 2026-08-24` を作成し、既存WebアプリURLを第60版へ更新した。デプロイ版番号、既存URLのping正常応答、反映後に再取得した23ファイルと送信元の完全一致を確認した。
+- `clasp run`はstorage `NOT_FOUND`となったため再試行せず、Apps Scriptエディタから `runAuthorizationLegacyAssignmentMigrationPreview` を1回実行した。実行ログは開始と完了を記録し、内部ID・氏名・メール・利用者一覧を出力していない。
+- 診断はShadowのまま完了し、active内部利用者9名、旧管理対象権限あり8名、新管理対象割当あり1名、追加が必要な利用者8名、削除が必要な利用者1名、不足capability 104件、余剰capability 4件、不足scope 18件、余剰scope 0件、不正利用者・不正割当0件、`ok=false`だった。
+- 第60版反映と診断では、権限割当、Script Properties、組織、利用者、申請データを変更していない。`ok=false`のため実効切替、補償監査、7日間監視は開始しない。次工程は差分の移行案または個別承認単位への分解であり、再切替には別途監査独立性と切替の決裁を必要とする。
