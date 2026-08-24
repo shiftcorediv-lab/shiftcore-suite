@@ -565,3 +565,12 @@
 - Account GAS第62版 `03 guarded authorization migration apply 2026-08-24` を作成し、既存WebアプリURLを第62版へ更新した。pingは `success=true`、`message=pong` を返し、反映後に別の一時領域へ再取得した23ファイルは送信元と完全一致した。
 - Apps Scriptエディタから読み取り専用の `runAuthorizationLegacyAssignmentMigrationPlanPreview` を1回実行した。結果は `mode=shadow`、計画ハッシュ `DWyknJz-j34g4h7CYmpo04WXfkPJRSaqe_VvmkrDbYA`、追加104行、アーカイブ4行、維持3行、Account Console 36行追加、OrderCase 56行追加、Shift 12行追加・4行アーカイブ、不正利用者・不正割当0件で、第61版時点の承認済み計画と一致した。
 - 第62版反映と再プレビューでは、権限割当、Script Properties、組織、利用者、申請データ、監査ログ、実効modeを変更していない。Shadow運用を維持し、権限移行とShadowからの再切替は未実施である。次工程の権限移行には、移行中の手動編集・他writer停止と、えいちの別決裁を必要とする。
+
+## 2026-08-24 旧権限同等の一括移行本番結果
+
+- えいちが権限移行を別途決裁した後、移行中は権限割当シートを手動編集しないよう依頼し、移行実行者、理由、承認済み計画ハッシュ、一回許可をScript Propertiesへ設定した。他writerの実行有無は未確認である。実値、内部ユーザーID、メールは本記録へ転記していない。
+- Apps Scriptエディタで `runAuthorizationLegacyAssignmentMigrationApply` を選択し、1回だけ実行した。実行ログは開始と完了を記録し、例外、`AUTHORIZATION_MIGRATION_RECOVERY_REQUIRED`、`recovery_required` は表示されなかった。実装上、関数は固定計画の再照合、一回許可の消費、書込み、事後計画、整合性監査、success監査ログを完了しなければ正常終了しない。
+- 正常終了直後に読み取り専用の `runAuthorizationLegacyAssignmentMigrationPlanPreview` を1回実行した。結果は `mode=shadow`、`ok=true`、追加0行、アーカイブ0行、維持107行、全moduleの追加・アーカイブ0行、不正利用者0件、不正割当0件だった。移行前の追加104行・アーカイブ4行・維持3行という固定計画が解消されたことを確認した。
+- Script Propertiesを読み取り確認し、`AUTHORIZATION_MIGRATION_ENABLED=false`、`AUTHORIZATION_ENFORCEMENT_MODE=shadow`、移行実行者、理由、承認済み計画ハッシュの一時プロパティが削除済みであることを確認した。
+- Codexが本工程で実行した業務データ変更は、固定計画に含まれる権限割当104行の追加と既存Shift割当4行のアーカイブだけである。利用者、組織、申請データ、実効modeを変更する操作は行っていない。内部ユーザーID、割当ID、氏名、メール、対象一覧は公開ログと本記録へ含めていない。
+- 旧権限同等の割当移行完了は、実効権限への再切替決裁を意味しない。次工程は読み取り専用の移行診断と切替プレビュー、固定差分の独立監査、既存の監査独立性条件、えいちの再切替決裁であり、それらが揃うまでShadow運用を維持する。
