@@ -347,3 +347,11 @@ PR #45はsquash mergeされ、GitHub mainは `4d3d9eca431a41a5a5313841eac1153895
 - Script Propertiesは `AUTHORIZATION_MIGRATION_ENABLED=false`、`AUTHORIZATION_ENFORCEMENT_MODE=shadow` で、移行実行者、理由、承認済み計画ハッシュの一時設定は削除済みだった。
 - Codexが本工程で実行した業務データ変更は、固定計画に基づく権限割当104行の追加と既存Shift割当4行のアーカイブだけである。利用者、組織、申請データ、実効modeを変更する操作は行っていない。内部ユーザーID、割当ID、氏名、メール、対象一覧は公開ログと本記録へ含めていない。
 - 権限移行完了後もShadow運用を維持する。読み取り専用の移行診断と切替プレビュー、独立監査、既存の監査独立性条件、えいちの再切替決裁が完了するまで `runAuthorizationEffectiveCutover` を実行しない。
+
+## 18. 2026-08-24 実効切替プレビューの停止・再確認結果
+
+- 権限移行後の初回 `runAuthorizationEffectiveCutoverPreview` は `ok=false`、`mode=shadow`、active内部利用者9名、旧管理対象権限あり8名、設定済み0名、未設定9名、不正利用者0件、未知の移行済みID 0件だった。確認済み利用者集合が未設定のため、切替準備を停止した。
+- Google Sheets正本の `users_master` を必要列に限定して読み取り、実装と同じactive・内部利用者判定で9名・重複なしを確認した。内部ユーザーID、氏名、メール、対象一覧は公開ログと本記録へ含めていない。
+- えいちの別決裁後、9名を `AUTHORIZATION_CUTOVER_MIGRATED_USER_IDS` へ設定した。`AUTHORIZATION_CUTOVER_ENABLED=false`、`AUTHORIZATION_ENFORCEMENT_MODE=shadow` は維持し、Codexは実効切替、権限割当、利用者、組織、申請データを変更する操作を行っていない。
+- 設定後の再プレビューは `ok=true`、`mode=shadow`、active内部利用者9名、旧管理対象権限あり8名、設定済み9名、未設定0名、不正利用者0件、未知の移行済みID 0件だった。
+- 本節の合格結果は実効切替の決裁または実行ではない。固定差分の独立監査と既存の監査独立性条件を確認し、えいちが別途決裁するまで `AUTHORIZATION_CUTOVER_ENABLED=true` の設定と `runAuthorizationEffectiveCutover` の実行を行わない。
