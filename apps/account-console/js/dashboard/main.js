@@ -131,7 +131,7 @@ function renderDashboard(data) {
   $("workStatus").textContent = status;
   $("workStatus").dataset.status = status;
   $("startBtn").hidden = primaryState.hidden;
-  $("correctionBtn").hidden = true;
+  $("correctionBtn").hidden = !record;
   $("deadlineNote").textContent = schedule ? "出発は予定開始1時間前、入店は15分前が目安です。" : "本日は稼働予定がありません。";
   renderTimingWarning(data, primaryState.name);
   renderUpcoming(data.upcoming || []);
@@ -159,7 +159,7 @@ function renderUpcoming(items) {
   $("upcomingList").innerHTML = items.length ? items.map(item => `<div class="schedule-item"><time>${escapeHtml(dateText(item["勤務日"]))}</time><div><strong>${escapeHtml(item["稼働場所"] || "場所未定")}</strong><span>${escapeHtml(`${timeText(item["予定開始"])} – ${timeText(item["予定終了"])}`)}</span></div></div>`).join("") : `<div class="empty-state">直近の稼働予定はありません。</div>`;
 }
 
-function renderScheduleSelector(schedules, selected) { const wrap = $("scheduleSelectWrap"); const select = $("scheduleSelect"); wrap.hidden = schedules.length < 2; select.innerHTML = schedules.map(item => `<option value="${escapeHtml(item.schedule_id || "")}" ${String(item.schedule_id || "") === String(selected?.schedule_id || "") ? "selected" : ""}>${escapeHtml(item["開発予定名"] || item["稼働場所"] || item.schedule_id || "予定")}</option>`).join(""); select.disabled = Boolean(dashboardData?.record?.["実開始"]); }
+function renderScheduleSelector(schedules, selected) { const wrap = $("scheduleSelectWrap"); const select = $("scheduleSelect"); wrap.hidden = schedules.length < 2; select.innerHTML = schedules.map(item => `<option value="${escapeHtml(item.schedule_id || "")}" ${String(item.schedule_id || "") === String(selected?.schedule_id || "") ? "selected" : ""}>${escapeHtml(item["開発予定名"] || item["稼働場所"] || item.schedule_id || "予定")}</option>`).join(""); select.disabled = Boolean(dashboardData?.record?.["実開始"] && !dashboardData?.record?.["実終了"]); }
 
 $("scheduleSelect").addEventListener("change", async event => { if (busy) return; selectedScheduleId = event.target.value; await loadDashboard(); });
 
@@ -202,6 +202,7 @@ $("startBtn").addEventListener("click", async () => {
   if (state.name === "departure") return submitDeparture();
   if (state.name === "arrival") return submitArrival();
   if (state.name === "completion") return submitCompletion();
+  if (state.name === "unplanned") return submitUnplanned();
 });
 
 $("correctionBtn").addEventListener("click", () => openCorrection(dashboardData?.record?.["実開始"] ? "終了修正" : "開始修正"));
@@ -225,6 +226,11 @@ async function submitArrival() {
   if (!await openDialog("入店", body, "入店する")) return;
   const reason = readReason();
   if (approvalRequired && !reason) return showStatus("理由を入力してください。", true);
+  const location = await readArrivalLocation();
+  await runAction(async () => { const result = await attendanceRequest("arrive", { scheduleId: dashboardData.schedule.schedule_id || "", reason, reasonType: $("reasonType")?.value || "その他", location }); await loadDashboard(); showAlert(result.approvalRequired ? "入店を記録し、直属承認を申請しました。" : "入店を記録しました。", "success"); });
+}
+
+async function readArrivalLocation() {
   let consent = localStorage.getItem("shiftcore_location_consent");
   if (!consent) {
     $("locationConsentDialog").showModal();
@@ -233,8 +239,17 @@ async function submitArrival() {
     });
     localStorage.setItem("shiftcore_location_consent", JSON.stringify({ value: consent, version: LOCATION_CONSENT_VERSION, at: new Date().toISOString() }));
   } else { try { consent = JSON.parse(consent).value; } catch { consent = "deny"; } }
-  const location = consent === "allow" ? await getLocation() : { status: "許可なし", consentVersion: LOCATION_CONSENT_VERSION };
-  await runAction(async () => { const result = await attendanceRequest("arrive", { scheduleId: dashboardData.schedule.schedule_id || "", reason, reasonType: $("reasonType")?.value || "その他", location }); await loadDashboard(); showAlert(result.approvalRequired ? "入店を記録し、直属承認を申請しました。" : "入店を記録しました。", "success"); });
+  return consent === "allow" ? getLocation() : { status: "許可なし", consentVersion: LOCATION_CONSENT_VERSION };
+}
+
+async function submitUnplanned() {
+  const body = `<label>稼働場所<input id="workLocationInput" required placeholder="本日の稼働場所"></label>${reasonFields("予定外稼働の理由")}`;
+  if (!await openDialog("予定外稼働", body, "開始する")) return;
+  const workLocation = $("workLocationInput")?.value?.trim() || "";
+  const reason = readReason();
+  if (!workLocation || !reason) return showStatus("稼働場所と理由を入力してください。", true);
+  const location = await readArrivalLocation();
+  await runAction(async () => { await attendanceRequest("clockIn", { unplanned: true, workLocation, reason, reasonType: $("reasonType")?.value || "その他", location }); await loadDashboard(); showAlert("予定外稼働を記録しました。", "success"); });
 }
 
 async function submitCompletion() {
@@ -246,7 +261,7 @@ async function submitCompletion() {
   await runAction(async () => { const result = await attendanceRequest("clockOut", { scheduleId: dashboardData.schedule?.schedule_id || "", reason, reasonType: $("reasonType")?.value || "その他" }); sessionStorage.setItem("shiftcore_report_context", JSON.stringify({ recordId: result.record.record_id, plans: result.plans || [] })); window.location.href = "./work-report.html"; });
 }
 
-function actionState(data) { const reports = data.fieldReports || []; const departure = reports.some(r => r["報告種別"] === "出発"); const arrival = reports.some(r => r["報告種別"] === "入店"); if (!data.schedule) return { name: "none", label: "本日の予定なし", hidden: true }; if (!departure) return { name: "departure", label: "出発", hidden: false }; if (!arrival || !data.record?.["実開始"]) return { name: "arrival", label: "入店", hidden: false }; if (!data.record?.["実終了"]) return { name: "completion", label: "終了報告", hidden: false }; return { name: "done", label: "終了報告済み", hidden: true }; }
+function actionState(data) { const reports = data.fieldReports || []; const departure = reports.some(r => r["報告種別"] === "出発"); const arrival = reports.some(r => r["報告種別"] === "入店"); if (!data.schedule) return data.record?.["実開始"] && !data.record?.["実終了"] ? { name: "completion", label: "終了報告", hidden: false } : { name: "unplanned", label: "予定外稼働", hidden: Boolean(data.record?.["実終了"]) }; if (!departure) return { name: "departure", label: "出発", hidden: false }; if (!arrival || !data.record?.["実開始"]) return { name: "arrival", label: "入店", hidden: false }; if (!data.record?.["実終了"]) return { name: "completion", label: "終了報告", hidden: false }; return { name: "done", label: "終了報告済み", hidden: true }; }
 function renderTimingWarning(data, state) { const t = data.timing; if (!t) return showAlert("予定開始・終了時刻が未登録です。管理者へ確認してください。", "warning"); if (state === "departure" && t.departureWarning) return showAlert("出発リミットを過ぎています。安全に注意して出発してください。", "warning"); if (state === "arrival" && t.arrivalApprovalRequired) return showAlert("予定開始時刻以降の入店です。理由の報告と直属承認が必要です。", "warning"); if (state === "arrival" && t.arrivalWarning) return showAlert("入店リミットを過ぎています。", "warning"); if (state === "completion" && t.endApprovalRequired) return showAlert("0:00以降の終了報告です。理由の報告と直属承認が必要です。", "warning"); if (state === "completion" && t.endWarning) return showAlert("予定終了から1時間を超えています。終了報告を確認してください。", "warning"); showAlert("", ""); }
 
 function getLocation() {

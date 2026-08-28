@@ -89,3 +89,45 @@ test("実時刻は承認前に保存し承認後は既存の正式時刻へ反�
   assert.match(backendSource, /formalChanges\["正式開始"\] = request\["申請開始"\]/);
   assert.match(backendSource, /formalChanges\["正式終了"\] = request\["申請終了"\]/);
 });
+
+test("旧clockIn経路でも予定勤務は出発報告なしに開始できない", () => {
+  const context = timingContext();
+  context.LockService = { getDocumentLock: () => ({ waitLock: () => {}, releaseLock: () => {} }) };
+  context.settings_ = () => ({ start_limit_time: "23:59", start_warning_time: "23:58" });
+  context.today_ = () => "2026-08-28";
+  context.timeKey_ = () => "09:00";
+  context.findRecord_ = () => null;
+  context.findSchedule_ = () => ({ schedule_id: "SCHEDULE-1" });
+  assert.throws(() => context.clockIn_({ email: "member@example.com" }, { scheduleId: "SCHEDULE-1" }, "token"), error => error.code === "DEPARTURE_REPORT_REQUIRED");
+});
+
+test("同日複数予定ではschedule_idなしの旧記録を別予定へ流用しない", () => {
+  const context = timingContext();
+  context.rows_ = () => [
+    { email: "member@example.com", "勤務日": "2026-08-28", schedule_id: "", record_id: "LEGACY" },
+    { email: "member@example.com", "勤務日": "2026-08-28", schedule_id: "SCHEDULE-2", record_id: "SECOND" }
+  ];
+  assert.equal(context.findRecord_("member@example.com", "2026-08-28", "SCHEDULE-1"), null);
+  assert.equal(context.findRecord_("member@example.com", "2026-08-28", "SCHEDULE-2").record_id, "SECOND");
+});
+
+test("終了済み案件は同日の次予定の選択を妨げない", () => {
+  const context = timingContext();
+  const schedules = [
+    { email: "member@example.com", schedule_id: "SCHEDULE-1" },
+    { email: "member@example.com", schedule_id: "SCHEDULE-2" }
+  ];
+  const records = [
+    { email: "member@example.com", schedule_id: "SCHEDULE-1", "実開始": "10:00", "実終了": "11:00" },
+    { email: "member@example.com", schedule_id: "SCHEDULE-2" }
+  ];
+  assert.equal(context.findScheduleRecordIn_(records, schedules[1], schedules).schedule_id, "SCHEDULE-2");
+});
+
+test("前日出発済みで未入店のschedule_idを日付変更後も引き継ぐ", () => {
+  const context = timingContext();
+  context.rows_ = () => [
+    { "勤務日": "2026-08-28", schedule_id: "NIGHT-1", "報告種別": "出発", "報告者メール": "member@example.com" }
+  ];
+  assert.equal(context.findPendingOvernightReport_({ email: "member@example.com" }, "2026-08-29").schedule_id, "NIGHT-1");
+});
