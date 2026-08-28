@@ -11,6 +11,7 @@ const storedUser = getStoredUser();
 const dashboardCacheKey = `shiftcore_attendance_dashboard:${storedUser?.email || storedUser?.employee_code || "anonymous"}`;
 let dashboardData = null;
 let busy = false;
+let selectedScheduleId = "";
 
 if (!storedUser) {
   showStatus("セッション情報がありません。ログイン画面へ戻ります。", true);
@@ -53,7 +54,8 @@ async function refreshModuleAccess(firebaseUser) {
 
 async function loadDashboard() {
   try {
-    dashboardData = await attendanceRequest("getDashboardData");
+    dashboardData = await attendanceRequest("getDashboardData", { scheduleId: selectedScheduleId });
+    selectedScheduleId = dashboardData.schedule?.schedule_id || selectedScheduleId;
     renderDashboard(dashboardData);
     writeDashboardCache(dashboardData);
     showStatus("保存済みの勤怠情報を表示しています。SBの最新予定を確認中です。");
@@ -66,7 +68,7 @@ async function loadDashboard() {
 
 async function refreshDashboardInBackground() {
   try {
-    const refreshed = await attendanceRequest("refreshDashboardData");
+    const refreshed = await attendanceRequest("refreshDashboardData", { scheduleId: selectedScheduleId });
     dashboardData = refreshed;
     renderDashboard(refreshed);
     writeDashboardCache(refreshed);
@@ -111,13 +113,13 @@ function renderIdentity(user) {
 function renderDashboard(data) {
   const schedule = data.schedule;
   const record = data.record;
-  const direct = isDirectEmployment(data.user);
-  $("startBtn").textContent = schedule ? (direct ? "出勤" : "稼働開始") : "予定外稼働を申請";
-  $("endBtn").textContent = direct ? "退勤" : "稼働終了";
+  const primaryState = actionState(data);
+  $("startBtn").textContent = primaryState.label;
   $("adminLink").hidden = !data.adminAccess;
   $("workLocation").textContent = schedule?.["稼働場所"] || record?.["予定場所"] || "非稼働";
   $("weatherLocation").textContent = schedule?.["稼働場所"] || record?.["予定場所"] || "非稼働";
   $("plannedTime").textContent = schedule ? `${timeText(schedule["予定開始"])} – ${timeText(schedule["予定終了"])}` : "—";
+  renderScheduleSelector(data.schedules || [], schedule);
   const fieldReports = data.fieldReports || [];
   const departure = fieldReports.find(report => report["報告種別"] === "出発");
   const arrival = fieldReports.find(report => report["報告種別"] === "入店");
@@ -128,30 +130,22 @@ function renderDashboard(data) {
   const status = record?.["状態"] || (schedule ? "未開始" : "非稼働");
   $("workStatus").textContent = status;
   $("workStatus").dataset.status = status;
-  $("startBtn").hidden = Boolean(record?.["実開始"]);
-  $("endBtn").hidden = !record?.["実開始"] || Boolean(record?.["実終了"]);
-  $("departureBtn").hidden = !schedule || Boolean(departure);
-  $("arrivalBtn").hidden = !schedule || !departure || Boolean(arrival);
-  const now = jstTime(data.serverNow);
-  $("correctionBtn").hidden = !((schedule && !record?.["実開始"] && now >= data.settings.start_limit_time) || (record?.["実開始"] && !record?.["実終了"] && now >= data.settings.end_limit_time));
-  $("deadlineNote").textContent = schedule ? "9:30以降は未押下理由が必要です。通常開始は10:00までです。" : "本日は非稼働です。必要な場合は予定外稼働を申請できます。";
-  if (schedule && now >= data.settings.start_warning_time && !record?.["実開始"] && now < data.settings.start_limit_time) showAlert("稼働開始が確認できません。開始時に、これまで押下していなかった理由を入力してください。", "warning");
-  if (now >= data.settings.end_warning_time && record?.["実開始"] && !record?.["実終了"]) showAlert("稼働終了が確認できません。22:00までに終了操作を行ってください。", "warning");
+  $("startBtn").hidden = primaryState.hidden;
+  $("correctionBtn").hidden = true;
+  $("deadlineNote").textContent = schedule ? "出発は予定開始1時間前、入店は15分前が目安です。" : "本日は稼働予定がありません。";
+  renderTimingWarning(data, primaryState.name);
   renderUpcoming(data.upcoming || []);
   renderNotifications(data.notifications || []);
 }
 
-$("departureBtn").addEventListener("click", () => submitFieldReport("出発"));
-$("arrivalBtn").addEventListener("click", () => submitFieldReport("入店"));
-
-async function submitFieldReport(reportType) {
+async function submitDeparture() {
   if (busy || !dashboardData?.schedule) return;
-  const accepted = await openDialog(`${reportType}報告`, `<p>現在時刻で${reportType}を報告します。</p>`, "報告する");
+  const accepted = await openDialog("出発", "<p>現在時刻で出発を報告します。</p>", "出発する");
   if (!accepted) return;
   await runAction(async () => {
-    await attendanceRequest("submitFieldReport", { reportType, scheduleId: dashboardData.schedule.schedule_id || "" });
+    await attendanceRequest("submitFieldReport", { reportType: "出発", scheduleId: dashboardData.schedule.schedule_id || "" });
     await loadDashboard();
-    showAlert(`${reportType}報告を記録しました。`, "success");
+    showAlert("出発を記録しました。", "success");
   });
 }
 
@@ -159,12 +153,15 @@ function renderUnavailable() {
   $("workStatus").textContent = "接続待ち";
   $("workLocation").textContent = "勤怠APIの公開完了後に表示します";
   $("startBtn").disabled = true;
-  $("endBtn").disabled = true;
 }
 
 function renderUpcoming(items) {
   $("upcomingList").innerHTML = items.length ? items.map(item => `<div class="schedule-item"><time>${escapeHtml(dateText(item["勤務日"]))}</time><div><strong>${escapeHtml(item["稼働場所"] || "場所未定")}</strong><span>${escapeHtml(`${timeText(item["予定開始"])} – ${timeText(item["予定終了"])}`)}</span></div></div>`).join("") : `<div class="empty-state">直近の稼働予定はありません。</div>`;
 }
+
+function renderScheduleSelector(schedules, selected) { const wrap = $("scheduleSelectWrap"); const select = $("scheduleSelect"); wrap.hidden = schedules.length < 2; select.innerHTML = schedules.map(item => `<option value="${escapeHtml(item.schedule_id || "")}" ${String(item.schedule_id || "") === String(selected?.schedule_id || "") ? "selected" : ""}>${escapeHtml(item["開発予定名"] || item["稼働場所"] || item.schedule_id || "予定")}</option>`).join(""); select.disabled = Boolean(dashboardData?.record?.["実開始"]); }
+
+$("scheduleSelect").addEventListener("change", async event => { if (busy) return; selectedScheduleId = event.target.value; await loadDashboard(); });
 
 function renderNotifications(items) {
   const unread = items.filter(item => !truthy(item["既読"])).length;
@@ -201,34 +198,10 @@ function closeUserMenu() {
 
 $("startBtn").addEventListener("click", async () => {
   if (busy || !dashboardData) return;
-  const now = jstTime(dashboardData.serverNow);
-  if (dashboardData.schedule && now >= dashboardData.settings.start_limit_time) return openCorrection("開始修正");
-  const reasonRequired = now >= dashboardData.settings.start_warning_time || !dashboardData.schedule;
-  const body = `${!dashboardData.schedule ? `<label>稼働場所<input id="workLocationInput" required placeholder="本日の稼働場所"></label>` : ""}${reasonRequired ? reasonFields(dashboardData.schedule ? "これまで押下していなかった理由" : "予定外稼働の理由") : `<p>現在時刻で稼働を開始します。</p>`}`;
-  const accepted = await openDialog("稼働開始", body, "開始する");
-  if (!accepted) return;
-  const reason = readReason();
-  if (reasonRequired && !reason) return showStatus("理由を入力してください。", true);
-  await confirmLocationAndClockIn({
-    reason,
-    unplanned: !dashboardData.schedule,
-    workLocation: $("workLocationInput")?.value || "",
-    scheduleId: dashboardData.schedule?.schedule_id || "",
-    planId: dashboardData.schedule?.["開発予定ID"] || ""
-  });
-});
-
-$("endBtn").addEventListener("click", async () => {
-  if (busy || !dashboardData) return;
-  const now = jstTime(dashboardData.serverNow);
-  if (now >= dashboardData.settings.end_limit_time) return openCorrection("終了修正");
-  const accepted = await openDialog("稼働終了", "<p>現在時刻で稼働を終了します。保存に成功した後、実績報告へ移動します。</p>", "終了する");
-  if (!accepted) return;
-  await runAction(async () => {
-    const result = await attendanceRequest("clockOut");
-    sessionStorage.setItem("shiftcore_report_context", JSON.stringify({ recordId: result.record.record_id, plans: result.plans || [] }));
-    window.location.href = "./work-report.html";
-  });
+  const state = actionState(dashboardData);
+  if (state.name === "departure") return submitDeparture();
+  if (state.name === "arrival") return submitArrival();
+  if (state.name === "completion") return submitCompletion();
 });
 
 $("correctionBtn").addEventListener("click", () => openCorrection(dashboardData?.record?.["実開始"] ? "終了修正" : "開始修正"));
@@ -246,7 +219,12 @@ async function openCorrection(type) {
   });
 }
 
-async function confirmLocationAndClockIn(payload) {
+async function submitArrival() {
+  const approvalRequired = Boolean(dashboardData.timing?.arrivalApprovalRequired);
+  const body = `${approvalRequired ? reasonFields("予定開始以降になった理由（直属承認が必要です）") : "<p>現在時刻で入店を記録します。</p>"}`;
+  if (!await openDialog("入店", body, "入店する")) return;
+  const reason = readReason();
+  if (approvalRequired && !reason) return showStatus("理由を入力してください。", true);
   let consent = localStorage.getItem("shiftcore_location_consent");
   if (!consent) {
     $("locationConsentDialog").showModal();
@@ -256,8 +234,20 @@ async function confirmLocationAndClockIn(payload) {
     localStorage.setItem("shiftcore_location_consent", JSON.stringify({ value: consent, version: LOCATION_CONSENT_VERSION, at: new Date().toISOString() }));
   } else { try { consent = JSON.parse(consent).value; } catch { consent = "deny"; } }
   const location = consent === "allow" ? await getLocation() : { status: "許可なし", consentVersion: LOCATION_CONSENT_VERSION };
-  await runAction(async () => { await attendanceRequest("clockIn", { ...payload, location }); await loadDashboard(); showAlert("稼働開始を記録しました。", "success"); });
+  await runAction(async () => { const result = await attendanceRequest("arrive", { scheduleId: dashboardData.schedule.schedule_id || "", reason, reasonType: $("reasonType")?.value || "その他", location }); await loadDashboard(); showAlert(result.approvalRequired ? "入店を記録し、直属承認を申請しました。" : "入店を記録しました。", "success"); });
 }
+
+async function submitCompletion() {
+  const approvalRequired = Boolean(dashboardData.timing?.endApprovalRequired);
+  const body = `${approvalRequired ? reasonFields("0:00以降になった理由（直属承認が必要です）") : "<p>現在時刻で終了を記録し、実績報告へ進みます。</p>"}`;
+  if (!await openDialog("終了報告", body, "終了報告する")) return;
+  const reason = readReason();
+  if (approvalRequired && !reason) return showStatus("理由を入力してください。", true);
+  await runAction(async () => { const result = await attendanceRequest("clockOut", { scheduleId: dashboardData.schedule?.schedule_id || "", reason, reasonType: $("reasonType")?.value || "その他" }); sessionStorage.setItem("shiftcore_report_context", JSON.stringify({ recordId: result.record.record_id, plans: result.plans || [] })); window.location.href = "./work-report.html"; });
+}
+
+function actionState(data) { const reports = data.fieldReports || []; const departure = reports.some(r => r["報告種別"] === "出発"); const arrival = reports.some(r => r["報告種別"] === "入店"); if (!data.schedule) return { name: "none", label: "本日の予定なし", hidden: true }; if (!departure) return { name: "departure", label: "出発", hidden: false }; if (!arrival || !data.record?.["実開始"]) return { name: "arrival", label: "入店", hidden: false }; if (!data.record?.["実終了"]) return { name: "completion", label: "終了報告", hidden: false }; return { name: "done", label: "終了報告済み", hidden: true }; }
+function renderTimingWarning(data, state) { const t = data.timing; if (!t) return showAlert("予定開始・終了時刻が未登録です。管理者へ確認してください。", "warning"); if (state === "departure" && t.departureWarning) return showAlert("出発リミットを過ぎています。安全に注意して出発してください。", "warning"); if (state === "arrival" && t.arrivalApprovalRequired) return showAlert("予定開始時刻以降の入店です。理由の報告と直属承認が必要です。", "warning"); if (state === "arrival" && t.arrivalWarning) return showAlert("入店リミットを過ぎています。", "warning"); if (state === "completion" && t.endApprovalRequired) return showAlert("0:00以降の終了報告です。理由の報告と直属承認が必要です。", "warning"); if (state === "completion" && t.endWarning) return showAlert("予定終了から1時間を超えています。終了報告を確認してください。", "warning"); showAlert("", ""); }
 
 function getLocation() {
   return new Promise(resolve => {
@@ -299,5 +289,4 @@ function timeText(value) { if (!value) return "—"; const d = new Date(value); 
 function dateText(value) { const d = new Date(value); return Number.isNaN(d.getTime()) ? String(value) : new Intl.DateTimeFormat("ja-JP", { month: "short", day: "numeric", weekday: "short", timeZone: "Asia/Tokyo" }).format(d); }
 function dateTimeText(value) { if (!value) return ""; const d = new Date(value); return Number.isNaN(d.getTime()) ? String(value) : new Intl.DateTimeFormat("ja-JP", { dateStyle: "short", timeStyle: "short", timeZone: "Asia/Tokyo" }).format(d); }
 function truthy(v) { return v === true || String(v).toLowerCase() === "true"; }
-function isDirectEmployment(user) { return /正社員|契約社員|direct|employee/i.test(user.employment_type || ""); }
 function escapeHtml(value) { const div = document.createElement("div"); div.textContent = String(value ?? ""); return div.innerHTML; }
