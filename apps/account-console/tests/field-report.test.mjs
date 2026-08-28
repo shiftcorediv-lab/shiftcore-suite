@@ -86,6 +86,7 @@ test("未知の報告種別を拒否する", () => {
 test("ダッシュボードは出発・入店の本人操作をAPIへ送る", () => {
   const source = readFileSync(new URL("../js/dashboard/main.js", import.meta.url), "utf8");
   assert.match(source, /attendanceRequest\("submitFieldReport", \{ reportType, scheduleId:/);
+  assert.match(source, /scheduleId: dashboardData\.schedule\.schedule_id/);
   assert.match(source, /submitFieldReport\("出発"\)/);
   assert.match(source, /submitFieldReport\("入店"\)/);
 });

@@ -149,7 +149,7 @@ async function submitFieldReport(reportType) {
   const accepted = await openDialog(`${reportType}報告`, `<p>現在時刻で${reportType}を報告します。</p>`, "報告する");
   if (!accepted) return;
   await runAction(async () => {
-    await attendanceRequest("submitFieldReport", { reportType, scheduleId: dashboardData.schedule["開発予定ID"] || dashboardData.schedule.schedule_id || "" });
+    await attendanceRequest("submitFieldReport", { reportType, scheduleId: dashboardData.schedule.schedule_id || "" });
     await loadDashboard();
     showAlert(`${reportType}報告を記録しました。`, "success");
   });
