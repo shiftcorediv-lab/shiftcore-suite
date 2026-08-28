@@ -183,21 +183,21 @@ function clockIn_(user, payload, idToken) {
     if (current >= settings.start_limit_time) throw apiError_("CORRECTION_REQUIRED", "10:00以降の開始は修正申請が必要です。");
     if (current >= settings.start_warning_time && !String(payload.reason || "").trim()) throw apiError_("REASON_REQUIRED", "9:30以降は未押下理由を入力してください。");
 
-    const schedule = findSchedule_(user, today, payload.scheduleId, idToken);
-    if (schedule) throw apiError_("DEPARTURE_REPORT_REQUIRED", "予定のある勤務は出発報告後に入店してください。");
-    if (!schedule && !payload.unplanned) throw apiError_("UNPLANNED_REQUIRED", "本日の予定がないため、予定外稼働として理由を入力してください。");
-    if (!schedule && !String(payload.reason || "").trim()) throw apiError_("REASON_REQUIRED", "予定外稼働の理由を入力してください。");
+    const schedules = getSchedules_(idToken).filter(r => matchesUser_(r, user) && dateKey_(r["勤務日"]) === today);
+    if (schedules.length) throw apiError_("DEPARTURE_REPORT_REQUIRED", "予定のある勤務は出発報告後に入店してください。");
+    if (!payload.unplanned) throw apiError_("UNPLANNED_REQUIRED", "本日の予定がないため、予定外稼働として理由を入力してください。");
+    if (!String(payload.reason || "").trim()) throw apiError_("REASON_REQUIRED", "予定外稼働の理由を入力してください。");
 
     const recordId = Utilities.getUuid();
-    const location = saveLocation_(user, recordId, payload.location || {}, schedule && schedule["稼働場所"]);
+    const location = saveLocation_(user, recordId, payload.location || {}, payload.workLocation || "");
     const row = [
       recordId, user.organization_id || "", user.employee_code || "", user.email, user.name || "", today,
-      schedule && schedule["予定開始"] || "", schedule && schedule["予定終了"] || "", schedule && schedule["稼働場所"] || payload.workLocation || "",
-      schedule && schedule["開発予定ID"] || payload.planId || "", user.employment_type || user.contract_type || "", current >= settings.start_warning_time ? "開始遅延" : "稼働中",
-      now, now, payload.reason || "", "", "", !schedule, location.status, location.id || "", "", "", now, now
+      "", "", payload.workLocation || "",
+      payload.planId || "", user.employment_type || user.contract_type || "", current >= settings.start_warning_time ? "開始遅延" : "稼働中",
+      now, now, payload.reason || "", "", "", true, location.status, location.id || "", "", "", now, now
     ];
     append_(SHEETS.records, row);
-    notifyManagers_(user, current >= settings.start_warning_time ? "開始遅延" : (!schedule ? "予定外稼働" : "稼働開始"), `${user.name || user.email}さんが${formatJst_(now)}に稼働を開始しました。${payload.reason ? " 理由: " + payload.reason : ""}`);
+    notifyManagers_(user, current >= settings.start_warning_time ? "開始遅延" : "予定外稼働", `${user.name || user.email}さんが${formatJst_(now)}に稼働を開始しました。${payload.reason ? " 理由: " + payload.reason : ""}`);
     return { ok: true, record: findRecord_(user.email, today) };
   } finally {
     lock.releaseLock();
@@ -349,7 +349,7 @@ function reviewRequest_(user, payload, idToken) {
           if (payload.decision === "承認") {
             if (request["申請開始"]) formalChanges["正式開始"] = request["申請開始"];
             if (request["申請終了"]) formalChanges["正式終了"] = request["申請終了"];
-            if (request["種別"] === "入店遅延報告") formalChanges["状態"] = "稼働中";
+            if (request["種別"] === "入店遅延報告") formalChanges["状態"] = record && record["実終了"] ? "終了済み" : "稼働中";
             if (request["種別"] === "日付またぎ終了報告") formalChanges["状態"] = "終了済み";
           } else {
             if (request["種別"] === "入店遅延報告") formalChanges["状態"] = "入店却下";
@@ -694,8 +694,7 @@ function findRecord_(email, date, scheduleId) {
   if (!scheduleId) return matches[0] || null;
   const exact = matches.find(r => String(r.schedule_id || "") === String(scheduleId));
   if (exact) return exact;
-  const legacy = matches.filter(r => !r.schedule_id);
-  return matches.length === 1 && legacy.length === 1 ? legacy[0] : null;
+  return null;
 }
 function findActiveRecord_(email) { return rows_(SHEETS.records).find(r => normalizeEmail_(r.email) === normalizeEmail_(email) && r["実開始"] && !r["実終了"]) || null; }
 function findRecordBySchedule_(email, scheduleId) { if (!scheduleId) return null; const matches = rows_(SHEETS.records).filter(r => normalizeEmail_(r.email) === normalizeEmail_(email) && String(r.schedule_id || "") === String(scheduleId)); return matches.length ? matches[matches.length - 1] : null; }

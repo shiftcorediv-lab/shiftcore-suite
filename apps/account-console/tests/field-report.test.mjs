@@ -97,8 +97,8 @@ test("旧clockIn経路でも予定勤務は出発報告なしに開始できな�
   context.today_ = () => "2026-08-28";
   context.timeKey_ = () => "09:00";
   context.findRecord_ = () => null;
-  context.findSchedule_ = () => ({ schedule_id: "SCHEDULE-1" });
-  assert.throws(() => context.clockIn_({ email: "member@example.com" }, { scheduleId: "SCHEDULE-1" }, "token"), error => error.code === "DEPARTURE_REPORT_REQUIRED");
+  context.getSchedules_ = () => [{ email: "member@example.com", "勤務日": "2026-08-28", schedule_id: "SCHEDULE-1" }];
+  assert.throws(() => context.clockIn_({ email: "member@example.com" }, { scheduleId: "FAKE", unplanned: true }, "token"), error => error.code === "DEPARTURE_REPORT_REQUIRED");
 });
 
 test("同日複数予定ではschedule_idなしの旧記録を別予定へ流用しない", () => {
