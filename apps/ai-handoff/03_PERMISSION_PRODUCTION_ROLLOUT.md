@@ -355,3 +355,11 @@ PR #45はsquash mergeされ、GitHub mainは `4d3d9eca431a41a5a5313841eac1153895
 - えいちの別決裁後、9名を `AUTHORIZATION_CUTOVER_MIGRATED_USER_IDS` へ設定した。`AUTHORIZATION_CUTOVER_ENABLED=false`、`AUTHORIZATION_ENFORCEMENT_MODE=shadow` は維持し、Codexは実効切替、権限割当、利用者、組織、申請データを変更する操作を行っていない。
 - 設定後の再プレビューは `ok=true`、`mode=shadow`、active内部利用者9名、旧管理対象権限あり8名、設定済み9名、未設定0名、不正利用者0件、未知の移行済みID 0件だった。
 - 本節の合格結果は実効切替の決裁または実行ではない。固定差分の独立監査と既存の監査独立性条件を確認し、えいちが別途決裁するまで `AUTHORIZATION_CUTOVER_ENABLED=true` の設定と `runAuthorizationEffectiveCutover` の実行を行わない。
+
+## 19. 2026-08-28 再切替前preflightと例外決裁
+
+- 本番Script Propertiesの読み取りでは `AUTHORIZATION_ENFORCEMENT_MODE=shadow`、`AUTHORIZATION_CUTOVER_ENABLED=false`、移行確認済み利用者集合9名分の設定を確認した。前回ロールバック時の切替実行者と理由が残存していたが、再設定された経緯は未確認である。内部ユーザーID、メール、秘密値は本記録へ転記しない。
+- 前回の一回限り監査独立性例外は8月23日の切替とロールバックで失効済みである。えいちは、第三者監査担当を新設せず、開発者が監査を兼務する独立性欠如のリスクを、次に行う再切替1回に限って新たに例外承認した。切替直後の整合性監査、切替操作ログ保存、7日間の日次監視を補償措置とし、ロールバック、段階的な追加切替、後続する再試行へ継承しない。
+- 8月24日のプレビュー合格は当日の判断へ再利用しない。8月28日のApps Scriptエディタ接続が時間切れとなったため、当日プレビューは未確認である。再切替前に読み取り専用プレビューを再実行し、`mode=shadow`、`ok=true`、`unconfigured_users=0`、`invalid_users=0`、`unknown_migrated_users=0` を確認する。
+- プレビュー合格後、前回の実行者・理由を今回の決裁に対応する値へ置換し、`AUTHORIZATION_CUTOVER_ENABLED=true` は切替直前に一度だけ設定する。設定と `runAuthorizationEffectiveCutover` の実行はえいちの切替実行決裁まで行わない。
+- 切替直後は `mode=effective`、許可の消費、切替ログ、`runAuthorizationIntegrityAudit` の成功を確認し、7日間の日次監視を開始する。異常時は直ちにShadowへロールバックし、再試行には新たな例外決裁または第三者監査担当の再決裁を必要とする。
