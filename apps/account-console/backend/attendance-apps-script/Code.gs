@@ -9,11 +9,13 @@ const SHEETS = {
   notifications: "通知",
   settings: "設定",
   schedules: "稼働予定",
-  reports: "実績報告"
+  reports: "実績報告",
+  fieldReports: "現場報告"
 };
 
 const HEADERS = {
   reports: ["report_id", "record_id", "開発予定ID", "開発予定名", "報告者メール", "報告者氏名", "実績内容", "課題・申し送り", "報告日時"],
+  fieldReports: ["field_report_id", "勤務日", "開発予定ID", "報告種別", "報告者メール", "報告者氏名", "報告日時"],
   requests: ["request_id", "record_id", "種別", "申請者メール", "申請者氏名", "実勤務日", "申請開始", "申請終了", "理由区分", "理由詳細", "状態", "承認者メール", "承認者氏名", "承認理由", "申請日時", "処理日時"],
   requestContract: ["applicant_internal_user_id", "request_version", "approval_reviewer_internal_user_id", "applicant_organization_version"]
 };
@@ -33,6 +35,7 @@ function doPost(e) {
     if (action === "refreshDashboardData") return jsonOutput_(getDashboardData_(user, getSchedules_(body.idToken)));
     if (action === "clockIn") return jsonOutput_(clockIn_(user, payload, body.idToken));
     if (action === "clockOut") return jsonOutput_(clockOut_(user, payload, body.idToken));
+    if (action === "submitFieldReport") return jsonOutput_(submitFieldReport_(user, payload, body.idToken));
     if (action === "submitCorrection") return jsonOutput_(submitCorrection_(user, payload, body.idToken));
     if (action === "submitReport") return jsonOutput_(submitReport_(user, payload));
     if (action === "markNotificationRead") return jsonOutput_(markNotificationRead_(user, payload));
@@ -60,6 +63,7 @@ function resolveUser_(idToken) {
 
 function getDashboardData_(user, sourceSchedules) {
   ensureReportSheet_();
+  ensureFieldReportSheet_();
   const today = today_();
   const schedules = (sourceSchedules || rows_(SHEETS.schedules)).filter(r => matchesUser_(r, user));
   const todaySchedules = schedules.filter(r => dateKey_(r["勤務日"]) === today);
@@ -77,10 +81,41 @@ function getDashboardData_(user, sourceSchedules) {
     schedules: todaySchedules,
     upcoming,
     record: records[0] || null,
+    fieldReports: fieldReportsFor_(user, today, todaySchedules[0] ? scheduleReportKey_(todaySchedules[0]) : ""),
     notifications,
     adminAccess: isAdmin_(user) || hasApprovalReviewAccess_(user),
     preciseLocationAccess: canViewPreciseLocation_(user)
   };
+}
+
+function submitFieldReport_(user, payload, idToken) {
+  const reportType = String(payload.reportType || "");
+  if (!["出発", "入店"].includes(reportType)) throw apiError_("FIELD_REPORT_TYPE_INVALID", "報告種別を確認できません。");
+  const lock = LockService.getDocumentLock();
+  lock.waitLock(20000);
+  try {
+    ensureFieldReportSheet_();
+    const today = today_();
+    const schedule = findSchedule_(user, today, payload.scheduleId, idToken);
+    if (!schedule) throw apiError_("FIELD_REPORT_SCHEDULE_REQUIRED", "本日の稼働予定を確認できません。");
+    const planId = scheduleReportKey_(schedule);
+    if (!planId) throw apiError_("FIELD_REPORT_SCHEDULE_ID_REQUIRED", "稼働予定の識別子を確認できません。");
+    const reports = fieldReportsFor_(user, today, planId);
+    const existing = reports.find(report => String(report["報告種別"]) === reportType);
+    if (existing) return { ok: true, duplicate: true, report: existing };
+    if (reportType === "入店" && !reports.some(report => String(report["報告種別"]) === "出発")) {
+      throw apiError_("DEPARTURE_REPORT_REQUIRED", "先に出発報告を行ってください。");
+    }
+    const now = new Date();
+    append_(SHEETS.fieldReports, [
+      Utilities.getUuid(), today, planId, reportType,
+      user.email, user.name || "", now
+    ]);
+    notifyManagers_(user, `${reportType}報告`, `${user.name || user.email}さんが${formatJst_(now)}に${reportType}を報告しました。`);
+    return { ok: true, report: fieldReportsFor_(user, today, planId).find(report => String(report["報告種別"]) === reportType) || null };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function clockIn_(user, payload, idToken) {
@@ -159,12 +194,23 @@ function submitCorrection_(user, payload, idToken) {
 function submitReport_(user, payload) {
   ensureReportSheet_();
   if (!payload.recordId || !String(payload.result || "").trim()) throw apiError_("REPORT_REQUIRED", "実績内容を入力してください。");
-  const record = rows_(SHEETS.records).find(r => String(r.record_id || "") === String(payload.recordId));
-  if (!record || normalizeEmail_(record.email) !== normalizeEmail_(user.email)) {
-    throw apiError_("REPORT_RECORD_FORBIDDEN", "本人の稼働記録を確認できません。");
+  const lock = LockService.getDocumentLock();
+  lock.waitLock(20000);
+  try {
+    const record = rows_(SHEETS.records).find(r => String(r.record_id || "") === String(payload.recordId));
+    if (!record || normalizeEmail_(record.email) !== normalizeEmail_(user.email)) {
+      throw apiError_("REPORT_RECORD_FORBIDDEN", "本人の稼働記録を確認できません。");
+    }
+    if (!record["実終了"] && !record["正式終了"]) {
+      throw apiError_("REPORT_CLOCK_OUT_REQUIRED", "稼働終了後に実績報告を送信してください。");
+    }
+    const existing = rows_(SHEETS.reports).find(r => String(r.record_id || "") === String(payload.recordId));
+    if (existing) return { ok: true, duplicate: true, reportId: existing.report_id || "" };
+    append_(SHEETS.reports, [Utilities.getUuid(), payload.recordId, payload.planId || "", payload.planName || "", user.email, user.name || "", payload.result, payload.notes || "", new Date()]);
+    return { ok: true };
+  } finally {
+    lock.releaseLock();
   }
-  append_(SHEETS.reports, [Utilities.getUuid(), payload.recordId, payload.planId || "", payload.planName || "", user.email, user.name || "", payload.result, payload.notes || "", new Date()]);
-  return { ok: true };
 }
 
 function getAdminDashboard_(user, idToken) {
@@ -172,6 +218,7 @@ function getAdminDashboard_(user, idToken) {
   const admin = isAdmin_(user);
   const schedules = admin ? getSchedules_(idToken).filter(r => dateKey_(r["勤務日"]) === today) : [];
   const records = admin ? rows_(SHEETS.records).filter(r => dateKey_(r["勤務日"]) === today) : [];
+  const fieldReports = admin ? rows_(SHEETS.fieldReports).filter(r => dateKey_(r["勤務日"]) === today) : [];
   const pendingRequests = rows_(SHEETS.requests).filter(r => String(r["状態"]) === "申請中");
   const reviewerId = internalUserId_(user);
   const requests = admin
@@ -181,11 +228,11 @@ function getAdminDashboard_(user, idToken) {
   const people = schedules.map(schedule => {
     const record = records.find(r => normalizeEmail_(r.email) === normalizeEmail_(schedule.email));
     const loc = record && locations.find(l => String(l.attendance_record_id) === String(record.record_id));
-    return { schedule, record: record || null, location: loc || null };
+    return { schedule, record: record || null, location: loc || null, fieldReports: fieldReports.filter(r => normalizeEmail_(r["報告者メール"]) === normalizeEmail_(schedule.email) && String(r["開発予定ID"] || "") === scheduleReportKey_(schedule)) };
   });
   records.filter(record => !schedules.some(s => normalizeEmail_(s.email) === normalizeEmail_(record.email))).forEach(record => {
     const loc = locations.find(l => String(l.attendance_record_id) === String(record.record_id));
-    people.push({ schedule: null, record, location: loc || null });
+    people.push({ schedule: null, record, location: loc || null, fieldReports: fieldReports.filter(r => normalizeEmail_(r["報告者メール"]) === normalizeEmail_(record.email)) });
   });
   return { ok: true, serverNow: nowIso_(), people, requests, settings: admin ? settings_() : {}, preciseLocationAccess: admin && canViewPreciseLocation_(user) };
 }
@@ -577,6 +624,9 @@ function appendObject_(name, value) { const sheet = SpreadsheetApp.getActive().g
 function updateById_(sheetName, idColumn, id, changes) { const sheet = SpreadsheetApp.getActive().getSheetByName(sheetName); const values = sheet.getDataRange().getValues(); const headers = values[0].map(String); const rowIndex = values.findIndex((r, i) => i > 0 && String(r[headers.indexOf(idColumn)]) === String(id)); if (rowIndex < 1) throw apiError_("NOT_FOUND", "対象データが見つかりません。"); Object.keys(changes).forEach(k => { const col = headers.indexOf(k); if (col >= 0) sheet.getRange(rowIndex + 1, col + 1).setValue(changes[k]); }); }
 function settings_() { return rows_(SHEETS.settings).reduce((o, r) => (o[String(r["設定キー"])] = String(r["設定値"]), o), {}); }
 function ensureReportSheet_() { const ss = SpreadsheetApp.getActive(); if (!ss.getSheetByName(SHEETS.reports)) { const s = ss.insertSheet(SHEETS.reports); s.appendRow(HEADERS.reports); s.setFrozenRows(1); } }
+function ensureFieldReportSheet_() { const ss = SpreadsheetApp.getActive(); if (!ss.getSheetByName(SHEETS.fieldReports)) { const s = ss.insertSheet(SHEETS.fieldReports); s.appendRow(HEADERS.fieldReports); s.setFrozenRows(1); } }
+function scheduleReportKey_(schedule) { return String(schedule && (schedule["開発予定ID"] || schedule.schedule_id) || ""); }
+function fieldReportsFor_(user, workDate, planId) { return rows_(SHEETS.fieldReports).filter(r => normalizeEmail_(r["報告者メール"]) === normalizeEmail_(user.email) && dateKey_(r["勤務日"]) === workDate && (!planId || String(r["開発予定ID"] || "") === String(planId))); }
 function ensureRequestContractHeaders_() { const sheet = SpreadsheetApp.getActive().getSheetByName(SHEETS.requests); if (!sheet) throw apiError_("SHEET_NOT_FOUND", `${SHEETS.requests}シートがありません。`); const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String); const duplicate = headers.find((header, index) => header && headers.indexOf(header) !== index); if (duplicate) throw apiError_("SHEET_SCHEMA_MISMATCH", `${SHEETS.requests}シートに重複列があります: ${duplicate}`); const missingExisting = HEADERS.requests.filter(header => !headers.includes(header)); if (missingExisting.length) throw apiError_("SHEET_SCHEMA_MISMATCH", `${SHEETS.requests}シートの既存列が不足しています: ${missingExisting.join(",")}`); HEADERS.requestContract.forEach(header => { if (!headers.includes(header)) { sheet.getRange(1, sheet.getLastColumn() + 1).setValue(header); headers.push(header); } }); }
 function ensureRequestContractHeadersForReview_() { const lock = LockService.getDocumentLock(); lock.waitLock(20000); try { ensureRequestContractHeaders_(); } finally { lock.releaseLock(); } }
 function publicUser_(user) { return { internal_user_id: internalUserId_(user), name: user.name || "", email: user.email || "", role: user.role || "", organization_id: user.organization_id || "", employee_code: user.employee_code || "", employment_type: user.employment_type || user.contract_type || "" }; }
