@@ -118,6 +118,11 @@ function renderDashboard(data) {
   $("workLocation").textContent = schedule?.["稼働場所"] || record?.["予定場所"] || "非稼働";
   $("weatherLocation").textContent = schedule?.["稼働場所"] || record?.["予定場所"] || "非稼働";
   $("plannedTime").textContent = schedule ? `${timeText(schedule["予定開始"])} – ${timeText(schedule["予定終了"])}` : "—";
+  const fieldReports = data.fieldReports || [];
+  const departure = fieldReports.find(report => report["報告種別"] === "出発");
+  const arrival = fieldReports.find(report => report["報告種別"] === "入店");
+  $("departedAt").textContent = timeText(departure?.["報告日時"]);
+  $("arrivedAt").textContent = timeText(arrival?.["報告日時"]);
   $("startedAt").textContent = timeText(record?.["実開始"]);
   $("endedAt").textContent = timeText(record?.["実終了"]);
   const status = record?.["状態"] || (schedule ? "未開始" : "非稼働");
@@ -125,6 +130,8 @@ function renderDashboard(data) {
   $("workStatus").dataset.status = status;
   $("startBtn").hidden = Boolean(record?.["実開始"]);
   $("endBtn").hidden = !record?.["実開始"] || Boolean(record?.["実終了"]);
+  $("departureBtn").hidden = !schedule || Boolean(departure);
+  $("arrivalBtn").hidden = !schedule || !departure || Boolean(arrival);
   const now = jstTime(data.serverNow);
   $("correctionBtn").hidden = !((schedule && !record?.["実開始"] && now >= data.settings.start_limit_time) || (record?.["実開始"] && !record?.["実終了"] && now >= data.settings.end_limit_time));
   $("deadlineNote").textContent = schedule ? "9:30以降は未押下理由が必要です。通常開始は10:00までです。" : "本日は非稼働です。必要な場合は予定外稼働を申請できます。";
@@ -132,6 +139,20 @@ function renderDashboard(data) {
   if (now >= data.settings.end_warning_time && record?.["実開始"] && !record?.["実終了"]) showAlert("稼働終了が確認できません。22:00までに終了操作を行ってください。", "warning");
   renderUpcoming(data.upcoming || []);
   renderNotifications(data.notifications || []);
+}
+
+$("departureBtn").addEventListener("click", () => submitFieldReport("出発"));
+$("arrivalBtn").addEventListener("click", () => submitFieldReport("入店"));
+
+async function submitFieldReport(reportType) {
+  if (busy || !dashboardData?.schedule) return;
+  const accepted = await openDialog(`${reportType}報告`, `<p>現在時刻で${reportType}を報告します。</p>`, "報告する");
+  if (!accepted) return;
+  await runAction(async () => {
+    await attendanceRequest("submitFieldReport", { reportType, scheduleId: dashboardData.schedule.schedule_id || "" });
+    await loadDashboard();
+    showAlert(`${reportType}報告を記録しました。`, "success");
+  });
 }
 
 function renderUnavailable() {

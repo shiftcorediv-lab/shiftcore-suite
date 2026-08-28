@@ -47,10 +47,14 @@
           <div class="work-place"><span class="place-icon">⌖</span><div><small>稼働予定場所</small><strong id="workLocation">読み込み中...</strong></div></div>
           <dl class="work-details">
             <div><dt>予定時間</dt><dd id="plannedTime">—</dd></div>
+            <div><dt>出発報告</dt><dd id="departedAt">—</dd></div>
+            <div><dt>入店報告</dt><dd id="arrivedAt">—</dd></div>
             <div><dt>開始時刻</dt><dd id="startedAt">—</dd></div>
             <div><dt>終了時刻</dt><dd id="endedAt">—</dd></div>
           </dl>
           <div class="clock-actions">
+            <button id="departureBtn" class="outline-action" type="button" hidden>出発を報告</button>
+            <button id="arrivalBtn" class="outline-action" type="button" hidden>入店を報告</button>
             <button id="startBtn" class="primary-action" type="button">稼働開始</button>
             <button id="endBtn" class="danger-action" type="button" hidden>稼働終了</button>
             <button id="correctionBtn" class="outline-action" type="button" hidden>修正申請</button>
@@ -93,6 +97,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="./js/dashboard/main.js?v=20260812-developer-1"></script>
+  <script type="module" src="./js/dashboard/main.js?v=20260828-field-report-1"></script>
 </body>
 </html>
