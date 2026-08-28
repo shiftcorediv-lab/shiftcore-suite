@@ -81,7 +81,7 @@ function getDashboardData_(user, sourceSchedules) {
     schedules: todaySchedules,
     upcoming,
     record: records[0] || null,
-    fieldReports: fieldReportsFor_(user, today),
+    fieldReports: fieldReportsFor_(user, today, todaySchedules[0] ? scheduleReportKey_(todaySchedules[0]) : ""),
     notifications,
     adminAccess: isAdmin_(user) || hasApprovalReviewAccess_(user),
     preciseLocationAccess: canViewPreciseLocation_(user)
@@ -98,7 +98,9 @@ function submitFieldReport_(user, payload, idToken) {
     const today = today_();
     const schedule = findSchedule_(user, today, payload.scheduleId, idToken);
     if (!schedule) throw apiError_("FIELD_REPORT_SCHEDULE_REQUIRED", "本日の稼働予定を確認できません。");
-    const reports = fieldReportsFor_(user, today);
+    const planId = scheduleReportKey_(schedule);
+    if (!planId) throw apiError_("FIELD_REPORT_SCHEDULE_ID_REQUIRED", "稼働予定の識別子を確認できません。");
+    const reports = fieldReportsFor_(user, today, planId);
     const existing = reports.find(report => String(report["報告種別"]) === reportType);
     if (existing) return { ok: true, duplicate: true, report: existing };
     if (reportType === "入店" && !reports.some(report => String(report["報告種別"]) === "出発")) {
@@ -106,11 +108,11 @@ function submitFieldReport_(user, payload, idToken) {
     }
     const now = new Date();
     append_(SHEETS.fieldReports, [
-      Utilities.getUuid(), today, schedule["開発予定ID"] || schedule.schedule_id || "", reportType,
+      Utilities.getUuid(), today, planId, reportType,
       user.email, user.name || "", now
     ]);
     notifyManagers_(user, `${reportType}報告`, `${user.name || user.email}さんが${formatJst_(now)}に${reportType}を報告しました。`);
-    return { ok: true, report: fieldReportsFor_(user, today).find(report => String(report["報告種別"]) === reportType) || null };
+    return { ok: true, report: fieldReportsFor_(user, today, planId).find(report => String(report["報告種別"]) === reportType) || null };
   } finally {
     lock.releaseLock();
   }
@@ -199,7 +201,7 @@ function submitReport_(user, payload) {
     if (!record || normalizeEmail_(record.email) !== normalizeEmail_(user.email)) {
       throw apiError_("REPORT_RECORD_FORBIDDEN", "本人の稼働記録を確認できません。");
     }
-    if (!record["実終了"] && String(record["状態"] || "") !== "終了済み") {
+    if (!record["実終了"] && !record["正式終了"]) {
       throw apiError_("REPORT_CLOCK_OUT_REQUIRED", "稼働終了後に実績報告を送信してください。");
     }
     const existing = rows_(SHEETS.reports).find(r => String(r.record_id || "") === String(payload.recordId));
@@ -226,7 +228,7 @@ function getAdminDashboard_(user, idToken) {
   const people = schedules.map(schedule => {
     const record = records.find(r => normalizeEmail_(r.email) === normalizeEmail_(schedule.email));
     const loc = record && locations.find(l => String(l.attendance_record_id) === String(record.record_id));
-    return { schedule, record: record || null, location: loc || null, fieldReports: fieldReports.filter(r => normalizeEmail_(r["報告者メール"]) === normalizeEmail_(schedule.email)) };
+    return { schedule, record: record || null, location: loc || null, fieldReports: fieldReports.filter(r => normalizeEmail_(r["報告者メール"]) === normalizeEmail_(schedule.email) && String(r["開発予定ID"] || "") === scheduleReportKey_(schedule)) };
   });
   records.filter(record => !schedules.some(s => normalizeEmail_(s.email) === normalizeEmail_(record.email))).forEach(record => {
     const loc = locations.find(l => String(l.attendance_record_id) === String(record.record_id));
@@ -606,7 +608,7 @@ function cleanupExpiredLocations() {
 }
 
 function findRecord_(email, date) { return rows_(SHEETS.records).find(r => normalizeEmail_(r.email) === normalizeEmail_(email) && dateKey_(r["勤務日"]) === date) || null; }
-function findSchedule_(user, date, scheduleId, idToken) { return getSchedules_(idToken).find(r => matchesUser_(r, user) && dateKey_(r["勤務日"]) === date && (!scheduleId || String(r.schedule_id) === String(scheduleId))) || null; }
+function findSchedule_(user, date, scheduleId, idToken) { return getSchedules_(idToken).find(r => matchesUser_(r, user) && dateKey_(r["勤務日"]) === date && (!scheduleId || scheduleReportKey_(r) === String(scheduleId))) || null; }
 function findTodayPlans_(user, idToken) { return getSchedules_(idToken).filter(r => matchesUser_(r, user) && dateKey_(r["勤務日"]) === today_()).map(r => ({ id: r["開発予定ID"] || r.schedule_id, name: r["開発予定名"] || r["稼働場所"] || "当日の開発予定" })); }
 function rows_(name) { const sheet = SpreadsheetApp.getActive().getSheetByName(name); return sheet ? objects_(sheet) : []; }
 function locationRows_() { const sheet = SpreadsheetApp.openById(locationSpreadsheetId_()).getSheetByName("位置情報ログ"); return objects_(sheet); }
@@ -623,7 +625,8 @@ function updateById_(sheetName, idColumn, id, changes) { const sheet = Spreadshe
 function settings_() { return rows_(SHEETS.settings).reduce((o, r) => (o[String(r["設定キー"])] = String(r["設定値"]), o), {}); }
 function ensureReportSheet_() { const ss = SpreadsheetApp.getActive(); if (!ss.getSheetByName(SHEETS.reports)) { const s = ss.insertSheet(SHEETS.reports); s.appendRow(HEADERS.reports); s.setFrozenRows(1); } }
 function ensureFieldReportSheet_() { const ss = SpreadsheetApp.getActive(); if (!ss.getSheetByName(SHEETS.fieldReports)) { const s = ss.insertSheet(SHEETS.fieldReports); s.appendRow(HEADERS.fieldReports); s.setFrozenRows(1); } }
-function fieldReportsFor_(user, workDate) { return rows_(SHEETS.fieldReports).filter(r => normalizeEmail_(r["報告者メール"]) === normalizeEmail_(user.email) && dateKey_(r["勤務日"]) === workDate); }
+function scheduleReportKey_(schedule) { return String(schedule && (schedule["開発予定ID"] || schedule.schedule_id) || ""); }
+function fieldReportsFor_(user, workDate, planId) { return rows_(SHEETS.fieldReports).filter(r => normalizeEmail_(r["報告者メール"]) === normalizeEmail_(user.email) && dateKey_(r["勤務日"]) === workDate && (!planId || String(r["開発予定ID"] || "") === String(planId))); }
 function ensureRequestContractHeaders_() { const sheet = SpreadsheetApp.getActive().getSheetByName(SHEETS.requests); if (!sheet) throw apiError_("SHEET_NOT_FOUND", `${SHEETS.requests}シートがありません。`); const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String); const duplicate = headers.find((header, index) => header && headers.indexOf(header) !== index); if (duplicate) throw apiError_("SHEET_SCHEMA_MISMATCH", `${SHEETS.requests}シートに重複列があります: ${duplicate}`); const missingExisting = HEADERS.requests.filter(header => !headers.includes(header)); if (missingExisting.length) throw apiError_("SHEET_SCHEMA_MISMATCH", `${SHEETS.requests}シートの既存列が不足しています: ${missingExisting.join(",")}`); HEADERS.requestContract.forEach(header => { if (!headers.includes(header)) { sheet.getRange(1, sheet.getLastColumn() + 1).setValue(header); headers.push(header); } }); }
 function ensureRequestContractHeadersForReview_() { const lock = LockService.getDocumentLock(); lock.waitLock(20000); try { ensureRequestContractHeaders_(); } finally { lock.releaseLock(); } }
 function publicUser_(user) { return { internal_user_id: internalUserId_(user), name: user.name || "", email: user.email || "", role: user.role || "", organization_id: user.organization_id || "", employee_code: user.employee_code || "", employment_type: user.employment_type || user.contract_type || "" }; }

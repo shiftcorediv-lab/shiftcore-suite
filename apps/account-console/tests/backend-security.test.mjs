@@ -33,8 +33,8 @@ function createAttendanceContext(records) {
     "勤怠記録": {
       getDataRange: () => ({
         getValues: () => [
-          ["record_id", "email", "状態"],
-          ...records.map((record) => [record.record_id, record.email, record.status || "終了済み"])
+          ["record_id", "email", "状態", "実終了", "正式終了"],
+          ...records.map((record) => [record.record_id, record.email, record.status || "終了済み", record.actualEnd === undefined ? (record.status === "稼働中" ? "" : "2026-08-28T18:00:00+09:00") : record.actualEnd, record.formalEnd || ""])
         ]
       })
     },
@@ -131,4 +131,22 @@ test("同じ勤怠記録の実績報告は二重登録しない", () => {
   const duplicate = context.submitReport_({ email: "member@example.com" }, { recordId: "REC-1", result: "再送" });
   assert.equal(duplicate.duplicate, true);
   assert.equal(appendedReports.length, 1);
+});
+
+test("承認済みの正式終了があれば実績報告できる", () => {
+  const { context, appendedReports } = createAttendanceContext([
+    { record_id: "REC-CORRECTED", email: "member@example.com", status: "修正済み", actualEnd: "", formalEnd: "2026-08-28T18:00:00+09:00" }
+  ]);
+  assert.equal(context.submitReport_({ email: "member@example.com" }, { recordId: "REC-CORRECTED", result: "完了" }).ok, true);
+  assert.equal(appendedReports.length, 1);
+});
+
+test("終了済み状態だけで終了時刻がなければ実績報告を拒否する", () => {
+  const { context } = createAttendanceContext([
+    { record_id: "REC-INCONSISTENT", email: "member@example.com", status: "終了済み", actualEnd: "", formalEnd: "" }
+  ]);
+  assert.throws(
+    () => context.submitReport_({ email: "member@example.com" }, { recordId: "REC-INCONSISTENT", result: "完了" }),
+    error => error.code === "REPORT_CLOCK_OUT_REQUIRED"
+  );
 });

@@ -64,6 +64,17 @@ test("他人の出発報告を本人の入店条件に使わない", () => {
   );
 });
 
+test("別予定の出発報告を入店条件や重複判定に使わない", () => {
+  const { context, values } = createContext([{ "field_report_id": "FIELD-1", "勤務日": "2026-08-28", "開発予定ID": "PLAN-OTHER", "報告種別": "出発", "報告者メール": "member@example.com" }]);
+  const user = { email: "member@example.com" };
+  assert.throws(
+    () => context.submitFieldReport_(user, { reportType: "入店" }, "token"),
+    error => error.code === "DEPARTURE_REPORT_REQUIRED"
+  );
+  assert.equal(context.submitFieldReport_(user, { reportType: "出発" }, "token").duplicate, undefined);
+  assert.equal(values.length, 2);
+});
+
 test("未知の報告種別を拒否する", () => {
   const { context } = createContext();
   assert.throws(
