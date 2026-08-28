@@ -178,6 +178,9 @@ function clockIn_(user, payload, idToken) {
     const settings = settings_();
     const now = new Date();
     const today = today_();
+    const activeRecords = findActiveRecords_(user.email);
+    if (activeRecords.length === 1 && dateKey_(activeRecords[0]["勤務日"]) === today && !activeRecords[0].schedule_id && payload.unplanned) return { ok: true, duplicate: true, record: activeRecords[0] };
+    if (activeRecords.length) throw apiError_("OTHER_SCHEDULE_ACTIVE", "終了していない稼働記録があります。先に終了報告を行ってください。");
     const existing = findRecord_(user.email, today);
     if (existing && existing["実開始"]) return { ok: true, duplicate: true, record: existing };
     const current = timeKey_(now);

@@ -96,6 +96,7 @@ test("旧clockIn経路でも予定勤務は出発報告なしに開始できな�
   context.settings_ = () => ({ start_limit_time: "23:59", start_warning_time: "23:58" });
   context.today_ = () => "2026-08-28";
   context.timeKey_ = () => "09:00";
+  context.findActiveRecords_ = () => [];
   context.findRecord_ = () => null;
   context.getSchedules_ = () => [{ email: "member@example.com", "勤務日": "2026-08-28", schedule_id: "SCHEDULE-1" }];
   assert.throws(() => context.clockIn_({ email: "member@example.com" }, { scheduleId: "FAKE", unplanned: true }, "token"), error => error.code === "DEPARTURE_REPORT_REQUIRED");
@@ -158,4 +159,9 @@ test("終了報告は稼働中の別予定ではなく指定schedule_idだけを
   assert.equal(context.selectClockOutRecord_("member@example.com", "S2").record_id, "ACTIVE-S2");
   context.findActiveRecords_ = () => [s1, s2];
   assert.throws(() => context.selectClockOutRecord_("member@example.com", "S2"), error => error.code === "MULTIPLE_ACTIVE_RECORDS");
+});
+
+test("前日から稼働中なら翌日の旧clockInで二件目を作らない", () => {
+  assert.match(backendSource, /activeRecords\.length\) throw apiError_\("OTHER_SCHEDULE_ACTIVE"/);
+  assert.match(backendSource, /dateKey_\(activeRecords\[0\]\["勤務日"\]\) === today && !activeRecords\[0\]\.schedule_id && payload\.unplanned/);
 });
