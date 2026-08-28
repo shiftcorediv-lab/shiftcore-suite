@@ -3,90 +3,165 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-function createContext(initialRows = []) {
-  const headers = ["field_report_id", "勤務日", "開発予定ID", "報告種別", "報告者メール", "報告者氏名", "報告日時"];
-  const values = initialRows.map(row => headers.map(header => row[header] ?? ""));
-  const sheet = {
-    getDataRange: () => ({ getValues: () => [headers, ...values] }),
-    appendRow: row => values.push(row),
-    setFrozenRows: () => {}
-  };
-  const context = vm.createContext({
-    SpreadsheetApp: {
-      getActive: () => ({ getSheetByName: name => name === "現場報告" ? sheet : null, insertSheet: () => sheet })
-    },
-    LockService: { getDocumentLock: () => ({ waitLock: () => {}, releaseLock: () => {} }) },
-    Utilities: {
-      getUuid: () => `FIELD-${values.length + 1}`,
-      formatDate: (_date, _tz, format) => format === "yyyy-MM-dd" ? "2026-08-28" : format === "HH:mm" ? "12:00" : "2026/08/28 12:00"
-    },
-    console
-  });
-  vm.runInContext(readFileSync(new URL("../backend/attendance-apps-script/Code.gs", import.meta.url), "utf8"), context);
-  context.findSchedule_ = () => ({ schedule_id: "SCHEDULE-1", "開発予定ID": "PLAN-1" });
-  context.notifyManagers_ = () => {};
-  return { context, values };
+const backendSource = readFileSync(new URL("../backend/attendance-apps-script/Code.gs", import.meta.url), "utf8");
+const dashboardSource = readFileSync(new URL("../js/dashboard/main.js", import.meta.url), "utf8");
+const dashboardHtml = readFileSync(new URL("../dashboard.html", import.meta.url), "utf8");
+
+function formatJst(date, format) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(date).filter(x => x.type !== "literal").map(x => [x.type, x.value]));
+  if (format === "yyyy-MM-dd") return `${parts.year}-${parts.month}-${parts.day}`;
+  if (format === "HH:mm") return `${parts.hour}:${parts.minute}`;
+  return `${parts.year}/${parts.month}/${parts.day} ${parts.hour}:${parts.minute}`;
 }
 
-test("本人は出発から入店の順で現場報告できる", () => {
-  const { context, values } = createContext();
-  const user = { email: "member@example.com", name: "担当者" };
+function timingContext() {
+  const context = vm.createContext({ Utilities: { formatDate: (date, _tz, format) => formatJst(date, format) }, console });
+  vm.runInContext(backendSource, context);
+  return context;
+}
 
-  assert.equal(context.submitFieldReport_(user, { reportType: "出発", scheduleId: "SCHEDULE-1" }, "token").ok, true);
-  assert.equal(context.submitFieldReport_(user, { reportType: "入店", scheduleId: "SCHEDULE-1" }, "token").ok, true);
-  assert.equal(values.length, 2);
-  assert.deepEqual(values.map(row => row[3]), ["出発", "入店"]);
+function schedule() { return { "勤務日": "2026-08-28", "予定開始": "10:00", "予定終了": "18:00" }; }
+
+test("出発リミットは1時間前ちょうどを警告せず直後だけ警告する", () => {
+  const context = timingContext();
+  assert.equal(context.buildTimingStatus_(schedule(), new Date("2026-08-28T09:00:00+09:00")).departureWarning, false);
+  assert.equal(context.buildTimingStatus_(schedule(), new Date("2026-08-28T09:00:00.001+09:00")).departureWarning, true);
 });
 
-test("出発前の入店報告を拒否する", () => {
-  const { context, values } = createContext();
-  assert.throws(
-    () => context.submitFieldReport_({ email: "member@example.com" }, { reportType: "入店" }, "token"),
-    error => error.code === "DEPARTURE_REPORT_REQUIRED"
-  );
-  assert.equal(values.length, 0);
+test("入店は15分前超過で警告し予定開始ちょうどから承認必須", () => {
+  const context = timingContext();
+  assert.equal(context.buildTimingStatus_(schedule(), new Date("2026-08-28T09:45:00+09:00")).arrivalWarning, false);
+  assert.equal(context.buildTimingStatus_(schedule(), new Date("2026-08-28T09:45:00.001+09:00")).arrivalWarning, true);
+  assert.equal(context.buildTimingStatus_(schedule(), new Date("2026-08-28T09:59:59.999+09:00")).arrivalApprovalRequired, false);
+  assert.equal(context.buildTimingStatus_(schedule(), new Date("2026-08-28T10:00:00+09:00")).arrivalApprovalRequired, true);
 });
 
-test("同じ日の同じ報告は二重登録しない", () => {
-  const { context, values } = createContext();
-  const user = { email: "member@example.com" };
-  context.submitFieldReport_(user, { reportType: "出発" }, "token");
-  const duplicate = context.submitFieldReport_(user, { reportType: "出発" }, "token");
-  assert.equal(duplicate.duplicate, true);
-  assert.equal(values.length, 1);
+test("終了注意は予定終了1時間後ちょうどを含まず直後から", () => {
+  const context = timingContext();
+  assert.equal(context.buildTimingStatus_(schedule(), new Date("2026-08-28T19:00:00+09:00")).endWarning, false);
+  assert.equal(context.buildTimingStatus_(schedule(), new Date("2026-08-28T19:00:00.001+09:00")).endWarning, true);
 });
 
-test("他人の出発報告を本人の入店条件に使わない", () => {
-  const { context } = createContext([{ "field_report_id": "FIELD-1", "勤務日": "2026-08-28", "報告種別": "出発", "報告者メール": "other@example.com" }]);
-  assert.throws(
-    () => context.submitFieldReport_({ email: "member@example.com" }, { reportType: "入店" }, "token"),
-    error => error.code === "DEPARTURE_REPORT_REQUIRED"
-  );
+test("23:59は通常終了で翌日0:00ちょうどから承認必須", () => {
+  const context = timingContext();
+  assert.equal(context.buildTimingStatus_(schedule(), new Date("2026-08-28T23:59:59.999+09:00")).endApprovalRequired, false);
+  assert.equal(context.buildTimingStatus_(schedule(), new Date("2026-08-29T00:00:00+09:00")).endApprovalRequired, true);
 });
 
-test("別予定の出発報告を入店条件や重複判定に使わない", () => {
-  const { context, values } = createContext([{ "field_report_id": "FIELD-1", "勤務日": "2026-08-28", "開発予定ID": "PLAN-OTHER", "報告種別": "出発", "報告者メール": "member@example.com" }]);
-  const user = { email: "member@example.com" };
-  assert.throws(
-    () => context.submitFieldReport_(user, { reportType: "入店" }, "token"),
-    error => error.code === "DEPARTURE_REPORT_REQUIRED"
-  );
-  assert.equal(context.submitFieldReport_(user, { reportType: "出発" }, "token").duplicate, undefined);
-  assert.equal(values.length, 2);
+test("日付またぎ予定の終了予定日時を翌日として計算する", () => {
+  const context = timingContext();
+  const result = context.buildTimingStatus_({ "勤務日": "2026-08-28", "予定開始": "22:00", "予定終了": "01:00" }, new Date("2026-08-29T01:00:00+09:00"));
+  assert.equal(result.plannedEnd, "2026-08-28T16:00:00.000Z");
+  assert.equal(result.endApprovalRequired, true);
 });
 
-test("未知の報告種別を拒否する", () => {
-  const { context } = createContext();
-  assert.throws(
-    () => context.submitFieldReport_({ email: "member@example.com" }, { reportType: "代理報告" }, "token"),
-    error => error.code === "FIELD_REPORT_TYPE_INVALID"
-  );
+test("入店前に出発を必須とし遅い入店と0時以降終了を直属承認へ接続する", () => {
+  assert.match(backendSource, /DEPARTURE_REPORT_REQUIRED/);
+  assert.match(backendSource, /arrivalApprovalRequired \? accountApprovalRequest_/);
+  assert.match(backendSource, /endApprovalRequired \? accountApprovalRequest_/);
+  assert.match(backendSource, /"入店承認待ち"/);
+  assert.match(backendSource, /"終了承認待ち"/);
+  assert.match(backendSource, /createApprovalRequestIfMissing_/);
 });
 
-test("ダッシュボードは出発・入店の本人操作をAPIへ送る", () => {
-  const source = readFileSync(new URL("../js/dashboard/main.js", import.meta.url), "utf8");
-  assert.match(source, /attendanceRequest\("submitFieldReport", \{ reportType, scheduleId:/);
-  assert.match(source, /scheduleId: dashboardData\.schedule\.schedule_id/);
-  assert.match(source, /submitFieldReport\("出発"\)/);
-  assert.match(source, /submitFieldReport\("入店"\)/);
+test("利用者画面は1つの主操作が出発・入店・終了報告へ遷移する", () => {
+  assert.match(dashboardSource, /name: "departure", label: "出発"/);
+  assert.match(dashboardSource, /name: "arrival", label: "入店"/);
+  assert.match(dashboardSource, /name: "completion", label: "終了報告"/);
+  assert.match(dashboardSource, /attendanceRequest\("arrive"/);
+  assert.match(dashboardSource, /attendanceRequest\("clockOut"/);
+  assert.equal((dashboardHtml.match(/id="startBtn"/g) || []).length, 1);
+  assert.doesNotMatch(dashboardHtml, /id="departureBtn"|id="arrivalBtn"|id="endBtn"/);
+  assert.doesNotMatch(dashboardHtml, />稼働終了</);
+});
+
+test("同日複数予定は選択したschedule_idを画面・現場報告・勤怠記録へ維持する", () => {
+  assert.match(dashboardHtml, /id="scheduleSelect"/);
+  assert.match(dashboardSource, /selectedScheduleId/);
+  assert.match(backendSource, /ensureRecordContractHeaders_/);
+  assert.match(backendSource, /updateById_\(SHEETS\.records, "record_id", recordId, \{ schedule_id:/);
+  assert.match(backendSource, /schedule_id: schedule\.schedule_id/);
+});
+
+test("実時刻は承認前に保存し承認後は既存の正式時刻へ反映する", () => {
+  assert.match(backendSource, /createClockInRecord_/);
+  assert.match(backendSource, /"実終了": now/);
+  assert.match(backendSource, /formalChanges\["正式開始"\] = request\["申請開始"\]/);
+  assert.match(backendSource, /formalChanges\["正式終了"\] = request\["申請終了"\]/);
+});
+
+test("旧clockIn経路でも予定勤務は出発報告なしに開始できない", () => {
+  const context = timingContext();
+  context.LockService = { getDocumentLock: () => ({ waitLock: () => {}, releaseLock: () => {} }) };
+  context.settings_ = () => ({ start_limit_time: "23:59", start_warning_time: "23:58" });
+  context.today_ = () => "2026-08-28";
+  context.timeKey_ = () => "09:00";
+  context.findActiveRecords_ = () => [];
+  context.findRecord_ = () => null;
+  context.getSchedules_ = () => [{ email: "member@example.com", "勤務日": "2026-08-28", schedule_id: "SCHEDULE-1" }];
+  assert.throws(() => context.clockIn_({ email: "member@example.com" }, { scheduleId: "FAKE", unplanned: true }, "token"), error => error.code === "DEPARTURE_REPORT_REQUIRED");
+});
+
+test("同日複数予定ではschedule_idなしの旧記録を別予定へ流用しない", () => {
+  const context = timingContext();
+  context.rows_ = () => [
+    { email: "member@example.com", "勤務日": "2026-08-28", schedule_id: "", record_id: "LEGACY" },
+    { email: "member@example.com", "勤務日": "2026-08-28", schedule_id: "SCHEDULE-2", record_id: "SECOND" }
+  ];
+  assert.equal(context.findRecord_("member@example.com", "2026-08-28", "SCHEDULE-1"), null);
+  assert.equal(context.findRecord_("member@example.com", "2026-08-28", "SCHEDULE-2").record_id, "SECOND");
+  context.rows_ = () => [{ email: "member@example.com", "勤務日": "2026-08-28", schedule_id: "", record_id: "ONLY-LEGACY" }];
+  assert.equal(context.findRecord_("member@example.com", "2026-08-28", "SCHEDULE-1"), null);
+  assert.equal(context.findRecord_("member@example.com", "2026-08-28", "SCHEDULE-2"), null);
+});
+
+test("終了済み案件は同日の次予定の選択を妨げない", () => {
+  const context = timingContext();
+  const schedules = [
+    { email: "member@example.com", schedule_id: "SCHEDULE-1" },
+    { email: "member@example.com", schedule_id: "SCHEDULE-2" }
+  ];
+  const records = [
+    { email: "member@example.com", schedule_id: "SCHEDULE-1", "実開始": "10:00", "実終了": "11:00" },
+    { email: "member@example.com", schedule_id: "SCHEDULE-2" }
+  ];
+  assert.equal(context.findScheduleRecordIn_(records, schedules[1], schedules).schedule_id, "SCHEDULE-2");
+});
+
+test("前日出発済みで未入店のschedule_idを日付変更後も引き継ぐ", () => {
+  const context = timingContext();
+  context.rows_ = () => [
+    { "勤務日": "2026-08-28", schedule_id: "NIGHT-1", "報告種別": "出発", "報告者メール": "member@example.com" }
+  ];
+  assert.equal(context.findPendingOvernightReport_({ email: "member@example.com" }, "2026-08-29").schedule_id, "NIGHT-1");
+  context.rows_ = () => [{ "勤務日": "2026-08-27", schedule_id: "OLD", "報告種別": "出発", "報告者メール": "member@example.com" }];
+  assert.equal(context.findPendingOvernightReport_({ email: "member@example.com" }, "2026-08-29"), null);
+});
+
+test("承認順序と復元処理で終了済み状態を稼働中へ戻さない", () => {
+  assert.match(backendSource, /record && record\["実終了"\] \? "終了済み" : "稼働中"/);
+  assert.match(backendSource, /\{ "状態": record\["状態"\] \|\| "", "正式開始":/);
+});
+
+test("別予定が稼働中なら古い画面から二件目を入店できない", () => {
+  const context = timingContext();
+  context.findActiveRecords_ = () => [{ schedule_id: "S1", "実開始": "10:00", "実終了": "" }];
+  assert.throws(() => context.assertNoOtherActiveSchedule_("member@example.com", "S2"), error => error.code === "OTHER_SCHEDULE_ACTIVE");
+  assert.doesNotThrow(() => context.assertNoOtherActiveSchedule_("member@example.com", "S1"));
+});
+
+test("終了報告は稼働中の別予定ではなく指定schedule_idだけを選ぶ", () => {
+  const context = timingContext();
+  const s1 = { record_id: "ACTIVE-S1", schedule_id: "S1", "実開始": "10:00", "実終了": "" };
+  const s2 = { record_id: "ACTIVE-S2", schedule_id: "S2", "実開始": "12:00", "実終了": "" };
+  context.findActiveRecords_ = () => [s1];
+  context.findRecordBySchedule_ = (_email, scheduleId) => scheduleId === "S2" ? s2 : s1;
+  assert.equal(context.selectClockOutRecord_("member@example.com", "S2").record_id, "ACTIVE-S2");
+  context.findActiveRecords_ = () => [s1, s2];
+  assert.throws(() => context.selectClockOutRecord_("member@example.com", "S2"), error => error.code === "MULTIPLE_ACTIVE_RECORDS");
+});
+
+test("前日から稼働中なら翌日の旧clockInで二件目を作らない", () => {
+  assert.match(backendSource, /activeRecords\.length\) throw apiError_\("OTHER_SCHEDULE_ACTIVE"/);
+  assert.match(backendSource, /dateKey_\(activeRecords\[0\]\["勤務日"\]\) === today && !activeRecords\[0\]\.schedule_id && payload\.unplanned/);
 });

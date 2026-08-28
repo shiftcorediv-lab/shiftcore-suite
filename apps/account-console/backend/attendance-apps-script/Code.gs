@@ -15,7 +15,7 @@ const SHEETS = {
 
 const HEADERS = {
   reports: ["report_id", "record_id", "開発予定ID", "開発予定名", "報告者メール", "報告者氏名", "実績内容", "課題・申し送り", "報告日時"],
-  fieldReports: ["field_report_id", "勤務日", "開発予定ID", "報告種別", "報告者メール", "報告者氏名", "報告日時"],
+  fieldReports: ["field_report_id", "勤務日", "開発予定ID", "報告種別", "報告者メール", "報告者氏名", "報告日時", "schedule_id"],
   requests: ["request_id", "record_id", "種別", "申請者メール", "申請者氏名", "実勤務日", "申請開始", "申請終了", "理由区分", "理由詳細", "状態", "承認者メール", "承認者氏名", "承認理由", "申請日時", "処理日時"],
   requestContract: ["applicant_internal_user_id", "request_version", "approval_reviewer_internal_user_id", "applicant_organization_version"]
 };
@@ -31,9 +31,10 @@ function doPost(e) {
     const action = String(body.action || "");
     const payload = body.payload || {};
 
-    if (action === "getDashboardData") return jsonOutput_(getDashboardData_(user));
-    if (action === "refreshDashboardData") return jsonOutput_(getDashboardData_(user, getSchedules_(body.idToken)));
+    if (action === "getDashboardData") return jsonOutput_(getDashboardData_(user, null, payload.scheduleId));
+    if (action === "refreshDashboardData") return jsonOutput_(getDashboardData_(user, getSchedules_(body.idToken), payload.scheduleId));
     if (action === "clockIn") return jsonOutput_(clockIn_(user, payload, body.idToken));
+    if (action === "arrive") return jsonOutput_(arrive_(user, payload, body.idToken));
     if (action === "clockOut") return jsonOutput_(clockOut_(user, payload, body.idToken));
     if (action === "submitFieldReport") return jsonOutput_(submitFieldReport_(user, payload, body.idToken));
     if (action === "submitCorrection") return jsonOutput_(submitCorrection_(user, payload, body.idToken));
@@ -61,14 +62,24 @@ function resolveUser_(idToken) {
   return data.user;
 }
 
-function getDashboardData_(user, sourceSchedules) {
+function getDashboardData_(user, sourceSchedules, selectedScheduleId) {
   ensureReportSheet_();
   ensureFieldReportSheet_();
   const today = today_();
   const schedules = (sourceSchedules || rows_(SHEETS.schedules)).filter(r => matchesUser_(r, user));
   const todaySchedules = schedules.filter(r => dateKey_(r["勤務日"]) === today);
   const upcoming = schedules.filter(r => dateKey_(r["勤務日"]) >= today).sort((a, b) => dateKey_(a["勤務日"]).localeCompare(dateKey_(b["勤務日"]))).slice(0, 5);
-  const records = rows_(SHEETS.records).filter(r => normalizeEmail_(r.email) === normalizeEmail_(user.email) && dateKey_(r["勤務日"]) === today);
+  const userRecords = rows_(SHEETS.records).filter(r => normalizeEmail_(r.email) === normalizeEmail_(user.email));
+  const activeRecord = userRecords.find(r => r["実開始"] && !r["実終了"]);
+  const pendingOvernightReport = findPendingOvernightReport_(user, today);
+  const carriedRecord = activeRecord;
+  const records = userRecords.filter(r => dateKey_(r["勤務日"]) === today);
+  const requestedSchedule = todaySchedules.find(r => String(r.schedule_id || "") === String(selectedScheduleId || ""));
+  const selectedSchedule = carriedRecord
+    ? schedules.find(r => carriedRecord.schedule_id && String(r.schedule_id || "") === String(carriedRecord.schedule_id)) || schedules.find(r => dateKey_(r["勤務日"]) === dateKey_(carriedRecord["勤務日"]) && String(r["開発予定ID"] || "") === String(carriedRecord["開発予定ID"] || "")) || todaySchedules[0]
+    : requestedSchedule || (pendingOvernightReport ? findScheduleById_(user, pendingOvernightReport.schedule_id, null, schedules) : null) || todaySchedules[0];
+  const selectedWorkDate = selectedSchedule ? dateKey_(selectedSchedule["勤務日"]) : today;
+  const selectedRecord = carriedRecord || (selectedSchedule ? findRecord_(user.email, selectedWorkDate, selectedSchedule.schedule_id) : records[0]) || null;
   const notifications = rows_(SHEETS.notifications).filter(r => normalizeEmail_(r["宛先メール"]) === normalizeEmail_(user.email)).sort((a, b) => String(b["作成日時"]).localeCompare(String(a["作成日時"]))).slice(0, 20);
   const settings = settings_();
   return {
@@ -77,11 +88,12 @@ function getDashboardData_(user, sourceSchedules) {
     today,
     settings,
     user: publicUser_(user),
-    schedule: todaySchedules[0] || null,
+    schedule: selectedSchedule || null,
     schedules: todaySchedules,
     upcoming,
-    record: records[0] || null,
-    fieldReports: fieldReportsFor_(user, today, todaySchedules[0] ? scheduleReportKey_(todaySchedules[0]) : ""),
+    record: selectedRecord,
+    fieldReports: fieldReportsFor_(user, selectedWorkDate, selectedSchedule ? scheduleReportKey_(selectedSchedule) : "", selectedSchedule ? selectedSchedule["開発予定ID"] : ""),
+    timing: selectedSchedule ? safeTimingStatus_(selectedSchedule, new Date()) : null,
     notifications,
     adminAccess: isAdmin_(user) || hasApprovalReviewAccess_(user),
     preciseLocationAccess: canViewPreciseLocation_(user)
@@ -90,32 +102,73 @@ function getDashboardData_(user, sourceSchedules) {
 
 function submitFieldReport_(user, payload, idToken) {
   const reportType = String(payload.reportType || "");
-  if (!["出発", "入店"].includes(reportType)) throw apiError_("FIELD_REPORT_TYPE_INVALID", "報告種別を確認できません。");
+  if (reportType !== "出発") throw apiError_("FIELD_REPORT_TYPE_INVALID", "出発以外は専用の報告操作を使用してください。");
   const lock = LockService.getDocumentLock();
   lock.waitLock(20000);
   try {
     ensureFieldReportSheet_();
+    ensureFieldReportContractHeaders_();
     const today = today_();
     const schedule = findSchedule_(user, today, payload.scheduleId, idToken);
     if (!schedule) throw apiError_("FIELD_REPORT_SCHEDULE_REQUIRED", "本日の稼働予定を確認できません。");
-    const planId = scheduleReportKey_(schedule);
-    if (!planId) throw apiError_("FIELD_REPORT_SCHEDULE_ID_REQUIRED", "稼働予定の識別子を確認できません。");
-    const reports = fieldReportsFor_(user, today, planId);
+    const scheduleKey = scheduleReportKey_(schedule);
+    if (!scheduleKey) throw apiError_("FIELD_REPORT_SCHEDULE_ID_REQUIRED", "稼働予定の識別子を確認できません。");
+    const reports = fieldReportsFor_(user, today, scheduleKey, schedule["開発予定ID"]);
     const existing = reports.find(report => String(report["報告種別"]) === reportType);
     if (existing) return { ok: true, duplicate: true, report: existing };
-    if (reportType === "入店" && !reports.some(report => String(report["報告種別"]) === "出発")) {
-      throw apiError_("DEPARTURE_REPORT_REQUIRED", "先に出発報告を行ってください。");
-    }
     const now = new Date();
-    append_(SHEETS.fieldReports, [
-      Utilities.getUuid(), today, planId, reportType,
-      user.email, user.name || "", now
-    ]);
+    appendObject_(SHEETS.fieldReports, { field_report_id: Utilities.getUuid(), "勤務日": today, "開発予定ID": schedule["開発予定ID"] || "", "報告種別": reportType, "報告者メール": user.email, "報告者氏名": user.name || "", "報告日時": now, schedule_id: schedule.schedule_id || "" });
     notifyManagers_(user, `${reportType}報告`, `${user.name || user.email}さんが${formatJst_(now)}に${reportType}を報告しました。`);
-    return { ok: true, report: fieldReportsFor_(user, today, planId).find(report => String(report["報告種別"]) === reportType) || null };
+    return { ok: true, report: fieldReportsFor_(user, today, scheduleKey, schedule["開発予定ID"]).find(report => String(report["報告種別"]) === reportType) || null };
   } finally {
     lock.releaseLock();
   }
+}
+
+function arrive_(user, payload, idToken) {
+  const now = new Date();
+  const today = today_();
+  const schedule = findScheduleById_(user, payload.scheduleId, idToken);
+  if (!schedule) throw apiError_("FIELD_REPORT_SCHEDULE_REQUIRED", "対象の稼働予定を確認できません。");
+  const workDate = dateKey_(schedule["勤務日"]);
+  const scheduleKey = scheduleReportKey_(schedule);
+  const previousReports = fieldReportsFor_(user, workDate, scheduleKey, schedule["開発予定ID"]);
+  const previousRecord = findRecord_(user.email, workDate, schedule.schedule_id);
+  const previousArrival = previousReports.find(report => String(report["報告種別"]) === "入店");
+  if (previousArrival && previousRecord && previousRecord["実開始"]) {
+    return { ok: true, duplicate: true, report: previousArrival, record: previousRecord, approvalRequired: hasPendingApproval_(previousRecord.record_id, "入店遅延報告"), requestId: findApprovalRequestId_(previousRecord.record_id, "入店遅延報告") };
+  }
+  const timing = buildTimingStatus_(schedule, now);
+  if (timing.arrivalApprovalRequired && !String(payload.reason || "").trim()) throw apiError_("REASON_REQUIRED", "予定開始以降の入店理由を入力してください。");
+  const approval = timing.arrivalApprovalRequired ? accountApprovalRequest_({ phase: "prepare", idToken: idToken }) : null;
+  const lock = LockService.getDocumentLock();
+  lock.waitLock(20000);
+  try {
+    ensureFieldReportSheet_();
+    ensureFieldReportContractHeaders_();
+    const reports = fieldReportsFor_(user, workDate, scheduleKey, schedule["開発予定ID"]);
+    if (!reports.some(report => String(report["報告種別"]) === "出発")) throw apiError_("DEPARTURE_REPORT_REQUIRED", "先に出発報告を行ってください。");
+    assertNoOtherActiveSchedule_(user.email, schedule.schedule_id);
+    const existingRecord = findRecord_(user.email, workDate, schedule.schedule_id);
+    const existingArrival = reports.find(report => String(report["報告種別"]) === "入店");
+    let record = existingRecord;
+    if (!record || !record["実開始"]) record = createClockInRecord_(user, schedule, payload, now, timing.arrivalApprovalRequired ? "入店承認待ち" : "稼働中");
+    if (!existingArrival) appendObject_(SHEETS.fieldReports, { field_report_id: Utilities.getUuid(), "勤務日": workDate, "開発予定ID": schedule["開発予定ID"] || "", "報告種別": "入店", "報告者メール": user.email, "報告者氏名": user.name || "", "報告日時": now, schedule_id: schedule.schedule_id || "" });
+    let requestId = "";
+    if (timing.arrivalApprovalRequired) requestId = createApprovalRequestIfMissing_(user, approval, { recordId: record.record_id, type: "入店遅延報告", workDate: workDate, actualStart: now, reasonType: payload.reasonType || "その他", reason: payload.reason || "予定開始以降の入店" });
+    return { ok: true, duplicate: Boolean(existingArrival && existingRecord && existingRecord["実開始"]), report: fieldReportsFor_(user, workDate, scheduleKey, schedule["開発予定ID"]).find(report => String(report["報告種別"]) === "入店") || null, record: findRecord_(user.email, workDate, schedule.schedule_id), approvalRequired: timing.arrivalApprovalRequired, requestId: requestId };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function createClockInRecord_(user, schedule, payload, now, status) {
+  ensureRecordContractHeaders_();
+  const recordId = Utilities.getUuid();
+  const location = saveLocation_(user, recordId, payload.location || {}, schedule && schedule["稼働場所"]);
+  append_(SHEETS.records, [recordId, user.organization_id || "", user.employee_code || "", user.email, user.name || "", dateKey_(schedule["勤務日"]), schedule["予定開始"] || "", schedule["予定終了"] || "", schedule["稼働場所"] || "", schedule["開発予定ID"] || "", user.employment_type || user.contract_type || "", status, now, now, payload.reason || "", "", "", false, location.status, location.id || "", "", "", now, now]);
+  updateById_(SHEETS.records, "record_id", recordId, { schedule_id: schedule.schedule_id || "" });
+  return findRecord_(user.email, dateKey_(schedule["勤務日"]), schedule.schedule_id);
 }
 
 function clockIn_(user, payload, idToken) {
@@ -125,26 +178,30 @@ function clockIn_(user, payload, idToken) {
     const settings = settings_();
     const now = new Date();
     const today = today_();
+    const activeRecords = findActiveRecords_(user.email);
+    if (activeRecords.length === 1 && dateKey_(activeRecords[0]["勤務日"]) === today && !activeRecords[0].schedule_id && payload.unplanned) return { ok: true, duplicate: true, record: activeRecords[0] };
+    if (activeRecords.length) throw apiError_("OTHER_SCHEDULE_ACTIVE", "終了していない稼働記録があります。先に終了報告を行ってください。");
     const existing = findRecord_(user.email, today);
     if (existing && existing["実開始"]) return { ok: true, duplicate: true, record: existing };
     const current = timeKey_(now);
     if (current >= settings.start_limit_time) throw apiError_("CORRECTION_REQUIRED", "10:00以降の開始は修正申請が必要です。");
     if (current >= settings.start_warning_time && !String(payload.reason || "").trim()) throw apiError_("REASON_REQUIRED", "9:30以降は未押下理由を入力してください。");
 
-    const schedule = findSchedule_(user, today, payload.scheduleId, idToken);
-    if (!schedule && !payload.unplanned) throw apiError_("UNPLANNED_REQUIRED", "本日の予定がないため、予定外稼働として理由を入力してください。");
-    if (!schedule && !String(payload.reason || "").trim()) throw apiError_("REASON_REQUIRED", "予定外稼働の理由を入力してください。");
+    const schedules = getSchedules_(idToken).filter(r => matchesUser_(r, user) && dateKey_(r["勤務日"]) === today);
+    if (schedules.length) throw apiError_("DEPARTURE_REPORT_REQUIRED", "予定のある勤務は出発報告後に入店してください。");
+    if (!payload.unplanned) throw apiError_("UNPLANNED_REQUIRED", "本日の予定がないため、予定外稼働として理由を入力してください。");
+    if (!String(payload.reason || "").trim()) throw apiError_("REASON_REQUIRED", "予定外稼働の理由を入力してください。");
 
     const recordId = Utilities.getUuid();
-    const location = saveLocation_(user, recordId, payload.location || {}, schedule && schedule["稼働場所"]);
+    const location = saveLocation_(user, recordId, payload.location || {}, payload.workLocation || "");
     const row = [
       recordId, user.organization_id || "", user.employee_code || "", user.email, user.name || "", today,
-      schedule && schedule["予定開始"] || "", schedule && schedule["予定終了"] || "", schedule && schedule["稼働場所"] || payload.workLocation || "",
-      schedule && schedule["開発予定ID"] || payload.planId || "", user.employment_type || user.contract_type || "", current >= settings.start_warning_time ? "開始遅延" : "稼働中",
-      now, now, payload.reason || "", "", "", !schedule, location.status, location.id || "", "", "", now, now
+      "", "", payload.workLocation || "",
+      payload.planId || "", user.employment_type || user.contract_type || "", current >= settings.start_warning_time ? "開始遅延" : "稼働中",
+      now, now, payload.reason || "", "", "", true, location.status, location.id || "", "", "", now, now
     ];
     append_(SHEETS.records, row);
-    notifyManagers_(user, current >= settings.start_warning_time ? "開始遅延" : (!schedule ? "予定外稼働" : "稼働開始"), `${user.name || user.email}さんが${formatJst_(now)}に稼働を開始しました。${payload.reason ? " 理由: " + payload.reason : ""}`);
+    notifyManagers_(user, current >= settings.start_warning_time ? "開始遅延" : "予定外稼働", `${user.name || user.email}さんが${formatJst_(now)}に稼働を開始しました。${payload.reason ? " 理由: " + payload.reason : ""}`);
     return { ok: true, record: findRecord_(user.email, today) };
   } finally {
     lock.releaseLock();
@@ -152,20 +209,40 @@ function clockIn_(user, payload, idToken) {
 }
 
 function clockOut_(user, payload, idToken) {
+  const now = new Date();
+  const requestedScheduleId = String(payload.scheduleId || "");
+  const recordBeforeLock = selectClockOutRecord_(user.email, requestedScheduleId);
+  if (!recordBeforeLock || !recordBeforeLock["実開始"]) throw apiError_("NOT_STARTED", "入店記録がありません。");
+  if (requestedScheduleId && String(recordBeforeLock.schedule_id || "") !== requestedScheduleId) throw apiError_("SCHEDULE_RECORD_MISMATCH", "選択した予定の入店記録を確認できません。");
+  const workDate = dateKey_(recordBeforeLock["勤務日"]);
+  if (recordBeforeLock["実終了"]) return { ok: true, duplicate: true, record: recordBeforeLock, plans: findPlansForDate_(user, idToken, workDate), approvalRequired: hasPendingApproval_(recordBeforeLock.record_id, "日付またぎ終了報告"), requestId: findApprovalRequestId_(recordBeforeLock.record_id, "日付またぎ終了報告") };
+  const schedule = findSchedule_(user, workDate, payload.scheduleId || "", idToken);
+  const timing = schedule ? buildTimingStatus_(schedule, now) : { endApprovalRequired: dateKey_(now) > workDate, endWarning: false };
+  if (timing.endApprovalRequired && !String(payload.reason || "").trim()) throw apiError_("REASON_REQUIRED", "0:00以降の終了理由を入力してください。");
+  const approval = timing.endApprovalRequired ? accountApprovalRequest_({ phase: "prepare", idToken: idToken }) : null;
   const lock = LockService.getDocumentLock();
   lock.waitLock(20000);
   try {
-    const settings = settings_();
-    const now = new Date();
-    if (timeKey_(now) >= settings.end_limit_time) throw apiError_("CORRECTION_REQUIRED", "22:00以降の終了は修正申請が必要です。");
-    const record = findRecord_(user.email, today_());
-    if (!record || !record["実開始"]) throw apiError_("NOT_STARTED", "稼働開始記録がありません。");
-    if (record["実終了"]) return { ok: true, duplicate: true, record };
-    updateById_(SHEETS.records, "record_id", record.record_id, { "状態": "終了済み", "実終了": now, "終了押下": now, "更新日時": now });
-    return { ok: true, record: findRecord_(user.email, today_()), plans: findTodayPlans_(user, idToken) };
+    const record = selectClockOutRecord_(user.email, requestedScheduleId);
+    if (!record || !record["実開始"]) throw apiError_("NOT_STARTED", "入店記録がありません。");
+    if (requestedScheduleId && String(record.schedule_id || "") !== requestedScheduleId) throw apiError_("SCHEDULE_RECORD_MISMATCH", "選択した予定の入店記録を確認できません。");
+    if (record["実終了"]) return { ok: true, duplicate: true, record, plans: findPlansForDate_(user, idToken, workDate), approvalRequired: hasPendingApproval_(record.record_id, "日付またぎ終了報告") };
+    updateById_(SHEETS.records, "record_id", record.record_id, { "状態": timing.endApprovalRequired ? "終了承認待ち" : "終了済み", "実終了": now, "終了押下": now, "更新日時": now });
+    let requestId = "";
+    if (timing.endApprovalRequired) requestId = createApprovalRequestIfMissing_(user, approval, { recordId: record.record_id, type: "日付またぎ終了報告", workDate: workDate, actualEnd: now, reasonType: payload.reasonType || "その他", reason: payload.reason || "0:00以降の終了報告" });
+    return { ok: true, record: findRecord_(user.email, workDate, record.schedule_id || ""), plans: findPlansForDate_(user, idToken, workDate), approvalRequired: timing.endApprovalRequired, requestId: requestId };
   } finally {
     lock.releaseLock();
   }
+}
+
+function createApprovalRequestIfMissing_(user, approval, payload) {
+  ensureRequestContractHeaders_();
+  const existing = rows_(SHEETS.requests).find(r => String(r.record_id || "") === String(payload.recordId || "") && String(r["種別"] || "") === String(payload.type || "") && ["申請中", "承認済み"].includes(String(r["状態"] || "")));
+  if (existing) return String(existing.request_id || "");
+  const requestId = Utilities.getUuid();
+  appendObject_(SHEETS.requests, { request_id: requestId, record_id: payload.recordId || "", "種別": payload.type, "申請者メール": user.email, "申請者氏名": user.name || "", "実勤務日": payload.workDate, "申請開始": payload.actualStart || "", "申請終了": payload.actualEnd || "", "理由区分": payload.reasonType || "その他", "理由詳細": payload.reason || "", "状態": "申請中", "申請日時": new Date(), applicant_internal_user_id: approval.applicant_internal_user_id, request_version: 1, approval_reviewer_internal_user_id: approval.approval_reviewer_internal_user_id, applicant_organization_version: approval.applicant_organization_version });
+  return requestId;
 }
 
 function submitCorrection_(user, payload, idToken) {
@@ -226,11 +303,11 @@ function getAdminDashboard_(user, idToken) {
     : pendingRequests.filter(r => String(r.approval_reviewer_internal_user_id || "") === reviewerId);
   const locations = admin && canViewPreciseLocation_(user) ? locationRows_() : [];
   const people = schedules.map(schedule => {
-    const record = records.find(r => normalizeEmail_(r.email) === normalizeEmail_(schedule.email));
+    const record = findScheduleRecordIn_(records, schedule, schedules);
     const loc = record && locations.find(l => String(l.attendance_record_id) === String(record.record_id));
-    return { schedule, record: record || null, location: loc || null, fieldReports: fieldReports.filter(r => normalizeEmail_(r["報告者メール"]) === normalizeEmail_(schedule.email) && String(r["開発予定ID"] || "") === scheduleReportKey_(schedule)) };
+    return { schedule, record: record || null, location: loc || null, fieldReports: fieldReports.filter(r => fieldReportMatchesSchedule_(r, schedule, schedules)) };
   });
-  records.filter(record => !schedules.some(s => normalizeEmail_(s.email) === normalizeEmail_(record.email))).forEach(record => {
+  records.filter(record => !schedules.some(s => recordMatchesSchedule_(record, s, schedules))).forEach(record => {
     const loc = locations.find(l => String(l.attendance_record_id) === String(record.record_id));
     people.push({ schedule: null, record, location: loc || null, fieldReports: fieldReports.filter(r => normalizeEmail_(r["報告者メール"]) === normalizeEmail_(record.email)) });
   });
@@ -274,7 +351,19 @@ function reviewRequest_(user, payload, idToken) {
         const nextStatus = payload.decision + "済み";
         record = request.record_id ? rows_(SHEETS.records).find(r => String(r.record_id) === String(request.record_id)) : null;
         updateById_(SHEETS.requests, "request_id", payload.requestId, { "状態": nextStatus, request_version: currentVersion + 1, "承認者メール": user.email, "承認者氏名": user.name || "", "承認理由": payload.reason || "", "処理日時": new Date() });
-        if (payload.decision === "承認" && request.record_id) updateById_(SHEETS.records, "record_id", request.record_id, { "正式開始": request["申請開始"] || "", "正式終了": request["申請終了"] || "", "更新日時": new Date() });
+        if (request.record_id) {
+          const formalChanges = { "更新日時": new Date() };
+          if (payload.decision === "承認") {
+            if (request["申請開始"]) formalChanges["正式開始"] = request["申請開始"];
+            if (request["申請終了"]) formalChanges["正式終了"] = request["申請終了"];
+            if (request["種別"] === "入店遅延報告") formalChanges["状態"] = record && record["実終了"] ? "終了済み" : "稼働中";
+            if (request["種別"] === "日付またぎ終了報告") formalChanges["状態"] = "終了済み";
+          } else {
+            if (request["種別"] === "入店遅延報告") formalChanges["状態"] = "入店却下";
+            if (request["種別"] === "日付またぎ終了報告") formalChanges["状態"] = "終了却下";
+          }
+          updateById_(SHEETS.records, "record_id", request.record_id, formalChanges);
+        }
       }
     }
   } catch (error) {
@@ -408,7 +497,7 @@ function accountApprovalRequest_(payload) {
 
 function restoreAttendanceReview_(request, record) {
   updateById_(SHEETS.requests, "request_id", request.request_id, { "状態": request["状態"], request_version: request.request_version, "承認者メール": request["承認者メール"] || "", "承認者氏名": request["承認者氏名"] || "", "承認理由": request["承認理由"] || "", "処理日時": request["処理日時"] || "" });
-  if (record) updateById_(SHEETS.records, "record_id", record.record_id, { "正式開始": record["正式開始"] || "", "正式終了": record["正式終了"] || "", "更新日時": record["更新日時"] || "" });
+  if (record) updateById_(SHEETS.records, "record_id", record.record_id, { "状態": record["状態"] || "", "正式開始": record["正式開始"] || "", "正式終了": record["正式終了"] || "", "更新日時": record["更新日時"] || "" });
 }
 
 function updateEndWarningTime_(user, payload) {
@@ -607,9 +696,51 @@ function cleanupExpiredLocations() {
   }
 }
 
-function findRecord_(email, date) { return rows_(SHEETS.records).find(r => normalizeEmail_(r.email) === normalizeEmail_(email) && dateKey_(r["勤務日"]) === date) || null; }
+function findRecord_(email, date, scheduleId) {
+  const matches = rows_(SHEETS.records).filter(r => normalizeEmail_(r.email) === normalizeEmail_(email) && dateKey_(r["勤務日"]) === date);
+  if (!scheduleId) return matches[0] || null;
+  const exact = matches.find(r => String(r.schedule_id || "") === String(scheduleId));
+  if (exact) return exact;
+  return null;
+}
+function findActiveRecord_(email) { return rows_(SHEETS.records).find(r => normalizeEmail_(r.email) === normalizeEmail_(email) && r["実開始"] && !r["実終了"]) || null; }
+function findActiveRecords_(email) { return rows_(SHEETS.records).filter(r => normalizeEmail_(r.email) === normalizeEmail_(email) && r["実開始"] && !r["実終了"]); }
+function assertNoOtherActiveSchedule_(email, scheduleId) { if (findActiveRecords_(email).some(r => String(r.schedule_id || "") !== String(scheduleId || ""))) throw apiError_("OTHER_SCHEDULE_ACTIVE", "別の予定が稼働中です。先にその予定の終了報告を行ってください。"); }
+function selectClockOutRecord_(email, scheduleId) {
+  const activeRecords = findActiveRecords_(email);
+  if (activeRecords.length > 1) throw apiError_("MULTIPLE_ACTIVE_RECORDS", "稼働中の記録が複数あります。管理者へ確認してください。");
+  return scheduleId ? findRecordBySchedule_(email, scheduleId) : activeRecords[0] || findRecord_(email, today_());
+}
+function findRecordBySchedule_(email, scheduleId) { if (!scheduleId) return null; const matches = rows_(SHEETS.records).filter(r => normalizeEmail_(r.email) === normalizeEmail_(email) && String(r.schedule_id || "") === String(scheduleId)); return matches.length ? matches[matches.length - 1] : null; }
 function findSchedule_(user, date, scheduleId, idToken) { return getSchedules_(idToken).find(r => matchesUser_(r, user) && dateKey_(r["勤務日"]) === date && (!scheduleId || String(r.schedule_id) === String(scheduleId))) || null; }
+function findScheduleById_(user, scheduleId, idToken, sourceSchedules) { if (!scheduleId) return null; return (sourceSchedules || getSchedules_(idToken)).find(r => matchesUser_(r, user) && String(r.schedule_id || "") === String(scheduleId)) || null; }
+function findPendingOvernightReport_(user, today) {
+  const previousDate = Utilities.formatDate(addDays_(new Date(`${today}T00:00:00+09:00`), -1), TZ, "yyyy-MM-dd");
+  const reports = rows_(SHEETS.fieldReports).filter(r => normalizeEmail_(r["報告者メール"]) === normalizeEmail_(user.email) && dateKey_(r["勤務日"]) === previousDate && r.schedule_id);
+  for (let index = reports.length - 1; index >= 0; index -= 1) {
+    const report = reports[index];
+    const sameSchedule = reports.filter(r => String(r.schedule_id || "") === String(report.schedule_id || ""));
+    if (String(report["報告種別"]) === "出発" && !sameSchedule.some(r => String(r["報告種別"]) === "入店")) return report;
+  }
+  return null;
+}
+function recordMatchesSchedule_(record, schedule, schedules) {
+  if (normalizeEmail_(record.email) !== normalizeEmail_(schedule.email)) return false;
+  if (record.schedule_id) return String(record.schedule_id) === String(schedule.schedule_id || "");
+  const sameUserSchedules = schedules.filter(s => normalizeEmail_(s.email) === normalizeEmail_(schedule.email));
+  return sameUserSchedules.length === 1;
+}
+function findScheduleRecordIn_(records, schedule, schedules) { return records.find(record => recordMatchesSchedule_(record, schedule, schedules)) || null; }
+function fieldReportMatchesSchedule_(report, schedule, schedules) {
+  if (normalizeEmail_(report["報告者メール"]) !== normalizeEmail_(schedule.email)) return false;
+  if (report.schedule_id) return String(report.schedule_id) === String(schedule.schedule_id || "");
+  const samePlanSchedules = schedules.filter(s => normalizeEmail_(s.email) === normalizeEmail_(schedule.email) && String(s["開発予定ID"] || "") === String(schedule["開発予定ID"] || ""));
+  return samePlanSchedules.length === 1 && String(report["開発予定ID"] || "") === String(schedule["開発予定ID"] || "");
+}
+function hasPendingApproval_(recordId, type) { return rows_(SHEETS.requests).some(r => String(r.record_id || "") === String(recordId || "") && String(r["種別"] || "") === String(type || "") && String(r["状態"] || "") === "申請中"); }
+function findApprovalRequestId_(recordId, type) { const request = rows_(SHEETS.requests).find(r => String(r.record_id || "") === String(recordId || "") && String(r["種別"] || "") === String(type || "") && ["申請中", "承認済み"].includes(String(r["状態"] || ""))); return request ? String(request.request_id || "") : ""; }
 function findTodayPlans_(user, idToken) { return getSchedules_(idToken).filter(r => matchesUser_(r, user) && dateKey_(r["勤務日"]) === today_()).map(r => ({ id: r["開発予定ID"] || r.schedule_id, name: r["開発予定名"] || r["稼働場所"] || "当日の開発予定" })); }
+function findPlansForDate_(user, idToken, workDate) { return getSchedules_(idToken).filter(r => matchesUser_(r, user) && dateKey_(r["勤務日"]) === workDate).map(r => ({ id: r["開発予定ID"] || r.schedule_id, name: r["開発予定名"] || r["稼働場所"] || "当日の開発予定" })); }
 function rows_(name) { const sheet = SpreadsheetApp.getActive().getSheetByName(name); return sheet ? objects_(sheet) : []; }
 function locationRows_() { const sheet = SpreadsheetApp.openById(locationSpreadsheetId_()).getSheetByName("位置情報ログ"); return objects_(sheet); }
 
@@ -625,8 +756,14 @@ function updateById_(sheetName, idColumn, id, changes) { const sheet = Spreadshe
 function settings_() { return rows_(SHEETS.settings).reduce((o, r) => (o[String(r["設定キー"])] = String(r["設定値"]), o), {}); }
 function ensureReportSheet_() { const ss = SpreadsheetApp.getActive(); if (!ss.getSheetByName(SHEETS.reports)) { const s = ss.insertSheet(SHEETS.reports); s.appendRow(HEADERS.reports); s.setFrozenRows(1); } }
 function ensureFieldReportSheet_() { const ss = SpreadsheetApp.getActive(); if (!ss.getSheetByName(SHEETS.fieldReports)) { const s = ss.insertSheet(SHEETS.fieldReports); s.appendRow(HEADERS.fieldReports); s.setFrozenRows(1); } }
-function scheduleReportKey_(schedule) { return String(schedule && (schedule["開発予定ID"] || schedule.schedule_id) || ""); }
-function fieldReportsFor_(user, workDate, planId) { return rows_(SHEETS.fieldReports).filter(r => normalizeEmail_(r["報告者メール"]) === normalizeEmail_(user.email) && dateKey_(r["勤務日"]) === workDate && (!planId || String(r["開発予定ID"] || "") === String(planId))); }
+function ensureFieldReportContractHeaders_() { const sheet = SpreadsheetApp.getActive().getSheetByName(SHEETS.fieldReports); if (!sheet) throw apiError_("SHEET_NOT_FOUND", `${SHEETS.fieldReports}シートがありません。`); const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String); if (!headers.includes("schedule_id")) sheet.getRange(1, sheet.getLastColumn() + 1).setValue("schedule_id"); }
+function ensureRecordContractHeaders_() { const sheet = SpreadsheetApp.getActive().getSheetByName(SHEETS.records); if (!sheet) throw apiError_("SHEET_NOT_FOUND", `${SHEETS.records}シートがありません。`); const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String); if (!headers.includes("schedule_id")) sheet.getRange(1, sheet.getLastColumn() + 1).setValue("schedule_id"); }
+function scheduleReportKey_(schedule) { return String(schedule && (schedule.schedule_id || schedule["開発予定ID"]) || ""); }
+function fieldReportsFor_(user, workDate, scheduleKey, planId) {
+  const allowLegacy = Boolean(planId) && legacyScheduleUnambiguous_(user, workDate, planId);
+  return rows_(SHEETS.fieldReports).filter(r => normalizeEmail_(r["報告者メール"]) === normalizeEmail_(user.email) && dateKey_(r["勤務日"]) === workDate && (!scheduleKey || String(r.schedule_id || "") === String(scheduleKey) || (allowLegacy && !r.schedule_id && String(r["開発予定ID"] || "") === String(planId))));
+}
+function legacyScheduleUnambiguous_(user, workDate, planId) { return rows_(SHEETS.schedules).filter(r => matchesUser_(r, user) && dateKey_(r["勤務日"]) === workDate && String(r["開発予定ID"] || "") === String(planId || "")).length === 1; }
 function ensureRequestContractHeaders_() { const sheet = SpreadsheetApp.getActive().getSheetByName(SHEETS.requests); if (!sheet) throw apiError_("SHEET_NOT_FOUND", `${SHEETS.requests}シートがありません。`); const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String); const duplicate = headers.find((header, index) => header && headers.indexOf(header) !== index); if (duplicate) throw apiError_("SHEET_SCHEMA_MISMATCH", `${SHEETS.requests}シートに重複列があります: ${duplicate}`); const missingExisting = HEADERS.requests.filter(header => !headers.includes(header)); if (missingExisting.length) throw apiError_("SHEET_SCHEMA_MISMATCH", `${SHEETS.requests}シートの既存列が不足しています: ${missingExisting.join(",")}`); HEADERS.requestContract.forEach(header => { if (!headers.includes(header)) { sheet.getRange(1, sheet.getLastColumn() + 1).setValue(header); headers.push(header); } }); }
 function ensureRequestContractHeadersForReview_() { const lock = LockService.getDocumentLock(); lock.waitLock(20000); try { ensureRequestContractHeaders_(); } finally { lock.releaseLock(); } }
 function publicUser_(user) { return { internal_user_id: internalUserId_(user), name: user.name || "", email: user.email || "", role: user.role || "", organization_id: user.organization_id || "", employee_code: user.employee_code || "", employment_type: user.employment_type || user.contract_type || "" }; }
@@ -640,6 +777,29 @@ function normalizeEmail_(v) { return String(v || "").trim().toLowerCase(); }
 function today_() { return Utilities.formatDate(new Date(), TZ, "yyyy-MM-dd"); }
 function dateKey_(v) { if (!v) return ""; if (Object.prototype.toString.call(v) === "[object Date]") return Utilities.formatDate(v, TZ, "yyyy-MM-dd"); return String(v).slice(0, 10).replace(/\//g, "-"); }
 function timeKey_(d) { return Utilities.formatDate(d, TZ, "HH:mm"); }
+function jstDateTime_(workDate, time) { const normalizedTime = String(time || "").match(/\d{1,2}:\d{2}/); if (!workDate || !normalizedTime) return null; const hhmm = normalizedTime[0].padStart(5, "0"); return new Date(`${dateKey_(workDate)}T${hhmm}:00+09:00`); }
+function buildTimingStatus_(schedule, now) {
+  const workDate = dateKey_(schedule && schedule["勤務日"]);
+  const start = jstDateTime_(workDate, schedule && schedule["予定開始"]);
+  const rawEnd = jstDateTime_(workDate, schedule && schedule["予定終了"]);
+  if (!start || !rawEnd || Number.isNaN(start.getTime()) || Number.isNaN(rawEnd.getTime())) throw apiError_("SCHEDULE_TIME_REQUIRED", "予定開始・予定終了時刻を確認できません。");
+  const end = rawEnd.getTime() <= start.getTime() ? addDays_(rawEnd, 1) : rawEnd;
+  const current = now instanceof Date ? now : new Date(now);
+  const departureLimit = new Date(start.getTime() - 60 * 60 * 1000);
+  const arrivalLimit = new Date(start.getTime() - 15 * 60 * 1000);
+  const endWarningLimit = new Date(end.getTime() + 60 * 60 * 1000);
+  return {
+    workDate: workDate,
+    plannedStart: start.toISOString(), plannedEnd: end.toISOString(),
+    departureLimit: departureLimit.toISOString(), arrivalLimit: arrivalLimit.toISOString(), endWarningLimit: endWarningLimit.toISOString(),
+    departureWarning: current.getTime() > departureLimit.getTime(),
+    arrivalWarning: current.getTime() > arrivalLimit.getTime(),
+    arrivalApprovalRequired: current.getTime() >= start.getTime(),
+    endWarning: current.getTime() > endWarningLimit.getTime(),
+    endApprovalRequired: dateKey_(current) > workDate
+  };
+}
+function safeTimingStatus_(schedule, now) { try { return buildTimingStatus_(schedule, now); } catch (error) { if (error.code === "SCHEDULE_TIME_REQUIRED") return null; throw error; } }
 function formatJst_(d) { return Utilities.formatDate(d, TZ, "yyyy/MM/dd HH:mm"); }
 function nowIso_() { return Utilities.formatDate(new Date(), TZ, "yyyy-MM-dd'T'HH:mm:ssXXX"); }
 function addDays_(d, days) { return new Date(d.getTime() + days * 86400000); }
