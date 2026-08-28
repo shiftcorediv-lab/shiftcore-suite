@@ -141,3 +141,21 @@ test("承認順序と復元処理で終了済み状態を稼働中へ戻さな�
   assert.match(backendSource, /record && record\["実終了"\] \? "終了済み" : "稼働中"/);
   assert.match(backendSource, /\{ "状態": record\["状態"\] \|\| "", "正式開始":/);
 });
+
+test("別予定が稼働中なら古い画面から二件目を入店できない", () => {
+  const context = timingContext();
+  context.findActiveRecords_ = () => [{ schedule_id: "S1", "実開始": "10:00", "実終了": "" }];
+  assert.throws(() => context.assertNoOtherActiveSchedule_("member@example.com", "S2"), error => error.code === "OTHER_SCHEDULE_ACTIVE");
+  assert.doesNotThrow(() => context.assertNoOtherActiveSchedule_("member@example.com", "S1"));
+});
+
+test("終了報告は稼働中の別予定ではなく指定schedule_idだけを選ぶ", () => {
+  const context = timingContext();
+  const s1 = { record_id: "ACTIVE-S1", schedule_id: "S1", "実開始": "10:00", "実終了": "" };
+  const s2 = { record_id: "ACTIVE-S2", schedule_id: "S2", "実開始": "12:00", "実終了": "" };
+  context.findActiveRecords_ = () => [s1];
+  context.findRecordBySchedule_ = (_email, scheduleId) => scheduleId === "S2" ? s2 : s1;
+  assert.equal(context.selectClockOutRecord_("member@example.com", "S2").record_id, "ACTIVE-S2");
+  context.findActiveRecords_ = () => [s1, s2];
+  assert.throws(() => context.selectClockOutRecord_("member@example.com", "S2"), error => error.code === "MULTIPLE_ACTIVE_RECORDS");
+});

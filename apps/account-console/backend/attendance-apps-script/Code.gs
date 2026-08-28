@@ -148,6 +148,7 @@ function arrive_(user, payload, idToken) {
     ensureFieldReportContractHeaders_();
     const reports = fieldReportsFor_(user, workDate, scheduleKey, schedule["開発予定ID"]);
     if (!reports.some(report => String(report["報告種別"]) === "出発")) throw apiError_("DEPARTURE_REPORT_REQUIRED", "先に出発報告を行ってください。");
+    assertNoOtherActiveSchedule_(user.email, schedule.schedule_id);
     const existingRecord = findRecord_(user.email, workDate, schedule.schedule_id);
     const existingArrival = reports.find(report => String(report["報告種別"]) === "入店");
     let record = existingRecord;
@@ -206,8 +207,10 @@ function clockIn_(user, payload, idToken) {
 
 function clockOut_(user, payload, idToken) {
   const now = new Date();
-  const recordBeforeLock = findActiveRecord_(user.email) || findRecordBySchedule_(user.email, payload.scheduleId || "") || findRecord_(user.email, today_());
+  const requestedScheduleId = String(payload.scheduleId || "");
+  const recordBeforeLock = selectClockOutRecord_(user.email, requestedScheduleId);
   if (!recordBeforeLock || !recordBeforeLock["実開始"]) throw apiError_("NOT_STARTED", "入店記録がありません。");
+  if (requestedScheduleId && String(recordBeforeLock.schedule_id || "") !== requestedScheduleId) throw apiError_("SCHEDULE_RECORD_MISMATCH", "選択した予定の入店記録を確認できません。");
   const workDate = dateKey_(recordBeforeLock["勤務日"]);
   if (recordBeforeLock["実終了"]) return { ok: true, duplicate: true, record: recordBeforeLock, plans: findPlansForDate_(user, idToken, workDate), approvalRequired: hasPendingApproval_(recordBeforeLock.record_id, "日付またぎ終了報告"), requestId: findApprovalRequestId_(recordBeforeLock.record_id, "日付またぎ終了報告") };
   const schedule = findSchedule_(user, workDate, payload.scheduleId || "", idToken);
@@ -217,8 +220,9 @@ function clockOut_(user, payload, idToken) {
   const lock = LockService.getDocumentLock();
   lock.waitLock(20000);
   try {
-    const record = findRecord_(user.email, workDate, recordBeforeLock.schedule_id || "");
+    const record = selectClockOutRecord_(user.email, requestedScheduleId);
     if (!record || !record["実開始"]) throw apiError_("NOT_STARTED", "入店記録がありません。");
+    if (requestedScheduleId && String(record.schedule_id || "") !== requestedScheduleId) throw apiError_("SCHEDULE_RECORD_MISMATCH", "選択した予定の入店記録を確認できません。");
     if (record["実終了"]) return { ok: true, duplicate: true, record, plans: findPlansForDate_(user, idToken, workDate), approvalRequired: hasPendingApproval_(record.record_id, "日付またぎ終了報告") };
     updateById_(SHEETS.records, "record_id", record.record_id, { "状態": timing.endApprovalRequired ? "終了承認待ち" : "終了済み", "実終了": now, "終了押下": now, "更新日時": now });
     let requestId = "";
@@ -697,6 +701,13 @@ function findRecord_(email, date, scheduleId) {
   return null;
 }
 function findActiveRecord_(email) { return rows_(SHEETS.records).find(r => normalizeEmail_(r.email) === normalizeEmail_(email) && r["実開始"] && !r["実終了"]) || null; }
+function findActiveRecords_(email) { return rows_(SHEETS.records).filter(r => normalizeEmail_(r.email) === normalizeEmail_(email) && r["実開始"] && !r["実終了"]); }
+function assertNoOtherActiveSchedule_(email, scheduleId) { if (findActiveRecords_(email).some(r => String(r.schedule_id || "") !== String(scheduleId || ""))) throw apiError_("OTHER_SCHEDULE_ACTIVE", "別の予定が稼働中です。先にその予定の終了報告を行ってください。"); }
+function selectClockOutRecord_(email, scheduleId) {
+  const activeRecords = findActiveRecords_(email);
+  if (activeRecords.length > 1) throw apiError_("MULTIPLE_ACTIVE_RECORDS", "稼働中の記録が複数あります。管理者へ確認してください。");
+  return scheduleId ? findRecordBySchedule_(email, scheduleId) : activeRecords[0] || findRecord_(email, today_());
+}
 function findRecordBySchedule_(email, scheduleId) { if (!scheduleId) return null; const matches = rows_(SHEETS.records).filter(r => normalizeEmail_(r.email) === normalizeEmail_(email) && String(r.schedule_id || "") === String(scheduleId)); return matches.length ? matches[matches.length - 1] : null; }
 function findSchedule_(user, date, scheduleId, idToken) { return getSchedules_(idToken).find(r => matchesUser_(r, user) && dateKey_(r["勤務日"]) === date && (!scheduleId || String(r.schedule_id) === String(scheduleId))) || null; }
 function findScheduleById_(user, scheduleId, idToken, sourceSchedules) { if (!scheduleId) return null; return (sourceSchedules || getSchedules_(idToken)).find(r => matchesUser_(r, user) && String(r.schedule_id || "") === String(scheduleId)) || null; }
