@@ -131,7 +131,7 @@ function renderDashboard(data) {
   $("workStatus").textContent = status;
   $("workStatus").dataset.status = status;
   $("startBtn").hidden = primaryState.hidden;
-  $("correctionBtn").hidden = !record;
+  $("correctionBtn").hidden = !(record || (schedule && data.timing?.arrivalApprovalRequired));
   $("deadlineNote").textContent = schedule ? "出発は予定開始1時間前、入店は15分前が目安です。" : "本日は稼働予定がありません。";
   renderTimingWarning(data, primaryState.name);
   renderUpcoming(data.upcoming || []);

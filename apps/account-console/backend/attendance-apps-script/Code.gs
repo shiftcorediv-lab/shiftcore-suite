@@ -298,7 +298,7 @@ function getAdminDashboard_(user, idToken) {
   const people = schedules.map(schedule => {
     const record = findScheduleRecordIn_(records, schedule, schedules);
     const loc = record && locations.find(l => String(l.attendance_record_id) === String(record.record_id));
-    return { schedule, record: record || null, location: loc || null, fieldReports: fieldReports.filter(r => normalizeEmail_(r["報告者メール"]) === normalizeEmail_(schedule.email) && (String(r.schedule_id || "") === String(schedule.schedule_id || "") || (!r.schedule_id && String(r["開発予定ID"] || "") === String(schedule["開発予定ID"] || "")))) };
+    return { schedule, record: record || null, location: loc || null, fieldReports: fieldReports.filter(r => fieldReportMatchesSchedule_(r, schedule, schedules)) };
   });
   records.filter(record => !schedules.some(s => recordMatchesSchedule_(record, s, schedules))).forEach(record => {
     const loc = locations.find(l => String(l.attendance_record_id) === String(record.record_id));
@@ -490,7 +490,7 @@ function accountApprovalRequest_(payload) {
 
 function restoreAttendanceReview_(request, record) {
   updateById_(SHEETS.requests, "request_id", request.request_id, { "状態": request["状態"], request_version: request.request_version, "承認者メール": request["承認者メール"] || "", "承認者氏名": request["承認者氏名"] || "", "承認理由": request["承認理由"] || "", "処理日時": request["処理日時"] || "" });
-  if (record) updateById_(SHEETS.records, "record_id", record.record_id, { "正式開始": record["正式開始"] || "", "正式終了": record["正式終了"] || "", "更新日時": record["更新日時"] || "" });
+  if (record) updateById_(SHEETS.records, "record_id", record.record_id, { "状態": record["状態"] || "", "正式開始": record["正式開始"] || "", "正式終了": record["正式終了"] || "", "更新日時": record["更新日時"] || "" });
 }
 
 function updateEndWarningTime_(user, payload) {
@@ -701,7 +701,8 @@ function findRecordBySchedule_(email, scheduleId) { if (!scheduleId) return null
 function findSchedule_(user, date, scheduleId, idToken) { return getSchedules_(idToken).find(r => matchesUser_(r, user) && dateKey_(r["勤務日"]) === date && (!scheduleId || String(r.schedule_id) === String(scheduleId))) || null; }
 function findScheduleById_(user, scheduleId, idToken, sourceSchedules) { if (!scheduleId) return null; return (sourceSchedules || getSchedules_(idToken)).find(r => matchesUser_(r, user) && String(r.schedule_id || "") === String(scheduleId)) || null; }
 function findPendingOvernightReport_(user, today) {
-  const reports = rows_(SHEETS.fieldReports).filter(r => normalizeEmail_(r["報告者メール"]) === normalizeEmail_(user.email) && dateKey_(r["勤務日"]) < today && r.schedule_id);
+  const previousDate = Utilities.formatDate(addDays_(new Date(`${today}T00:00:00+09:00`), -1), TZ, "yyyy-MM-dd");
+  const reports = rows_(SHEETS.fieldReports).filter(r => normalizeEmail_(r["報告者メール"]) === normalizeEmail_(user.email) && dateKey_(r["勤務日"]) === previousDate && r.schedule_id);
   for (let index = reports.length - 1; index >= 0; index -= 1) {
     const report = reports[index];
     const sameSchedule = reports.filter(r => String(r.schedule_id || "") === String(report.schedule_id || ""));
@@ -716,6 +717,12 @@ function recordMatchesSchedule_(record, schedule, schedules) {
   return sameUserSchedules.length === 1;
 }
 function findScheduleRecordIn_(records, schedule, schedules) { return records.find(record => recordMatchesSchedule_(record, schedule, schedules)) || null; }
+function fieldReportMatchesSchedule_(report, schedule, schedules) {
+  if (normalizeEmail_(report["報告者メール"]) !== normalizeEmail_(schedule.email)) return false;
+  if (report.schedule_id) return String(report.schedule_id) === String(schedule.schedule_id || "");
+  const samePlanSchedules = schedules.filter(s => normalizeEmail_(s.email) === normalizeEmail_(schedule.email) && String(s["開発予定ID"] || "") === String(schedule["開発予定ID"] || ""));
+  return samePlanSchedules.length === 1 && String(report["開発予定ID"] || "") === String(schedule["開発予定ID"] || "");
+}
 function hasPendingApproval_(recordId, type) { return rows_(SHEETS.requests).some(r => String(r.record_id || "") === String(recordId || "") && String(r["種別"] || "") === String(type || "") && String(r["状態"] || "") === "申請中"); }
 function findApprovalRequestId_(recordId, type) { const request = rows_(SHEETS.requests).find(r => String(r.record_id || "") === String(recordId || "") && String(r["種別"] || "") === String(type || "") && ["申請中", "承認済み"].includes(String(r["状態"] || ""))); return request ? String(request.request_id || "") : ""; }
 function findTodayPlans_(user, idToken) { return getSchedules_(idToken).filter(r => matchesUser_(r, user) && dateKey_(r["勤務日"]) === today_()).map(r => ({ id: r["開発予定ID"] || r.schedule_id, name: r["開発予定名"] || r["稼働場所"] || "当日の開発予定" })); }

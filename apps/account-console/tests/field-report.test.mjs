@@ -109,6 +109,9 @@ test("同日複数予定ではschedule_idなしの旧記録を別予定へ流用
   ];
   assert.equal(context.findRecord_("member@example.com", "2026-08-28", "SCHEDULE-1"), null);
   assert.equal(context.findRecord_("member@example.com", "2026-08-28", "SCHEDULE-2").record_id, "SECOND");
+  context.rows_ = () => [{ email: "member@example.com", "勤務日": "2026-08-28", schedule_id: "", record_id: "ONLY-LEGACY" }];
+  assert.equal(context.findRecord_("member@example.com", "2026-08-28", "SCHEDULE-1"), null);
+  assert.equal(context.findRecord_("member@example.com", "2026-08-28", "SCHEDULE-2"), null);
 });
 
 test("終了済み案件は同日の次予定の選択を妨げない", () => {
@@ -130,4 +133,11 @@ test("前日出発済みで未入店のschedule_idを日付変更後も引き継
     { "勤務日": "2026-08-28", schedule_id: "NIGHT-1", "報告種別": "出発", "報告者メール": "member@example.com" }
   ];
   assert.equal(context.findPendingOvernightReport_({ email: "member@example.com" }, "2026-08-29").schedule_id, "NIGHT-1");
+  context.rows_ = () => [{ "勤務日": "2026-08-27", schedule_id: "OLD", "報告種別": "出発", "報告者メール": "member@example.com" }];
+  assert.equal(context.findPendingOvernightReport_({ email: "member@example.com" }, "2026-08-29"), null);
+});
+
+test("承認順序と復元処理で終了済み状態を稼働中へ戻さない", () => {
+  assert.match(backendSource, /record && record\["実終了"\] \? "終了済み" : "稼働中"/);
+  assert.match(backendSource, /\{ "状態": record\["状態"\] \|\| "", "正式開始":/);
 });
