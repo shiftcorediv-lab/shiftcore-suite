@@ -848,7 +848,7 @@ function validateCreateCasePayload_(payload) {
   );
 
   if (!String(payload.shiftcore_display_name || '').trim()) {
-    throw new Error('シフトコア表示用省略名称が必要です。');
+    throw new Error('Another Portal表示用省略名称が必要です。');
   }
 
   if (payload.amount !== '' && payload.amount !== null && payload.amount !== undefined && !payload.amount_type) {
@@ -907,7 +907,7 @@ function validateUpdateCasePayload_(payload) {
   );
 
   if (!String(payload.shiftcore_display_name || '').trim()) {
-    throw new Error('シフトコア表示用省略名称が必要です。');
+    throw new Error('Another Portal表示用省略名称が必要です。');
   }
 
   if (payload.amount !== '' && payload.amount !== null && payload.amount !== undefined && !payload.amount_type) {

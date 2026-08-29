@@ -77,16 +77,16 @@ function shiftBuilderSendPersonnelIcs(body) {
       skipped.push({ internalUserId: internalUserId, reason: "ICS形式不正" });
       return;
     }
-    const safeFilename = normalizeText(recipient.filename || "ShiftCore_" + targetMonth + ".ics")
+    const safeFilename = normalizeText(recipient.filename || "AnotherPortal_" + targetMonth + ".ics")
       .replace(/[\\/:*?"<>|]/g, "_");
-    const subject = "【ShiftCore】" + targetMonth + " シフトのお知らせ";
-    const message = user.displayName + " 様\n\n" + targetMonth + "のシフトをお送りします。\n添付のICSファイルをGoogleカレンダー等へ取り込んでください。\n\nShiftCore";
+    const subject = "【Another Portal】" + targetMonth + " シフトのお知らせ";
+    const message = user.displayName + " 様\n\n" + targetMonth + "のシフトをお送りします。\n添付のICSファイルをGoogleカレンダー等へ取り込んでください。\n\nAnother Portal";
     try {
       MailApp.sendEmail({
         to: user.email,
         subject: subject,
         body: message,
-        name: "ShiftCore",
+        name: "Another Portal",
         attachments: [Utilities.newBlob(icsContent, "text/calendar", safeFilename)]
       });
       sent.push({ internalUserId: internalUserId, email: user.email });

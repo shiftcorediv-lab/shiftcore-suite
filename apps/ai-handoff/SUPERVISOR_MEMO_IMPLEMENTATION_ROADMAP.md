@@ -3,7 +3,7 @@
 - 正本化日: 2026-08-28
 - 作業ブランチ: `codex/supervisor-bulk-fixes`
 - 起点: `origin/main` (`1704abf`)
-- 目的: Order、Shift、人員マスター、Dashboard、Another Portalを上司メモへ合わせる
+- 目的: Order、Shift、人員マスター、Dashboardを上司メモへ合わせ、現行サービスの表示名をAnother Portalへ統一する
 
 ## 共通方針
 
@@ -17,7 +17,7 @@
 
 ### 1. 名称と入口
 
-- ShiftCoreからAnother Portalへの導線
+- 現行サービスの表示名をShiftCoreからAnother Portalへ変更
 - OrderCaseからOrderへの表示名変更
 - ShiftBuilderからShiftへの表示名変更
 - Account Consoleから人員マスターへの表示名変更
@@ -67,8 +67,9 @@
 - 表示名統一、Shift操作ガイド撤去、簡潔なセル状態、案件種別・Order詳細導線: ローカル実装済み
 - Order編集者のログインアカウント自動記録: 既存バックエンド契約を確認し、手入力を撤去
 - Dashboardの日本語曜日・時間帯別挨拶: ローカル実装済み
-- Another Portal本体、勤怠Outbox、入店後導線: ローカル実装済み。送信する従業員情報はユーザー承認済み
+- 事務所風の仮想オフィスUIは発展案として凍結し、所有者限定公開を維持する
+- 勤怠Outbox、仮想オフィスへの自動遷移、従業員情報送信は現行サービスへ組み込まない
 - 既存データ列がない費用内訳、基本稼働日数、所属会社・最寄り駅・指名NG、OJTは本番シート契約確認後
 - 祝日、経路・遅延はデータ提供元と運用契約の確定後
-- 共通回帰テスト230件、Another Portalのtest・lint・build成功
+- 共通回帰テストは連携撤去後に再確認する
 - commit / push / PR / merge / GAS / Pages公開: 未実行

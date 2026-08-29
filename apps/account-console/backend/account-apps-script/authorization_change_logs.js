@@ -333,7 +333,7 @@ function sendAuthorizationIntegrityTestNotification() {
   const recipients = resolveAuthorizationIntegrityRecipients_();
   MailApp.sendEmail({
     to: recipients.map(function(item) { return item.email; }).join(","),
-    subject: "[ShiftCore] 権限監査通知テスト",
+    subject: "[Another Portal] 権限監査通知テスト",
     body: "権限監査ログの通知先設定テストです。実際の異常は検出されていません。"
   });
   return { success: true, recipient_count: recipients.length };
@@ -360,7 +360,7 @@ function notifyAuthorizationIntegrityFailure_(result) {
   });
   MailApp.sendEmail({
     to: resolution.recipients.map(function(item) { return item.email; }).join(","),
-    subject: "[ShiftCore] 権限監査ログの整合性異常",
+    subject: "[Another Portal] 権限監査ログの整合性異常",
     body: "権限監査ログの整合性検査で異常を検出しました。\n" +
       JSON.stringify(notificationResult)
   });

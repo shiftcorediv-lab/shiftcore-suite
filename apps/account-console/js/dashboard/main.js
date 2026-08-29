@@ -5,7 +5,6 @@ import { renderModules, renderModuleMenu } from "./modules.js?v=20260812-develop
 import { attendanceRequest } from "./attendance-api.js?v=20260802-attendance-3";
 import { resolveCurrentUserWithGasByIdToken } from "../login/api.js?v=20260803-logintoken-1";
 import { LOCATION_CONSENT_VERSION } from "./config.js?v=20260802-attendance-2";
-import { buildPortalEntryUrl } from "./portal-navigation.js?v=20260823-portal-1";
 
 const $ = id => document.getElementById(id);
 const storedUser = getStoredUser();
@@ -233,8 +232,6 @@ async function submitArrival() {
   const location = await readArrivalLocation();
   await runAction(async () => {
     const result = await attendanceRequest("arrive", { scheduleId: dashboardData.schedule.schedule_id || "", reason, reasonType: $("reasonType")?.value || "その他", location });
-    const portalEntryUrl = isDirectEmployment(dashboardData?.user) ? buildPortalEntryUrl(result.portal) : "";
-    if (portalEntryUrl) return window.location.assign(portalEntryUrl);
     await loadDashboard();
     showAlert(result.approvalRequired ? "入店を記録し、直属承認を申請しました。" : "入店を記録しました。", "success");
   });
@@ -261,8 +258,6 @@ async function submitUnplanned() {
   const location = await readArrivalLocation();
   await runAction(async () => {
     const result = await attendanceRequest("clockIn", { unplanned: true, workLocation, reason, reasonType: $("reasonType")?.value || "その他", location });
-    const portalEntryUrl = isDirectEmployment(dashboardData?.user) ? buildPortalEntryUrl(result.portal) : "";
-    if (portalEntryUrl) return window.location.assign(portalEntryUrl);
     await loadDashboard();
     showAlert("予定外稼働を記録しました。", "success");
   });
@@ -325,6 +320,5 @@ function greetingForJst(date) {
   if (hour < 18) return "こんにちは";
   return "こんばんは";
 }
-function isDirectEmployment(user) { return /正社員|契約社員|direct|employee/i.test(user?.employment_type || ""); }
 function truthy(v) { return v === true || String(v).toLowerCase() === "true"; }
 function escapeHtml(value) { const div = document.createElement("div"); div.textContent = String(value ?? ""); return div.innerHTML; }

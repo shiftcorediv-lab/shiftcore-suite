@@ -67,7 +67,7 @@ offDates.forEach((dateStr) => addSelectedDate(dateStr));
 
 export async function loadLatestRequest() {
   if (!currentUser.userId) {
-    showMainMessage("ShiftCoreユーザー情報を取得できませんでした", "error");
+    showMainMessage("Another Portalユーザー情報を取得できませんでした", "error");
     return;
   }
 
@@ -103,7 +103,7 @@ export function validateBeforeSubmit(isUserInactive) {
   }
 
   if (!currentUser.userId || !currentUser.displayName || !currentUser.employeeCode) {
-    showMainMessage("ShiftCoreユーザー情報が不足しています", "error");
+    showMainMessage("Another Portalユーザー情報が不足しています", "error");
     return false;
   }
 
