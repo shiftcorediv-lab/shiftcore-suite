@@ -128,7 +128,7 @@ function drawCalendar(canvas, person, shiftData) {
   context.fillText(`${person.displayName}  ${year}年${monthNumber}月 シフト`, 48, 78);
   context.fillStyle = "#667085";
   context.font = '28px "Hiragino Sans", "Yu Gothic", sans-serif';
-  context.fillText(`ShiftCore / ${shiftData.area === "all" ? "全エリア" : shiftData.area || "エリア未設定"}`, 48, 132);
+  context.fillText(`Another Portal / ${shiftData.area === "all" ? "全エリア" : shiftData.area || "エリア未設定"}`, 48, 132);
 
   ["月", "火", "水", "木", "金", "土", "日"].forEach((weekday, index) => {
     context.fillStyle = index === 5 ? "#2764a5" : index === 6 ? "#c33c54" : "#344054";

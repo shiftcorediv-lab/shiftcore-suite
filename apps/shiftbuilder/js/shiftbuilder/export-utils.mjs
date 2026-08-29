@@ -68,7 +68,7 @@ export function buildCaseCsv(caseItem, dates = []) {
 
 export function buildPersonnelExportFilename(person, targetMonth, extension) {
   const name = sanitizeFilenamePart(person?.displayName, "氏名未設定");
-  return `ShiftCore_${name}_${targetMonth || "年月未設定"}.${extension}`;
+  return `AnotherPortal_${name}_${targetMonth || "年月未設定"}.${extension}`;
 }
 
 export function collectPersonnelAssignments(person, shiftData) {
@@ -159,7 +159,7 @@ export function buildPersonnelIcs(person, shiftData, now = new Date()) {
       lines.push(`DTSTART;VALUE=DATE:${formatIcsDate(assignment.date)}`);
       lines.push(`DTEND;VALUE=DATE:${formatIcsDate(nextDate(assignment.date))}`);
     }
-    lines.push(`SUMMARY:${escapeIcsText(`【ShiftCore】${assignment.title}`)}`);
+    lines.push(`SUMMARY:${escapeIcsText(`【Another Portal】${assignment.title}`)}`);
     if (assignment.location) lines.push(`LOCATION:${escapeIcsText(assignment.location)}`);
     if (description) lines.push(`DESCRIPTION:${escapeIcsText(description)}`);
     lines.push("END:VEVENT");

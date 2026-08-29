@@ -60,7 +60,7 @@ export function setupShiftCoreEntryBanner(params) {
   banner.style.lineHeight = "1.6";
   const titleLine = document.createElement("div");
   const titleStrong = document.createElement("strong");
-  titleStrong.textContent = "ShiftCoreから移動しました";
+  titleStrong.textContent = "Another Portalから移動しました";
   titleLine.appendChild(titleStrong);
 
   const moduleLine = document.createElement("div");

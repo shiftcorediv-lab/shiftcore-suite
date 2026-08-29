@@ -8,10 +8,10 @@ function sendSignupApprovedMail_(email, name) {
 
   MailApp.sendEmail({
     to: targetEmail,
-    subject: "【ShiftCore】利用申請が承認されました",
+    subject: "【Another Portal】利用申請が承認されました",
     body:
       (name || "申請者") + " 様\n\n" +
-      "ShiftCore の利用申請が承認されました。\n" +
+      "Another Portal の利用申請が承認されました。\n" +
       "ログイン後、利用可能なモジュールをご確認ください。"
   });
 }

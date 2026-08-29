@@ -369,7 +369,7 @@
         </div>
 
         <div>
-          <label for="shiftcoreDisplayName">シフトコア表示用省略名称</label>
+          <label for="shiftcoreDisplayName">Another Portal表示用省略名称</label>
           <input id="shiftcoreDisplayName" maxlength="24" placeholder="例：池袋8月1" />
           <p class="hint">Shiftの人員×日付セルに表示します。正式な案件情報は変更しません。</p>
         </div>
@@ -1508,7 +1508,7 @@ if (payload.change_type !== 'status_change' && !payload.change_memo) {
       if (!payload.target_month) throw new Error('対象月を入力してください。');
       if (!payload.case_type) throw new Error('案件種別を選択してください。');
       if (!['A', 'B', 'C'].includes(payload.case_rank)) throw new Error('案件ランクを選択してください。');
-      if (!payload.shiftcore_display_name) throw new Error('シフトコア表示用省略名称を入力してください。');
+      if (!payload.shiftcore_display_name) throw new Error('Another Portal表示用省略名称を入力してください。');
       if (!payload.input_mode) throw new Error('入力方式を選択してください。');
       if (!payload.agency_name) throw new Error('代理店名を入力してください。');
       if (!payload.store_name) throw new Error('連携店舗を入力してください。');

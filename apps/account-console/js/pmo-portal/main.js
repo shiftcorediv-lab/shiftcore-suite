@@ -14,7 +14,7 @@ updateManageButtonState(canManage);
 
 goApplyBtn.addEventListener("click", () => {
   if (!currentUser.userId || !currentUser.displayName || !currentUser.employeeCode) {
-    showMessage("ShiftCoreから必要なユーザー情報を受け取れていません", "error");
+    showMessage("Another Portalから必要なユーザー情報を受け取れていません", "error");
     return;
   }
 

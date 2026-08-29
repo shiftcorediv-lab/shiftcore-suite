@@ -57,7 +57,7 @@ export function renderDeveloperMeta(params, currentUser) {
   inner.className = "developer-meta-inner";
 
   const moduleSpan = document.createElement("span");
-  moduleSpan.textContent = "ShiftCore > " + moduleName;
+  moduleSpan.textContent = "Another Portal > " + moduleName;
 
   const roleSpan = document.createElement("span");
   roleSpan.textContent = "role: " + role;

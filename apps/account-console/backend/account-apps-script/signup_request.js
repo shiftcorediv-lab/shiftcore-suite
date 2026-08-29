@@ -196,7 +196,7 @@ function notifySignupRequest_(requestData) {
     };
   }
 
-  const subject = "【ShiftCore】新しい利用申請が届きました";
+  const subject = "【Another Portal】新しい利用申請が届きました";
 
   const body =
     "新しい利用申請が届きました。\n\n" +

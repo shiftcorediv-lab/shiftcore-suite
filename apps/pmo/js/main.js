@@ -52,7 +52,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   if (currentUser.userId && currentUser.displayName && currentUser.employeeCode) {
     await loadLatestRequest();
   } else {
-    showMainMessage("ShiftCoreから必要なユーザー情報を受け取れていません", "error");
+    showMainMessage("Another Portalから必要なユーザー情報を受け取れていません", "error");
   }
 });
 
