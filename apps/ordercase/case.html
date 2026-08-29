@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OrderCase 案件詳細</title>
+  <title>Order 案件詳細</title>
   <link rel="preconnect" href="https://www.gstatic.com" crossorigin />
   <link rel="preconnect" href="https://ordercaseapiproxyworker.shiftcore-div.workers.dev" />
 
@@ -469,7 +469,7 @@ applyPermissionView();
         <section class="detail-card">
           <h2 class="section-title">管理情報</h2>
           <div class="grid two">
-            ${fieldHtml('ShiftBuilder対象', formatBoolean(item.for_shift_builder))}
+            ${fieldHtml('Shift対象', formatBoolean(item.for_shift_builder))}
             ${fieldHtml('アーカイブ', formatBoolean(item.archived))}
             ${fieldHtml('登録者', item.created_by)}
             ${fieldHtml('登録日時', item.created_at)}

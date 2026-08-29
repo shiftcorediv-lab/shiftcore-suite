@@ -101,12 +101,12 @@ const CONTRACT_TYPE_LABELS = {
 };
 
 const MODULE_LABELS = {
-  account: "Account Console (旧アカウント基盤)",
-  account_console: "Account Console (アカウント登録・申請・権限管理)",
+  account: "人員マスター（旧アカウント基盤）",
+  account_console: "人員マスター（アカウント登録・申請・権限管理）",
   pmo: "Pick My Off",
-  ordercase: "OrderCase",
+  ordercase: "Order",
   manual: "取扱説明書（未公開・無効）",
-  shift: "ShiftBuilder",
+  shift: "Shift",
   dashboard: "Dashboard"
 };
 
@@ -156,8 +156,8 @@ const FIELD_LABELS = {
   sort_order: "並び順",
   sortOrder: "並び順",
   allowed_modules: "利用可能機能",
-  ordercase_permission: "OrderCase権限",
-  shiftbuilder_permission: "ShiftBuilder権限",
+  ordercase_permission: "Order権限",
+  shiftbuilder_permission: "Shift権限",
   memo: "メモ",
   auth_provider: "認証プロバイダ",
   auth_uid: "認証UID"
@@ -172,7 +172,7 @@ export function setStatus(message) {
 
 export function setOperator(user) {
   operatorText.textContent = `${user.name || user.display_name || "-"} / ${user.email || "-"}`;
-  permissionBadge.textContent = "Account Console 使用可";
+  permissionBadge.textContent = "人員マスター 使用可";
   permissionBadge.className = "badge ok";
 }
 
@@ -199,7 +199,7 @@ export function renderCurrentUserPermission(user) {
   const workStatus = labelFromMap(user.work_status || user.workStatus, WORK_STATUS_LABELS, "-");
 
   currentUserPermissionText.textContent =
-    `アカウント種別：${role} / アカウント状態：${status} / 稼働対象状態：${workStatus} / 利用可能機能：${modules || "-"} / OrderCase：${ordercasePermission} / ShiftBuilder：${shiftbuilderPermission}`;
+    `アカウント種別：${role} / アカウント状態：${status} / 稼働対象状態：${workStatus} / 利用可能機能：${modules || "-"} / Order：${ordercasePermission} / Shift：${shiftbuilderPermission}`;
 }
 // ===== 状態表示ここまで =====
 
@@ -718,8 +718,8 @@ export function buildSaveConfirmMessage(user) {
     `契約区分：${contractType}`,
     `等級・役割：${gradeRole}`,
     `利用可能機能：${allowedModules}`,
-    `OrderCase権限：${ordercasePermission}`,
-    `ShiftBuilder権限：${shiftbuilderPermission}`,
+    `Order権限：${ordercasePermission}`,
+    `Shift権限：${shiftbuilderPermission}`,
     "",
     "保存してよろしいですか？"
   ].join("\n");

@@ -10,14 +10,22 @@ const SHEETS = {
   settings: "設定",
   schedules: "稼働予定",
   reports: "実績報告",
-  fieldReports: "現場報告"
+  fieldReports: "現場報告",
+  portalOutbox: "Portal連携Outbox"
 };
 
 const HEADERS = {
   reports: ["report_id", "record_id", "開発予定ID", "開発予定名", "報告者メール", "報告者氏名", "実績内容", "課題・申し送り", "報告日時"],
   fieldReports: ["field_report_id", "勤務日", "開発予定ID", "報告種別", "報告者メール", "報告者氏名", "報告日時", "schedule_id"],
+  portalOutbox: ["event_id", "event_type", "attendance_record_id", "occurred_at", "payload_json", "payload_sha256", "delivery_status", "attempt_count", "next_attempt_at", "last_status_code", "last_error", "delivered_at", "created_at", "updated_at"],
   requests: ["request_id", "record_id", "種別", "申請者メール", "申請者氏名", "実勤務日", "申請開始", "申請終了", "理由区分", "理由詳細", "状態", "承認者メール", "承認者氏名", "承認理由", "申請日時", "処理日時"],
   requestContract: ["applicant_internal_user_id", "request_version", "approval_reviewer_internal_user_id", "applicant_organization_version"]
+};
+
+const PORTAL_PROPERTIES = {
+  webhookUrl: "ANOTHER_PORTAL_WEBHOOK_URL",
+  webhookSecret: "ANOTHER_PORTAL_WEBHOOK_SECRET",
+  entryUrl: "ANOTHER_PORTAL_ENTRY_URL"
 };
 
 function doGet(e) {
@@ -136,7 +144,7 @@ function arrive_(user, payload, idToken) {
   const previousRecord = findRecord_(user.email, workDate, schedule.schedule_id);
   const previousArrival = previousReports.find(report => String(report["報告種別"]) === "入店");
   if (previousArrival && previousRecord && previousRecord["実開始"]) {
-    return { ok: true, duplicate: true, report: previousArrival, record: previousRecord, approvalRequired: hasPendingApproval_(previousRecord.record_id, "入店遅延報告"), requestId: findApprovalRequestId_(previousRecord.record_id, "入店遅延報告") };
+    return { ok: true, duplicate: true, report: previousArrival, record: previousRecord, approvalRequired: hasPendingApproval_(previousRecord.record_id, "入店遅延報告"), requestId: findApprovalRequestId_(previousRecord.record_id, "入店遅延報告"), portal: enqueuePortalAttendanceEventSafely_("attendance.started", user, previousRecord) };
   }
   const timing = buildTimingStatus_(schedule, now);
   if (timing.arrivalApprovalRequired && !String(payload.reason || "").trim()) throw apiError_("REASON_REQUIRED", "予定開始以降の入店理由を入力してください。");
@@ -156,7 +164,8 @@ function arrive_(user, payload, idToken) {
     if (!existingArrival) appendObject_(SHEETS.fieldReports, { field_report_id: Utilities.getUuid(), "勤務日": workDate, "開発予定ID": schedule["開発予定ID"] || "", "報告種別": "入店", "報告者メール": user.email, "報告者氏名": user.name || "", "報告日時": now, schedule_id: schedule.schedule_id || "" });
     let requestId = "";
     if (timing.arrivalApprovalRequired) requestId = createApprovalRequestIfMissing_(user, approval, { recordId: record.record_id, type: "入店遅延報告", workDate: workDate, actualStart: now, reasonType: payload.reasonType || "その他", reason: payload.reason || "予定開始以降の入店" });
-    return { ok: true, duplicate: Boolean(existingArrival && existingRecord && existingRecord["実開始"]), report: fieldReportsFor_(user, workDate, scheduleKey, schedule["開発予定ID"]).find(report => String(report["報告種別"]) === "入店") || null, record: findRecord_(user.email, workDate, schedule.schedule_id), approvalRequired: timing.arrivalApprovalRequired, requestId: requestId };
+    const savedRecord = findRecord_(user.email, workDate, schedule.schedule_id);
+    return { ok: true, duplicate: Boolean(existingArrival && existingRecord && existingRecord["実開始"]), report: fieldReportsFor_(user, workDate, scheduleKey, schedule["開発予定ID"]).find(report => String(report["報告種別"]) === "入店") || null, record: savedRecord, approvalRequired: timing.arrivalApprovalRequired, requestId: requestId, portal: enqueuePortalAttendanceEventSafely_("attendance.started", user, savedRecord) };
   } finally {
     lock.releaseLock();
   }
@@ -179,10 +188,10 @@ function clockIn_(user, payload, idToken) {
     const now = new Date();
     const today = today_();
     const activeRecords = findActiveRecords_(user.email);
-    if (activeRecords.length === 1 && dateKey_(activeRecords[0]["勤務日"]) === today && !activeRecords[0].schedule_id && payload.unplanned) return { ok: true, duplicate: true, record: activeRecords[0] };
+    if (activeRecords.length === 1 && dateKey_(activeRecords[0]["勤務日"]) === today && !activeRecords[0].schedule_id && payload.unplanned) return { ok: true, duplicate: true, record: activeRecords[0], portal: enqueuePortalAttendanceEventSafely_("attendance.started", user, activeRecords[0]) };
     if (activeRecords.length) throw apiError_("OTHER_SCHEDULE_ACTIVE", "終了していない稼働記録があります。先に終了報告を行ってください。");
     const existing = findRecord_(user.email, today);
-    if (existing && existing["実開始"]) return { ok: true, duplicate: true, record: existing };
+    if (existing && existing["実開始"]) return { ok: true, duplicate: true, record: existing, portal: enqueuePortalAttendanceEventSafely_("attendance.started", user, existing) };
     const current = timeKey_(now);
     if (current >= settings.start_limit_time) throw apiError_("CORRECTION_REQUIRED", "10:00以降の開始は修正申請が必要です。");
     if (current >= settings.start_warning_time && !String(payload.reason || "").trim()) throw apiError_("REASON_REQUIRED", "9:30以降は未押下理由を入力してください。");
@@ -202,7 +211,8 @@ function clockIn_(user, payload, idToken) {
     ];
     append_(SHEETS.records, row);
     notifyManagers_(user, current >= settings.start_warning_time ? "開始遅延" : "予定外稼働", `${user.name || user.email}さんが${formatJst_(now)}に稼働を開始しました。${payload.reason ? " 理由: " + payload.reason : ""}`);
-    return { ok: true, record: findRecord_(user.email, today) };
+    const savedRecord = findRecord_(user.email, today);
+    return { ok: true, record: savedRecord, portal: enqueuePortalAttendanceEventSafely_("attendance.started", user, savedRecord) };
   } finally {
     lock.releaseLock();
   }
@@ -215,7 +225,7 @@ function clockOut_(user, payload, idToken) {
   if (!recordBeforeLock || !recordBeforeLock["実開始"]) throw apiError_("NOT_STARTED", "入店記録がありません。");
   if (requestedScheduleId && String(recordBeforeLock.schedule_id || "") !== requestedScheduleId) throw apiError_("SCHEDULE_RECORD_MISMATCH", "選択した予定の入店記録を確認できません。");
   const workDate = dateKey_(recordBeforeLock["勤務日"]);
-  if (recordBeforeLock["実終了"]) return { ok: true, duplicate: true, record: recordBeforeLock, plans: findPlansForDate_(user, idToken, workDate), approvalRequired: hasPendingApproval_(recordBeforeLock.record_id, "日付またぎ終了報告"), requestId: findApprovalRequestId_(recordBeforeLock.record_id, "日付またぎ終了報告") };
+  if (recordBeforeLock["実終了"]) return { ok: true, duplicate: true, record: recordBeforeLock, plans: findPlansForDate_(user, idToken, workDate), approvalRequired: hasPendingApproval_(recordBeforeLock.record_id, "日付またぎ終了報告"), requestId: findApprovalRequestId_(recordBeforeLock.record_id, "日付またぎ終了報告"), portal: enqueuePortalAttendanceEventSafely_("attendance.ended", user, recordBeforeLock) };
   const schedule = findSchedule_(user, workDate, payload.scheduleId || "", idToken);
   const timing = schedule ? buildTimingStatus_(schedule, now) : { endApprovalRequired: dateKey_(now) > workDate, endWarning: false };
   if (timing.endApprovalRequired && !String(payload.reason || "").trim()) throw apiError_("REASON_REQUIRED", "0:00以降の終了理由を入力してください。");
@@ -226,11 +236,12 @@ function clockOut_(user, payload, idToken) {
     const record = selectClockOutRecord_(user.email, requestedScheduleId);
     if (!record || !record["実開始"]) throw apiError_("NOT_STARTED", "入店記録がありません。");
     if (requestedScheduleId && String(record.schedule_id || "") !== requestedScheduleId) throw apiError_("SCHEDULE_RECORD_MISMATCH", "選択した予定の入店記録を確認できません。");
-    if (record["実終了"]) return { ok: true, duplicate: true, record, plans: findPlansForDate_(user, idToken, workDate), approvalRequired: hasPendingApproval_(record.record_id, "日付またぎ終了報告") };
+    if (record["実終了"]) return { ok: true, duplicate: true, record, plans: findPlansForDate_(user, idToken, workDate), approvalRequired: hasPendingApproval_(record.record_id, "日付またぎ終了報告"), portal: enqueuePortalAttendanceEventSafely_("attendance.ended", user, record) };
     updateById_(SHEETS.records, "record_id", record.record_id, { "状態": timing.endApprovalRequired ? "終了承認待ち" : "終了済み", "実終了": now, "終了押下": now, "更新日時": now });
     let requestId = "";
     if (timing.endApprovalRequired) requestId = createApprovalRequestIfMissing_(user, approval, { recordId: record.record_id, type: "日付またぎ終了報告", workDate: workDate, actualEnd: now, reasonType: payload.reasonType || "その他", reason: payload.reason || "0:00以降の終了報告" });
-    return { ok: true, record: findRecord_(user.email, workDate, record.schedule_id || ""), plans: findPlansForDate_(user, idToken, workDate), approvalRequired: timing.endApprovalRequired, requestId: requestId };
+    const savedRecord = findRecord_(user.email, workDate, record.schedule_id || "");
+    return { ok: true, record: savedRecord, plans: findPlansForDate_(user, idToken, workDate), approvalRequired: timing.endApprovalRequired, requestId: requestId, portal: enqueuePortalAttendanceEventSafely_("attendance.ended", user, savedRecord) };
   } finally {
     lock.releaseLock();
   }
@@ -628,12 +639,13 @@ function matchesUser_(schedule, user) {
 }
 
 function setupAttendanceTriggers() {
-  const handlerNames = ["runAttendanceNotifications", "cleanupExpiredLocations"];
+  const handlerNames = ["runAttendanceNotifications", "cleanupExpiredLocations", "processPortalOutbox"];
   ScriptApp.getProjectTriggers().forEach(trigger => {
     if (handlerNames.includes(trigger.getHandlerFunction())) ScriptApp.deleteTrigger(trigger);
   });
   ScriptApp.newTrigger("runAttendanceNotifications").timeBased().everyMinutes(5).create();
   ScriptApp.newTrigger("cleanupExpiredLocations").timeBased().atHour(2).everyDays(1).inTimezone(TZ).create();
+  ScriptApp.newTrigger("processPortalOutbox").timeBased().everyMinutes(1).create();
 }
 
 function runAttendanceNotifications() {
@@ -695,6 +707,303 @@ function cleanupExpiredLocations() {
     if (expiry instanceof Date && expiry.getTime() <= now.getTime() && !pendingRecordIds.includes(recordId)) sheet.deleteRow(index + 1);
   }
 }
+
++// ===== Another Portal Outbox ここから =====
+function enqueuePortalAttendanceEventSafely_(eventType, user, record) {
+  try {
+    return enqueuePortalAttendanceEvent_(eventType, user, record);
+  } catch (error) {
+    console.error("Another Portal event enqueue failed", error && error.code || "PORTAL_ENQUEUE_FAILED");
+    return {
+      sync: "pending_recovery",
+      code: error && error.code || "PORTAL_ENQUEUE_FAILED",
+      entry_url: portalEntryUrl_()
+    };
+  }
+}
+
+function enqueuePortalAttendanceEvent_(eventType, user, record) {
+  if (!record || !record.record_id) {
+    throw apiError_("PORTAL_RECORD_REQUIRED", "Portal連携対象の勤怠記録がありません。");
+  }
+
+  ensurePortalOutboxSheet_();
+  const existing = rows_(SHEETS.portalOutbox).find(function(row) {
+    return String(row.event_type || "") === String(eventType) &&
+      String(row.attendance_record_id || "") === String(record.record_id);
+  });
+
+  if (existing) {
+    return portalQueueResult_(existing);
+  }
+
+  const event = buildPortalAttendanceEvent_(eventType, user, record);
+  const payloadJson = JSON.stringify(event);
+  const now = new Date();
+
+  append_(SHEETS.portalOutbox, [
+    event.event_id,
+    event.event_type,
+    event.attendance.record_id,
+    event.occurred_at,
+    payloadJson,
+    portalSha256Hex_(payloadJson),
+    "pending",
+    0,
+    now,
+    "",
+    "",
+    "",
+    now,
+    now
+  ]);
+
+  return {
+    sync: "queued",
+    event_id: event.event_id,
+    entry_url: portalEntryUrl_()
+  };
+}
+
+function buildPortalAttendanceEvent_(eventType, user, record) {
+  if (["attendance.started", "attendance.ended"].indexOf(String(eventType)) === -1) {
+    throw apiError_("PORTAL_EVENT_TYPE_INVALID", "Portal連携イベント種別が不正です。");
+  }
+
+  const internalUserId = String(
+    user && (user.internal_user_id || user.internalUserId || user.userId) || ""
+  ).trim();
+  if (!internalUserId) {
+    throw apiError_("PORTAL_INTERNAL_USER_ID_MISSING", "internal_user_idを確認できません。");
+  }
+
+  const startedAt = isoPortalDate_(record["実開始"]);
+  const endedAt = isoPortalDate_(record["実終了"]);
+  if (!startedAt) {
+    throw apiError_("PORTAL_STARTED_AT_MISSING", "勤怠開始時刻を確認できません。");
+  }
+  if (eventType === "attendance.ended" && !endedAt) {
+    throw apiError_("PORTAL_ENDED_AT_MISSING", "勤怠終了時刻を確認できません。");
+  }
+
+  const occurredAt = eventType === "attendance.ended" ? endedAt : startedAt;
+  const organizationId = String(user.organization_id || record.organization_id || "").trim();
+  const employeeCode = String(user.employee_code || record.employee_code || "").trim();
+  const displayName = String(user.display_name || user.displayName || user.name || record["氏名"] || "").trim();
+  const workDate = dateKey_(record["勤務日"]);
+  const workplaceLabel = String(record["予定場所"] || record["稼働場所"] || "場所未設定").trim();
+  if (!organizationId || !employeeCode || !displayName || !workDate) {
+    throw apiError_("PORTAL_SUBJECT_INCOMPLETE", "Portal連携に必要な所属・社員・勤務日の情報が不足しています。");
+  }
+
+  return {
+    schema_version: 1,
+    event_id: "evt_" + Utilities.getUuid(),
+    event_type: eventType,
+    occurred_at: occurredAt,
+    organization_id: organizationId,
+    subject: {
+      internal_user_id: internalUserId,
+      employee_code: employeeCode,
+      display_name: displayName
+    },
+    attendance: {
+      record_id: String(record.record_id),
+      work_date: workDate,
+      started_at: startedAt,
+      ended_at: eventType === "attendance.ended" ? endedAt : null,
+      state: eventType === "attendance.ended" ? "ended" : "working"
+    },
+    workplace: {
+      store_id: null,
+      label: workplaceLabel || "場所未設定",
+      kind: "unknown"
+    }
+  };
+}
+
+function processPortalOutbox() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(1000)) return;
+
+  try {
+    ensurePortalOutboxSheet_();
+    const now = new Date();
+    rows_(SHEETS.portalOutbox)
+      .filter(function(row) {
+        if (String(row.delivery_status || "") !== "pending") return false;
+        const nextAttempt = row.next_attempt_at;
+        return !nextAttempt || !(nextAttempt instanceof Date) || nextAttempt.getTime() <= now.getTime();
+      })
+      .slice(0, 20)
+      .forEach(deliverPortalOutboxRow_);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function deliverPortalOutboxRow_(row) {
+  const eventId = String(row.event_id || "");
+  const payloadJson = String(row.payload_json || "");
+  const attemptCount = Number(row.attempt_count || 0) + 1;
+  const now = new Date();
+  const config = portalWebhookConfig_();
+
+  if (!config.ok) {
+    updatePortalOutboxFailure_(eventId, attemptCount, "", config.code, now, false);
+    return;
+  }
+
+  try {
+    const timestamp = String(Math.floor(now.getTime() / 1000));
+    const response = UrlFetchApp.fetch(config.webhookUrl, {
+      method: "post",
+      contentType: "application/json",
+      headers: {
+        "X-AP-Timestamp": timestamp,
+        "X-AP-Event-Id": eventId,
+        "X-AP-Signature": "v1=" + portalHmacSha256Hex_(config.webhookSecret, timestamp + "." + payloadJson)
+      },
+      payload: payloadJson,
+      muteHttpExceptions: true
+    });
+
+    const statusCode = response.getResponseCode();
+    const result = parsePortalResponse_(response.getContentText());
+    if (statusCode >= 200 && statusCode < 300 && result.ok === true && result.accepted === true) {
+      updateById_(SHEETS.portalOutbox, "event_id", eventId, {
+        delivery_status: "delivered",
+        attempt_count: attemptCount,
+        next_attempt_at: "",
+        last_status_code: statusCode,
+        last_error: "",
+        delivered_at: now,
+        updated_at: now
+      });
+      return;
+    }
+
+    const permanent = statusCode >= 400 && statusCode < 500 && statusCode !== 408 && statusCode !== 429;
+    const errorCode = String(result.code || "PORTAL_HTTP_" + statusCode);
+    updatePortalOutboxFailure_(eventId, attemptCount, statusCode, errorCode, now, permanent);
+  } catch (error) {
+    updatePortalOutboxFailure_(
+      eventId,
+      attemptCount,
+      "",
+      error && error.name || "PORTAL_NETWORK_ERROR",
+      now,
+      false
+    );
+  }
+}
+
+function updatePortalOutboxFailure_(eventId, attemptCount, statusCode, errorCode, now, permanent) {
+  const exhausted = attemptCount >= 10;
+  updateById_(SHEETS.portalOutbox, "event_id", eventId, {
+    delivery_status: permanent || exhausted ? "dead" : "pending",
+    attempt_count: attemptCount,
+    next_attempt_at: permanent || exhausted ? "" : new Date(now.getTime() + portalRetryDelayMs_(attemptCount)),
+    last_status_code: statusCode,
+    last_error: portalSafeError_(errorCode),
+    updated_at: now
+  });
+}
+
+function portalRetryDelayMs_(attemptCount) {
+  const delays = [60000, 300000, 900000, 3600000, 21600000];
+  return delays[Math.min(Math.max(Number(attemptCount || 1) - 1, 0), delays.length - 1)];
+}
+
+function portalQueueResult_(row) {
+  const status = String(row.delivery_status || "pending");
+  return {
+    sync: status === "delivered" ? "delivered" : status === "dead" ? "failed" : "queued",
+    event_id: String(row.event_id || ""),
+    entry_url: portalEntryUrl_()
+  };
+}
+
+function ensurePortalOutboxSheet_() {
+  const ss = SpreadsheetApp.getActive();
+  let sheet = ss.getSheetByName(SHEETS.portalOutbox);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEETS.portalOutbox);
+    sheet.appendRow(HEADERS.portalOutbox);
+    sheet.setFrozenRows(1);
+    return sheet;
+  }
+
+  const lastColumn = sheet.getLastColumn();
+  const headers = lastColumn > 0
+    ? sheet.getRange(1, 1, 1, lastColumn).getValues()[0].map(String)
+    : [];
+  const missing = HEADERS.portalOutbox.filter(function(header) {
+    return headers.indexOf(header) === -1;
+  });
+  if (missing.length) {
+    throw apiError_("PORTAL_OUTBOX_SCHEMA_INVALID", "Portal連携Outboxの列が不足しています。");
+  }
+  return sheet;
+}
+
+function portalWebhookConfig_() {
+  const properties = PropertiesService.getScriptProperties();
+  const webhookUrl = String(properties.getProperty(PORTAL_PROPERTIES.webhookUrl) || "").trim();
+  const webhookSecret = String(properties.getProperty(PORTAL_PROPERTIES.webhookSecret) || "").trim();
+  if (!/^https:\/\//.test(webhookUrl)) {
+    return { ok: false, code: "PORTAL_WEBHOOK_URL_MISSING" };
+  }
+  if (webhookSecret.length < 32) {
+    return { ok: false, code: "PORTAL_WEBHOOK_SECRET_MISSING" };
+  }
+  return { ok: true, webhookUrl: webhookUrl, webhookSecret: webhookSecret };
+}
+
+function portalEntryUrl_() {
+  try {
+    const value = String(
+      PropertiesService.getScriptProperties().getProperty(PORTAL_PROPERTIES.entryUrl) || ""
+    ).trim();
+    return /^https:\/\//.test(value) ? value : "";
+  } catch (error) {
+    return "";
+  }
+}
+
+function portalHmacSha256Hex_(secret, value) {
+  return portalHex_(Utilities.computeHmacSha256Signature(value, secret, Utilities.Charset.UTF_8));
+}
+
+function portalSha256Hex_(value) {
+  return portalHex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, value, Utilities.Charset.UTF_8));
+}
+
+function portalHex_(bytes) {
+  return Array.prototype.map.call(bytes || [], function(value) {
+    return ((Number(value) + 256) % 256).toString(16).padStart(2, "0");
+  }).join("");
+}
+
+function isoPortalDate_(value) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (isNaN(date.getTime())) return null;
+  return Utilities.formatDate(date, TZ, "yyyy-MM-dd'T'HH:mm:ssXXX");
+}
+
+function parsePortalResponse_(text) {
+  try {
+    return JSON.parse(String(text || "{}"));
+  } catch (error) {
+    return {};
+  }
+}
+
+function portalSafeError_(value) {
+  return String(value || "PORTAL_DELIVERY_FAILED").replace(/[\r\n\t]/g, " ").slice(0, 200);
+}
+// ===== Another Portal Outbox ここまで =====
 
 function findRecord_(email, date, scheduleId) {
   const matches = rows_(SHEETS.records).filter(r => normalizeEmail_(r.email) === normalizeEmail_(email) && dateKey_(r["勤務日"]) === date);

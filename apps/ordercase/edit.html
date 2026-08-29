@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OrderCase 案件編集</title>
+  <title>Order 案件編集</title>
   <link rel="preconnect" href="https://www.gstatic.com" crossorigin />
   <link rel="preconnect" href="https://ordercaseapiproxyworker.shiftcore-div.workers.dev" />
 
@@ -315,15 +315,8 @@
 
 <div class="grid two">
   <div>
-    <label for="editorName">編集者名</label>
-    <input id="editorName" placeholder="例：細見" />
-    <p class="hint">保存履歴に残ります。後でShiftCoreログイン情報から自動入力に置き換え予定です。</p>
-  </div>
-
-  <div>
-    <label for="editorEmail">編集者メール</label>
-    <input id="editorEmail" type="email" placeholder="例：name@example.com" />
-    <p class="hint">変更履歴の追跡用です。</p>
+    <label>編集者</label>
+    <p class="hint">保存時にログイン中の人員マスターアカウントを自動記録します。</p>
   </div>
 
   <div>
@@ -378,7 +371,7 @@
         <div>
           <label for="shiftcoreDisplayName">シフトコア表示用省略名称</label>
           <input id="shiftcoreDisplayName" maxlength="24" placeholder="例：池袋8月1" />
-          <p class="hint">ShiftBuilderの人員×日付セルに表示します。正式な案件情報は変更しません。</p>
+          <p class="hint">Shiftの人員×日付セルに表示します。正式な案件情報は変更しません。</p>
         </div>
 
         <div>
@@ -664,7 +657,7 @@
       const json = await fetchApiJsonWithParams('getOrderCasePermission', {});
 
       if (!json.ok) {
-        throw new Error(json.message || 'OrderCase権限の確認に失敗しました');
+        throw new Error(json.message || 'Order権限の確認に失敗しました');
       }
 
       const permission = json.permission || json.data?.permission || '';
@@ -744,8 +737,6 @@
       document.addEventListener('click', handleOutsideSuggestClick);
 
 [
-  'editorName',
-  'editorEmail',
   'changeType',
   'changeMemo',
   'syncCaseDatesRequiredPeople',
@@ -1441,8 +1432,8 @@
       return {
         case_id: document.getElementById('caseId').value.trim(),
 
-        updated_by: document.getElementById('editorName').value.trim(),
-        updated_by_email: document.getElementById('editorEmail').value.trim(),
+        updated_by: '',
+        updated_by_email: '',
         
         change_type: document.getElementById('changeType').value,
         change_memo: document.getElementById('changeMemo').value.trim(),
@@ -1509,8 +1500,6 @@
      ****************************************************/
     function validateUpdatePayload(payload) {
 if (!payload.case_id) throw new Error('案件IDがありません。');
-if (!payload.updated_by) throw new Error('編集者名を入力してください。');
-if (!payload.updated_by_email) throw new Error('編集者メールを入力してください。');
 if (!payload.change_type) throw new Error('変更種別を選択してください。');
 if (payload.change_type !== 'status_change' && !payload.change_memo) {
   throw new Error('変更メモを入力してください。');

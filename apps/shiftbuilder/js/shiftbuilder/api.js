@@ -221,7 +221,8 @@ export async function createShiftBuilderAssignment(idToken, params = {}) {
     internalUserId: params.internalUserId || "",
     startTime: params.startTime || params.start_time || "",
     endTime: params.endTime || params.end_time || "",
-    assignmentNote: params.assignmentNote || ""
+    assignmentNote: params.assignmentNote || "",
+    requestedOffConfirmed: params.requestedOffConfirmed === true
   });
 }
 // ===== アサイン作成ここまで =====
@@ -246,7 +247,8 @@ export async function replaceShiftBuilderAssignment(idToken, params = {}) {
     internalUserId: params.internalUserId || "",
     startTime: params.startTime || params.start_time || "",
     endTime: params.endTime || params.end_time || "",
-    assignmentNote: params.assignmentNote || ""
+    assignmentNote: params.assignmentNote || "",
+    requestedOffConfirmed: params.requestedOffConfirmed === true
   });
 }
 // ===== アサイン入れ替えここまで =====
