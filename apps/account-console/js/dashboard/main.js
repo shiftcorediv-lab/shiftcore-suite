@@ -5,6 +5,7 @@ import { renderModules, renderModuleMenu } from "./modules.js?v=20260812-develop
 import { attendanceRequest } from "./attendance-api.js?v=20260802-attendance-3";
 import { resolveCurrentUserWithGasByIdToken } from "../login/api.js?v=20260803-logintoken-1";
 import { LOCATION_CONSENT_VERSION } from "./config.js?v=20260802-attendance-2";
+import { buildPortalEntryUrl } from "./portal-navigation.js?v=20260823-portal-1";
 
 const $ = id => document.getElementById(id);
 const storedUser = getStoredUser();
@@ -104,10 +105,13 @@ function renderIdentity(user) {
   const name = user.name || user.email || "利用者";
   $("userName").textContent = name;
   $("greetingName").textContent = name;
+  $("timeGreeting").textContent = greetingForJst(new Date());
   $("userInitial").textContent = name.slice(0, 1).toUpperCase();
   $("emailText").textContent = user.email || "";
   $("accountMeta").textContent = [user.role, user.organization_id].filter(Boolean).join(" / ");
-  $("todayLabel").textContent = new Intl.DateTimeFormat("ja-JP", { dateStyle: "full", timeZone: "Asia/Tokyo" }).format(new Date()).toUpperCase();
+  const dateParts = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "long", day: "numeric", weekday: "short" }).formatToParts(new Date());
+  const part = type => dateParts.find(item => item.type === type)?.value || "";
+  $("todayLabel").textContent = `${part("year")}年${part("month")}${part("day")}日（${part("weekday")}）`;
 }
 
 function renderDashboard(data) {
@@ -227,7 +231,13 @@ async function submitArrival() {
   const reason = readReason();
   if (approvalRequired && !reason) return showStatus("理由を入力してください。", true);
   const location = await readArrivalLocation();
-  await runAction(async () => { const result = await attendanceRequest("arrive", { scheduleId: dashboardData.schedule.schedule_id || "", reason, reasonType: $("reasonType")?.value || "その他", location }); await loadDashboard(); showAlert(result.approvalRequired ? "入店を記録し、直属承認を申請しました。" : "入店を記録しました。", "success"); });
+  await runAction(async () => {
+    const result = await attendanceRequest("arrive", { scheduleId: dashboardData.schedule.schedule_id || "", reason, reasonType: $("reasonType")?.value || "その他", location });
+    const portalEntryUrl = isDirectEmployment(dashboardData?.user) ? buildPortalEntryUrl(result.portal) : "";
+    if (portalEntryUrl) return window.location.assign(portalEntryUrl);
+    await loadDashboard();
+    showAlert(result.approvalRequired ? "入店を記録し、直属承認を申請しました。" : "入店を記録しました。", "success");
+  });
 }
 
 async function readArrivalLocation() {
@@ -249,7 +259,13 @@ async function submitUnplanned() {
   const reason = readReason();
   if (!workLocation || !reason) return showStatus("稼働場所と理由を入力してください。", true);
   const location = await readArrivalLocation();
-  await runAction(async () => { await attendanceRequest("clockIn", { unplanned: true, workLocation, reason, reasonType: $("reasonType")?.value || "その他", location }); await loadDashboard(); showAlert("予定外稼働を記録しました。", "success"); });
+  await runAction(async () => {
+    const result = await attendanceRequest("clockIn", { unplanned: true, workLocation, reason, reasonType: $("reasonType")?.value || "その他", location });
+    const portalEntryUrl = isDirectEmployment(dashboardData?.user) ? buildPortalEntryUrl(result.portal) : "";
+    if (portalEntryUrl) return window.location.assign(portalEntryUrl);
+    await loadDashboard();
+    showAlert("予定外稼働を記録しました。", "success");
+  });
 }
 
 async function submitCompletion() {
@@ -303,5 +319,12 @@ function jstTime(iso) { return new Intl.DateTimeFormat("ja-JP", { hour: "2-digit
 function timeText(value) { if (!value) return "—"; const d = new Date(value); return Number.isNaN(d.getTime()) ? String(value).slice(-5) : jstTime(d.toISOString()); }
 function dateText(value) { const d = new Date(value); return Number.isNaN(d.getTime()) ? String(value) : new Intl.DateTimeFormat("ja-JP", { month: "short", day: "numeric", weekday: "short", timeZone: "Asia/Tokyo" }).format(d); }
 function dateTimeText(value) { if (!value) return ""; const d = new Date(value); return Number.isNaN(d.getTime()) ? String(value) : new Intl.DateTimeFormat("ja-JP", { dateStyle: "short", timeStyle: "short", timeZone: "Asia/Tokyo" }).format(d); }
+function greetingForJst(date) {
+  const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hour12: false, timeZone: "Asia/Tokyo" }).format(date));
+  if (hour < 11) return "おはようございます";
+  if (hour < 18) return "こんにちは";
+  return "こんばんは";
+}
+function isDirectEmployment(user) { return /正社員|契約社員|direct|employee/i.test(user?.employment_type || ""); }
 function truthy(v) { return v === true || String(v).toLowerCase() === "true"; }
 function escapeHtml(value) { const div = document.createElement("div"); div.textContent = String(value ?? ""); return div.innerHTML; }

@@ -314,7 +314,7 @@ function renderNoLogin(session) {
   }
 
   elements.operatorText.textContent = "未ログイン";
-  elements.permissionText.textContent = "ShiftBuilderを利用するにはログインが必要です";
+  elements.permissionText.textContent = "Shiftを利用するにはログインが必要です";
   elements.permissionBadge.textContent = "未ログイン";
 
   elements.apiStatusText.textContent = "未実行";
@@ -323,7 +323,7 @@ function renderNoLogin(session) {
   elements.editPermissionText.textContent = "-";
 
   setStatus(
-    `未ログインです。Dashboardからログイン後、再度ShiftBuilderを開いてください。ログインURL: ${getLoginUrl()} / email: ${session.email || "-"} / uid: ${session.uid || "-"}`
+    `未ログインです。Dashboardからログイン後、再度Shiftを開いてください。ログインURL: ${getLoginUrl()} / email: ${session.email || "-"} / uid: ${session.uid || "-"}`
   );
 }
 
@@ -349,7 +349,7 @@ function renderUser(currentUserResult) {
   const editable = canEdit(permission);
 
   elements.operatorText.textContent = displayName;
-  elements.permissionText.textContent = `ShiftBuilder権限：${permissionLabel}`;
+  elements.permissionText.textContent = `Shift権限：${permissionLabel}`;
   elements.permissionBadge.textContent = permissionLabel;
 
   elements.userNameText.textContent = displayName;
@@ -358,8 +358,8 @@ function renderUser(currentUserResult) {
 
   setStatus(
     editable
-      ? "ShiftBuilderを利用できます。翌月シフトを自動表示します。"
-      : "ShiftBuilderを閲覧できます。編集権限はありません。"
+      ? "Shiftを利用できます。翌月シフトを自動表示します。"
+      : "Shiftを閲覧できます。編集権限はありません。"
   );
 }
 
@@ -619,8 +619,7 @@ function normalizeAssignmentCandidatesForCell(candidates, selectedCell) {
 
     if (requestedOffState.requestedOff) {
       sortRank = 85;
-      buttonLabel = "希望休";
-      disabled = true;
+      buttonLabel = "相談してアサイン";
       warningText = requestedOffState.memo
         ? `希望休：${requestedOffState.memo}`
         : "希望休";
@@ -1241,7 +1240,6 @@ function getPersonnelAssignmentOptions(internalUserId, workDate) {
   if (
     !candidate ||
     !shiftData ||
-    getRequestedOffState(candidate, workDate).requestedOff ||
     hasSameDayAssignmentForUser(internalUserId, {
     dateItem: { date: workDate }
     })
@@ -1267,6 +1265,18 @@ function getPersonnelAssignmentOptions(internalUserId, workDate) {
       required
     }];
   });
+}
+
+function confirmRequestedOffAssignment(internalUserId, workDate) {
+  const candidate = findCandidateByInternalUserId(internalUserId);
+  const requestedOffState = getRequestedOffState(candidate, workDate);
+
+  if (!requestedOffState.requestedOff) return false;
+
+  const memo = requestedOffState.memo ? `\n希望休メモ：${requestedOffState.memo}` : "";
+  return window.confirm(
+    `この日は希望休です。${memo}\n\n本人へ相談し、アサインの了承を得ていますか？`
+  ) ? true : null;
 }
 
 function getPersonnelCellAssignments(internalUserId, workDate) {
@@ -1439,7 +1449,7 @@ function openPersonnelAssignmentPopover(internalUserId, workDate, anchorElement)
       </div>
       <button type="button" class="cell-popover-close" data-popover-action="close" aria-label="閉じる">×</button>
     </div>
-    ${requestedOffState.requestedOff ? `<div class="candidate-warning">希望休${requestedOffState.memo ? `：${escapeHtml(requestedOffState.memo)}` : ""}のため、新しい案件へ配置できません。</div>` : ""}
+    ${requestedOffState.requestedOff ? `<div class="candidate-warning">希望休${requestedOffState.memo ? `：${escapeHtml(requestedOffState.memo)}` : ""}です。本人へ相談し、了承後にアサインしてください。</div>` : ""}
     ${consecutiveWorkAlert ? `<div class="candidate-warning">${escapeHtml(consecutiveWorkAlert.message)}</div>` : ""}
     ${!isPreviousMonthDataAvailable ? '<div class="candidate-warning">前月末からの連勤を確認できません</div>' : ""}
     ${existingAssignments.length ? `
@@ -1470,7 +1480,7 @@ function openPersonnelAssignmentPopover(internalUserId, workDate, anchorElement)
         >
           ${escapeHtml(option.title)}（${option.assignedCount}/${option.required}）
         </button>
-      `).join("") : `<div class="empty-note">${requestedOffState.requestedOff ? "希望休のため追加できません。" : "この人員を追加できる未充足案件はありません。"}</div>`}
+      `).join("") : `<div class="empty-note">この人員を追加できる未充足案件はありません。</div>`}
     </div>
   `;
   popover.hidden = false;
@@ -2462,6 +2472,17 @@ async function createAssignmentFromSelectedCell(internalUserId) {
     return;
   }
 
+  const requestedOffConfirmed = confirmRequestedOffAssignment(
+    targetInternalUserId,
+    dateItem.date
+  );
+
+  if (requestedOffConfirmed === null) {
+    setStatus("希望休へのアサインを中止しました。");
+    refreshActiveActionPopover();
+    return;
+  }
+
   const caseId = caseItem.caseId;
   const workDate = dateItem.date;
   const previousAssigned = Array.isArray(cell.assigned)
@@ -2514,7 +2535,8 @@ async function createAssignmentFromSelectedCell(internalUserId) {
       internalUserId: targetInternalUserId,
       startTime: cell.start_time || "",
       endTime: cell.end_time || "",
-      assignmentNote: "ShiftBuilder画面から作成"
+      assignmentNote: "ShiftBuilder画面から作成",
+      requestedOffConfirmed: requestedOffConfirmed
     });
 
     if (!result || result.success !== true) {
@@ -2637,6 +2659,17 @@ async function replaceAssignmentFromSelectedCell(internalUserId, replaceAssignme
     return;
   }
 
+  const requestedOffConfirmed = confirmRequestedOffAssignment(
+    targetInternalUserId,
+    dateItem.date
+  );
+
+  if (requestedOffConfirmed === null) {
+    setStatus("希望休への入れ替えを中止しました。");
+    refreshActiveActionPopover();
+    return;
+  }
+
   const caseId = caseItem.caseId;
   const workDate = dateItem.date;
   const pendingAssignmentId = createPendingAssignmentId();
@@ -2692,7 +2725,8 @@ async function replaceAssignmentFromSelectedCell(internalUserId, replaceAssignme
       internalUserId: targetInternalUserId,
       startTime: cell.start_time || "",
       endTime: cell.end_time || "",
-      assignmentNote: "ShiftBuilder画面から入れ替え"
+      assignmentNote: "ShiftBuilder画面から入れ替え",
+      requestedOffConfirmed: requestedOffConfirmed
     });
 
     if (!createResult || createResult.success !== true) {

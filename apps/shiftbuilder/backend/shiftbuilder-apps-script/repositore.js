@@ -492,7 +492,7 @@ function getLatestPmoRequestsByUserForMonth_(targetMonth) {
   return latestByUserId;
 }
 
-function validateNoRequestedOffAssignment_(internalUserId, targetMonth, workDate) {
+function validateRequestedOffAssignment_(internalUserId, targetMonth, workDate, requestedOffConfirmed) {
   const userId = normalizeText(internalUserId);
   const normalizedWorkDate = normalizeDateString(workDate);
   const requestsByUserId = getLatestPmoRequestsByUserForMonth_(targetMonth);
@@ -502,8 +502,13 @@ function validateNoRequestedOffAssignment_(internalUserId, targetMonth, workDate
     request &&
     request.requested_off_dates.indexOf(normalizedWorkDate) !== -1
   ) {
-    throw new Error("希望休のためアサインできません: " + normalizedWorkDate);
+    if (requestedOffConfirmed !== true) {
+      throw new Error("希望休へのアサインは本人への相談・了承確認が必要です: " + normalizedWorkDate);
+    }
+    return true;
   }
+
+  return false;
 }
 // ===== PickMyOff 希望休読み取りここまで =====
 

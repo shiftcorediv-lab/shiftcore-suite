@@ -13,13 +13,13 @@ export const ATTENDANCE_API_URL = "https://script.google.com/macros/s/AKfycbzYSk
 export const LOCATION_CONSENT_VERSION = "2026-08-02-v1";
 
 export const MODULE_NAME_MAP = {
-  account: "Account Console",
-  account_console: "Account Console",
+  account: "人員マスター",
+  account_console: "人員マスター",
   pmo: "Pick My Off",
-  ordercase: "OrderCase",
-  order_case: "OrderCase",
-  shift: "ShiftBuilder",
-  shiftbuilder: "ShiftBuilder"
+  ordercase: "Order",
+  order_case: "Order",
+  shift: "Shift",
+  shiftbuilder: "Shift"
 };
 
 export const MODULE_DESCRIPTION_MAP = {

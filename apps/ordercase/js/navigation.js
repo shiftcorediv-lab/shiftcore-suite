@@ -50,7 +50,7 @@ function renderOrderCaseHeader(activePage, subtitle) {
   }).join('');
 
   header.innerHTML = `
-    <h1>OrderCase</h1>
+    <h1>Order</h1>
     <p>${escapeHtml(subtitle || '')}</p>
     <nav class="top-nav">
       ${links}

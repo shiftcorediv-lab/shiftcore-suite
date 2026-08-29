@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ShiftCore Account Console</title>
+  <title>ShiftCore 人員マスター</title>
   <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://script.google.com">
   <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
@@ -15,7 +15,7 @@
   <div class="page">
     <header class="header">
       <div>
-        <h1>Account Console</h1>
+        <h1>人員マスター</h1>
         <p class="subtitle">アカウント登録・申請・権限管理</p>
       </div>
 
@@ -85,8 +85,8 @@
                 <th>担当エリア</th>
                 <th>状態</th>
                 <th>利用機能</th>
-                <th>OrderCase</th>
-                <th>ShiftBuilder</th>
+                <th>Order</th>
+                <th>Shift</th>
               </tr>
             </thead>
             <tbody id="userTableBody"></tbody>
@@ -271,7 +271,7 @@
 
             <label class="check-row">
               <input type="checkbox" name="module" value="account_console">
-              Account Console (アカウント登録・申請・権限管理)
+              人員マスター（アカウント登録・申請・権限管理）
             </label>
 
             <label class="check-row">
@@ -281,17 +281,17 @@
 
             <label class="check-row">
               <input type="checkbox" name="module" value="ordercase">
-              OrderCase
+              Order
             </label>
 
             <label class="check-row">
               <input type="checkbox" name="module" value="shift">
-              ShiftBuilder
+              Shift
             </label>
           </fieldset>
 
           <label>
-            OrderCase権限
+            Order権限
             <select id="ordercasePermissionInput">
               <option value="">なし</option>
               <option value="all">全操作可能</option>
@@ -302,7 +302,7 @@
           </label>
 
           <label>
-            ShiftBuilder権限
+            Shift権限
             <select id="shiftbuilderPermissionInput">
               <option value="">なし</option>
               <option value="all">全管理</option>

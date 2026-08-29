@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <title>ShiftBuilder β版 | ShiftCore</title>
+  <title>Shift | ShiftCore</title>
 
   <link rel="stylesheet" href="../../shared/css/shiftcore-ui.css?v=20260801-authfix-1" />
   <link rel="stylesheet" href="./css/shiftbuilder.css?v=20260801-authfix-1" />
@@ -16,7 +16,7 @@
   <main class="page">
     <header class="header">
       <div>
-        <h1>ShiftBuilder <span class="beta-badge">β版</span></h1>
+        <h1>Shift</h1>
         <p class="subtitle">
           この機能はベータ版です。運用しながら改善中のため、表示内容や操作仕様が変更される場合があります。
         </p>
@@ -36,7 +36,7 @@
       <div>
         <div class="label">ログイン中</div>
         <div id="operatorText" class="operator-text">確認中...</div>
-        <div id="permissionText" class="permission-text">ShiftBuilder権限を確認中...</div>
+        <div id="permissionText" class="permission-text">Shift権限を確認中...</div>
       </div>
 
       <div id="permissionBadge" class="badge">確認中</div>
@@ -45,7 +45,7 @@
     <section class="panel">
       <h2>接続・権限ステータス</h2>
       <p class="hint">
-        Firebaseログイン、ShiftBuilder API接続、ShiftBuilder権限を確認します。
+        ログイン、Shift API接続、Shift権限を確認します。
       </p>
 
       <div class="info-grid">
@@ -60,7 +60,7 @@
         </div>
 
         <div class="info-card">
-          <div class="label">ShiftBuilder権限</div>
+          <div class="label">Shift権限</div>
           <div id="shiftPermissionText" class="info-value">-</div>
         </div>
 
@@ -126,27 +126,6 @@
         </div>
       </div>
     </section>
-
-    <details id="shiftbuilderHowto" class="howto-panel">
-      <summary>
-        <span>操作ガイド</span>
-        <span class="howto-shortcut"><kbd>H</kbd> で開閉</span>
-      </summary>
-      <div class="howto-content">
-        <ol class="howto-steps" aria-label="基本操作">
-          <li><kbd>起動時</kbd><span><strong>表操作を開始</strong>先頭の操作可能セルへ自動でフォーカス</span></li>
-          <li><kbd>,</kbd><kbd>.</kbd><span><strong>月を移動</strong>前月・翌月へ切り替え（Mac対応）</span></li>
-          <li><kbd>↑↓←→</kbd><span><strong>セルを移動</strong>案件・日付をキーボードで移動</span></li>
-          <li><kbd>Enter</kbd><span><strong>詳細を開く</strong>候補者・配置状況を表示</span></li>
-          <li><kbd>Esc</kbd><span><strong>詳細を閉じる</strong>元のセルへフォーカスを戻す</span></li>
-          <li><kbd>Shift</kbd>+<kbd>F10</kbd><span><strong>行を出力</strong>案件名・人員名の右クリックメニューを開く</span></li>
-        </ol>
-        <div class="howto-axis-notes">
-          <p><strong>案件軸：</strong>セルをクリック、または <kbd>Enter</kbd> で候補者の確認・アサイン操作へ進めます。</p>
-          <p><strong>人員軸：</strong>セルへフォーカスすると簡易表示し、<kbd>Enter</kbd> で案件の追加・解除を開きます。空欄は「未配置」で、勤務可能とは限りません。</p>
-        </div>
-      </div>
-    </details>
 
     <section class="shiftbuilder-layout">
       <section id="shiftTablePanel" class="shift-table-panel" role="tabpanel">

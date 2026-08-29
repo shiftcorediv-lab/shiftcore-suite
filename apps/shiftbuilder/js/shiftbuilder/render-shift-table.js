@@ -18,16 +18,16 @@ export function getCellStatus(cell) {
   if (required === 0 && assignedCount === 0) {
     return {
       key: SHIFT_CELL_STATUS.COMPLETED,
-      label: "対象外",
-      note: "必要枠なし"
+      label: "—",
+      note: ""
     };
   }
 
   if (assignedCount === 0) {
     return {
       key: SHIFT_CELL_STATUS.UNASSIGNED,
-      label: SHIFT_CELL_STATUS_LABELS[SHIFT_CELL_STATUS.UNASSIGNED],
-      note: `${assignedCount}/${required}`
+      label: "未",
+      note: ""
     };
   }
 
@@ -35,28 +35,28 @@ export function getCellStatus(cell) {
     return {
       key: SHIFT_CELL_STATUS.SHORTAGE,
       label: SHIFT_CELL_STATUS_LABELS[SHIFT_CELL_STATUS.SHORTAGE],
-      note: `${assignedCount}/${required}`
+      note: ""
     };
   }
 
   if (assignedCount === required) {
     return {
       key: SHIFT_CELL_STATUS.COMPLETED,
-      label: SHIFT_CELL_STATUS_LABELS[SHIFT_CELL_STATUS.COMPLETED],
-      note: `${assignedCount}/${required}`
+      label: "",
+      note: ""
     };
   }
 
   return {
     key: SHIFT_CELL_STATUS.OVER,
     label: SHIFT_CELL_STATUS_LABELS[SHIFT_CELL_STATUS.OVER],
-    note: `${assignedCount}/${required}`
+    note: ""
   };
 }
 
 function getCompactStatusLabel(statusLabel) {
-  if (statusLabel === "対象外") return "×";
-  if (statusLabel === "アサイン完了") return "完";
+  if (statusLabel === "対象外" || statusLabel === "—") return "—";
+  if (statusLabel === "アサイン完了") return "";
   if (statusLabel === "未アサイン") return "未";
   if (statusLabel === "不足") return "不足";
   if (statusLabel === "超過") return "超過";
@@ -493,10 +493,10 @@ export function renderShiftTable(data, elements, handlers = {}) {
             aria-label="${escapeHtml(`${caseItem.title}の出力メニュー。右クリックまたはShift+F10`)}"
           >
             <div class="case-title">${escapeHtml(caseItem.title)}</div>
-            <div class="case-meta">${escapeHtml(caseItem.client)} / ${escapeHtml(caseItem.area)}</div>
+            <div class="case-meta">${escapeHtml(caseItem.caseType || "種別未設定")} / ${escapeHtml(caseItem.client)} / ${escapeHtml(caseItem.area)}</div>
             <div class="case-fulfillment-row">
               ${fulfillmentBadge}
-              <span class="case-id">${escapeHtml(caseItem.caseId)}</span>
+              <a class="case-id" href="../ordercase/case.html?case_id=${encodeURIComponent(caseItem.caseId)}" target="_blank" rel="noopener" title="Orderの案件詳細を開く">${escapeHtml(caseItem.caseId)}</a>
               ${fulfillmentGauge}
             </div>
           </td>

@@ -277,6 +277,8 @@ function buildCreateAssignmentParams_(body, operator) {
     end_time: normalizeText(body.endTime || body.end_time),
     time_slot: normalizeText(body.timeSlot || body.time_slot || DEFAULT_TIME_SLOT),
     assignment_note: normalizeText(body.assignmentNote || body.assignment_note),
+    requested_off_confirmed:
+      body.requestedOffConfirmed === true || body.requested_off_confirmed === true,
     created_by: normalizeText(operator.email),
     updated_by: normalizeText(operator.email)
   };
@@ -284,11 +286,17 @@ function buildCreateAssignmentParams_(body, operator) {
 
 function createShiftBuilderAssignment_(params, operator) {
   validateShiftBuilderAssignableOrderCase_(params.case_id);
-  validateNoRequestedOffAssignment_(
+  const requestedOff = validateRequestedOffAssignment_(
     params.internal_user_id,
     params.target_month,
-    params.work_date
+    params.work_date,
+    params.requested_off_confirmed
   );
+  if (requestedOff) {
+    params.assignment_note = [params.assignment_note, "希望休・本人相談了承済み"]
+      .filter(Boolean)
+      .join(" / ");
+  }
   validateNoDuplicateShiftAssignment_(params);
   validateNoSameDayShiftAssignment_(params);
 

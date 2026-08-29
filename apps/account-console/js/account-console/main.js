@@ -87,13 +87,13 @@ async function init() {
 
     idToken = session.idToken;
 
-    showLoading("Account Consoleを読み込み中...");
-    setStatus("Account Consoleを読み込み中...");
+    showLoading("人員マスターを読み込み中...");
+    setStatus("人員マスターを読み込み中...");
 
     const bootstrapResult = await getAccountConsoleBootstrap(idToken);
 
     if (!isOkResult(bootstrapResult)) {
-      setPermissionError(bootstrapResult.message || "Account Consoleの利用権限がありません");
+      setPermissionError(bootstrapResult.message || "人員マスターの利用権限がありません");
       setStatus(JSON.stringify(bootstrapResult, null, 2));
       hideLoading();
       return;
@@ -107,7 +107,7 @@ async function init() {
     renderLogs(Array.isArray(bootstrapResult.logs) ? bootstrapResult.logs : []);
 
     clearUserForm();
-    setStatus("Account Consoleを読み込みました");
+    setStatus("人員マスターを読み込みました");
 
   } catch (error) {
     setPermissionError(error.message);
@@ -273,13 +273,13 @@ async function saveUser(event) {
     const isAdministrator = ["admin", "developer"].includes(role);
 
     if (modules.includes("account_console") && !isAdministrator) {
-      throw new Error("Account Consoleは、管理者・役員・開発者のみ許可できます");
+      throw new Error("人員マスターは、管理者・役員・開発者のみ許可できます");
     }
     if (modules.includes("ordercase") && !user.ordercase_permission) {
-      throw new Error("OrderCaseを許可する場合は、OrderCase権限を選択してください");
+      throw new Error("Orderを許可する場合は、Order権限を選択してください");
     }
     if (modules.includes("shift") && !user.shiftbuilder_permission) {
-      throw new Error("ShiftBuilderを許可する場合は、ShiftBuilder権限を選択してください");
+      throw new Error("Shiftを許可する場合は、Shift権限を選択してください");
     }
     if (!modules.includes("ordercase")) user.ordercase_permission = "";
     if (!modules.includes("shift")) user.shiftbuilder_permission = "";
