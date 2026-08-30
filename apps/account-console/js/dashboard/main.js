@@ -183,9 +183,9 @@ function renderIdentity(user) {
   $("userInitial").textContent = name.slice(0, 1).toUpperCase();
   $("emailText").textContent = user.email || "";
   $("accountMeta").textContent = [user.role, user.organization_id].filter(Boolean).join(" / ");
-  const dateParts = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "long", day: "numeric", weekday: "short" }).formatToParts(new Date());
+  const dateParts = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "numeric", day: "numeric", weekday: "short" }).formatToParts(new Date());
   const part = type => dateParts.find(item => item.type === type)?.value || "";
-  $("todayLabel").textContent = `${part("year")}年${part("month")}${part("day")}日（${part("weekday")}）`;
+  $("todayLabel").textContent = `${part("year")}年${part("month")}月${part("day")}日（${part("weekday")}）`;
 }
 
 function renderDashboard(data) {

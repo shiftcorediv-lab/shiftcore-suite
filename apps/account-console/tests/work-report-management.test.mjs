@@ -132,7 +132,7 @@ test("管理画面は未提出・集計・項目編集停止・CSV出力を備�
 test("個人ダッシュボードは勤怠を先に表示し、本人専用成績と予定同期を後から並行取得する", () => {
   assert.ok(dashboardHtml.includes("今月の成績"));
   assert.ok(dashboardHtml.includes("ログインしている本人の実績だけを表示します"));
-  assert.match(dashboardHtml, /dashboard\/main\.js\?v=20260831-performance-3/);
+  assert.match(dashboardHtml, /dashboard\/main\.js\?v=20260831-date-label-1/);
   assert.doesNotMatch(dashboardSource, /attendanceRequest\("getPortalBootstrap"/);
   assert.match(dashboardSource, /attendanceRequest\("getDashboardData"/);
   assert.match(dashboardSource, /attendanceRequest\("getMyWorkReportSummary"/);

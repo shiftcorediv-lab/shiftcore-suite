@@ -54,3 +54,9 @@ test("ダッシュボードの現状表示は先頭側へ配置し、表示域�
   assert.match(dashboardCss, /\.status-box\{position:sticky;top:84px/);
   assert.match(dashboardCss, /data-shiftcore-environment="staging"\] \.status-box\{top:124px/);
 });
+
+test("ダッシュボードの日付は年月日を省略せず表示する", () => {
+  assert.match(dashboardSource, /month: "numeric"/);
+  assert.match(dashboardSource, /\$\{part\("year"\)\}年\$\{part\("month"\)\}月\$\{part\("day"\)\}日/);
+  assert.match(dashboardHtml, /main\.js\?v=20260831-date-label-1/);
+});
