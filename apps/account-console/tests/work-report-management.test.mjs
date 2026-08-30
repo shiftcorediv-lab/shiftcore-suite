@@ -129,10 +129,14 @@ test("管理画面は未提出・集計・項目編集停止・CSV出力を備�
   assert.match(adminCss, /\.table-wrap\{overflow:auto/);
 });
 
-test("個人ダッシュボードは本人専用成績APIを別読込し、報告の確認・修正へ進める", () => {
+test("個人ダッシュボードは本人専用成績を初期表示と一括取得し、報告の確認・修正へ進める", () => {
   assert.ok(dashboardHtml.includes("今月の成績"));
   assert.ok(dashboardHtml.includes("ログインしている本人の実績だけを表示します"));
-  assert.match(dashboardSource, /attendanceRequest\("getMyWorkReportSummary"/);
+  assert.match(dashboardSource, /attendanceRequest\("getPortalBootstrap"/);
+  assert.match(dashboardSource, /error\.code !== "UNKNOWN_ACTION"/);
+  assert.match(dashboardSource, /loadMyWorkReportSummaryFallback/);
+  assert.match(dashboardSource, /void refreshModuleAccess\(user\);\s+await loadPortalBootstrap\(\);/);
+  assert.match(dashboardSource, /workReportSummary: null, workReportSummaryError: null/);
   assert.match(dashboardSource, /sessionStorage\.setItem\("shiftcore_report_context", JSON\.stringify\(\{ recordId \}\)\)/);
   assert.match(dashboardCss, /\.performance-metrics/);
   assert.match(dashboardCss, /@media\(max-width:820px\)/);

@@ -34,9 +34,9 @@ onAuthStateChanged(auth, async user => {
     goToLogin();
     return;
   }
-  await refreshModuleAccess(user);
-  await loadDashboard();
-  loadMyWorkReportSummary();
+  // 勤怠API側も本人確認を行うため、権限の再取得と初期表示は安全に並行できる。
+  void refreshModuleAccess(user);
+  await loadPortalBootstrap();
 });
 
 async function refreshModuleAccess(firebaseUser) {
@@ -53,17 +53,37 @@ async function refreshModuleAccess(firebaseUser) {
   }
 }
 
-async function loadDashboard() {
+async function loadPortalBootstrap() {
   try {
-    dashboardData = await attendanceRequest("getDashboardData", { scheduleId: selectedScheduleId });
+    try {
+      dashboardData = await attendanceRequest("getPortalBootstrap", { scheduleId: selectedScheduleId, month: todayKey().slice(0, 7) });
+    } catch (error) {
+      if (error.code !== "UNKNOWN_ACTION") throw error;
+      // GASの公開順が前後しても打刻画面を止めず、更新前APIへ一時的に戻す。
+      dashboardData = await attendanceRequest("getDashboardData", { scheduleId: selectedScheduleId });
+      void loadMyWorkReportSummaryFallback();
+    }
     selectedScheduleId = dashboardData.schedule?.schedule_id || selectedScheduleId;
     renderDashboard(dashboardData);
     writeDashboardCache(dashboardData);
+    if (dashboardData.workReportSummary) {
+      renderMyWorkReportSummary(dashboardData.workReportSummary);
+    } else if (dashboardData.workReportSummaryError) {
+      renderMyWorkReportSummaryError(dashboardData.workReportSummaryError.message);
+    }
     showStatus("保存済みの勤怠情報を表示しています。SBの最新予定を確認中です。");
-    refreshDashboardInBackground();
+    setTimeout(refreshDashboardInBackground, 0);
   } catch (error) {
     showStatus(error.message, true);
     renderUnavailable();
+  }
+}
+
+async function loadMyWorkReportSummaryFallback() {
+  try {
+    renderMyWorkReportSummary(await attendanceRequest("getMyWorkReportSummary", { month: todayKey().slice(0, 7) }));
+  } catch (error) {
+    renderMyWorkReportSummaryError(error.message);
   }
 }
 
@@ -79,14 +99,9 @@ async function refreshDashboardInBackground() {
   }
 }
 
-async function loadMyWorkReportSummary() {
-  try {
-    const summary = await attendanceRequest("getMyWorkReportSummary", { month: todayKey().slice(0, 7) });
-    renderMyWorkReportSummary(summary);
-  } catch (error) {
-    $("performanceLoading").textContent = `成績を読み込めませんでした: ${error.message}`;
-    $("performanceLoading").classList.add("error");
-  }
+function renderMyWorkReportSummaryError(message) {
+  $("performanceLoading").textContent = `成績を読み込めませんでした: ${message}`;
+  $("performanceLoading").classList.add("error");
 }
 
 function renderMyWorkReportSummary(summary) {
@@ -117,7 +132,8 @@ function readDashboardCache() {
 
 function writeDashboardCache(data) {
   try {
-    localStorage.setItem(dashboardCacheKey, JSON.stringify({ ...data, notifications: [] }));
+    // 通知と個人成績は端末へ残さず、当日の打刻表示に必要な情報だけを再利用する。
+    localStorage.setItem(dashboardCacheKey, JSON.stringify({ ...data, notifications: [], workReportSummary: null, workReportSummaryError: null }));
   } catch (_) {
     // キャッシュ不可でも通常のAPI表示は継続する。
   }
