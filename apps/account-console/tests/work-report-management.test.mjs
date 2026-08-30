@@ -105,8 +105,20 @@ test("対象案件は案件名の文字列ではなく案件IDとテンプレー
   assert.equal(context.workReportTemplateForContext_({ planId: "PLAN-OTHER", planName: "ドコモショップ案件" }, mappings, templates), null);
 });
 
+test("対象案件候補は同じ案件を一件にまとめ、稼働日と人員名を添える", () => {
+  const context = backendContext();
+  context.rows_ = () => [];
+  const candidates = context.workReportCaseCandidates_([
+    { "開発予定ID": "PLAN-1", "開発予定名": "案件A", "勤務日": "2026-08-30", "氏名": "担当A" },
+    { "開発予定ID": "PLAN-1", "開発予定名": "案件A", "勤務日": "2026-08-31", "氏名": "担当B" }
+  ]);
+  assert.equal(candidates.length, 1);
+  assert.deepEqual(Array.from(candidates[0].workDates), ["2026-08-30", "2026-08-31"]);
+  assert.deepEqual(Array.from(candidates[0].people), ["担当A", "担当B"]);
+});
+
 test("管理画面は未提出・集計・項目編集停止・CSV出力を備える", () => {
-  for (const value of ["未提出", "差戻し中", "日別", "月別", "店舗別", "人員別", "案件別", "CSV出力", "修正履歴も出力", "実績項目管理", "実績報告の対象案件"]) assert.ok(adminHtml.includes(value), value);
+  for (const value of ["未提出", "差戻し中", "日別", "月別", "店舗別", "人員別", "案件別", "CSV出力", "修正履歴も出力", "実績項目管理", "実績報告の対象案件", "稼働日", "人員名", "案件名"]) assert.ok(adminHtml.includes(value), value);
   assert.match(adminSource, /attendanceRequest\("getWorkReportAdminData"/);
   assert.match(adminSource, /attendanceRequest\("saveWorkReportItem"/);
   assert.match(adminSource, /attendanceRequest\("saveWorkReportCaseMapping"/);

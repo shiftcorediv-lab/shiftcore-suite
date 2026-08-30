@@ -892,12 +892,20 @@ function workReportCaseCandidates_(schedules) {
   const plans = Object.create(null);
   (schedules || []).forEach(schedule => {
     const planId = String(schedule["開発予定ID"] || "");
-    if (planId && !plans[planId]) plans[planId] = String(schedule["開発予定名"] || schedule["稼働場所"] || planId);
+    if (!planId) return;
+    if (!plans[planId]) plans[planId] = { planName: String(schedule["開発予定名"] || schedule["稼働場所"] || planId), workDates: Object.create(null), people: Object.create(null) };
+    const workDate = dateKey_(schedule["勤務日"]);
+    const person = String(schedule["氏名"] || schedule.email || "").trim();
+    if (workDate) plans[planId].workDates[workDate] = true;
+    if (person) plans[planId].people[person] = true;
   });
-  mappings.forEach(mapping => { const planId = String(mapping["開発予定ID"] || ""); if (planId && !plans[planId]) plans[planId] = String(mapping["開発予定名"] || planId); });
-  return Object.keys(plans).sort((a, b) => plans[a].localeCompare(plans[b], "ja")).map(planId => {
+  mappings.forEach(mapping => { const planId = String(mapping["開発予定ID"] || ""); if (planId && !plans[planId]) plans[planId] = { planName: String(mapping["開発予定名"] || planId), workDates: Object.create(null), people: Object.create(null) }; });
+  return Object.keys(plans).sort((a, b) => plans[a].planName.localeCompare(plans[b].planName, "ja")).map(planId => {
     const mapping = mappings.find(candidate => String(candidate["開発予定ID"] || "") === planId);
-    return mapping ? publicWorkReportCaseMapping_(mapping) : { mappingId: "", planId, planName: plans[planId], templateId: DEFAULT_WORK_REPORT_TEMPLATE_ID, active: false };
+    const candidate = mapping ? publicWorkReportCaseMapping_(mapping) : { mappingId: "", planId, planName: plans[planId].planName, templateId: DEFAULT_WORK_REPORT_TEMPLATE_ID, active: false };
+    candidate.workDates = Object.keys(plans[planId].workDates).sort();
+    candidate.people = Object.keys(plans[planId].people).sort((a, b) => a.localeCompare(b, "ja"));
+    return candidate;
   });
 }
 

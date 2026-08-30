@@ -156,7 +156,7 @@ function showDetail(reportId) {
 
 function renderCaseMappings() {
   const templates = data.templates || [];
-  $("caseMappingRows").innerHTML = (data.caseMappings || []).map(mapping => `<tr data-case-mapping="${escapeAttribute(mapping.planId)}"><td><code>${escapeHtml(mapping.planId)}</code></td><td>${escapeHtml(mapping.planName || "—")}</td><td><select data-field="templateId">${templates.map(template => `<option value="${escapeAttribute(template.templateId)}" ${template.templateId === mapping.templateId ? "selected" : ""}>${escapeHtml(template.name)}</option>`).join("")}</select></td><td><input data-field="mappingActive" type="checkbox" ${mapping.active ? "checked" : ""}></td><td><button type="button" data-save-mapping="${escapeAttribute(mapping.planId)}">保存</button></td></tr>`).join("") || '<tr><td colspan="5">稼働予定から選べる案件がありません。</td></tr>';
+  $("caseMappingRows").innerHTML = (data.caseMappings || []).map(mapping => `<tr data-case-mapping="${escapeAttribute(mapping.planId)}"><td>${compactValues(mapping.workDates, "予定なし")}</td><td>${compactValues(mapping.people, "未割当")}</td><td><strong>${escapeHtml(mapping.planName || "—")}</strong><br><small>${escapeHtml(mapping.planId)}</small></td><td><select data-field="templateId">${templates.map(template => `<option value="${escapeAttribute(template.templateId)}" ${template.templateId === mapping.templateId ? "selected" : ""}>${escapeHtml(template.name)}</option>`).join("")}</select></td><td><input data-field="mappingActive" type="checkbox" ${mapping.active ? "checked" : ""}></td><td><button type="button" data-save-mapping="${escapeAttribute(mapping.planId)}">保存</button></td></tr>`).join("") || '<tr><td colspan="6">稼働予定から選べる案件がありません。</td></tr>';
   document.querySelectorAll("[data-save-mapping]").forEach(button => button.addEventListener("click", () => saveCaseMapping(button.dataset.saveMapping)));
 }
 
@@ -217,3 +217,4 @@ function message(value, error = false) { $("message").textContent = value; $("me
 function escapeHtml(value) { const div = document.createElement("div"); div.textContent = String(value ?? ""); return div.innerHTML; }
 function escapeAttribute(value) { return escapeHtml(value).replace(/`/g, "&#96;"); }
 function cssEscape(value) { return globalThis.CSS?.escape ? CSS.escape(value) : String(value).replace(/[^A-Za-z0-9_-]/g, "\\$&"); }
+function compactValues(values, emptyLabel) { const items = Array.isArray(values) ? values : []; if (!items.length) return escapeHtml(emptyLabel); const shown = items.slice(0, 3).map(escapeHtml).join("<br>"); return shown + (items.length > 3 ? `<br><small>ほか${items.length - 3}件</small>` : ""); }
