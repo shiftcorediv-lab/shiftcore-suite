@@ -13,7 +13,7 @@ export async function verifySignedInUser(user) {
   }
 
   try {
-    setStatus("アカウント照合中...");
+    setStatus("アカウント照合中...", true);
 
     const idToken = await user.getIdToken();
     const loginCheck = await resolveCurrentUserWithGasByIdToken(idToken);

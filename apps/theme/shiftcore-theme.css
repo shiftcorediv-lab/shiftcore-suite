@@ -45,6 +45,28 @@
   --sb-shadow: 0 12px 32px var(--sc-theme-shadow);
 }
 
+[data-shiftcore-loading="true"]::before {
+  content: "";
+  display: inline-block;
+  width: 0.82em;
+  height: 0.82em;
+  margin-right: 0.55em;
+  border: 0.14em solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -0.1em;
+  opacity: 0.72;
+  animation: shiftcore-activity-spin 0.8s linear infinite;
+}
+
+@keyframes shiftcore-activity-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-shiftcore-loading="true"]::before { animation: none; }
+}
+
 .shiftcore-account-menu {
   position: fixed;
   top: max(12px, env(safe-area-inset-top));

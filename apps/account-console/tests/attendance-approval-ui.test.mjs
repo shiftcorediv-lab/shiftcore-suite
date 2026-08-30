@@ -44,6 +44,6 @@ test("構造化エラーと通信結果不明を区別して表示する", () =>
 });
 
 test("承認画面JavaScriptのキャッシュキーを更新する", () => {
-  assert.match(adminHtmlSource, /main\.js\?v=20260819-approval-version-2/);
+  assert.match(adminHtmlSource, /main\.js\?v=20260831-activity-1/);
   assert.match(adminUiSource, /attendance-review\.js\?v=20260819-approval-version-2/);
 });

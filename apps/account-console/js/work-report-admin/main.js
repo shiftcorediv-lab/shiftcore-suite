@@ -1,5 +1,6 @@
 import { auth, onAuthStateChanged } from "../dashboard/auth.js";
 import { attendanceRequest } from "../dashboard/attendance-api.js";
+import { setActivity } from "../common/activity.js?v=20260831-activity-1";
 
 const $ = id => document.getElementById(id);
 let data = null;
@@ -22,6 +23,7 @@ $("cancelReturnBtn").addEventListener("click", () => $("returnDialog").close());
 $("returnForm").addEventListener("submit", submitReturn);
 
 async function load() {
+  message("実績報告を読み込んでいます…", false, true);
   try {
     data = await attendanceRequest("getWorkReportAdminData", filterPayload());
     render();
@@ -94,6 +96,7 @@ function renderItems() {
 async function saveItem(itemId) {
   const row = document.querySelector(`[data-item-row="${cssEscape(itemId)}"]`);
   if (!row) return;
+  message("実績項目を保存しています…", false, true);
   try {
     await attendanceRequest("saveWorkReportItem", {
       itemId,
@@ -116,6 +119,7 @@ async function saveItem(itemId) {
 
 async function addItem(event) {
   event.preventDefault();
+  message("実績項目を追加しています…", false, true);
   try {
     await attendanceRequest("saveWorkReportItem", {
       name: $("newItemName").value,
@@ -164,6 +168,7 @@ async function saveCaseMapping(planId) {
   const mapping = (data.caseMappings || []).find(item => item.planId === planId);
   const row = document.querySelector(`[data-case-mapping="${cssEscape(planId)}"]`);
   if (!mapping || !row) return;
+  message("対象案件を保存しています…", false, true);
   try {
     await attendanceRequest("saveWorkReportCaseMapping", { planId, planName: mapping.planName, templateId: field(row, "templateId").value, active: field(row, "mappingActive").checked });
     message("対象案件を保存しました。");
@@ -179,6 +184,7 @@ function openReturn(reportId) {
 
 async function submitReturn(event) {
   event.preventDefault();
+  message("差戻しを保存しています…", false, true);
   try {
     await attendanceRequest("returnWorkReport", { reportId: returningReportId, reason: $("returnReason").value.trim() });
     $("returnDialog").close();
@@ -188,6 +194,7 @@ async function submitReturn(event) {
 }
 
 async function downloadCsv() {
+  message("CSVを準備しています…", false, true);
   try {
     const result = await attendanceRequest("exportWorkReportsCsv", filterPayload());
     const url = URL.createObjectURL(new Blob([result.csv], { type: "text/csv;charset=utf-8" }));
@@ -213,7 +220,7 @@ function setInitialDates() {
 function field(row, name) { return row.querySelector(`[data-field="${name}"]`); }
 function summaryCard(label, value) { return `<article><small>${escapeHtml(label)}</small><strong>${Number(value).toLocaleString("ja-JP")}</strong></article>`; }
 function detailList(rows) { return `<dl class="detail-grid">${rows.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`).join("")}</dl>`; }
-function message(value, error = false) { $("message").textContent = value; $("message").classList.toggle("error", error); }
+function message(value, error = false, loading = false) { setActivity($("message"), loading, value); $("message").classList.toggle("error", error); }
 function escapeHtml(value) { const div = document.createElement("div"); div.textContent = String(value ?? ""); return div.innerHTML; }
 function escapeAttribute(value) { return escapeHtml(value).replace(/`/g, "&#96;"); }
 function cssEscape(value) { return globalThis.CSS?.escape ? CSS.escape(value) : String(value).replace(/[^A-Za-z0-9_-]/g, "\\$&"); }

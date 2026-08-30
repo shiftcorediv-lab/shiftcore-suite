@@ -5,6 +5,7 @@ import { renderModules, renderModuleMenu } from "./modules.js?v=20260812-develop
 import { attendanceRequest } from "./attendance-api.js?v=20260802-attendance-3";
 import { resolveCurrentUserWithGasByIdToken } from "../login/api.js?v=20260803-logintoken-1";
 import { LOCATION_CONSENT_VERSION } from "./config.js?v=20260802-attendance-2";
+import { setActivity } from "../common/activity.js?v=20260831-activity-1";
 
 const $ = id => document.getElementById(id);
 const storedUser = getStoredUser();
@@ -24,7 +25,7 @@ if (!storedUser) {
   if (cachedDashboard) {
     dashboardData = cachedDashboard;
     renderDashboard(cachedDashboard);
-    showStatus("前回確認した当日の情報を表示しています。最新情報を確認中です。");
+    showStatus("前回確認した当日の情報を表示しています。最新情報を確認中です。", false, true);
   }
 }
 
@@ -54,6 +55,7 @@ async function refreshModuleAccess(firebaseUser) {
 }
 
 async function loadPortalBootstrap() {
+  showStatus("勤怠と成績を読み込んでいます…", false, true);
   try {
     try {
       dashboardData = await attendanceRequest("getPortalBootstrap", { scheduleId: selectedScheduleId, month: todayKey().slice(0, 7) });
@@ -71,7 +73,7 @@ async function loadPortalBootstrap() {
     } else if (dashboardData.workReportSummaryError) {
       renderMyWorkReportSummaryError(dashboardData.workReportSummaryError.message);
     }
-    showStatus("保存済みの勤怠情報を表示しています。SBの最新予定を確認中です。");
+    showStatus("保存済みの勤怠情報を表示しています。SBの最新予定を確認中です。", false, true);
     setTimeout(refreshDashboardInBackground, 0);
   } catch (error) {
     showStatus(error.message, true);
@@ -95,7 +97,7 @@ async function refreshDashboardInBackground() {
     writeDashboardCache(refreshed);
     const syncStatus = refreshed.scheduleSync?.status;
     if (syncStatus === "failed") showStatus("保存済み予定を表示中（SB同期失敗）", true);
-    else if (syncStatus === "in-progress") showStatus("保存済み予定を表示中（別の画面で最新予定を同期中です）");
+    else if (syncStatus === "in-progress") showStatus("保存済み予定を表示中（別の画面で最新予定を同期中です）", false, true);
     else if (syncStatus === "fresh-cache") showStatus("5分以内に同期済みの予定を表示しています");
     else showStatus("SBの最新予定を反映しました");
   } catch (error) {
@@ -104,11 +106,15 @@ async function refreshDashboardInBackground() {
 }
 
 function renderMyWorkReportSummaryError(message) {
+  setActivity($("performanceLoading"), false);
+  setActivity($("performanceMonth"), false);
   $("performanceLoading").textContent = `成績を読み込めませんでした: ${message}`;
   $("performanceLoading").classList.add("error");
 }
 
 function renderMyWorkReportSummary(summary) {
+  setActivity($("performanceLoading"), false);
+  setActivity($("performanceMonth"), false);
   $("performanceMonth").textContent = `${summary.month.replace("-", "年")}月`;
   $("performanceMetrics").innerHTML = (summary.metrics || []).length ? summary.metrics.map(metric => `<article><small>${escapeHtml(metric.label)}</small><strong>${Number(metric.value).toLocaleString("ja-JP")}</strong><span>件</span></article>`).join("") : '<div class="empty-state">今月の提出済み実績はまだありません。</div>';
   const counts = summary.counts || {};
@@ -150,6 +156,7 @@ function todayKey() {
 function renderIdentity(user) {
   const name = user.name || user.email || "利用者";
   $("userName").textContent = name;
+  setActivity($("userName"), false);
   $("greetingName").textContent = name;
   $("timeGreeting").textContent = greetingForJst(new Date());
   $("userInitial").textContent = name.slice(0, 1).toUpperCase();
@@ -167,6 +174,7 @@ function renderDashboard(data) {
   $("startBtn").textContent = primaryState.label;
   $("adminLinks").hidden = !data.adminAccess;
   $("workLocation").textContent = schedule?.["稼働場所"] || record?.["予定場所"] || "非稼働";
+  setActivity($("workLocation"), false);
   $("weatherLocation").textContent = schedule?.["稼働場所"] || record?.["予定場所"] || "非稼働";
   $("plannedTime").textContent = schedule ? `${timeText(schedule["予定開始"])} – ${timeText(schedule["予定終了"])}` : "—";
   renderScheduleSelector(data.schedules || [], schedule);
@@ -179,6 +187,7 @@ function renderDashboard(data) {
   $("endedAt").textContent = timeText(record?.["実終了"]);
   const status = record?.["状態"] || (schedule ? "未開始" : "非稼働");
   $("workStatus").textContent = status;
+  setActivity($("workStatus"), false);
   $("workStatus").dataset.status = status;
   $("startBtn").hidden = primaryState.hidden;
   $("correctionBtn").hidden = !(record || (schedule && data.timing?.arrivalApprovalRequired));
@@ -200,6 +209,8 @@ async function submitDeparture() {
 }
 
 function renderUnavailable() {
+  setActivity($("workStatus"), false);
+  setActivity($("workLocation"), false);
   $("workStatus").textContent = "接続待ち";
   $("workLocation").textContent = "勤怠APIの公開完了後に表示します";
   $("startBtn").disabled = true;
@@ -344,6 +355,7 @@ async function runAction(action) {
   if (busy) return;
   busy = true;
   document.body.classList.add("is-busy");
+  showStatus("処理を送信しています…", false, true);
   try { await action(); } catch (error) { showStatus(error.message, true); if (/通信|fetch|network/i.test(error.message)) showAlert("打刻を記録できませんでした。上席へ電話またはLINEで報告し、復旧後に修正申請してください。", "danger"); } finally { busy = false; document.body.classList.remove("is-busy"); }
 }
 
@@ -355,7 +367,7 @@ async function logoutDashboard() {
   goToLogin();
 }
 $("backToLoginBtn").addEventListener("click", goToLogin);
-function showStatus(message, error = false) { $("statusBox").textContent = message; $("statusBox").classList.toggle("error", error); }
+function showStatus(message, error = false, loading = false) { setActivity($("statusBox"), loading, message); $("statusBox").classList.toggle("error", error); }
 function showAlert(message, type) { $("alertArea").innerHTML = `<div class="inline-alert ${type}">${escapeHtml(message)}</div>`; }
 function jstTime(iso) { return new Intl.DateTimeFormat("ja-JP", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Tokyo" }).format(new Date(iso)); }
 function timeText(value) { if (!value) return "—"; const d = new Date(value); return Number.isNaN(d.getTime()) ? String(value).slice(-5) : jstTime(d.toISOString()); }
