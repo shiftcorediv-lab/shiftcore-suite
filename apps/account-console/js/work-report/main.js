@@ -1,5 +1,6 @@
 import { auth, onAuthStateChanged } from "../dashboard/auth.js";
 import { attendanceRequest } from "../dashboard/attendance-api.js";
+import { setActivity } from "../common/activity.js?v=20260831-activity-1";
 
 const context = JSON.parse(sessionStorage.getItem("shiftcore_report_context") || "null");
 const $ = id => document.getElementById(id);
@@ -25,9 +26,11 @@ async function loadForm() {
     renderFields(formData.items || []);
     renderRevisionNotice(formData);
     $("submitBtn").textContent = formData.revisionNumber ? "修正内容を保存" : "実績報告を送信";
+    setActivity($("loadingState"), false);
     $("loadingState").hidden = true;
     $("reportForm").hidden = false;
   } catch (error) {
+    setActivity($("loadingState"), false);
     $("loadingState").textContent = error.message;
     $("loadingState").classList.add("error");
   }
@@ -91,7 +94,7 @@ $("reportForm").addEventListener("submit", async event => {
   event.preventDefault();
   if (!formData) return;
   $("submitBtn").disabled = true;
-  setMessage("送信しています…");
+  setMessage("送信しています…", false, true);
   try {
     const answers = Array.from(document.querySelectorAll("[data-item-id]")).map(input => ({
       itemId: input.dataset.itemId,
@@ -107,8 +110,8 @@ $("reportForm").addEventListener("submit", async event => {
   }
 });
 
-function setMessage(value, error = false) {
-  $("message").textContent = value;
+function setMessage(value, error = false, loading = false) {
+  setActivity($("message"), loading, value);
   $("message").classList.toggle("error", error);
 }
 function escapeHtml(value) {

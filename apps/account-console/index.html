@@ -17,10 +17,10 @@
 
     <button id="loginBtn">Googleでログイン</button>
 
-    <div id="statusBox" class="status-box">ログイン状態を確認中...</div>
+    <div id="statusBox" class="status-box" data-shiftcore-loading="true" aria-busy="true">ログイン状態を確認中...</div>
   </div>
 
-  <script type="module" src="./js/login/main.js?v=20260803-logintoken-1"></script>
+  <script type="module" src="./js/login/main.js?v=20260831-activity-1"></script>
 <script type="module">
   import { initLineBrowserGuard } from "./js/common/line-browser-guard.js";
   initLineBrowserGuard({ pageLabel: "Another Portal ログイン画面" });
