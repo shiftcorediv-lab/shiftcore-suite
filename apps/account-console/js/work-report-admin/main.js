@@ -1,0 +1,166 @@
+import { auth, onAuthStateChanged } from "../dashboard/auth.js";
+import { attendanceRequest } from "../dashboard/attendance-api.js";
+
+const $ = id => document.getElementById(id);
+let data = null;
+
+setInitialDates();
+onAuthStateChanged(auth, user => user ? load() : location.replace("./index.html"));
+$("refreshBtn").addEventListener("click", load);
+$("applyBtn").addEventListener("click", load);
+$("csvBtn").addEventListener("click", downloadCsv);
+$("showAddItemBtn").addEventListener("click", () => {
+  $("newDisplayOrder").value = String(Math.max(0, ...(data?.items || []).map(item => Number(item.displayOrder) || 0)) + 10);
+  $("itemDialog").showModal();
+});
+$("cancelItemBtn").addEventListener("click", () => $("itemDialog").close());
+$("itemForm").addEventListener("submit", addItem);
+
+async function load() {
+  try {
+    data = await attendanceRequest("getWorkReportAdminData", filterPayload());
+    render();
+    message("最新の実績報告を表示しています。");
+  } catch (error) {
+    message(error.message, true);
+    if (error.code === "FORBIDDEN") setTimeout(() => location.replace("./dashboard.html"), 1200);
+  }
+}
+
+function filterPayload() {
+  return {
+    dateFrom: $("dateFrom").value,
+    dateTo: $("dateTo").value,
+    status: $("statusFilter").value,
+    query: $("searchInput").value.trim(),
+    groupBy: $("groupBy").value
+  };
+}
+
+function render() {
+  $("summary").innerHTML = summaryCard("終了済み勤怠", data.counts.total) + summaryCard("提出済み", data.counts.submitted) + summaryCard("未提出・未完了", data.counts.missing);
+  renderSubmissions();
+  renderAggregates();
+  renderItems();
+}
+
+function renderSubmissions() {
+  const rows = data.submissions || [];
+  $("submissionRows").innerHTML = rows.length ? rows.map(row => `
+    <tr>
+      <td>${escapeHtml(row.workDate)}</td><td><strong>${escapeHtml(row.reporterName)}</strong><br><small>${escapeHtml(row.reporterEmail)}</small></td>
+      <td>${escapeHtml(row.storeName || "—")}</td><td>${escapeHtml(row.planName || "—")}</td>
+      <td><span class="badge ${row.status === "提出済み" ? "submitted" : ""}">${escapeHtml(row.status)}</span></td>
+      <td>${escapeHtml(row.reportedAt || "—")}</td><td>${row.reportId ? `<button type="button" data-report-id="${escapeAttribute(row.reportId)}">詳細</button>` : ""}</td>
+    </tr>`).join("") : '<tr><td colspan="7">該当する終了済み勤怠はありません。</td></tr>';
+  document.querySelectorAll("[data-report-id]").forEach(button => button.addEventListener("click", () => showDetail(button.dataset.reportId)));
+}
+
+function renderAggregates() {
+  const rows = [];
+  (data.aggregates || []).forEach(group => {
+    if (!group.metrics.length) rows.push(`<tr><td>${escapeHtml(group.label)}</td><td>${group.reportCount}</td><td colspan="3">正規化された数値回答はありません。</td></tr>`);
+    group.metrics.forEach((metric, index) => rows.push(`<tr><td>${index === 0 ? escapeHtml(group.label) : ""}</td><td>${index === 0 ? group.reportCount : ""}</td><td>${escapeHtml(metric.categoryName)}</td><td>${escapeHtml(metric.name)}</td><td>${Number(metric.value).toLocaleString("ja-JP")}</td></tr>`));
+  });
+  $("aggregateRows").innerHTML = rows.length ? rows.join("") : '<tr><td colspan="5">集計対象の提出済み報告はありません。</td></tr>';
+}
+
+function renderItems() {
+  $("itemRows").innerHTML = (data.items || []).map(item => `
+    <tr data-item-row="${escapeAttribute(item.itemId)}">
+      <td><input data-field="name" value="${escapeAttribute(item.name)}" maxlength="100"></td>
+      <td><select data-field="type"><option value="number" ${item.type === "number" ? "selected" : ""}>数値</option><option value="text" ${item.type === "text" ? "selected" : ""}>文章</option></select></td>
+      <td><input data-field="categoryName" value="${escapeAttribute(item.categoryName)}" maxlength="60"></td>
+      <td><input data-field="displayOrder" type="number" min="0" step="1" value="${item.displayOrder}"></td>
+      <td><input data-field="required" type="checkbox" ${item.required ? "checked" : ""}></td>
+      <td><input data-field="active" type="checkbox" ${item.active ? "checked" : ""}></td>
+      <td>${item.version}</td><td><button type="button" data-save-item="${escapeAttribute(item.itemId)}">保存</button></td>
+    </tr>`).join("");
+  document.querySelectorAll("[data-save-item]").forEach(button => button.addEventListener("click", () => saveItem(button.dataset.saveItem)));
+}
+
+async function saveItem(itemId) {
+  const row = document.querySelector(`[data-item-row="${cssEscape(itemId)}"]`);
+  if (!row) return;
+  try {
+    await attendanceRequest("saveWorkReportItem", {
+      itemId,
+      name: field(row, "name").value,
+      type: field(row, "type").value,
+      categoryName: field(row, "categoryName").value,
+      displayOrder: field(row, "displayOrder").value,
+      required: field(row, "required").checked,
+      active: field(row, "active").checked
+    });
+    message("実績項目を保存しました。");
+    await load();
+  } catch (error) {
+    message(error.message, true);
+  }
+}
+
+async function addItem(event) {
+  event.preventDefault();
+  try {
+    await attendanceRequest("saveWorkReportItem", {
+      name: $("newItemName").value,
+      type: $("newItemType").value,
+      categoryName: $("newCategoryName").value,
+      displayOrder: $("newDisplayOrder").value,
+      required: $("newRequired").checked,
+      active: true
+    });
+    $("itemDialog").close();
+    $("itemForm").reset();
+    message("実績項目を追加しました。");
+    await load();
+  } catch (error) {
+    message(error.message, true);
+  }
+}
+
+function showDetail(reportId) {
+  const detail = (data.reportDetails || []).find(item => item.reportId === reportId);
+  const submission = (data.submissions || []).find(item => item.reportId === reportId);
+  if (!detail || !submission) return;
+  const rows = [
+    ["勤務日", submission.workDate], ["氏名", submission.reporterName], ["店舗", submission.storeName], ["案件", submission.planName]
+  ];
+  if (detail.legacy) {
+    $("detailBody").innerHTML = '<p class="legacy-note">旧形式の報告です。内容を推測して項目別集計へ変換していません。</p>' + detailList(rows.concat([["実績内容", detail.result || "—"], ["課題・申し送り", detail.notes || "—"]]));
+  } else {
+    $("detailBody").innerHTML = detailList(rows.concat(detail.answers.map(answer => [`${answer.categoryName} / ${answer.name}`, answer.type === "number" ? `${answer.value}件${answer.inputState === "defaulted" ? "（未入力を0扱い）" : ""}` : answer.value || "—"])));
+  }
+  $("detailDialog").showModal();
+}
+
+async function downloadCsv() {
+  try {
+    const result = await attendanceRequest("exportWorkReportsCsv", filterPayload());
+    const url = URL.createObjectURL(new Blob([result.csv], { type: "text/csv;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = result.fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+    message("CSVを出力しました。");
+  } catch (error) {
+    message(error.message, true);
+  }
+}
+
+function setInitialDates() {
+  const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  $("dateFrom").value = `${today.slice(0, 7)}-01`;
+  const [year, month] = today.split("-").map(Number);
+  $("dateTo").value = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(year, month, 0));
+}
+function field(row, name) { return row.querySelector(`[data-field="${name}"]`); }
+function summaryCard(label, value) { return `<article><small>${escapeHtml(label)}</small><strong>${Number(value).toLocaleString("ja-JP")}</strong></article>`; }
+function detailList(rows) { return `<dl class="detail-grid">${rows.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`).join("")}</dl>`; }
+function message(value, error = false) { $("message").textContent = value; $("message").classList.toggle("error", error); }
+function escapeHtml(value) { const div = document.createElement("div"); div.textContent = String(value ?? ""); return div.innerHTML; }
+function escapeAttribute(value) { return escapeHtml(value).replace(/`/g, "&#96;"); }
+function cssEscape(value) { return globalThis.CSS?.escape ? CSS.escape(value) : String(value).replace(/[^A-Za-z0-9_-]/g, "\\$&"); }

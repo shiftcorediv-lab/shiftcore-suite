@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Another Portal 実績報告</title>
-  <link rel="stylesheet" href="./css/work-report.css?v=20260830-provisional-form-1">
+  <link rel="stylesheet" href="./css/work-report.css?v=20260830-normalized-report-1">
   <script src="../theme/shiftcore-theme.js"></script>
   <link rel="stylesheet" href="../theme/shiftcore-theme.css">
 </head>
@@ -14,33 +14,17 @@
     <section>
       <small>DAILY REPORT</small>
       <h1>実績報告</h1>
-      <p>終了報告を記録しました。本日の実績を報告してください。</p>
-      <form id="reportForm">
-        <label>稼働案件名<select id="planSelect"></select></label>
-        <fieldset>
-          <legend>基本情報</legend>
-          <label>氏名（フルネーム）<input id="reporterName" required autocomplete="name"></label>
-          <label>店舗名<input id="storeName" required></label>
-          <label>入店日<input id="entryDate" type="date" required></label>
-          <label>応対数<input id="responseCount" type="number" min="0" step="1" required inputmode="numeric"></label>
-        </fieldset>
-        <fieldset>
-          <legend>実績集計</legend>
-          <p class="form-help">該当する項目へ件数を入力してください。未入力は0件として保存します。</p>
-          <div id="performanceFields" class="metric-grid"></div>
-        </fieldset>
-        <fieldset>
-          <legend>定性報告</legend>
-          <label>成果につながった行動を教えてください。<textarea id="successfulActions" required></textarea></label>
-          <label>実績不振の理由を記載ください。<textarea id="underperformanceReason" placeholder="任意"></textarea></label>
-          <label>実施した対策と結果<textarea id="measuresAndResults" required></textarea></label>
-          <label>役員へ報告、申し送り事項があれば記載ください。<textarea id="executiveNotes" placeholder="任意"></textarea></label>
-        </fieldset>
+      <p>終了済みの勤怠記録と実績項目を確認して表示します。案件・店舗・勤務日は勤怠記録から確定します。</p>
+      <div id="loadingState" class="loading-state">実績項目を読み込んでいます…</div>
+      <dl id="reportContext" class="report-context" hidden></dl>
+      <form id="reportForm" hidden>
+        <p class="form-help">数値項目の未入力は0件として保存し、未入力だったことも記録します。</p>
+        <div id="reportFields" class="report-fields"></div>
         <button id="submitBtn">実績報告を送信</button>
-        <div id="message"></div>
+        <div id="message" role="status" aria-live="polite"></div>
       </form>
     </section>
   </main>
-  <script type="module" src="./js/work-report/main.js?v=20260830-provisional-form-1"></script>
+  <script type="module" src="./js/work-report/main.js?v=20260830-normalized-report-1"></script>
 </body>
 </html>
