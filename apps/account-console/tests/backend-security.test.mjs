@@ -229,14 +229,19 @@ test("初期表示APIは認証を含む処理時間と予定同期キャッシ�
   const { context } = createAttendanceContext([]);
   context.resolveUser_ = () => ({ email: "member@example.com" });
   context.jsonOutput_ = value => value;
-  context.getDashboardData_ = () => ({ ok: true });
+  context.getDashboardData_ = () => ({ ok: true, _serverTiming: { referenceMs: 12, recordsMs: 3, assembleMs: 1, referenceCache: "hit", recordsCache: "hit" } });
   context.dashboardScheduleSyncStatus_ = () => ({ status: "fresh-cache", syncedAt: "2026-08-31T00:00:00+09:00" });
   const dashboard = context.doPost({ postData: { contents: JSON.stringify({ action: "getDashboardData", idToken: "TOKEN", payload: {} }) } });
   assert.equal(dashboard.ok, true);
   assert.equal(dashboard.scheduleSync.status, "fresh-cache");
   assert.equal(typeof dashboard.serverTiming.authMs, "number");
+  assert.equal(dashboard.serverTiming.referenceMs, 12);
+  assert.equal(dashboard.serverTiming.recordsMs, 3);
+  assert.equal(dashboard.serverTiming.referenceCache, "hit");
+  assert.equal(dashboard.serverTiming.recordsCache, "hit");
   assert.equal(typeof dashboard.serverTiming.dashboardMs, "number");
   assert.equal(typeof dashboard.serverTiming.totalMs, "number");
+  assert.equal(dashboard._serverTiming, undefined);
 
   context.getMyWorkReportSummary_ = () => ({ ok: true, serverTiming: { totalMs: 25 } });
   const summary = context.doPost({ postData: { contents: JSON.stringify({ action: "getMyWorkReportSummary", idToken: "TOKEN", payload: {} }) } });
@@ -286,6 +291,66 @@ test("ポータル初期表示は大きいシートを同一リクエスト内�
   for (const sheetName of ["稼働予定", "勤怠記録", "実績テンプレート", "実績項目"]) {
     assert.equal(rowReads[sheetName], 1, sheetName);
   }
+});
+
+test("勤怠ダッシュボードは本人の読取データを再利用し、打刻後の無効化で全件再読込する", () => {
+  const { context } = createAttendanceContext([]);
+  const cacheValues = new Map();
+  context.CacheService = { getScriptCache: () => ({
+    get: key => cacheValues.get(key) || null,
+    put: (key, value) => cacheValues.set(key, value),
+    remove: key => cacheValues.delete(key)
+  }) };
+  const rowReads = Object.create(null);
+  const values = {
+    "稼働予定": [{ schedule_id: "S1", email: "member@example.com", "勤務日": "2026-08-31", "予定開始": "09:00", "予定終了": "18:00" }],
+    "勤怠記録": [],
+    "現場報告": [],
+    "通知": [],
+    "設定": []
+  };
+  context.rows_ = name => {
+    rowReads[name] = (rowReads[name] || 0) + 1;
+    return values[name] || [];
+  };
+  const user = { email: "member@example.com", name: "本人", role: "developer" };
+
+  const first = context.getDashboardData_(user);
+  const second = context.getDashboardData_(user);
+  assert.equal(first._serverTiming.referenceCache, "miss");
+  assert.equal(second._serverTiming.referenceCache, "hit");
+  assert.equal(first._serverTiming.recordsCache, "miss");
+  assert.equal(second._serverTiming.recordsCache, "hit");
+  for (const sheetName of ["稼働予定", "現場報告", "通知", "設定"]) assert.equal(rowReads[sheetName], 1, sheetName);
+  assert.equal(rowReads["勤怠記録"], 1);
+
+  context.invalidateDashboardReferenceCache_(user);
+  const third = context.getDashboardData_(user);
+  assert.equal(third._serverTiming.referenceCache, "miss");
+  assert.equal(third._serverTiming.recordsCache, "miss");
+  assert.equal(rowReads["稼働予定"], 2);
+  assert.equal(rowReads["勤怠記録"], 2);
+});
+
+test("読取専用認証だけ短時間再利用し、打刻などの書込認証は毎回確認する", () => {
+  const { context } = createAttendanceContext([]);
+  const cacheValues = new Map();
+  context.CacheService = { getScriptCache: () => ({
+    get: key => cacheValues.get(key) || null,
+    put: (key, value) => cacheValues.set(key, value),
+    remove: key => cacheValues.delete(key)
+  }) };
+  context.Utilities.DigestAlgorithm = { SHA_256: "SHA_256" };
+  context.Utilities.Charset = { UTF_8: "UTF_8" };
+  context.Utilities.computeDigest = (_algorithm, value) => Array.from(String(value), character => character.charCodeAt(0));
+  context.Utilities.base64EncodeWebSafe = bytes => Buffer.from(bytes).toString("base64url");
+  let fetchCalls = 0;
+  context.UrlFetchApp = { fetch: () => ({ getContentText: () => (fetchCalls += 1, JSON.stringify({ ok: true, user: { email: "member@example.com", role: "member" } })) }) };
+
+  context.resolveUser_("TOKEN", { allowReadCache: true });
+  context.resolveUser_("TOKEN", { allowReadCache: true });
+  context.resolveUser_("TOKEN");
+  assert.equal(fetchCalls, 2);
 });
 
 test("背景予定同期は成功後5分の印だけを共有し、予定本体は勤怠シートから再読込する", () => {

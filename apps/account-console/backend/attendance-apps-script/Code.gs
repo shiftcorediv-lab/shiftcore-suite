@@ -39,6 +39,10 @@ const TZ = "Asia/Tokyo";
 const DEFAULT_WORK_REPORT_TEMPLATE_ID = "docomo";
 const DASHBOARD_SCHEDULE_SYNC_TTL_SECONDS = 300;
 const DASHBOARD_SCHEDULE_SYNC_IN_PROGRESS_SECONDS = 120;
+const DASHBOARD_REFERENCE_CACHE_TTL_SECONDS = 900;
+const DASHBOARD_REFERENCE_CACHE_VERSION_SECONDS = 21600;
+const DASHBOARD_RECORD_CACHE_TTL_SECONDS = 120;
+const DASHBOARD_READ_AUTH_CACHE_TTL_SECONDS = 60;
 
 const SHEETS = {
   records: "勤怠記録",
@@ -118,9 +122,9 @@ function doPost(e) {
   try {
     const requestStartedAt = Date.now();
     const body = JSON.parse((e && e.postData && e.postData.contents) || "{}");
-    const user = resolveUser_(body.idToken);
-    const authenticatedAt = Date.now();
     const action = String(body.action || "");
+    const user = resolveUser_(body.idToken, { allowReadCache: ["getPortalBootstrap", "getDashboardData", "getMyWorkReportSummary"].includes(action) });
+    const authenticatedAt = Date.now();
     const payload = body.payload || {};
 
     if (action === "getPortalBootstrap") return jsonOutput_(getPortalBootstrap_(user, payload));
@@ -128,9 +132,16 @@ function doPost(e) {
       const startedAt = Date.now();
       const dashboard = getDashboardData_(user, null, payload.scheduleId);
       const completedAt = Date.now();
+      const readTiming = dashboard._serverTiming || {};
+      delete dashboard._serverTiming;
       dashboard.scheduleSync = dashboardScheduleSyncStatus_();
       dashboard.serverTiming = {
         authMs: authenticatedAt - requestStartedAt,
+        referenceMs: Number(readTiming.referenceMs) || 0,
+        recordsMs: Number(readTiming.recordsMs) || 0,
+        recordsCache: readTiming.recordsCache || "disabled",
+        assembleMs: Number(readTiming.assembleMs) || 0,
+        referenceCache: readTiming.referenceCache || "disabled",
         dashboardMs: completedAt - startedAt,
         totalMs: completedAt - requestStartedAt
       };
@@ -142,21 +153,28 @@ function doPost(e) {
       const scheduleCompletedAt = Date.now();
       const dashboard = getDashboardData_(user, scheduleResult.schedules, payload.scheduleId);
       const completedAt = Date.now();
+      const readTiming = dashboard._serverTiming || {};
+      delete dashboard._serverTiming;
       return jsonOutput_(Object.assign(dashboard, {
         scheduleSync: scheduleResult.sync,
         serverTiming: {
           authMs: authenticatedAt - requestStartedAt,
           scheduleSyncMs: scheduleCompletedAt - startedAt,
+          referenceMs: Number(readTiming.referenceMs) || 0,
+          recordsMs: Number(readTiming.recordsMs) || 0,
+          recordsCache: readTiming.recordsCache || "disabled",
+          assembleMs: Number(readTiming.assembleMs) || 0,
+          referenceCache: readTiming.referenceCache || "disabled",
           dashboardMs: completedAt - scheduleCompletedAt,
           totalMs: completedAt - requestStartedAt
         }
       }));
     }
-    if (action === "clockIn") return jsonOutput_(clockIn_(user, payload, body.idToken));
-    if (action === "arrive") return jsonOutput_(arrive_(user, payload, body.idToken));
-    if (action === "clockOut") return jsonOutput_(clockOut_(user, payload, body.idToken));
-    if (action === "submitFieldReport") return jsonOutput_(submitFieldReport_(user, payload, body.idToken));
-    if (action === "submitCorrection") return jsonOutput_(submitCorrection_(user, payload, body.idToken));
+    if (action === "clockIn") return jsonOutput_(withDashboardReferenceInvalidation_(user, () => clockIn_(user, payload, body.idToken)));
+    if (action === "arrive") return jsonOutput_(withDashboardReferenceInvalidation_(user, () => arrive_(user, payload, body.idToken)));
+    if (action === "clockOut") return jsonOutput_(withDashboardReferenceInvalidation_(user, () => clockOut_(user, payload, body.idToken)));
+    if (action === "submitFieldReport") return jsonOutput_(withDashboardReferenceInvalidation_(user, () => submitFieldReport_(user, payload, body.idToken)));
+    if (action === "submitCorrection") return jsonOutput_(withAllDashboardReferenceInvalidation_(() => submitCorrection_(user, payload, body.idToken)));
     if (action === "getWorkReportForm") return jsonOutput_(getWorkReportForm_(user, payload));
     if (action === "submitReport") return jsonOutput_(submitReport_(user, payload));
     if (action === "getMyWorkReportSummary") {
@@ -174,10 +192,10 @@ function doPost(e) {
     if (action === "saveWorkReportCaseMapping") return jsonOutput_(saveWorkReportCaseMapping_(user, payload));
     if (action === "returnWorkReport") return jsonOutput_(returnWorkReport_(user, payload));
     if (action === "exportWorkReportsCsv") return jsonOutput_(exportWorkReportsCsv_(user, payload));
-    if (action === "markNotificationRead") return jsonOutput_(markNotificationRead_(user, payload));
+    if (action === "markNotificationRead") return jsonOutput_(withDashboardReferenceInvalidation_(user, () => markNotificationRead_(user, payload)));
     if (action === "getAdminDashboard") return jsonOutput_(getAdminDashboard_(user, body.idToken));
-    if (action === "reviewRequest") return jsonOutput_(reviewRequest_(user, payload, body.idToken));
-    if (action === "updateEndWarningTime") return jsonOutput_(updateEndWarningTime_(user, payload));
+    if (action === "reviewRequest") return jsonOutput_(withAllDashboardReferenceInvalidation_(() => reviewRequest_(user, payload, body.idToken)));
+    if (action === "updateEndWarningTime") return jsonOutput_(withAllDashboardReferenceInvalidation_(() => updateEndWarningTime_(user, payload)));
     throw apiError_("UNKNOWN_ACTION", "未対応の操作です。");
   } catch (error) {
     return jsonOutput_({ ok: false, code: error.code || "SERVER_ERROR", message: error.message || String(error) });
@@ -214,8 +232,16 @@ function getPortalBootstrap_(user, payload) {
   });
 }
 
-function resolveUser_(idToken) {
+function resolveUser_(idToken, options) {
   if (!idToken) throw apiError_("AUTH_REQUIRED", "ログイン情報がありません。");
+  const cache = options && options.allowReadCache ? dashboardScheduleSyncCache_() : null;
+  const cacheKey = cache ? dashboardReadAuthCacheKey_(idToken) : "";
+  if (cache) {
+    try {
+      const cached = cache.get(cacheKey);
+      if (cached) return JSON.parse(cached);
+    } catch (error) {}
+  }
   const response = UrlFetchApp.fetch(LOGIN_PROXY_URL, {
     method: "post",
     contentType: "text/plain;charset=utf-8",
@@ -224,17 +250,32 @@ function resolveUser_(idToken) {
   });
   const data = JSON.parse(response.getContentText() || "{}");
   if (!data.ok || !data.user || !data.user.email) throw apiError_("AUTH_INVALID", "ログイン情報を確認できませんでした。");
+  if (cache) {
+    try { cache.put(cacheKey, JSON.stringify(data.user), DASHBOARD_READ_AUTH_CACHE_TTL_SECONDS); } catch (error) {}
+  }
   return data.user;
+}
+
+function dashboardReadAuthCacheKey_(idToken) {
+  const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(idToken), Utilities.Charset.UTF_8);
+  return `attendance-dashboard-auth:v1:${Utilities.base64EncodeWebSafe(digest).replace(/=+$/, "")}`;
 }
 
 function getDashboardData_(user, sourceSchedules, selectedScheduleId, sourceRows) {
   const sources = sourceRows || {};
+  const referenceStartedAt = Date.now();
+  const referenceResult = dashboardReferenceData_(user, sourceSchedules || sources.schedules);
+  const referenceCompletedAt = Date.now();
+  const reference = referenceResult.data;
   const today = today_();
-  const schedules = (sourceSchedules || sources.schedules || rows_(SHEETS.schedules)).filter(r => matchesUser_(r, user));
+  const schedules = reference.schedules;
   const todaySchedules = schedules.filter(r => dateKey_(r["勤務日"]) === today);
   const upcoming = schedules.filter(r => dateKey_(r["勤務日"]) >= today).sort((a, b) => dateKey_(a["勤務日"]).localeCompare(dateKey_(b["勤務日"]))).slice(0, 5);
-  const userRecords = (sources.records || rows_(SHEETS.records)).filter(r => normalizeEmail_(r.email) === normalizeEmail_(user.email));
-  const fieldReports = rows_(SHEETS.fieldReports);
+  const recordsStartedAt = Date.now();
+  const recordsResult = dashboardRecordData_(user, sources.records);
+  const userRecords = recordsResult.data;
+  const recordsCompletedAt = Date.now();
+  const fieldReports = reference.fieldReports;
   const activeRecord = userRecords.find(r => r["実開始"] && !r["実終了"]);
   const pendingOvernightReport = findPendingOvernightReport_(user, today, fieldReports);
   const carriedRecord = activeRecord;
@@ -245,13 +286,11 @@ function getDashboardData_(user, sourceSchedules, selectedScheduleId, sourceRows
     : requestedSchedule || (pendingOvernightReport ? findScheduleById_(user, pendingOvernightReport.schedule_id, null, schedules) : null) || todaySchedules[0];
   const selectedWorkDate = selectedSchedule ? dateKey_(selectedSchedule["勤務日"]) : today;
   const selectedRecord = carriedRecord || (selectedSchedule ? userRecords.find(record => dateKey_(record["勤務日"]) === selectedWorkDate && (!selectedSchedule.schedule_id || String(record.schedule_id || "") === String(selectedSchedule.schedule_id))) : records[0]) || null;
-  const notifications = rows_(SHEETS.notifications).filter(r => normalizeEmail_(r["宛先メール"]) === normalizeEmail_(user.email)).sort((a, b) => String(b["作成日時"]).localeCompare(String(a["作成日時"]))).slice(0, 20);
-  const settings = settings_();
-  return {
+  const result = {
     ok: true,
     serverNow: nowIso_(),
     today,
-    settings,
+    settings: reference.settings,
     user: publicUser_(user),
     schedule: selectedSchedule || null,
     schedules: todaySchedules,
@@ -259,10 +298,115 @@ function getDashboardData_(user, sourceSchedules, selectedScheduleId, sourceRows
     record: selectedRecord,
     fieldReports: fieldReportsFor_(user, selectedWorkDate, selectedSchedule ? scheduleReportKey_(selectedSchedule) : "", selectedSchedule ? selectedSchedule["開発予定ID"] : "", fieldReports, schedules),
     timing: selectedSchedule ? safeTimingStatus_(selectedSchedule, new Date()) : null,
-    notifications,
-    adminAccess: isAdmin_(user) || hasApprovalReviewAccess_(user),
+    notifications: reference.notifications,
+    adminAccess: isAdmin_(user) || reference.approvalReviewAccess,
     preciseLocationAccess: canViewPreciseLocation_(user)
   };
+  result._serverTiming = {
+    referenceMs: referenceCompletedAt - referenceStartedAt,
+    recordsMs: recordsCompletedAt - recordsStartedAt,
+    recordsCache: recordsResult.cacheStatus,
+    assembleMs: Date.now() - recordsCompletedAt,
+    referenceCache: referenceResult.cacheStatus
+  };
+  return result;
+}
+
+function dashboardReferenceData_(user, sourceSchedules) {
+  const cache = dashboardScheduleSyncCache_();
+  const key = dashboardReferenceCacheKey_(user, cache);
+  if (!sourceSchedules && cache) {
+    try {
+      const cached = cache.get(key);
+      if (cached) return { data: dashboardCacheDecode_(JSON.parse(cached)), cacheStatus: "hit" };
+    } catch (error) {}
+  }
+
+  const data = {
+    schedules: (sourceSchedules || rows_(SHEETS.schedules)).filter(row => matchesUser_(row, user)),
+    fieldReports: rows_(SHEETS.fieldReports).filter(row => normalizeEmail_(row["報告者メール"]) === normalizeEmail_(user.email)),
+    notifications: rows_(SHEETS.notifications).filter(row => normalizeEmail_(row["宛先メール"]) === normalizeEmail_(user.email)).sort((a, b) => String(b["作成日時"]).localeCompare(String(a["作成日時"]))).slice(0, 20),
+    settings: settings_(),
+    approvalReviewAccess: isAdmin_(user) ? false : hasApprovalReviewAccess_(user)
+  };
+  if (cache) {
+    try { cache.put(key, JSON.stringify(dashboardCacheEncode_(data)), DASHBOARD_REFERENCE_CACHE_TTL_SECONDS); } catch (error) {}
+  }
+  return { data, cacheStatus: cache ? "miss" : "disabled" };
+}
+
+function dashboardReferenceCacheKey_(user, sourceCache) {
+  const cache = sourceCache || dashboardScheduleSyncCache_();
+  let generation = "0";
+  if (cache) {
+    try { generation = cache.get(dashboardReferenceGenerationKey_()) || "0"; } catch (error) {}
+  }
+  return `attendance-dashboard-reference:v1:${attendanceRuntimeEnvironment_()}:${generation}:${dashboardCacheIdentity_(user && user.email)}`;
+}
+function dashboardRecordData_(user, sourceRecords) {
+  if (sourceRecords) return { data: sourceRecords.filter(row => normalizeEmail_(row.email) === normalizeEmail_(user.email)), cacheStatus: "bypass" };
+  const cache = dashboardScheduleSyncCache_();
+  const key = dashboardRecordCacheKey_(user, cache);
+  if (cache) {
+    try {
+      const cached = cache.get(key);
+      if (cached) return { data: dashboardCacheDecode_(JSON.parse(cached)), cacheStatus: "hit" };
+    } catch (error) {}
+  }
+  const data = rows_(SHEETS.records).filter(row => normalizeEmail_(row.email) === normalizeEmail_(user.email));
+  if (cache) {
+    try { cache.put(key, JSON.stringify(dashboardCacheEncode_(data)), DASHBOARD_RECORD_CACHE_TTL_SECONDS); } catch (error) {}
+  }
+  return { data, cacheStatus: cache ? "miss" : "disabled" };
+}
+function dashboardRecordCacheKey_(user, sourceCache) {
+  const cache = sourceCache || dashboardScheduleSyncCache_();
+  let generation = "0";
+  if (cache) {
+    try { generation = cache.get(dashboardReferenceGenerationKey_()) || "0"; } catch (error) {}
+  }
+  return `attendance-dashboard-records:v1:${attendanceRuntimeEnvironment_()}:${generation}:${dashboardCacheIdentity_(user && user.email)}`;
+}
+function dashboardReferenceGenerationKey_() { return `attendance-dashboard-reference-generation:${attendanceRuntimeEnvironment_()}`; }
+function dashboardCacheIdentity_(value) {
+  const input = normalizeEmail_(value);
+  let hash = 2166136261;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+function dashboardCacheEncode_(value) {
+  if (Object.prototype.toString.call(value) === "[object Date]") return { __shiftcoreDate: value.getTime() };
+  if (Array.isArray(value)) return value.map(dashboardCacheEncode_);
+  if (!value || typeof value !== "object") return value;
+  return Object.keys(value).reduce((result, key) => (result[key] = dashboardCacheEncode_(value[key]), result), {});
+}
+function dashboardCacheDecode_(value) {
+  if (Array.isArray(value)) return value.map(dashboardCacheDecode_);
+  if (!value || typeof value !== "object") return value;
+  if (Object.keys(value).length === 1 && Number.isFinite(Number(value.__shiftcoreDate))) return new Date(Number(value.__shiftcoreDate));
+  return Object.keys(value).reduce((result, key) => (result[key] = dashboardCacheDecode_(value[key]), result), {});
+}
+function invalidateDashboardReferenceCache_(user) {
+  const cache = dashboardScheduleSyncCache_();
+  if (!cache) return;
+  try {
+    cache.remove(dashboardReferenceCacheKey_(user, cache));
+    cache.remove(dashboardRecordCacheKey_(user, cache));
+  } catch (error) {}
+}
+function invalidateAllDashboardReferenceCache_() {
+  const cache = dashboardScheduleSyncCache_();
+  if (!cache) return;
+  try { cache.put(dashboardReferenceGenerationKey_(), String(Date.now()), DASHBOARD_REFERENCE_CACHE_VERSION_SECONDS); } catch (error) {}
+}
+function withDashboardReferenceInvalidation_(user, action) {
+  try { return action(); } finally { invalidateDashboardReferenceCache_(user); }
+}
+function withAllDashboardReferenceInvalidation_(action) {
+  try { return action(); } finally { invalidateAllDashboardReferenceCache_(); }
 }
 
 function submitFieldReport_(user, payload, idToken) {
@@ -408,6 +552,7 @@ function createApprovalRequestIfMissing_(user, approval, payload) {
   if (existing) return String(existing.request_id || "");
   const requestId = Utilities.getUuid();
   appendObject_(SHEETS.requests, { request_id: requestId, record_id: payload.recordId || "", "種別": payload.type, "申請者メール": user.email, "申請者氏名": user.name || "", "実勤務日": payload.workDate, "申請開始": payload.actualStart || "", "申請終了": payload.actualEnd || "", "理由区分": payload.reasonType || "その他", "理由詳細": payload.reason || "", "状態": "申請中", "申請日時": new Date(), applicant_internal_user_id: approval.applicant_internal_user_id, request_version: 1, approval_reviewer_internal_user_id: approval.approval_reviewer_internal_user_id, applicant_organization_version: approval.applicant_organization_version });
+  invalidateAllDashboardReferenceCache_();
   return requestId;
 }
 
@@ -1330,6 +1475,7 @@ function notifyManagers_(subjectUser, title, message) {
 function createNotification_(email, name, type, body, targetId) {
   if (!email) return;
   append_(SHEETS.notifications, [Utilities.getUuid(), email, name || "", type, type, body, targetId || "", false, "送信済み", new Date(), ""]);
+  invalidateDashboardReferenceCache_({ email });
 }
 
 function managerEmails_(organizationId) {
@@ -1447,7 +1593,10 @@ function claimDashboardScheduleSync_(cache, key) {
 function markDashboardScheduleSyncFresh_(sourceCache, sourceKey) {
   const cache = sourceCache || dashboardScheduleSyncCache_();
   if (!cache) return;
-  try { cache.put(sourceKey || dashboardScheduleSyncCacheKey_(), JSON.stringify({ status: "fresh", syncedAt: nowIso_() }), DASHBOARD_SCHEDULE_SYNC_TTL_SECONDS); } catch (error) {}
+  try {
+    cache.put(sourceKey || dashboardScheduleSyncCacheKey_(), JSON.stringify({ status: "fresh", syncedAt: nowIso_() }), DASHBOARD_SCHEDULE_SYNC_TTL_SECONDS);
+    invalidateAllDashboardReferenceCache_();
+  } catch (error) {}
 }
 function clearDashboardScheduleSyncState_(cache, key) { if (!cache) return; try { cache.remove(key); } catch (error) {} }
 

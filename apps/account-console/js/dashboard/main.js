@@ -118,6 +118,12 @@ function rememberServerTiming(name, timing) {
   const totalMs = Number(timing?.totalMs);
   if (!Number.isFinite(totalMs) || totalMs < 0) return;
   $("statusBox").dataset[`${name}ServerMs`] = String(Math.round(totalMs));
+  ["authMs", "referenceMs", "recordsMs", "assembleMs", "dashboardMs"].forEach(key => {
+    const value = Number(timing?.[key]);
+    if (Number.isFinite(value) && value >= 0) $("statusBox").dataset[`${name}${key[0].toUpperCase()}${key.slice(1)}`] = String(Math.round(value));
+  });
+  if (timing?.referenceCache) $("statusBox").dataset[`${name}ReferenceCache`] = String(timing.referenceCache);
+  if (timing?.recordsCache) $("statusBox").dataset[`${name}RecordsCache`] = String(timing.recordsCache);
 }
 
 function renderMyWorkReportSummaryError(message) {
