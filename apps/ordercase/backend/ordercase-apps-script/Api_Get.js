@@ -13,6 +13,15 @@ function handleGet_(e) {
     const params = e && e.parameter ? e.parameter : {};
     const action = params.action || '';
 
+    if (action === 'ping' || action === '') {
+      return jsonResponse_({
+        ok: true,
+        service: 'OrderCase_API',
+        environment: orderCaseRuntimeEnvironment_(),
+        timestamp: new Date().toISOString()
+      });
+    }
+
     if (action === 'bootstrap') {
       const context = requireOrderCaseViewer_(getIdTokenFromParams_(params));
 

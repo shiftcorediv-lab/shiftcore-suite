@@ -7,6 +7,7 @@ function doGet(e) {
       return jsonResponse_({
         success: true,
         message: "pong",
+        environment: accountRuntimeEnvironment_(),
         timestamp: getNowIsoStringJst()
       });
     }

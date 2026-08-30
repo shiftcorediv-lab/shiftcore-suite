@@ -82,7 +82,7 @@ function shiftBuilderSendPersonnelIcs(body) {
     const subject = "【Another Portal】" + targetMonth + " シフトのお知らせ";
     const message = user.displayName + " 様\n\n" + targetMonth + "のシフトをお送りします。\n添付のICSファイルをGoogleカレンダー等へ取り込んでください。\n\nAnother Portal";
     try {
-      MailApp.sendEmail({
+      sendShiftBuilderMail_({
         to: user.email,
         subject: subject,
         body: message,

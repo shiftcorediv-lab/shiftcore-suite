@@ -331,7 +331,7 @@ function setupAuthorizationIntegrityDailyTrigger() {
 
 function sendAuthorizationIntegrityTestNotification() {
   const recipients = resolveAuthorizationIntegrityRecipients_();
-  MailApp.sendEmail({
+  sendAuthorizationIntegrityMail_({
     to: recipients.map(function(item) { return item.email; }).join(","),
     subject: "[Another Portal] 権限監査通知テスト",
     body: "権限監査ログの通知先設定テストです。実際の異常は検出されていません。"
@@ -358,12 +358,17 @@ function notifyAuthorizationIntegrityFailure_(result) {
   const notificationResult = Object.assign({}, result, {
     unavailable_recipient_count: resolution.invalid_count
   });
-  MailApp.sendEmail({
+  sendAuthorizationIntegrityMail_({
     to: resolution.recipients.map(function(item) { return item.email; }).join(","),
     subject: "[Another Portal] 権限監査ログの整合性異常",
     body: "権限監査ログの整合性検査で異常を検出しました。\n" +
       JSON.stringify(notificationResult)
   });
+}
+
+function sendAuthorizationIntegrityMail_(options) {
+  if (typeof sendAccountMail_ === "function") return sendAccountMail_(options);
+  return MailApp.sendEmail(options);
 }
 
 function resolveAuthorizationIntegrityRecipients_() {

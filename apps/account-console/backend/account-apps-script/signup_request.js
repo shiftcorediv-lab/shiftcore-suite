@@ -209,7 +209,7 @@ function notifySignupRequest_(requestData) {
     "【業務連絡可能な電話番号】\n" + requestData.phone + "\n\n" +
     "【備考】\n" + (requestData.note || "なし") + "\n";
 
-  MailApp.sendEmail({
+  sendAccountMail_({
     to: recipients.join(","),
     subject: subject,
     body: body

@@ -1,6 +1,6 @@
 // ===== MailApp 権限確認ここから =====
 function testSendMailApp() {
-  MailApp.sendEmail({
+  sendAccountMail_({
     to: "hosomi.biz@gmail.com",
     subject: "ShiftCore MailApp test",
     body: "MailApp の権限確認テストです。"
@@ -18,7 +18,7 @@ function testExternalRequestPermission_AccountApi() {
  * MailApp の初回承認用
  ****************************************************/
 function testAuthorizeMailApp() {
-  MailApp.sendEmail({
+  sendAccountMail_({
     to: "shiftcore.div@gmail.com",
     subject: "ShiftCore MailApp 承認テスト",
     body: "MailApp の送信権限確認テストです。"

@@ -1,5 +1,44 @@
 // ===== 設定ここから =====
-const SPREADSHEET_ID = "1nYHb1qEe9NpG_RfP-r6FjnYwg_nhD-tTfp0gqD3xdvY";
+const ACCOUNT_PRODUCTION_SCRIPT_ID = "1bZOeB-Xt2GsnN7a0Dj75IeSMpy4jamh8aq8DuiIowlpWR12MugGnJPf7";
+
+function accountRuntimeEnvironment_() {
+  if (typeof ScriptApp === "undefined" || typeof PropertiesService === "undefined") return "unit-test";
+  const explicit = String(PropertiesService.getScriptProperties().getProperty("SHIFTCORE_ENVIRONMENT") || "").trim().toLowerCase();
+  const scriptId = String(ScriptApp.getScriptId() || "");
+  if (scriptId === ACCOUNT_PRODUCTION_SCRIPT_ID) {
+    if (explicit && explicit !== "production") throw new Error("本番Account GASの環境設定が不正です。");
+    return "production";
+  }
+  if (explicit !== "staging") throw new Error("Account GASはSHIFTCORE_ENVIRONMENT=stagingの明示設定が必要です。");
+  return "staging";
+}
+
+function accountRequiredConfig_(key, productionValue) {
+  const environment = accountRuntimeEnvironment_();
+  if (environment === "production" || environment === "unit-test") return productionValue;
+  const value = String(PropertiesService.getScriptProperties().getProperty(key) || "").trim();
+  if (!value) throw new Error("テスト環境の必須設定がありません: " + key);
+  return value;
+}
+
+function accountOptionalConfig_(key, fallbackValue) {
+  if (accountRuntimeEnvironment_() !== "staging") return fallbackValue;
+  const value = String(PropertiesService.getScriptProperties().getProperty(key) || "").trim();
+  return value || fallbackValue;
+}
+
+function sendAccountMail_(options) {
+  const mail = Object.assign({}, options || {});
+  if (accountRuntimeEnvironment_() === "staging") {
+    mail.to = accountRequiredConfig_("NOTIFICATION_EMAIL_OVERRIDE", "");
+    mail.cc = "";
+    mail.bcc = "";
+    mail.subject = "[TEST] " + String(mail.subject || "ShiftCore通知");
+  }
+  return MailApp.sendEmail(mail);
+}
+
+const SPREADSHEET_ID = accountRequiredConfig_("ACCOUNT_SPREADSHEET_ID", "1nYHb1qEe9NpG_RfP-r6FjnYwg_nhD-tTfp0gqD3xdvY");
 
 const USERS_SHEET_NAME = "users_master";
 const ACCOUNT_CHANGE_LOGS_SHEET_NAME = "account_change_logs";
@@ -246,5 +285,5 @@ const SIGNUP_NOTIFICATION_EMAILS = [
 ];
 // ===== 登録申請設定ここまで =====
 
-const PMO_V2_FRONT_URL = "https://shiftcorediv-lab.github.io/pickmyoff_v2_front/";
+const PMO_V2_FRONT_URL = accountOptionalConfig_("PMO_V2_FRONT_URL", "https://shiftcorediv-lab.github.io/pickmyoff_v2_front/");
 // ===== 設定ここまで =====
