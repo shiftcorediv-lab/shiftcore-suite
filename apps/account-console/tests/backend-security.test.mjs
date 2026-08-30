@@ -214,6 +214,35 @@ test("個人成績APIはログイン本人の対象勤怠と回答だけを返�
   assert.equal(summary.counts.total, 1);
   assert.equal(summary.metrics.find(metric => metric.itemId === "responseCount").value, 3);
   assert.deepEqual(Array.from(summary.submissions, item => item.recordId), ["REC-ME"]);
+  assert.equal(typeof summary.serverTiming.totalMs, "number");
+});
+
+test("個人成績の読取経路ではシート整備とDocument Lockを実行しない", () => {
+  const { context } = createAttendanceContext([{ record_id: "REC-READ-ONLY", email: "member@example.com", workDate: "2026-08-28" }]);
+  context.ensureWorkReportSheetsWithLock_ = () => { throw new Error("read path must not ensure sheets"); };
+  const summary = context.getMyWorkReportSummary_({ email: "member@example.com" }, { month: "2026-08" });
+  assert.equal(summary.ownerEmail, "member@example.com");
+  assert.equal(summary.counts.total, 1);
+});
+
+test("初期表示APIは認証を含む処理時間と予定同期キャッシュ状態を返す", () => {
+  const { context } = createAttendanceContext([]);
+  context.resolveUser_ = () => ({ email: "member@example.com" });
+  context.jsonOutput_ = value => value;
+  context.getDashboardData_ = () => ({ ok: true });
+  context.dashboardScheduleSyncStatus_ = () => ({ status: "fresh-cache", syncedAt: "2026-08-31T00:00:00+09:00" });
+  const dashboard = context.doPost({ postData: { contents: JSON.stringify({ action: "getDashboardData", idToken: "TOKEN", payload: {} }) } });
+  assert.equal(dashboard.ok, true);
+  assert.equal(dashboard.scheduleSync.status, "fresh-cache");
+  assert.equal(typeof dashboard.serverTiming.authMs, "number");
+  assert.equal(typeof dashboard.serverTiming.dashboardMs, "number");
+  assert.equal(typeof dashboard.serverTiming.totalMs, "number");
+
+  context.getMyWorkReportSummary_ = () => ({ ok: true, serverTiming: { totalMs: 25 } });
+  const summary = context.doPost({ postData: { contents: JSON.stringify({ action: "getMyWorkReportSummary", idToken: "TOKEN", payload: {} }) } });
+  assert.equal(summary.serverTiming.summaryMs, 25);
+  assert.equal(typeof summary.serverTiming.authMs, "number");
+  assert.equal(typeof summary.serverTiming.totalMs, "number");
 });
 
 test("ポータル初期表示は勤怠と個人成績を一括取得し、成績失敗時も勤怠を返す", () => {
@@ -278,7 +307,16 @@ test("背景予定同期は成功後5分の印だけを共有し、予定本体�
   assert.equal(second.sync.status, "fresh-cache");
   assert.equal(second.schedules[0].schedule_id, "LOCAL");
   assert.equal(syncCalls, 1);
+  assert.equal(context.dashboardScheduleSyncStatus_().status, "fresh-cache");
   assert.ok(Array.from(cacheValues.values()).every(value => !value.includes("SYNC-1") && !value.includes("LOCAL")));
+});
+
+test("予定同期キャッシュがなければ初期応答は外部同期を実行せずstaleを返す", () => {
+  const { context } = createAttendanceContext([]);
+  let syncCalls = 0;
+  context.syncSchedules_ = () => { syncCalls += 1; return { schedules: [], synced: true }; };
+  assert.equal(context.dashboardScheduleSyncStatus_().status, "stale");
+  assert.equal(syncCalls, 0);
 });
 
 test("背景予定同期の失敗は印を消して次回再試行できる", () => {
