@@ -199,7 +199,7 @@ function renderCompletion(result) {
   $("reportContext").hidden = true;
   $("revisionNotice").hidden = true;
   $("completionTitle").textContent = `${name}さん、今日もお疲れさまでした`;
-  $("completionMessage").textContent = "本日の稼働と、丁寧な実績報告をありがとうございます。ゆっくり休んでください。";
+  $("completionMessage").textContent = "本日の稼働と実績報告をありがとうございます。ゆっくり休んでください。";
   $("completionDetail").textContent = result.duplicate ? "同じ内容はすでに安全に保存されています。" : `実績報告を第${result.revisionNumber}版として受け付けました。`;
   $("completionState").hidden = false;
   $("completionState").scrollIntoView({ behavior: "smooth", block: "start" });
