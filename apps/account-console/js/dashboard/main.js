@@ -9,7 +9,9 @@ import { setActivity } from "../common/activity.js?v=20260831-activity-1";
 
 const $ = id => document.getElementById(id);
 const storedUser = getStoredUser();
-const dashboardCacheKey = `shiftcore_attendance_dashboard:${storedUser?.email || storedUser?.employee_code || "anonymous"}`;
+// TEST環境と本番は同一originのため、端末キャッシュも環境単位で分離する。
+const dashboardEnvironment = window.ShiftCoreEnvironment?.name || "production";
+const dashboardCacheKey = `shiftcore_attendance_dashboard:${dashboardEnvironment}:${storedUser?.email || storedUser?.employee_code || "anonymous"}`;
 let dashboardData = null;
 let busy = false;
 let selectedScheduleId = "";
