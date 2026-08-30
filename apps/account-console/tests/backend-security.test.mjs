@@ -41,7 +41,7 @@ function createSheet(initialRows = []) {
   };
 }
 
-function createAttendanceContext(records) {
+function createAttendanceContext(records, { provision = true } = {}) {
   let uuid = 0;
   const sheets = {
     "勤怠記録": createSheet([
@@ -76,7 +76,8 @@ function createAttendanceContext(records) {
     console
   });
   vm.runInContext(backendSource, context);
-  return { context, sheets };
+  if (provision) context.setupWorkReportData_({ email: "admin@example.com", role: "admin" });
+  return { context, sheets, spreadsheet };
 }
 
 function validAnswers() {
@@ -127,6 +128,27 @@ test("同じ再送トークンへ異なる回答を混ぜる操作を拒否す�
   context.submitReport_({ email: "member@example.com" }, reportPayload("REC-TOKEN", "FIXED-TOKEN"));
   const changedAnswers = validAnswers().map(answer => answer.itemId === "responseCount" ? { ...answer, value: 9 } : answer);
   assert.throws(() => context.submitReport_({ email: "member@example.com" }, { recordId: "REC-TOKEN", answers: changedAnswers, submissionToken: "FIXED-TOKEN" }), error => error.code === "REPORT_SUBMISSION_RETRY_MISMATCH");
+});
+
+test("再送トークンを数式として保存せず、無害化後も同一送信を復旧できる", () => {
+  const { context, sheets } = createAttendanceContext([{ record_id: "REC-TOKEN-SAFE", email: "member@example.com" }]);
+  const maliciousToken = `=${"A".repeat(199)}`;
+  context.submitReport_({ email: "member@example.com" }, reportPayload("REC-TOKEN-SAFE", maliciousToken));
+  const revisionHeaders = sheets["実績報告改訂"].values[0];
+  const storedToken = sheets["実績報告改訂"].values[1][revisionHeaders.indexOf("submission_token")];
+  assert.equal(storedToken, (`'${maliciousToken}`).slice(0, 200));
+  assert.equal(storedToken.length, 200);
+
+  const reportHeaders = sheets["実績報告"].values[0];
+  sheets["実績報告"].values[1][reportHeaders.indexOf("保存状態")] = "保存中";
+  sheets["実績報告"].values[1][reportHeaders.indexOf("current_revision_id")] = "";
+  sheets["実績報告"].values[1][reportHeaders.indexOf("current_revision_number")] = 0;
+  sheets["実績報告改訂"].values[1][revisionHeaders.indexOf("状態")] = "保存中";
+  const restored = context.getWorkReportForm_({ email: "member@example.com" }, { recordId: "REC-TOKEN-SAFE" });
+  assert.equal(restored.resumeSubmissionToken, storedToken);
+  const recovered = context.submitReport_({ email: "member@example.com" }, reportPayload("REC-TOKEN-SAFE", restored.resumeSubmissionToken));
+  assert.equal(recovered.ok, true);
+  assert.equal(sheets["実績報告改訂"].values.length, 2);
 });
 
 test("対象案件マスターにない終了済み勤怠は実績報告を拒否する", () => {
@@ -437,12 +459,70 @@ test("案件の対象停止後も既存報告は履歴へ残し、新しい未�
   assert.equal(context.getWorkReportForm_({ email: "member@example.com" }, { recordId: "REC-HISTORY" }).ok, true);
 });
 
+test("案件の停止前未提出を残し、停止中を除外して再開後だけ再び対象にする", () => {
+  const { context, sheets } = createAttendanceContext([
+    { record_id: "REC-BEFORE", email: "member@example.com", workDate: "2026-08-28", actualEnd: "2026-08-28T18:00:00+09:00" },
+    { record_id: "REC-PAUSED", email: "member@example.com", workDate: "2026-08-29", actualEnd: "2026-08-29T18:00:00+09:00" },
+    { record_id: "REC-RESTARTED", email: "member@example.com", workDate: "2026-08-30", actualEnd: "2026-08-30T18:00:00+09:00" }
+  ]);
+  const mappingSheet = sheets["実績対象案件"];
+  const headers = mappingSheet.values[0];
+  const first = mappingSheet.values[1];
+  first[headers.indexOf("有効")] = false;
+  first[headers.indexOf("有効終了日時")] = "2026-08-28T23:00:00+09:00";
+  first[headers.indexOf("更新日時")] = "2026-08-28T23:00:00+09:00";
+  const restarted = {
+    mapping_id: "MAP-2", "開発予定ID": "PLAN-1", "開発予定名": "案件1", template_id: "docomo", "有効": true,
+    "有効開始日時": "2026-08-30T00:00:00+09:00", "有効終了日時": "", "作成日時": "2026-08-30T00:00:00+09:00", "更新日時": "2026-08-30T00:00:00+09:00"
+  };
+  mappingSheet.appendRow(headers.map(header => restarted[header] ?? ""));
+
+  const adminData = context.getWorkReportAdminData_({ email: "admin@example.com", role: "admin" }, { dateFrom: "2026-08-01", dateTo: "2026-08-31" });
+  assert.deepEqual(Array.from(adminData.submissions, item => item.recordId), ["REC-BEFORE", "REC-RESTARTED"]);
+  const summary = context.getMyWorkReportSummary_({ email: "member@example.com" }, { month: "2026-08" });
+  assert.deepEqual(Array.from(summary.submissions, item => item.recordId), ["REC-RESTARTED", "REC-BEFORE"]);
+  assert.equal(context.getWorkReportForm_({ email: "member@example.com" }, { recordId: "REC-BEFORE" }).ok, true);
+  assert.throws(() => context.getWorkReportForm_({ email: "member@example.com" }, { recordId: "REC-PAUSED" }), error => error.code === "REPORT_NOT_REQUIRED");
+  assert.equal(context.getWorkReportForm_({ email: "member@example.com" }, { recordId: "REC-RESTARTED" }).ok, true);
+});
+
+test("案件の停止と再開は同じ行を上書きせず有効期間を履歴化する", () => {
+  const { context, sheets } = createAttendanceContext([]);
+  context.saveWorkReportCaseMapping_({ email: "admin@example.com", role: "admin" }, { planId: "PLAN-1", planName: "案件1", templateId: "docomo", active: false });
+  const mappingSheet = sheets["実績対象案件"];
+  const headers = mappingSheet.values[0];
+  assert.equal(mappingSheet.values.length, 2);
+  assert.equal(mappingSheet.values[1][headers.indexOf("有効")], false);
+  assert.equal(Object.prototype.toString.call(mappingSheet.values[1][headers.indexOf("有効終了日時")]), "[object Date]");
+
+  context.saveWorkReportCaseMapping_({ email: "admin@example.com", role: "admin" }, { planId: "PLAN-1", planName: "案件1", templateId: "docomo", active: true });
+  assert.equal(mappingSheet.values.length, 3);
+  assert.equal(mappingSheet.values[1][headers.indexOf("有効")], false);
+  assert.equal(mappingSheet.values[2][headers.indexOf("有効")], true);
+  assert.equal(Object.prototype.toString.call(mappingSheet.values[2][headers.indexOf("有効開始日時")]), "[object Date]");
+});
+
+test("本人確認前の不正な実績報告はシート作成や列追加を起こさない", () => {
+  const { context, sheets } = createAttendanceContext([{ record_id: "REC-OTHER", email: "other@example.com" }], { provision: false });
+  const sheetNames = Object.keys(sheets);
+  const reportHeaders = sheets["実績報告"].values[0].slice();
+  assert.throws(() => context.getWorkReportForm_({ email: "member@example.com" }, { recordId: "REC-OTHER" }), error => error.code === "REPORT_RECORD_FORBIDDEN");
+  assert.throws(() => context.submitReport_({ email: "member@example.com" }, reportPayload("REC-OTHER")), error => error.code === "REPORT_RECORD_FORBIDDEN");
+  assert.deepEqual(Object.keys(sheets), sheetNames);
+  assert.deepEqual(sheets["実績報告"].values[0], reportHeaders);
+  assert.equal(sheets["実績回答"], undefined);
+  assert.throws(() => context.setupWorkReportData_({ email: "member@example.com", role: "member" }), error => error.code === "FORBIDDEN");
+  assert.equal(sheets["実績回答"], undefined);
+  assert.equal(context.setupWorkReportData_({ email: "admin@example.com", role: "admin" }).ok, true);
+  assert.ok(sheets["実績回答"]);
+});
+
 test("終了済み状態だけで終了時刻がなければ実績報告を拒否する", () => {
   const { context } = createAttendanceContext([{ record_id: "REC-INCONSISTENT", email: "member@example.com", status: "終了済み", actualEnd: "", formalEnd: "" }]);
   assert.throws(() => context.submitReport_({ email: "member@example.com" }, reportPayload("REC-INCONSISTENT")), error => error.code === "REPORT_CLOCK_OUT_REQUIRED");
 });
 
-test("数値0と未入力を区別し、負数・小数・不正値を拒否する", () => {
+test("数値0と未入力を区別し、型変換で数値化できる不正値も拒否する", () => {
   const { context } = createAttendanceContext([]);
   const definitions = [
     { item_id: "required", "項目名": "必須件数", "種別": "number", "必須": true },
@@ -452,7 +532,17 @@ test("数値0と未入力を区別し、負数・小数・不正値を拒否す�
   assert.equal(normalized[0].inputState, "answered");
   assert.equal(normalized[1].value, 0);
   assert.equal(normalized[1].inputState, "defaulted");
-  for (const value of [-1, 1.5, "abc"]) {
+  for (const value of [-1, 1.5, "abc", true, [], {}, " ", "1e3", "0x10", "01", "+1"]) {
     assert.throws(() => context.normalizeWorkReportAnswers_(definitions, [{ itemId: "required", value }]), error => error.code === "REPORT_NUMBER_INVALID");
   }
+  assert.equal(context.normalizeWorkReportAnswers_(definitions, [{ itemId: "required", value: "12" }])[0].value, 12);
+});
+
+test("CSVとシート保存値は改行・タブ・空白で隠した数式も無害化する", () => {
+  const { context } = createAttendanceContext([]);
+  for (const value of ["=1+1", "+1", "-1", "@SUM(A1)", "  =1+1", "\t=1+1", "\r=1+1", "\n=1+1"]) {
+    assert.ok(context.sheetText_(value).startsWith("'"));
+    assert.ok(context.csvCell_(value).startsWith('"\''));
+  }
+  assert.equal(context.sheetText_(" 通常の文章"), " 通常の文章");
 });

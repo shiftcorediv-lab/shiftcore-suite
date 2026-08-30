@@ -101,8 +101,8 @@ test("対象案件は案件名の文字列ではなく案件IDとテンプレー
   const context = backendContext();
   const mappings = [{ "開発予定ID": "PLAN-DOCOMO", template_id: "docomo", "有効": true }];
   const templates = [{ template_id: "docomo", "テンプレート名": "ドコモ案件", "有効": true }];
-  assert.equal(context.workReportTemplateForContext_({ planId: "PLAN-DOCOMO", planName: "名称にキャリア表記なし" }, mappings, templates).templateId, "docomo");
-  assert.equal(context.workReportTemplateForContext_({ planId: "PLAN-OTHER", planName: "ドコモショップ案件" }, mappings, templates), null);
+  assert.equal(context.workReportTemplateForContext_({ planId: "PLAN-DOCOMO", planName: "名称にキャリア表記なし", completedAt: "2026-08-30T18:00:00+09:00" }, mappings, templates).templateId, "docomo");
+  assert.equal(context.workReportTemplateForContext_({ planId: "PLAN-OTHER", planName: "ドコモショップ案件", completedAt: "2026-08-30T18:00:00+09:00" }, mappings, templates), null);
 });
 
 test("対象案件候補は同じ案件を一件にまとめ、稼働日と人員名を添える", () => {

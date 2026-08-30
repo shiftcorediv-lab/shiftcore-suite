@@ -63,7 +63,7 @@ const HEADERS = {
   reports: ["report_id", "record_id", "開発予定ID", "開発予定名", "報告者メール", "報告者氏名", "実績内容", "課題・申し送り", "報告日時"],
   reportContract: ["勤務日", "店舗名", "schedule_id", "保存状態", "項目定義版", "template_id", "current_revision_id", "current_revision_number", "差戻し理由", "差戻し日時", "差戻し者メール"],
   reportTemplates: ["template_id", "テンプレート名", "有効", "作成日時", "更新日時"],
-  reportCaseMappings: ["mapping_id", "開発予定ID", "開発予定名", "template_id", "有効", "作成日時", "更新日時"],
+  reportCaseMappings: ["mapping_id", "開発予定ID", "開発予定名", "template_id", "有効", "有効開始日時", "有効終了日時", "作成日時", "更新日時"],
   reportRevisions: ["revision_id", "report_id", "record_id", "改訂番号", "状態", "編集者メール", "編集者氏名", "編集種別", "submission_token", "作成日時", "提出日時"],
   reportItems: ["item_id", "template_id", "項目名", "種別", "カテゴリID", "カテゴリ名", "表示順", "必須", "有効", "定義版", "ダッシュボード表示", "ダッシュボード名", "ダッシュボード順", "作成日時", "更新日時"],
   reportAnswers: ["answer_id", "report_id", "revision_id", "record_id", "item_id", "定義版", "項目名", "種別", "カテゴリID", "カテゴリ名", "表示順", "数値回答", "文章回答", "入力状態", "作成日時"],
@@ -188,6 +188,7 @@ function doPost(e) {
       return jsonOutput_(summary);
     }
     if (action === "getWorkReportAdminData") return jsonOutput_(getWorkReportAdminData_(user, payload));
+    if (action === "setupWorkReportData") return jsonOutput_(setupWorkReportData_(user));
     if (action === "saveWorkReportItem") return jsonOutput_(saveWorkReportItem_(user, payload));
     if (action === "saveWorkReportCaseMapping") return jsonOutput_(saveWorkReportCaseMapping_(user, payload));
     if (action === "returnWorkReport") return jsonOutput_(returnWorkReport_(user, payload));
@@ -580,8 +581,8 @@ function submitCorrection_(user, payload, idToken) {
 }
 
 function getWorkReportForm_(user, payload) {
-  ensureWorkReportSheetsWithLock_();
   const record = assertReportableRecord_(user, payload.recordId);
+  assertWorkReportSchema_();
   const context = workReportContext_(record);
   const existing = findWorkReportByRecordId_(record.record_id);
   const template = existing ? workReportTemplateForExistingReport_(existing, context) : assertWorkReportTarget_(context);
@@ -622,10 +623,11 @@ function getWorkReportForm_(user, payload) {
 
 function submitReport_(user, payload) {
   if (!payload.recordId || !Array.isArray(payload.answers) || !String(payload.submissionToken || "").trim()) throw apiError_("REPORT_REQUIRED", "実績回答を確認できません。");
+  assertReportableRecord_(user, payload.recordId);
   const lock = LockService.getDocumentLock();
   lock.waitLock(20000);
   try {
-    ensureWorkReportSheets_();
+    assertWorkReportSchema_();
     const record = assertReportableRecord_(user, payload.recordId);
     const context = workReportContext_(record);
     let report = findWorkReportByRecordId_(record.record_id);
@@ -635,7 +637,7 @@ function submitReport_(user, payload) {
     const normalizedAnswers = normalizeWorkReportAnswers_(definitions, payload.answers);
     const definitionVersion = definitions.reduce((max, item) => Math.max(max, Number(item["定義版"]) || 1), 1);
     const reportId = report && report.report_id ? String(report.report_id) : Utilities.getUuid();
-    const submissionToken = String(payload.submissionToken).trim().slice(0, 200);
+    const submissionToken = sheetText_(String(payload.submissionToken).trim()).slice(0, 200);
     const previousRevisionNumber = report ? Number(report.current_revision_number) || 0 : 0;
     const reportRevisions = rows_(SHEETS.reportRevisions);
     const existingRevision = reportRevisions.find(revision => String(revision.submission_token || "") === submissionToken);
@@ -811,8 +813,14 @@ function getMyWorkReportSummary_(user, payload, sourceRows) {
 
 function getWorkReportAdminData_(user, payload) {
   requireAdmin_(user);
-  ensureWorkReportSheetsWithLock_();
+  assertWorkReportSchema_();
   return buildWorkReportAdminData_(payload || {});
+}
+
+function setupWorkReportData_(user) {
+  requireAdmin_(user);
+  const result = ensureWorkReportSheetsWithLock_();
+  return { ok: true, templateCount: result.templates.length, itemCount: result.items.length };
 }
 
 function buildWorkReportAdminData_(payload) {
@@ -895,7 +903,7 @@ function saveWorkReportItem_(user, payload) {
   const lock = LockService.getDocumentLock();
   lock.waitLock(20000);
   try {
-    ensureWorkReportSheets_();
+    assertWorkReportSchema_();
     const reports = rows_(SHEETS.reports);
     const revisions = rows_(SHEETS.reportRevisions);
     if (reports.some(report => String(report["保存状態"] || "") === "保存中" || pendingWorkReportRevision_(report, revisions)) || revisions.some(revision => String(revision["状態"] || "") === "保存中")) throw apiError_("REPORT_SUBMISSION_IN_PROGRESS", "保存中の実績報告があります。完了または再送後に項目を変更してください。");
@@ -945,24 +953,30 @@ function saveWorkReportCaseMapping_(user, payload) {
   const lock = LockService.getDocumentLock();
   lock.waitLock(20000);
   try {
-    ensureWorkReportSheets_();
+    assertWorkReportSchema_();
     const planId = String(payload.planId || "").trim();
     const planName = String(payload.planName || "").trim();
     const templateId = String(payload.templateId || DEFAULT_WORK_REPORT_TEMPLATE_ID);
     if (!planId || planId.length > 200 || /^[=+\-@]/.test(planId)) throw apiError_("REPORT_CASE_INVALID", "対象案件IDを確認してください。");
     if (!activeWorkReportTemplates_().some(template => String(template.template_id || "") === templateId)) throw apiError_("REPORT_TEMPLATE_INVALID", "実績テンプレートを確認できません。");
-    const existing = rows_(SHEETS.reportCaseMappings).find(mapping => String(mapping["開発予定ID"] || "") === planId);
+    const mappings = rows_(SHEETS.reportCaseMappings);
+    const existing = latestWorkReportCaseMapping_(mappings.filter(mapping => String(mapping["開発予定ID"] || "") === planId));
+    const requestedActive = booleanValue_(payload.active);
+    const wasActive = Boolean(existing && booleanValue_(existing["有効"]));
     const now = new Date();
+    const reactivating = Boolean(existing && requestedActive && !wasActive);
     const changes = {
-      mapping_id: existing ? String(existing.mapping_id || "") : Utilities.getUuid(),
+      mapping_id: existing && !reactivating ? String(existing.mapping_id || "") : Utilities.getUuid(),
       "開発予定ID": planId,
       "開発予定名": sheetText_(planName.slice(0, 200)),
       template_id: templateId,
-      "有効": booleanValue_(payload.active),
-      "作成日時": existing && existing["作成日時"] || now,
+      "有効": requestedActive,
+      "有効開始日時": requestedActive ? (reactivating ? now : existing && existing["有効開始日時"] || "") : existing && existing["有効開始日時"] || "",
+      "有効終了日時": requestedActive ? "" : wasActive ? now : existing && (existing["有効終了日時"] || existing["更新日時"] || existing["作成日時"]) || "",
+      "作成日時": existing && !reactivating ? existing["作成日時"] || now : now,
       "更新日時": now
     };
-    if (existing) updateById_(SHEETS.reportCaseMappings, "mapping_id", changes.mapping_id, changes);
+    if (existing && !reactivating) updateById_(SHEETS.reportCaseMappings, "mapping_id", changes.mapping_id, changes);
     else appendObject_(SHEETS.reportCaseMappings, changes);
     return { ok: true, mapping: publicWorkReportCaseMapping_(changes) };
   } finally {
@@ -977,7 +991,7 @@ function returnWorkReport_(user, payload) {
   const lock = LockService.getDocumentLock();
   lock.waitLock(20000);
   try {
-    ensureWorkReportSheets_();
+    assertWorkReportSchema_();
     const report = rows_(SHEETS.reports).find(candidate => String(candidate.report_id || "") === String(payload.reportId || ""));
     if (!report || !isSubmittedWorkReport_(report)) throw apiError_("REPORT_RETURN_INVALID", "提出済みの実績報告を確認できません。");
     if (pendingWorkReportRevision_(report)) throw apiError_("REPORT_SUBMISSION_IN_PROGRESS", "本人の実績報告が保存途中です。再送完了後に差し戻してください。");
@@ -996,7 +1010,7 @@ function returnWorkReport_(user, payload) {
 
 function exportWorkReportsCsv_(user, payload) {
   requireAdmin_(user);
-  ensureWorkReportSheetsWithLock_();
+  assertWorkReportSchema_();
   const data = buildWorkReportAdminData_(payload || {});
   const detailById = data.reportDetails.reduce((result, detail) => (result[detail.reportId] = detail, result), {});
   const includeHistory = booleanValue_(payload && payload.includeHistory);
@@ -1050,6 +1064,7 @@ function workReportContext_(record, sourceSchedules) {
   const storeName = String(schedule && schedule["稼働場所"] || record["予定場所"] || "");
   return {
     workDate: dateKey_(record["勤務日"]),
+    completedAt: record["実終了"] || record["正式終了"] || "",
     scheduleId: String(record.schedule_id || schedule && schedule.schedule_id || ""),
     planId,
     planName: String(schedule && schedule["開発予定名"] || storeName || planId || "予定外稼働"),
@@ -1133,12 +1148,33 @@ function assertStoredWorkReportAnswersMatch_(storedAnswers, normalizedAnswers) {
 
 function activeWorkReportTemplates_() { return rows_(SHEETS.reportTemplates).filter(template => booleanValue_(template["有効"])); }
 function publicWorkReportTemplate_(template) { return { templateId: String(template.template_id || ""), name: String(template["テンプレート名"] || ""), active: booleanValue_(template["有効"]) }; }
-function publicWorkReportCaseMapping_(mapping) { return { mappingId: String(mapping.mapping_id || ""), planId: String(mapping["開発予定ID"] || ""), planName: String(mapping["開発予定名"] || ""), templateId: String(mapping.template_id || ""), active: booleanValue_(mapping["有効"]) }; }
+function publicWorkReportCaseMapping_(mapping) { return { mappingId: String(mapping.mapping_id || ""), planId: String(mapping["開発予定ID"] || ""), planName: String(mapping["開発予定名"] || ""), templateId: String(mapping.template_id || ""), active: booleanValue_(mapping["有効"]), effectiveFrom: displayDateTime_(mapping["有効開始日時"]), effectiveTo: displayDateTime_(mapping["有効終了日時"]) }; }
 function workReportTemplateForContext_(context, sourceMappings, sourceTemplates) {
-  const mapping = (sourceMappings || rows_(SHEETS.reportCaseMappings)).find(candidate => booleanValue_(candidate["有効"]) && String(candidate["開発予定ID"] || "") === String(context && context.planId || ""));
+  const mapping = latestWorkReportCaseMapping_((sourceMappings || rows_(SHEETS.reportCaseMappings)).filter(candidate => String(candidate["開発予定ID"] || "") === String(context && context.planId || "") && workReportMappingApplies_(candidate, context)));
   if (!mapping) return null;
-  const template = (sourceTemplates || activeWorkReportTemplates_()).find(candidate => booleanValue_(candidate["有効"]) && String(candidate.template_id || "") === String(mapping.template_id || ""));
+  const template = (sourceTemplates || rows_(SHEETS.reportTemplates)).find(candidate => String(candidate.template_id || "") === String(mapping.template_id || "") && (!booleanValue_(mapping["有効"]) || booleanValue_(candidate["有効"])));
   return template ? publicWorkReportTemplate_(template) : null;
+}
+
+function workReportMappingApplies_(mapping, context) {
+  const completedAt = dateTimeMillis_(context && context.completedAt);
+  if (!Number.isFinite(completedAt)) return false;
+  const explicitStart = dateTimeMillis_(mapping["有効開始日時"]);
+  const explicitEnd = dateTimeMillis_(mapping["有効終了日時"]);
+  const legacyEnd = booleanValue_(mapping["有効"]) ? NaN : dateTimeMillis_(mapping["更新日時"] || mapping["作成日時"]);
+  const startsAt = Number.isFinite(explicitStart) ? explicitStart : -Infinity;
+  const endsAt = Number.isFinite(explicitEnd) ? explicitEnd : Number.isFinite(legacyEnd) ? legacyEnd : booleanValue_(mapping["有効"]) ? Infinity : -Infinity;
+  return completedAt >= startsAt && completedAt <= endsAt;
+}
+
+function latestWorkReportCaseMapping_(mappings) {
+  return (mappings || []).reduce((latest, mapping) => {
+    if (!latest) return mapping;
+    const latestAt = dateTimeMillis_(latest["更新日時"] || latest["作成日時"] || latest["有効開始日時"]);
+    const mappingAt = dateTimeMillis_(mapping["更新日時"] || mapping["作成日時"] || mapping["有効開始日時"]);
+    if (!Number.isFinite(mappingAt)) return Number.isFinite(latestAt) ? latest : mapping;
+    return !Number.isFinite(latestAt) || mappingAt >= latestAt ? mapping : latest;
+  }, null);
 }
 
 function workReportCaseCandidates_(schedules) {
@@ -1155,7 +1191,7 @@ function workReportCaseCandidates_(schedules) {
   });
   mappings.forEach(mapping => { const planId = String(mapping["開発予定ID"] || ""); if (planId && !plans[planId]) plans[planId] = { planName: String(mapping["開発予定名"] || planId), workDates: Object.create(null), people: Object.create(null) }; });
   return Object.keys(plans).sort((a, b) => plans[a].planName.localeCompare(plans[b].planName, "ja")).map(planId => {
-    const mapping = mappings.find(candidate => String(candidate["開発予定ID"] || "") === planId);
+    const mapping = latestWorkReportCaseMapping_(mappings.filter(candidate => String(candidate["開発予定ID"] || "") === planId));
     const candidate = mapping ? publicWorkReportCaseMapping_(mapping) : { mappingId: "", planId, planName: plans[planId].planName, templateId: DEFAULT_WORK_REPORT_TEMPLATE_ID, active: false };
     candidate.workDates = Object.keys(plans[planId].workDates).sort();
     candidate.people = Object.keys(plans[planId].people).sort((a, b) => a.localeCompare(b, "ja"));
@@ -1180,8 +1216,10 @@ function normalizeWorkReportAnswers_(definitions, answers) {
     if (type === "number") {
       const blank = raw === null || raw === undefined || raw === "";
       if (blank && booleanValue_(item["必須"])) throw apiError_("REPORT_REQUIRED", `${item["項目名"]}を入力してください。`);
+      const validNumber = typeof raw === "number" && Number.isSafeInteger(raw) && raw >= 0;
+      const validDecimal = typeof raw === "string" && /^(?:0|[1-9][0-9]*)$/.test(raw) && Number.isSafeInteger(Number(raw));
+      if (!blank && !validNumber && !validDecimal) throw apiError_("REPORT_NUMBER_INVALID", `${item["項目名"]}は0以上の整数で入力してください。`);
       const value = blank ? 0 : Number(raw);
-      if (!Number.isSafeInteger(value) || value < 0) throw apiError_("REPORT_NUMBER_INVALID", `${item["項目名"]}は0以上の整数で入力してください。`);
       return { item, type, value, inputState: blank ? "defaulted" : "answered" };
     }
     if (type !== "text") throw apiError_("REPORT_ITEM_TYPE_INVALID", "実績項目の種別を確認できません。");
@@ -1220,8 +1258,10 @@ function aggregateWorkReportAnswers_(submissions, reportDetails, groupBy) {
 function workReportGroup_(row, groupBy) { if (groupBy === "month") return { key: row.workDate.slice(0, 7), label: row.workDate.slice(0, 7) }; if (groupBy === "store") return { key: row.storeName || "未登録", label: row.storeName || "未登録" }; if (groupBy === "person") return { key: row.reporterEmail || row.reporterName || "未登録", label: row.reporterName || row.reporterEmail || "未登録" }; if (groupBy === "plan") return { key: row.planId || row.planName || "未登録", label: row.planName || row.planId || "未登録" }; return { key: row.workDate, label: row.workDate }; }
 function monthEnd_(month) { const parts = String(month).split("-").map(Number); return Utilities.formatDate(new Date(parts[0], parts[1], 0), TZ, "yyyy-MM-dd"); }
 function displayDateTime_(value) { if (!value) return ""; if (Object.prototype.toString.call(value) === "[object Date]") return formatJst_(value); return String(value); }
-function csvCell_(value) { let text = String(value == null ? "" : value); if (/^[=+\-@]/.test(text)) text = "'" + text; return `"${text.replace(/"/g, '""')}"`; }
-function sheetText_(value) { const text = String(value == null ? "" : value); return /^[=+\-@]/.test(text) ? "'" + text : text; }
+function dateTimeMillis_(value) { if (!value) return NaN; const millis = Object.prototype.toString.call(value) === "[object Date]" ? value.getTime() : new Date(String(value)).getTime(); return Number.isFinite(millis) ? millis : NaN; }
+function safeSpreadsheetText_(value) { const text = String(value == null ? "" : value); return /^(?:[\t\r\n]|\s*[=+\-@])/.test(text) ? "'" + text : text; }
+function csvCell_(value) { const text = safeSpreadsheetText_(value); return `"${text.replace(/"/g, '""')}"`; }
+function sheetText_(value) { return safeSpreadsheetText_(value); }
 function booleanValue_(value) { return value === true || value === 1 || ["true", "1", "yes", "on", "有効", "必須"].includes(String(value || "").trim().toLowerCase()); }
 function normalizeDashboardOrder_(value) { const order = Number(value || 0); if (!Number.isInteger(order) || order < 0 || order > 100000) throw apiError_("REPORT_DASHBOARD_ORDER_INVALID", "成績表示順は0以上の整数で入力してください。"); return order; }
 
@@ -1767,6 +1807,23 @@ function updateById_(sheetName, idColumn, id, changes) { const sheet = Spreadshe
 function settings_() { return rows_(SHEETS.settings).reduce((o, r) => (o[String(r["設定キー"])] = String(r["設定値"]), o), {}); }
 function ensureReportSheet_() { const ss = SpreadsheetApp.getActive(); if (!ss.getSheetByName(SHEETS.reports)) { const s = ss.insertSheet(SHEETS.reports); s.appendRow(HEADERS.reports); s.setFrozenRows(1); } }
 function ensureWorkReportSheetsWithLock_() { const lock = LockService.getDocumentLock(); lock.waitLock(20000); try { return ensureWorkReportSheets_(); } finally { lock.releaseLock(); } }
+function assertWorkReportSchema_() {
+  assertSheetHeaders_(SHEETS.reports, HEADERS.reports.concat(HEADERS.reportContract));
+  assertSheetHeaders_(SHEETS.reportTemplates, HEADERS.reportTemplates);
+  assertSheetHeaders_(SHEETS.reportCaseMappings, HEADERS.reportCaseMappings);
+  assertSheetHeaders_(SHEETS.reportRevisions, HEADERS.reportRevisions);
+  assertSheetHeaders_(SHEETS.reportItems, HEADERS.reportItems);
+  assertSheetHeaders_(SHEETS.reportAnswers, HEADERS.reportAnswers);
+}
+function assertSheetHeaders_(name, requiredHeaders) {
+  const sheet = SpreadsheetApp.getActive().getSheetByName(name);
+  if (!sheet) throw apiError_("SHEET_NOT_FOUND", `${name}シートがありません。管理者が実績報告の初期設定を実行してください。`);
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  const duplicate = headers.find((header, index) => header && headers.indexOf(header) !== index);
+  if (duplicate) throw apiError_("SHEET_SCHEMA_MISMATCH", `${name}シートに重複列があります: ${duplicate}`);
+  const missing = requiredHeaders.filter(header => !headers.includes(header));
+  if (missing.length) throw apiError_("SHEET_SCHEMA_MISMATCH", `${name}シートの列が不足しています: ${missing.join(",")}。管理者が実績報告の初期設定を実行してください。`);
+}
 function ensureWorkReportSheets_() {
   ensureReportSheet_();
   ensureReportContractHeaders_();
