@@ -7,6 +7,8 @@ const $ = id => document.getElementById(id);
 let formData = null;
 let loadingStarted = false;
 let submissionToken = createSubmissionToken();
+let pendingAnswers = null;
+let submitting = false;
 
 if (!context?.recordId) location.replace("./dashboard.html");
 
@@ -90,29 +92,122 @@ function renderRevisionNotice(data) {
   $("revisionNotice").hidden = false;
 }
 
-$("reportForm").addEventListener("submit", async event => {
+$("reportForm").addEventListener("submit", event => {
   event.preventDefault();
   if (!formData) return;
-  $("submitBtn").disabled = true;
-  setMessage("送信しています…", false, true);
-  try {
-    const answers = Array.from(document.querySelectorAll("[data-item-id]")).map(input => ({
-      itemId: input.dataset.itemId,
-      value: input.dataset.itemType === "number" && input.value.trim() === "" ? null : input.value
-    }));
-    const result = await attendanceRequest("submitReport", { recordId: formData.record.recordId, answers, submissionToken });
-    sessionStorage.removeItem("shiftcore_report_context");
-    setMessage(result.duplicate ? "同じ内容はすでに保存されています。" : `実績報告を第${result.revisionNumber}版として保存しました。`);
-    setTimeout(() => location.replace("./dashboard.html"), 900);
-  } catch (error) {
-    setMessage(`${error.message} 入力内容は画面に残っています。通信結果が不明な場合も、同じ勤怠記録へ安全に再送できます。`, true);
-    $("submitBtn").disabled = false;
-  }
+  pendingAnswers = collectAnswers();
+  renderConfirmation(pendingAnswers);
+  setConfirmMessage("");
+  $("reportConfirmDialog").showModal();
 });
 
-function setMessage(value, error = false, loading = false) {
-  setActivity($("message"), loading, value);
-  $("message").classList.toggle("error", error);
+$("editReportBtn").addEventListener("click", () => {
+  if (!submitting) $("reportConfirmDialog").close();
+});
+$("reportConfirmDialog").addEventListener("cancel", event => {
+  if (submitting) event.preventDefault();
+});
+
+$("confirmSubmitBtn").addEventListener("click", submitConfirmedReport);
+$("dashboardBtn").addEventListener("click", () => location.replace("./dashboard.html"));
+
+function collectAnswers() {
+  return Array.from(document.querySelectorAll("[data-item-id]")).map(input => ({
+    itemId: input.dataset.itemId,
+    value: input.dataset.itemType === "number" && input.value.trim() === "" ? null : input.value
+  }));
+}
+
+function renderConfirmation(answers) {
+  const record = formData.record || {};
+  const contextValues = [
+    ["氏名", record.reporterName || "—"],
+    ["稼働案件名", record.planName || "予定外稼働"],
+    ["店舗名", record.storeName || "—"],
+    ["入店日", record.workDate || "—"]
+  ];
+  $("confirmContext").innerHTML = `<dl>${contextValues.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl>`;
+
+  const answerById = new Map(answers.map(answer => [String(answer.itemId), answer.value]));
+  const categories = [];
+  (formData.items || []).forEach(item => {
+    let category = categories.find(group => group.id === item.categoryId);
+    if (!category) {
+      category = { id: item.categoryId, name: item.categoryName, items: [] };
+      categories.push(category);
+    }
+    category.items.push(item);
+  });
+  $("confirmAnswers").innerHTML = categories.map(category => renderConfirmationCategory(category, answerById)).join("");
+}
+
+function renderConfirmationCategory(category, answerById) {
+  const entered = [];
+  const defaulted = [];
+  let meaningful = false;
+  category.items.forEach(item => {
+    const value = answerById.get(String(item.itemId));
+    if (item.type === "number" && value === null) {
+      defaulted.push(item.name);
+      return;
+    }
+    const text = String(value ?? "").trim();
+    if (item.type === "number") {
+      if (Number(text) !== 0) meaningful = true;
+      entered.push([item.name, `${text || "0"}件`]);
+      return;
+    }
+    if (text) meaningful = true;
+    entered.push([item.name, text || "未入力"]);
+  });
+  const summary = [entered.length ? `${entered.length}項目を確認` : "", defaulted.length ? `未入力→0件 ${defaulted.length}項目` : ""].filter(Boolean).join("・");
+  return `<details class="confirm-category" ${meaningful ? "open" : ""}>
+    <summary><span>${escapeHtml(category.name)}</span><small>${escapeHtml(summary)}</small></summary>
+    <div class="confirm-category-body">
+      ${entered.length ? `<dl>${entered.map(([name, value]) => `<div><dt>${escapeHtml(name)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl>` : ""}
+      ${defaulted.length ? `<details class="defaulted-items"><summary>0件として保存する未入力項目</summary><p>${defaulted.map(name => escapeHtml(name)).join("、")}</p></details>` : ""}
+    </div>
+  </details>`;
+}
+
+async function submitConfirmedReport() {
+  if (!formData || !pendingAnswers || submitting) return;
+  submitting = true;
+  $("submitBtn").disabled = true;
+  $("editReportBtn").disabled = true;
+  $("confirmSubmitBtn").disabled = true;
+  setConfirmMessage("送信しています…", false, true);
+  try {
+    const answers = pendingAnswers;
+    const result = await attendanceRequest("submitReport", { recordId: formData.record.recordId, answers, submissionToken });
+    sessionStorage.removeItem("shiftcore_report_context");
+    $("reportConfirmDialog").close();
+    renderCompletion(result);
+  } catch (error) {
+    setConfirmMessage(`${error.message} 入力内容は画面に残っています。通信結果が不明な場合も、同じ勤怠記録へ安全に再送できます。`, true);
+    $("submitBtn").disabled = false;
+    $("editReportBtn").disabled = false;
+    $("confirmSubmitBtn").disabled = false;
+  } finally {
+    submitting = false;
+  }
+}
+
+function renderCompletion(result) {
+  const name = formData.record?.reporterName || "稼働者";
+  $("reportForm").hidden = true;
+  $("reportContext").hidden = true;
+  $("revisionNotice").hidden = true;
+  $("completionTitle").textContent = `${name}さん、今日もお疲れさまでした`;
+  $("completionMessage").textContent = "本日の稼働と、丁寧な実績報告をありがとうございます。ゆっくり休んでください。";
+  $("completionDetail").textContent = result.duplicate ? "同じ内容はすでに安全に保存されています。" : `実績報告を第${result.revisionNumber}版として受け付けました。`;
+  $("completionState").hidden = false;
+  $("completionState").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function setConfirmMessage(value, error = false, loading = false) {
+  setActivity($("confirmMessage"), loading, value);
+  $("confirmMessage").classList.toggle("error", error);
 }
 function escapeHtml(value) {
   const div = document.createElement("div");

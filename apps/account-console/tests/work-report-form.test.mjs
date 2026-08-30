@@ -28,3 +28,22 @@ test("正規化回答と再送トークンだけをrecordIdと共に送信し、
   assert.match(source, /formData\.resumeSubmissionToken/);
   assert.ok(source.includes("前回の送信を復元しました"));
 });
+
+test("実績報告は送信前に本人・案件・店舗とカテゴリ別回答を確認できる", () => {
+  assert.match(html, /id="reportConfirmDialog"/);
+  assert.match(html, /id="editReportBtn"/);
+  assert.match(html, /id="confirmSubmitBtn"/);
+  assert.match(source, /pendingAnswers = collectAnswers\(\)/);
+  assert.match(source, /renderConfirmation\(pendingAnswers\)/);
+  assert.match(source, /if \(submitting\) event\.preventDefault\(\)/);
+  assert.match(source, /未入力→0件/);
+  assert.match(css, /\.confirm-answers\{[^}]*overflow:auto/);
+});
+
+test("実績報告の保存後は自動遷移せず本人へ労いと受付結果を表示する", () => {
+  assert.match(html, /id="completionState"/);
+  assert.ok(source.includes("今日もお疲れさまでした"));
+  assert.ok(source.includes("本日の稼働と、丁寧な実績報告をありがとうございます"));
+  assert.match(source, /実績報告を第\$\{result\.revisionNumber\}版として受け付けました/);
+  assert.doesNotMatch(source, /setTimeout\(\(\) => location\.replace\("\.\/dashboard\.html"\), 900\)/);
+});
