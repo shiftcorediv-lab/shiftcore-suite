@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Another Portal Dashboard</title>
-  <link rel="stylesheet" href="./css/dashboard.css?v=20260830-personal-performance-1">
+  <link rel="stylesheet" href="./css/dashboard.css?v=20260830-personal-performance-2">
   <script src="../theme/shiftcore-theme.js"></script>
   <link rel="stylesheet" href="../theme/shiftcore-theme.css">
 </head>
@@ -36,7 +36,10 @@
     <main class="dashboard">
       <section class="welcome-row">
         <div><p class="eyebrow" id="todayLabel">TODAY</p><h1><span id="greetingName">—</span>さん、<span id="timeGreeting">おはようございます</span></h1><p>今日の予定と稼働状況を確認できます。</p></div>
-        <a id="adminLink" class="admin-link" href="./attendance-admin.html" hidden>管理者画面</a>
+        <div id="adminLinks" class="admin-links" hidden>
+          <a class="admin-link" href="./attendance-admin.html">勤怠管理</a>
+          <a class="admin-link" href="./work-report-admin.html">実績報告管理</a>
+        </div>
       </section>
 
       <div id="alertArea" class="alert-area" aria-live="polite"></div>
@@ -106,6 +109,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="./js/dashboard/main.js?v=20260830-personal-performance-1"></script>
+  <script type="module" src="./js/dashboard/main.js?v=20260830-personal-performance-2"></script>
 </body>
 </html>

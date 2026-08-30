@@ -145,7 +145,7 @@ function renderDashboard(data) {
   const record = data.record;
   const primaryState = actionState(data);
   $("startBtn").textContent = primaryState.label;
-  $("adminLink").hidden = !data.adminAccess;
+  $("adminLinks").hidden = !data.adminAccess;
   $("workLocation").textContent = schedule?.["稼働場所"] || record?.["予定場所"] || "非稼働";
   $("weatherLocation").textContent = schedule?.["稼働場所"] || record?.["予定場所"] || "非稼働";
   $("plannedTime").textContent = schedule ? `${timeText(schedule["予定開始"])} – ${timeText(schedule["予定終了"])}` : "—";

@@ -138,6 +138,13 @@ test("個人ダッシュボードは本人専用成績APIを別読込し、報�
   assert.match(dashboardCss, /@media\(max-width:820px\)/);
 });
 
+test("管理者ダッシュボードから勤怠管理と実績報告管理へ直接移動できる", () => {
+  assert.match(dashboardHtml, /id="adminLinks"[^>]*hidden/);
+  assert.match(dashboardHtml, /href="\.\/attendance-admin\.html">勤怠管理<\/a>/);
+  assert.match(dashboardHtml, /href="\.\/work-report-admin\.html">実績報告管理<\/a>/);
+  assert.match(dashboardSource, /\$\("adminLinks"\)\.hidden = !data\.adminAccess/);
+});
+
 test("実績管理APIは既存の勤怠管理者以外を拒否する", () => {
   const context = backendContext();
   assert.throws(() => context.getWorkReportAdminData_({ role: "member" }, {}), error => error.code === "FORBIDDEN");
