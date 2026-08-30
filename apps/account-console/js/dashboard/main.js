@@ -27,8 +27,14 @@ if (!storedUser) {
   const cachedDashboard = readDashboardCache();
   if (cachedDashboard) {
     dashboardData = cachedDashboard;
-    renderDashboard(cachedDashboard);
-    showStatus("前回確認した当日の情報を表示しています。最新情報を確認中です。", false, true);
+    if (cachedDashboard.schedule || cachedDashboard.record) {
+      renderDashboard(cachedDashboard);
+      renderDashboardLoading({ preserveSchedule: true });
+      showStatus("前回確認した当日の情報を表示しています。最新情報を確認中です。", false, true);
+    } else {
+      renderDashboardLoading();
+      showStatus("打刻に必要な勤怠情報を読み込んでいます…", false, true);
+    }
   }
 }
 
@@ -59,6 +65,9 @@ async function refreshModuleAccess(firebaseUser) {
 
 async function loadDashboard() {
   const loadVersion = ++dashboardLoadVersion;
+  renderDashboardLoading({
+    preserveSchedule: Boolean(dashboardData?.schedule || dashboardData?.record)
+  });
   showStatus("打刻に必要な勤怠情報を読み込んでいます…", false, true);
   try {
     const loadedDashboard = await attendanceRequest("getDashboardData", { scheduleId: selectedScheduleId });
@@ -210,12 +219,37 @@ function renderDashboard(data) {
   $("workStatus").textContent = status;
   setActivity($("workStatus"), false);
   $("workStatus").dataset.status = status;
+  $("startBtn").disabled = false;
   $("startBtn").hidden = primaryState.hidden;
   $("correctionBtn").hidden = !(record || (schedule && data.timing?.arrivalApprovalRequired));
   $("deadlineNote").textContent = schedule ? "出発は予定開始1時間前、入店は15分前が目安です。" : "本日は稼働予定がありません。";
   renderTimingWarning(data, primaryState.name);
   renderUpcoming(data.upcoming || []);
   renderNotifications(data.notifications || []);
+}
+
+function renderDashboardLoading({ preserveSchedule = false } = {}) {
+  setActivity($("workStatus"), true, preserveSchedule ? "更新中" : "確認中");
+  $("workStatus").dataset.status = "読み込み中";
+  $("startBtn").disabled = true;
+  $("correctionBtn").hidden = true;
+
+  if (preserveSchedule) {
+    $("deadlineNote").textContent = "最新の勤怠情報を確認しています。完了後に操作できます。";
+    return;
+  }
+
+  setActivity($("workLocation"), true, "稼働予定を読み込んでいます…");
+  $("weatherLocation").textContent = "稼働場所を確認中";
+  $("plannedTime").textContent = "確認中";
+  $("departedAt").textContent = "—";
+  $("arrivedAt").textContent = "—";
+  $("startedAt").textContent = "—";
+  $("endedAt").textContent = "—";
+  $("scheduleSelectWrap").hidden = true;
+  $("startBtn").textContent = "読み込み中…";
+  $("startBtn").hidden = false;
+  $("deadlineNote").textContent = "勤怠情報の読み込み完了後に操作できます。";
 }
 
 async function submitDeparture() {
