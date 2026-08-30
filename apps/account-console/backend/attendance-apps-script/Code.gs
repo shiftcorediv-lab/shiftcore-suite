@@ -37,6 +37,8 @@ const ACCOUNT_APPROVAL_API_RUNTIME_URL = attendanceRequiredConfig_("SHIFTCORE_AC
 const SHIFTBUILDER_API_URL = attendanceRequiredConfig_("SHIFTBUILDER_API_URL", "https://script.google.com/macros/s/AKfycbxlWX3iPy6b1LDjKDc91G7jvBHeee4b5kr7o2wBYy859Uv_R-XI9tLzB2Xu6fz4_-5X/exec");
 const TZ = "Asia/Tokyo";
 const DEFAULT_WORK_REPORT_TEMPLATE_ID = "docomo";
+const DASHBOARD_SCHEDULE_SYNC_TTL_SECONDS = 300;
+const DASHBOARD_SCHEDULE_SYNC_IN_PROGRESS_SECONDS = 120;
 
 const SHEETS = {
   records: "勤怠記録",
@@ -121,7 +123,10 @@ function doPost(e) {
 
     if (action === "getPortalBootstrap") return jsonOutput_(getPortalBootstrap_(user, payload));
     if (action === "getDashboardData") return jsonOutput_(getDashboardData_(user, null, payload.scheduleId));
-    if (action === "refreshDashboardData") return jsonOutput_(getDashboardData_(user, getSchedules_(body.idToken), payload.scheduleId));
+    if (action === "refreshDashboardData") {
+      const scheduleResult = getDashboardSchedules_(body.idToken);
+      return jsonOutput_(Object.assign(getDashboardData_(user, scheduleResult.schedules, payload.scheduleId), { scheduleSync: scheduleResult.sync }));
+    }
     if (action === "clockIn") return jsonOutput_(clockIn_(user, payload, body.idToken));
     if (action === "arrive") return jsonOutput_(arrive_(user, payload, body.idToken));
     if (action === "clockOut") return jsonOutput_(clockOut_(user, payload, body.idToken));
@@ -1294,7 +1299,34 @@ function managerEmails_(organizationId) {
 }
 
 function getSchedules_(idToken) {
+  const result = syncSchedules_(idToken);
+  if (result.synced) markDashboardScheduleSyncFresh_();
+  return result.schedules;
+}
+
+function getDashboardSchedules_(idToken) {
   const local = rows_(SHEETS.schedules);
+  const cache = dashboardScheduleSyncCache_();
+  const key = dashboardScheduleSyncCacheKey_();
+  const cached = readDashboardScheduleSyncState_(cache, key);
+  if (cached) return { schedules: local, sync: { status: cached.status === "syncing" ? "in-progress" : "fresh-cache", syncedAt: cached.syncedAt || "" } };
+
+  if (cache && !claimDashboardScheduleSync_(cache, key)) {
+    const claimed = readDashboardScheduleSyncState_(cache, key);
+    return { schedules: local, sync: { status: claimed && claimed.status === "fresh" ? "fresh-cache" : "in-progress", syncedAt: claimed && claimed.syncedAt || "" } };
+  }
+
+  const result = syncSchedules_(idToken, local);
+  if (result.synced) {
+    markDashboardScheduleSyncFresh_(cache, key);
+    return { schedules: result.schedules, sync: { status: "refreshed", syncedAt: nowIso_() } };
+  }
+  clearDashboardScheduleSyncState_(cache, key);
+  return { schedules: local, sync: { status: "failed", syncedAt: "" } };
+}
+
+function syncSchedules_(idToken, sourceLocal) {
+  const local = sourceLocal || rows_(SHEETS.schedules);
   try {
     const targetMonth = Utilities.formatDate(new Date(), TZ, "yyyy-MM");
     const response = UrlFetchApp.fetch(SHIFTBUILDER_API_URL, {
@@ -1304,7 +1336,8 @@ function getSchedules_(idToken) {
       muteHttpExceptions: true
     });
     const result = JSON.parse(response.getContentText() || "{}");
-    const cases = result && result.success === true && result.data && Array.isArray(result.data.cases) ? result.data.cases : [];
+    if (!result || result.success !== true) throw new Error("ShiftBuilder API returned an unsuccessful response");
+    const cases = result.data && Array.isArray(result.data.cases) ? result.data.cases : [];
     const derived = [];
     cases.forEach(caseItem => {
       const cells = caseItem.cells || {};
@@ -1327,12 +1360,44 @@ function getSchedules_(idToken) {
         });
       });
     });
-    return mergeSchedules_(local, derived);
+    return { schedules: mergeSchedules_(local, derived), synced: true };
   } catch (error) {
     console.warn("ShiftBuilder schedule fetch failed", error);
-    return local;
+    return { schedules: local, synced: false };
   }
 }
+
+function dashboardScheduleSyncCache_() {
+  try { return typeof CacheService === "undefined" ? null : CacheService.getScriptCache(); } catch (error) { return null; }
+}
+function dashboardScheduleSyncCacheKey_() { return `attendance-dashboard-schedule-sync:${attendanceRuntimeEnvironment_()}:${Utilities.formatDate(new Date(), TZ, "yyyy-MM")}`; }
+function readDashboardScheduleSyncState_(cache, key) {
+  if (!cache) return null;
+  try { const value = cache.get(key); return value ? JSON.parse(value) : null; } catch (error) { return null; }
+}
+function claimDashboardScheduleSync_(cache, key) {
+  if (!cache) return true;
+  let lock = null;
+  let acquired = false;
+  try {
+    lock = LockService.getScriptLock();
+    acquired = lock.tryLock(1000);
+    if (!acquired) return false;
+    if (readDashboardScheduleSyncState_(cache, key)) return false;
+    cache.put(key, JSON.stringify({ status: "syncing" }), DASHBOARD_SCHEDULE_SYNC_IN_PROGRESS_SECONDS);
+    return true;
+  } catch (error) {
+    return true;
+  } finally {
+    if (lock && acquired) lock.releaseLock();
+  }
+}
+function markDashboardScheduleSyncFresh_(sourceCache, sourceKey) {
+  const cache = sourceCache || dashboardScheduleSyncCache_();
+  if (!cache) return;
+  try { cache.put(sourceKey || dashboardScheduleSyncCacheKey_(), JSON.stringify({ status: "fresh", syncedAt: nowIso_() }), DASHBOARD_SCHEDULE_SYNC_TTL_SECONDS); } catch (error) {}
+}
+function clearDashboardScheduleSyncState_(cache, key) { if (!cache) return; try { cache.remove(key); } catch (error) {} }
 
 function mergeSchedules_(local, derived) {
   const result = local.slice();

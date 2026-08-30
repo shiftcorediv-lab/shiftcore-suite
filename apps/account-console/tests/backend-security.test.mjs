@@ -69,7 +69,10 @@ function createAttendanceContext(records) {
       getUuid: () => `UUID-${++uuid}`,
       formatDate: (date, _tz, format) => format === "yyyy-MM-dd" ? new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(date) : "2026/08/28 18:00"
     },
-    LockService: { getDocumentLock: () => ({ waitLock: () => {}, releaseLock: () => {} }) },
+    LockService: {
+      getDocumentLock: () => ({ waitLock: () => {}, releaseLock: () => {} }),
+      getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} })
+    },
     console
   });
   vm.runInContext(backendSource, context);
@@ -228,6 +231,45 @@ test("ポータル初期表示は勤怠と個人成績を一括取得し、成�
   assert.equal(partial.marker, "dashboard");
   assert.equal(partial.workReportSummary, null);
   assert.equal(partial.workReportSummaryError.code, "SUMMARY_FAILED");
+});
+
+test("背景予定同期は成功後5分の印だけを共有し、予定本体は勤怠シートから再読込する", () => {
+  const { context } = createAttendanceContext([]);
+  const cacheValues = new Map();
+  context.CacheService = { getScriptCache: () => ({
+    get: key => cacheValues.get(key) || null,
+    put: (key, value) => cacheValues.set(key, value),
+    remove: key => cacheValues.delete(key)
+  }) };
+  context.rows_ = () => [{ schedule_id: "LOCAL" }];
+  let syncCalls = 0;
+  context.syncSchedules_ = () => ({ schedules: [{ schedule_id: `SYNC-${++syncCalls}` }], synced: true });
+
+  const first = context.getDashboardSchedules_("token");
+  const second = context.getDashboardSchedules_("token");
+  assert.equal(first.sync.status, "refreshed");
+  assert.equal(first.schedules[0].schedule_id, "SYNC-1");
+  assert.equal(second.sync.status, "fresh-cache");
+  assert.equal(second.schedules[0].schedule_id, "LOCAL");
+  assert.equal(syncCalls, 1);
+  assert.ok(Array.from(cacheValues.values()).every(value => !value.includes("SYNC-1") && !value.includes("LOCAL")));
+});
+
+test("背景予定同期の失敗は印を消して次回再試行できる", () => {
+  const { context } = createAttendanceContext([]);
+  const cacheValues = new Map();
+  context.CacheService = { getScriptCache: () => ({
+    get: key => cacheValues.get(key) || null,
+    put: (key, value) => cacheValues.set(key, value),
+    remove: key => cacheValues.delete(key)
+  }) };
+  context.rows_ = () => [{ schedule_id: "LOCAL" }];
+  let syncCalls = 0;
+  context.syncSchedules_ = () => ({ schedules: [{ schedule_id: "LOCAL" }], synced: (++syncCalls, false) });
+  assert.equal(context.getDashboardSchedules_("token").sync.status, "failed");
+  assert.equal(context.getDashboardSchedules_("token").sync.status, "failed");
+  assert.equal(syncCalls, 2);
+  assert.equal(cacheValues.size, 0);
 });
 
 test("CSVは通常出力で最新版だけ、履歴出力で修正前後を含める", () => {
