@@ -58,5 +58,19 @@ test("ダッシュボードの現状表示は先頭側へ配置し、表示域�
 test("ダッシュボードの日付は年月日を省略せず表示する", () => {
   assert.match(dashboardSource, /month: "numeric"/);
   assert.match(dashboardSource, /\$\{part\("year"\)\}年\$\{part\("month"\)\}月\$\{part\("day"\)\}日/);
-  assert.match(dashboardHtml, /main\.js\?v=20260831-date-label-1/);
+  assert.match(dashboardHtml, /main\.js\?v=20260831-attendance-loading-1/);
+});
+
+test("最新勤怠の取得前は非稼働と断定せず稼働予定を読込中にする", () => {
+  const loadStart = dashboardSource.indexOf("async function loadDashboard()");
+  const loadingRender = dashboardSource.indexOf("renderDashboardLoading({", loadStart);
+  const attendanceRequest = dashboardSource.indexOf('attendanceRequest("getDashboardData"', loadStart);
+
+  assert.ok(loadStart >= 0);
+  assert.ok(loadingRender > loadStart && loadingRender < attendanceRequest);
+  assert.match(dashboardSource, /setActivity\(\$\("workStatus"\), true, preserveSchedule \? "更新中" : "確認中"\)/);
+  assert.match(dashboardSource, /setActivity\(\$\("workLocation"\), true, "稼働予定を読み込んでいます…"\)/);
+  assert.match(dashboardSource, /\$\("startBtn"\)\.disabled = true/);
+  assert.match(dashboardSource, /\$\("startBtn"\)\.disabled = false/);
+  assert.match(dashboardSource, /cachedDashboard\.schedule \|\| cachedDashboard\.record/);
 });
