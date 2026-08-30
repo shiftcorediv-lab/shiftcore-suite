@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="../common/environment.js?v=20260830-staging-1"></script>
   <title>Another Portal Dashboard</title>
-  <link rel="stylesheet" href="./css/dashboard.css?v=20260830-personal-performance-3">
+  <link rel="stylesheet" href="./css/dashboard.css?v=20260831-sticky-status-1">
   <script src="../theme/shiftcore-theme.js"></script>
   <link rel="stylesheet" href="../theme/shiftcore-theme.css">
 </head>
@@ -44,6 +44,7 @@
       </section>
 
       <div id="alertArea" class="alert-area" aria-live="polite"></div>
+      <div id="statusBox" class="status-box" aria-live="polite" data-shiftcore-loading="true" aria-busy="true">データを読み込んでいます</div>
 
       <section class="hero-grid">
         <article class="work-card card">
@@ -88,7 +89,6 @@
       </section>
 
       <section class="account-strip"><div><span id="emailText"></span><small id="accountMeta"></small></div><div><button id="logoutBtn" type="button">ログアウト</button><button id="backToLoginBtn" type="button">ログイン画面</button></div></section>
-      <div id="statusBox" class="status-box" aria-live="polite" data-shiftcore-loading="true" aria-busy="true">データを読み込んでいます</div>
     </main>
   </div>
 
