@@ -135,6 +135,8 @@ test("個人ダッシュボードは本人専用成績を初期表示と一括�
   assert.match(dashboardSource, /attendanceRequest\("getPortalBootstrap"/);
   assert.match(dashboardSource, /error\.code !== "UNKNOWN_ACTION"/);
   assert.match(dashboardSource, /loadMyWorkReportSummaryFallback/);
+  assert.doesNotMatch(dashboardSource, /\bloadDashboard\s*\(/);
+  assert.doesNotMatch(dashboardSource, /\bloadMyWorkReportSummary\s*\(/);
   assert.match(dashboardSource, /void refreshModuleAccess\(user\);\s+await loadPortalBootstrap\(\);/);
   assert.match(dashboardSource, /workReportSummary: null, workReportSummaryError: null/);
   assert.match(dashboardSource, /sessionStorage\.setItem\("shiftcore_report_context", JSON\.stringify\(\{ recordId \}\)\)/);
