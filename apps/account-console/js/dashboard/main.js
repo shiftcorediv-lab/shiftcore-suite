@@ -36,6 +36,7 @@ onAuthStateChanged(auth, async user => {
   }
   await refreshModuleAccess(user);
   await loadDashboard();
+  loadMyWorkReportSummary();
 });
 
 async function refreshModuleAccess(firebaseUser) {
@@ -78,6 +79,32 @@ async function refreshDashboardInBackground() {
   }
 }
 
+async function loadMyWorkReportSummary() {
+  try {
+    const summary = await attendanceRequest("getMyWorkReportSummary", { month: todayKey().slice(0, 7) });
+    renderMyWorkReportSummary(summary);
+  } catch (error) {
+    $("performanceLoading").textContent = `成績を読み込めませんでした: ${error.message}`;
+    $("performanceLoading").classList.add("error");
+  }
+}
+
+function renderMyWorkReportSummary(summary) {
+  $("performanceMonth").textContent = `${summary.month.replace("-", "年")}月`;
+  $("performanceMetrics").innerHTML = (summary.metrics || []).length ? summary.metrics.map(metric => `<article><small>${escapeHtml(metric.label)}</small><strong>${Number(metric.value).toLocaleString("ja-JP")}</strong><span>件</span></article>`).join("") : '<div class="empty-state">今月の提出済み実績はまだありません。</div>';
+  const counts = summary.counts || {};
+  $("performanceSubmissionSummary").innerHTML = `<span>対象 ${Number(counts.total || 0)}件</span><span>提出済み ${Number(counts.submitted || 0)}件</span><span>未提出 ${Number(counts.missing || 0)}件</span>${counts.returned ? `<span class="needs-action">要修正 ${Number(counts.returned)}件</span>` : ""}`;
+  $("myReportRows").innerHTML = (summary.submissions || []).map(item => `<article><div><small>${escapeHtml(item.workDate)}</small><strong>${escapeHtml(item.storeName || item.planName || "実績報告")}</strong><span>${escapeHtml(item.status)}${item.revisionNumber ? `・第${item.revisionNumber}版` : ""}</span>${item.returnReason ? `<p>${escapeHtml(item.returnReason)}</p>` : ""}</div>${item.editable ? `<button type="button" data-open-my-report="${escapeHtml(item.recordId)}">${item.status === "未提出" ? "入力" : "確認・修正"}</button>` : ""}</article>`).join("");
+  document.querySelectorAll("[data-open-my-report]").forEach(button => button.addEventListener("click", () => openMyWorkReport(button.dataset.openMyReport)));
+  $("performanceLoading").hidden = true;
+  $("performanceContent").hidden = false;
+}
+
+function openMyWorkReport(recordId) {
+  sessionStorage.setItem("shiftcore_report_context", JSON.stringify({ recordId }));
+  window.location.href = "./work-report.html";
+}
+
 function readDashboardCache() {
   try {
     const cached = JSON.parse(localStorage.getItem(dashboardCacheKey) || "null");
@@ -118,7 +145,7 @@ function renderDashboard(data) {
   const record = data.record;
   const primaryState = actionState(data);
   $("startBtn").textContent = primaryState.label;
-  $("adminLink").hidden = !data.adminAccess;
+  $("adminLinks").hidden = !data.adminAccess;
   $("workLocation").textContent = schedule?.["稼働場所"] || record?.["予定場所"] || "非稼働";
   $("weatherLocation").textContent = schedule?.["稼働場所"] || record?.["予定場所"] || "非稼働";
   $("plannedTime").textContent = schedule ? `${timeText(schedule["予定開始"])} – ${timeText(schedule["予定終了"])}` : "—";
@@ -269,7 +296,7 @@ async function submitCompletion() {
   if (!await openDialog("終了報告", body, "終了報告する")) return;
   const reason = readReason();
   if (approvalRequired && !reason) return showStatus("理由を入力してください。", true);
-  await runAction(async () => { const result = await attendanceRequest("clockOut", { scheduleId: dashboardData.schedule?.schedule_id || "", reason, reasonType: $("reasonType")?.value || "その他" }); sessionStorage.setItem("shiftcore_report_context", JSON.stringify({ recordId: result.record.record_id, plans: result.plans || [], reporterName: dashboardData.user?.name || "", storeName: dashboardData.schedule?.["稼働場所"] || result.record?.["予定場所"] || "", workDate: dashboardData.schedule?.["勤務日"] || result.record?.["勤務日"] || dashboardData.today || "" })); window.location.href = "./work-report.html"; });
+  await runAction(async () => { const result = await attendanceRequest("clockOut", { scheduleId: dashboardData.schedule?.schedule_id || "", reason, reasonType: $("reasonType")?.value || "その他" }); if (result.workReportRequired) { sessionStorage.setItem("shiftcore_report_context", JSON.stringify({ recordId: result.record.record_id })); window.location.href = "./work-report.html"; return; } await loadDashboard(); loadMyWorkReportSummary(); showAlert("終了報告を記録しました。この案件は実績報告の対象外です。", "success"); });
 }
 
 function actionState(data) { const reports = data.fieldReports || []; const departure = reports.some(r => r["報告種別"] === "出発"); const arrival = reports.some(r => r["報告種別"] === "入店"); if (!data.schedule) return data.record?.["実開始"] && !data.record?.["実終了"] ? { name: "completion", label: "終了報告", hidden: false } : { name: "unplanned", label: "予定外稼働", hidden: Boolean(data.record?.["実終了"]) }; if (!departure) return { name: "departure", label: "出発", hidden: false }; if (!arrival || !data.record?.["実開始"]) return { name: "arrival", label: "入店", hidden: false }; if (!data.record?.["実終了"]) return { name: "completion", label: "終了報告", hidden: false }; return { name: "done", label: "終了報告済み", hidden: true }; }

@@ -3,78 +3,123 @@ import { attendanceRequest } from "../dashboard/attendance-api.js";
 
 const context = JSON.parse(sessionStorage.getItem("shiftcore_report_context") || "null");
 const $ = id => document.getElementById(id);
-const performanceFields = [
-  ["u39Mnp", "U39 MNP"], ["over40Mnp", "40 Over MNP"], ["u39New", "U39 純新規"], ["over40New", "40 Over 純新規"],
-  ["smartphoneSales", "スマホ総販"], ["outsideSalesSmartphones", "内）販売外スマホ総販"],
-  ["highEndAndroid", "内）ハイエンドAndroid"], ["highEndIphone", "内）ハイエンドiPhone"],
-  ["usedSmartphones", "内）中古スマホ"], ["makerIncentiveHigh", "内）メーカーインセ（ハイエンド）"],
-  ["makerIncentiveMiddle", "内）メーカーインセ（ミドル）"], ["docomoPoikatsuMax", "ドコモポイ活MAX移行"],
-  ["docomoMax", "ドコモMAX移行"], ["dValuePass", "dバリューパス"],
-  ["securityStandard", "あんしんセキュリティスタンダード（詐欺含む）"],
-  ["amazonPrimeNew", "AmazonPrime（新規）"], ["amazonPrimeExisting", "AmazonPrime（既存）"],
-  ["agekyun", "アゲキュン（Disney+、Netflix等）"], ["docomoHikari10g", "ドコモ光（10ギガ）"],
-  ["docomoHikari1g", "ドコモ光（1ギガ）"], ["home5g", "Home 5g"],
-  ["dCardPlatinum", "dカードPlatinum"], ["dCardGold", "dカードGOLD"], ["dCardGoldU", "dカードGOLD U"],
-  ["docomoDenkiGreen", "ドコモでんき（Green）"], ["docomoDenkiBasic", "ドコモでんき（Basic）"],
-  ["docomoGas", "ドコモガス"], ["securityService", "セキュリティサービス"], ["adBlock", "広告ブロック"],
-  ["backupService", "バックアップサービス"], ["fraudCallProtection", "詐欺電話対策"],
-  ["compensationService", "補償サービス"], ["coatingBoth", "コーティング（両面）"], ["coatingOne", "コーティング（片面）"]
-];
+let formData = null;
+let loadingStarted = false;
+let submissionToken = createSubmissionToken();
 
-if (!context) location.replace("./dashboard.html");
+if (!context?.recordId) location.replace("./dashboard.html");
 
-const plans = context?.plans?.length ? context.plans : [{ id: "", name: "当日の稼働案件" }];
-$("planSelect").innerHTML = plans.map(plan => `<option value="${escapeHtml(plan.id)}">${escapeHtml(plan.name)}</option>`).join("");
-$("reporterName").value = context?.reporterName || "";
-$("storeName").value = context?.storeName || plans[0]?.name || "";
-$("entryDate").value = normalizeDate(context?.workDate);
-$("performanceFields").innerHTML = performanceFields.map(([id, label]) =>
-  `<label>${escapeHtml(label)}<input id="${id}" type="number" min="0" step="1" inputmode="numeric" placeholder="0"></label>`
-).join("");
+onAuthStateChanged(auth, user => {
+  if (!user) return location.replace("./index.html");
+  if (!loadingStarted) {
+    loadingStarted = true;
+    loadForm();
+  }
+});
 
-onAuthStateChanged(auth, user => { if (!user) location.replace("./index.html"); });
+async function loadForm() {
+  try {
+    formData = await attendanceRequest("getWorkReportForm", { recordId: context.recordId });
+    if (formData.resumeSubmissionToken) submissionToken = formData.resumeSubmissionToken;
+    renderContext(formData.record);
+    renderFields(formData.items || []);
+    renderRevisionNotice(formData);
+    $("submitBtn").textContent = formData.revisionNumber ? "修正内容を保存" : "実績報告を送信";
+    $("loadingState").hidden = true;
+    $("reportForm").hidden = false;
+  } catch (error) {
+    $("loadingState").textContent = error.message;
+    $("loadingState").classList.add("error");
+  }
+}
+
+function renderContext(record) {
+  const values = [
+    ["稼働案件名", record.planName || "予定外稼働"],
+    ["氏名（フルネーム）", record.reporterName || "—"],
+    ["店舗名", record.storeName || "—"],
+    ["入店日", record.workDate || "—"]
+  ];
+  $("reportContext").innerHTML = values.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
+  $("reportContext").hidden = false;
+}
+
+function renderFields(items) {
+  const categories = [];
+  items.forEach(item => {
+    let category = categories.find(group => group.id === item.categoryId);
+    if (!category) {
+      category = { id: item.categoryId, name: item.categoryName, items: [] };
+      categories.push(category);
+    }
+    category.items.push(item);
+  });
+  $("reportFields").innerHTML = categories.map((category, index) => `
+    <details class="category" ${index === 0 || category.id === "qualitative" ? "open" : ""}>
+      <summary>${escapeHtml(category.name)}</summary>
+      <div class="category-body">
+        ${category.items.some(item => item.type === "number") ? '<p class="category-help">件数を入力してください。空欄は0件として扱います。</p>' : ""}
+        ${category.items.map(renderField).join("")}
+      </div>
+    </details>
+  `).join("");
+}
+
+function renderField(item) {
+  const id = `report-item-${escapeAttribute(item.itemId)}`;
+  const required = item.required ? " required" : "";
+  const mark = item.required ? '<span class="required-mark">*</span>' : "";
+  const retired = item.retired ? '<small class="retired-mark">現在は停止中の項目です。過去報告の意味を保つため、この修正画面では引き続き表示します。</small>' : "";
+  if (item.type === "number") return `<label for="${id}">${escapeHtml(item.name)}${mark}${retired}<input id="${id}" data-item-id="${escapeAttribute(item.itemId)}" data-item-type="number" type="number" min="0" step="1" inputmode="numeric" placeholder="0" value="${item.value === "" ? "" : escapeAttribute(item.value)}"${required}></label>`;
+  return `<label for="${id}">${escapeHtml(item.name)}${mark}${retired}<textarea id="${id}" data-item-id="${escapeAttribute(item.itemId)}" data-item-type="text" maxlength="5000"${required}>${escapeHtml(item.value || "")}</textarea></label>`;
+}
+
+function renderRevisionNotice(data) {
+  if (data.resuming) {
+    $("revisionNotice").innerHTML = "<strong>前回の送信を復元しました</strong><p>保存できていた回答を表示しています。内容を確認して、もう一度送信してください。</p>";
+    $("revisionNotice").hidden = false;
+    return;
+  }
+  if (!data.revisionNumber) return;
+  const returned = data.status === "差戻し中";
+  $("revisionNotice").innerHTML = `<strong>${returned ? "修正をお願いします" : `提出済み・第${data.revisionNumber}版`}</strong><p>${returned ? escapeHtml(data.returnReason || "管理者から修正依頼があります。") : "保存すると新しい版になり、現在の入力内容が画面上の最新版になります。以前の版も履歴として残ります。"}</p>`;
+  $("revisionNotice").classList.toggle("returned", returned);
+  $("revisionNotice").hidden = false;
+}
 
 $("reportForm").addEventListener("submit", async event => {
   event.preventDefault();
+  if (!formData) return;
   $("submitBtn").disabled = true;
+  setMessage("送信しています…");
   try {
-    const plan = plans.find(item => String(item.id) === String($("planSelect").value)) || plans[0];
-    const basicLines = [
-      `氏名：${$("reporterName").value.trim()}`,
-      `店舗名：${$("storeName").value.trim()}`,
-      `入店日：${$("entryDate").value}`,
-      `応対数：${numberValue("responseCount")}件`
-    ];
-    const performanceLines = performanceFields.map(([id, label]) => `${label}：${numberValue(id)}件`);
-    const result = [
-      "【基本情報】", ...basicLines, "", "【実績集計】", ...performanceLines, "",
-      "【定性報告】", `成果につながった行動：${$("successfulActions").value.trim()}`,
-      `実施した対策と結果：${$("measuresAndResults").value.trim()}`
-    ].join("\n");
-    const notes = [
-      `実績不振の理由：${$("underperformanceReason").value.trim() || "なし"}`,
-      `役員への報告・申し送り：${$("executiveNotes").value.trim() || "なし"}`
-    ].join("\n");
-    await attendanceRequest("submitReport", { recordId: context.recordId, planId: plan.id, planName: plan.name, result, notes });
+    const answers = Array.from(document.querySelectorAll("[data-item-id]")).map(input => ({
+      itemId: input.dataset.itemId,
+      value: input.dataset.itemType === "number" && input.value.trim() === "" ? null : input.value
+    }));
+    const result = await attendanceRequest("submitReport", { recordId: formData.record.recordId, answers, submissionToken });
     sessionStorage.removeItem("shiftcore_report_context");
-    $("message").textContent = "実績報告を送信しました。";
+    setMessage(result.duplicate ? "同じ内容はすでに保存されています。" : `実績報告を第${result.revisionNumber}版として保存しました。`);
     setTimeout(() => location.replace("./dashboard.html"), 900);
   } catch (error) {
-    $("message").textContent = error.message;
+    setMessage(`${error.message} 入力内容は画面に残っています。通信結果が不明な場合も、同じ勤怠記録へ安全に再送できます。`, true);
     $("submitBtn").disabled = false;
   }
 });
 
-function numberValue(id) {
-  const value = Number($(id)?.value || 0);
-  return Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
-}
-function normalizeDate(value) {
-  const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
-  return match ? `${match[1]}-${match[2]}-${match[3]}` : "";
+function setMessage(value, error = false) {
+  $("message").textContent = value;
+  $("message").classList.toggle("error", error);
 }
 function escapeHtml(value) {
   const div = document.createElement("div");
   div.textContent = String(value ?? "");
   return div.innerHTML;
+}
+function escapeAttribute(value) {
+  return String(value ?? "").replace(/[^A-Za-z0-9_-]/g, "_");
+}
+function createSubmissionToken() {
+  if (globalThis.crypto?.randomUUID) return crypto.randomUUID();
+  return `report-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
