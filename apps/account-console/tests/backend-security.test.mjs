@@ -233,6 +233,32 @@ test("ポータル初期表示は勤怠と個人成績を一括取得し、成�
   assert.equal(partial.workReportSummaryError.code, "SUMMARY_FAILED");
 });
 
+test("ポータル初期表示は大きいシートを同一リクエスト内で一度だけ読む", () => {
+  const { context, sheets } = createAttendanceContext([{ record_id: "REC-BOOTSTRAP", email: "member@example.com", workDate: "2026-08-28" }]);
+  sheets["稼働予定"] = createSheet([
+    ["schedule_id", "email", "勤務日", "開発予定ID", "開発予定名", "稼働場所"],
+    ["SCH-BOOTSTRAP", "member@example.com", "2026-08-28", "PLAN-1", "案件1", "店舗A"]
+  ]);
+  sheets["現場報告"] = createSheet([["field_report_id", "勤務日", "開発予定ID", "報告種別", "報告者メール", "報告者氏名", "報告日時", "schedule_id"]]);
+  sheets["設定"] = createSheet([["設定キー", "設定値"]]);
+  sheets["実績項目"] = createSheet([
+    ["item_id", "template_id", "項目名", "種別", "カテゴリID", "カテゴリ名", "表示順", "必須", "有効", "定義版", "ダッシュボード表示", "ダッシュボード名", "ダッシュボード順", "作成日時", "更新日時"],
+    ["responseCount", "docomo", "応対数", "number", "basic", "基本情報", 10, true, true, 1, true, "応対数", 10, "", ""]
+  ]);
+  const rowReads = Object.create(null);
+  const readRows = context.rows_;
+  context.rows_ = name => {
+    rowReads[name] = (rowReads[name] || 0) + 1;
+    return readRows(name);
+  };
+
+  const result = context.getPortalBootstrap_({ email: "member@example.com", name: "本人", role: "developer" }, { month: "2026-08" });
+  assert.equal(result.ok, true);
+  for (const sheetName of ["稼働予定", "勤怠記録", "実績テンプレート", "実績項目"]) {
+    assert.equal(rowReads[sheetName], 1, sheetName);
+  }
+});
+
 test("背景予定同期は成功後5分の印だけを共有し、予定本体は勤怠シートから再読込する", () => {
   const { context } = createAttendanceContext([]);
   const cacheValues = new Map();

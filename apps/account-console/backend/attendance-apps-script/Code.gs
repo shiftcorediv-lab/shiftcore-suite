@@ -152,12 +152,18 @@ function doPost(e) {
 
 function getPortalBootstrap_(user, payload) {
   const startedAt = Date.now();
-  const dashboard = getDashboardData_(user, null, payload && payload.scheduleId);
+  // 同一リクエスト内で大きいシートを二重に全件読込しない。
+  // このスナップショットは応答処理中だけ使い、共有キャッシュへは保存しない。
+  const sourceRows = {
+    schedules: rows_(SHEETS.schedules),
+    records: rows_(SHEETS.records)
+  };
+  const dashboard = getDashboardData_(user, sourceRows.schedules, payload && payload.scheduleId, sourceRows);
   const dashboardCompletedAt = Date.now();
   let workReportSummary = null;
   let workReportSummaryError = null;
   try {
-    workReportSummary = getMyWorkReportSummary_(user, payload || {});
+    workReportSummary = getMyWorkReportSummary_(user, payload || {}, sourceRows);
   } catch (error) {
     // 成績集計だけが失敗しても、打刻に必要なダッシュボードは利用可能にする。
     workReportSummaryError = { code: error.code || "SERVER_ERROR", message: error.message || String(error) };
@@ -187,14 +193,15 @@ function resolveUser_(idToken) {
   return data.user;
 }
 
-function getDashboardData_(user, sourceSchedules, selectedScheduleId) {
+function getDashboardData_(user, sourceSchedules, selectedScheduleId, sourceRows) {
   ensureReportSheet_();
   ensureFieldReportSheet_();
+  const sources = sourceRows || {};
   const today = today_();
-  const schedules = (sourceSchedules || rows_(SHEETS.schedules)).filter(r => matchesUser_(r, user));
+  const schedules = (sourceSchedules || sources.schedules || rows_(SHEETS.schedules)).filter(r => matchesUser_(r, user));
   const todaySchedules = schedules.filter(r => dateKey_(r["勤務日"]) === today);
   const upcoming = schedules.filter(r => dateKey_(r["勤務日"]) >= today).sort((a, b) => dateKey_(a["勤務日"]).localeCompare(dateKey_(b["勤務日"]))).slice(0, 5);
-  const userRecords = rows_(SHEETS.records).filter(r => normalizeEmail_(r.email) === normalizeEmail_(user.email));
+  const userRecords = (sources.records || rows_(SHEETS.records)).filter(r => normalizeEmail_(r.email) === normalizeEmail_(user.email));
   const fieldReports = rows_(SHEETS.fieldReports);
   const activeRecord = userRecords.find(r => r["実開始"] && !r["実終了"]);
   const pendingOvernightReport = findPendingOvernightReport_(user, today, fieldReports);
@@ -563,18 +570,19 @@ function completeWorkReportHeader_(reportId, context, templateId, definitionVers
   });
 }
 
-function getMyWorkReportSummary_(user, payload) {
-  ensureWorkReportSheetsWithLock_();
+function getMyWorkReportSummary_(user, payload, sourceRows) {
+  const ensuredRows = ensureWorkReportSheetsWithLock_() || {};
+  const sources = sourceRows || {};
   const month = /^\d{4}-\d{2}$/.test(String(payload && payload.month || "")) ? String(payload.month) : today_().slice(0, 7);
   const dateFrom = `${month}-01`;
   const dateTo = monthEnd_(month);
-  const schedules = rows_(SHEETS.schedules);
-  const templates = rows_(SHEETS.reportTemplates);
+  const schedules = sources.schedules || rows_(SHEETS.schedules);
+  const templates = sources.reportTemplates || ensuredRows.templates || rows_(SHEETS.reportTemplates);
   const mappings = rows_(SHEETS.reportCaseMappings);
   const reports = rows_(SHEETS.reports);
   const reportAnswers = rows_(SHEETS.reportAnswers);
   const reportByRecord = reports.reduce((result, report) => (result[String(report.record_id || "")] = report, result), Object.create(null));
-  const records = rows_(SHEETS.records).filter(record => {
+  const records = (sources.records || rows_(SHEETS.records)).filter(record => {
     const workDate = dateKey_(record["勤務日"]);
     if (normalizeEmail_(record.email) !== normalizeEmail_(user.email) || !Boolean(record["実終了"] || record["正式終了"]) || workDate < dateFrom || workDate > dateTo) return false;
     return Boolean(reportByRecord[String(record.record_id || "")] || workReportTemplateForContext_(workReportContext_(record, schedules), mappings, templates));
@@ -596,7 +604,8 @@ function getMyWorkReportSummary_(user, payload) {
   }).sort((a, b) => b.workDate.localeCompare(a.workDate));
   const metrics = Object.create(null);
   const targetRecordIds = submissions.map(item => item.recordId);
-  const itemById = allWorkReportItems_().reduce((result, item) => (result[String(item.item_id || "")] = item, result), Object.create(null));
+  const reportItems = (sources.reportItems || ensuredRows.items || rows_(SHEETS.reportItems)).slice().sort(workReportItemSort_);
+  const itemById = reportItems.reduce((result, item) => (result[String(item.item_id || "")] = item, result), Object.create(null));
   reports.filter(report => targetRecordIds.includes(String(report.record_id || "")) && normalizeEmail_(report["報告者メール"]) === normalizeEmail_(user.email) && isSubmittedWorkReport_(report)).forEach(report => {
     currentWorkReportAnswers_(report, reportAnswers).forEach(answer => {
       const master = itemById[String(answer.item_id || "")];
@@ -1565,7 +1574,7 @@ function appendObjects_(name, values) { if (!values.length) return; const sheet 
 function updateById_(sheetName, idColumn, id, changes) { const sheet = SpreadsheetApp.getActive().getSheetByName(sheetName); const values = sheet.getDataRange().getValues(); const headers = values[0].map(String); const rowIndex = values.findIndex((r, i) => i > 0 && String(r[headers.indexOf(idColumn)]) === String(id)); if (rowIndex < 1) throw apiError_("NOT_FOUND", "対象データが見つかりません。"); Object.keys(changes).forEach(k => { const col = headers.indexOf(k); if (col >= 0) sheet.getRange(rowIndex + 1, col + 1).setValue(changes[k]); }); }
 function settings_() { return rows_(SHEETS.settings).reduce((o, r) => (o[String(r["設定キー"])] = String(r["設定値"]), o), {}); }
 function ensureReportSheet_() { const ss = SpreadsheetApp.getActive(); if (!ss.getSheetByName(SHEETS.reports)) { const s = ss.insertSheet(SHEETS.reports); s.appendRow(HEADERS.reports); s.setFrozenRows(1); } }
-function ensureWorkReportSheetsWithLock_() { const lock = LockService.getDocumentLock(); lock.waitLock(20000); try { ensureWorkReportSheets_(); } finally { lock.releaseLock(); } }
+function ensureWorkReportSheetsWithLock_() { const lock = LockService.getDocumentLock(); lock.waitLock(20000); try { return ensureWorkReportSheets_(); } finally { lock.releaseLock(); } }
 function ensureWorkReportSheets_() {
   ensureReportSheet_();
   ensureReportContractHeaders_();
@@ -1574,11 +1583,12 @@ function ensureWorkReportSheets_() {
   ensureAppendOnlySheet_(SHEETS.reportRevisions, HEADERS.reportRevisions);
   ensureAppendOnlySheet_(SHEETS.reportItems, HEADERS.reportItems);
   ensureAppendOnlySheet_(SHEETS.reportAnswers, HEADERS.reportAnswers);
-  const templates = rows_(SHEETS.reportTemplates);
-  const items = rows_(SHEETS.reportItems);
+  let templates = rows_(SHEETS.reportTemplates);
+  let items = rows_(SHEETS.reportItems);
   if (!templates.length) {
     const now = new Date();
     appendObject_(SHEETS.reportTemplates, { template_id: DEFAULT_WORK_REPORT_TEMPLATE_ID, "テンプレート名": "ドコモ案件", "有効": true, "作成日時": now, "更新日時": now });
+    templates = rows_(SHEETS.reportTemplates);
   }
   if (!items.length) {
     const now = new Date();
@@ -1586,9 +1596,13 @@ function ensureWorkReportSheets_() {
       item_id: item[0], template_id: DEFAULT_WORK_REPORT_TEMPLATE_ID, "項目名": item[1], "種別": item[2], "カテゴリID": item[3], "カテゴリ名": item[4], "表示順": item[5], "必須": item[6], "有効": true, "定義版": 1,
       "ダッシュボード表示": ["responseCount", "u39Mnp", "u39New", "smartphoneSales"].includes(item[0]), "ダッシュボード名": item[1], "ダッシュボード順": item[5], "作成日時": now, "更新日時": now
     })));
+    items = rows_(SHEETS.reportItems);
   } else {
-    items.filter(item => !item.template_id).forEach(item => updateById_(SHEETS.reportItems, "item_id", item.item_id, { template_id: DEFAULT_WORK_REPORT_TEMPLATE_ID }));
+    const missingTemplateItems = items.filter(item => !item.template_id);
+    missingTemplateItems.forEach(item => updateById_(SHEETS.reportItems, "item_id", item.item_id, { template_id: DEFAULT_WORK_REPORT_TEMPLATE_ID }));
+    if (missingTemplateItems.length) items = rows_(SHEETS.reportItems);
   }
+  return { templates, items };
 }
 function ensureAppendOnlySheet_(name, headers) { const ss = SpreadsheetApp.getActive(); let sheet = ss.getSheetByName(name); if (!sheet) { sheet = ss.insertSheet(name); sheet.appendRow(headers); sheet.setFrozenRows(1); return; } const existing = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String); const duplicate = existing.find((header, index) => header && existing.indexOf(header) !== index); if (duplicate) throw apiError_("SHEET_SCHEMA_MISMATCH", `${name}シートに重複列があります: ${duplicate}`); headers.forEach(header => { if (!existing.includes(header)) { sheet.getRange(1, sheet.getLastColumn() + 1).setValue(header); existing.push(header); } }); }
 function ensureReportContractHeaders_() { const sheet = SpreadsheetApp.getActive().getSheetByName(SHEETS.reports); if (!sheet) throw apiError_("SHEET_NOT_FOUND", `${SHEETS.reports}シートがありません。`); const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String); const duplicate = headers.find((header, index) => header && headers.indexOf(header) !== index); if (duplicate) throw apiError_("SHEET_SCHEMA_MISMATCH", `${SHEETS.reports}シートに重複列があります: ${duplicate}`); const missingExisting = HEADERS.reports.filter(header => !headers.includes(header)); if (missingExisting.length) throw apiError_("SHEET_SCHEMA_MISMATCH", `${SHEETS.reports}シートの既存列が不足しています: ${missingExisting.join(",")}`); HEADERS.reportContract.forEach(header => { if (!headers.includes(header)) { sheet.getRange(1, sheet.getLastColumn() + 1).setValue(header); headers.push(header); } }); }
