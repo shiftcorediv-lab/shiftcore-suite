@@ -143,6 +143,7 @@ test("管理者ダッシュボードから勤怠管理と実績報告管理へ�
   assert.match(dashboardHtml, /href="\.\/attendance-admin\.html">勤怠管理<\/a>/);
   assert.match(dashboardHtml, /href="\.\/work-report-admin\.html">実績報告管理<\/a>/);
   assert.match(dashboardSource, /\$\("adminLinks"\)\.hidden = !data\.adminAccess/);
+  assert.match(dashboardCss, /\.admin-links\[hidden\]\{display:none\}/);
 });
 
 test("実績管理APIは既存の勤怠管理者以外を拒否する", () => {
