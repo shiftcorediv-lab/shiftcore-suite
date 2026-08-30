@@ -43,7 +43,7 @@ test("実績報告は送信前に本人・案件・店舗とカテゴリ別回�
 test("実績報告の保存後は自動遷移せず本人へ労いと受付結果を表示する", () => {
   assert.match(html, /id="completionState"/);
   assert.ok(source.includes("今日もお疲れさまでした"));
-  assert.ok(source.includes("本日の稼働と、丁寧な実績報告をありがとうございます"));
+  assert.ok(source.includes("本日の稼働と実績報告をありがとうございます"));
   assert.match(source, /実績報告を第\$\{result\.revisionNumber\}版として受け付けました/);
   assert.doesNotMatch(source, /setTimeout\(\(\) => location\.replace\("\.\/dashboard\.html"\), 900\)/);
 });
