@@ -13,7 +13,7 @@ export const ATTENDANCE_API_URL = window.ShiftCoreEnvironment.endpoint(
   "attendanceApi",
   "https://script.google.com/macros/s/AKfycbzYSk46G7ZZx55vQIOC5pRqyA15rn15ORbTe_f72PVxmj5v0EISBbL4tpGA_ehOtnBnAQ/exec"
 );
-export const LOCATION_CONSENT_VERSION = "2026-08-02-v1";
+export const LOCATION_CONSENT_VERSION = "2026-08-31-v2";
 
 export const MODULE_NAME_MAP = {
   account: "人員マスター",
