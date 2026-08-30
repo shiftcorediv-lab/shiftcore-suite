@@ -1932,3 +1932,37 @@ select {
   background: #fef3f2;
   color: #b42318;
 }
+.shiftcore-account-menu-logout {
+  display: block;
+  width: 100%;
+  margin: 10px 0 0;
+  padding: 13px 4px 4px;
+  border: 0;
+  border-top: 1px solid var(--sc-theme-border, #d9e0e9);
+  background: transparent;
+  color: #b4232c;
+  font: inherit;
+  font-weight: 750;
+  text-align: left;
+  cursor: pointer;
+}
+
+.shiftcore-account-menu-logout:hover,
+.shiftcore-account-menu-logout:focus-visible {
+  color: #8f151d;
+  text-decoration: underline;
+}
+
+.shiftcore-account-menu-logout:focus-visible {
+  outline: 3px solid #76a7ff;
+  outline-offset: 3px;
+}
+
+.shiftcore-account-menu-logout:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+:root[data-theme="dark"] .shiftcore-account-menu-logout {
+  color: #ffbdc5;
+}
