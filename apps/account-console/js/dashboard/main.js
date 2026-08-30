@@ -93,7 +93,11 @@ async function refreshDashboardInBackground() {
     dashboardData = refreshed;
     renderDashboard(refreshed);
     writeDashboardCache(refreshed);
-    showStatus("SBの最新予定を反映しました");
+    const syncStatus = refreshed.scheduleSync?.status;
+    if (syncStatus === "failed") showStatus("保存済み予定を表示中（SB同期失敗）", true);
+    else if (syncStatus === "in-progress") showStatus("保存済み予定を表示中（別の画面で最新予定を同期中です）");
+    else if (syncStatus === "fresh-cache") showStatus("5分以内に同期済みの予定を表示しています");
+    else showStatus("SBの最新予定を反映しました");
   } catch (error) {
     showStatus(`保存済み予定を表示中（SB同期失敗: ${error.message}）`, true);
   }
