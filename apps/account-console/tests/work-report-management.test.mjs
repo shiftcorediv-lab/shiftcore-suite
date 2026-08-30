@@ -132,6 +132,7 @@ test("管理画面は未提出・集計・項目編集停止・CSV出力を備�
 test("個人ダッシュボードは本人専用成績を初期表示と一括取得し、報告の確認・修正へ進める", () => {
   assert.ok(dashboardHtml.includes("今月の成績"));
   assert.ok(dashboardHtml.includes("ログインしている本人の実績だけを表示します"));
+  assert.match(dashboardHtml, /dashboard\/main\.js\?v=20260830-portal-performance-2/);
   assert.match(dashboardSource, /attendanceRequest\("getPortalBootstrap"/);
   assert.match(dashboardSource, /error\.code !== "UNKNOWN_ACTION"/);
   assert.match(dashboardSource, /loadMyWorkReportSummaryFallback/);
