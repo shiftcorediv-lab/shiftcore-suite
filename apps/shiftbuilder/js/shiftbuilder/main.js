@@ -1,7 +1,11 @@
 // ===== ShiftBuilder main.js ここから =====
 
 import { DASHBOARD_URL } from "./config.js?v=20260807-shadow-1";
-import { requireShiftBuilderSession, getLoginUrl } from "./auth.js?v=20260801-authfix-1";
+import {
+  requireShiftBuilderSession,
+  getLoginUrl,
+  logoutShiftBuilder
+} from "./auth.js?v=20260831-logout-1";
 import {
   getCurrentShiftBuilderUser,
   getShiftBuilderMonthData,
@@ -86,6 +90,47 @@ let isExternalDataRefreshRunning = false;
 let authRefreshRequired = false;
 const IS_DEMO_MODE = new URLSearchParams(window.location.search).get("demo") === "1";
 const HOWTO_OPEN_STORAGE_KEY = "shiftbuilder-howto-open-v2";
+
+function mountAccountMenuLogout() {
+  const panel = document.querySelector(".shiftcore-account-menu-panel");
+
+  if (!panel) {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", mountAccountMenuLogout, { once: true });
+    }
+    return;
+  }
+
+  if (panel.querySelector("[data-shiftbuilder-logout]")) {
+    return;
+  }
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "shiftcore-account-menu-logout";
+  button.dataset.shiftbuilderLogout = "true";
+  button.textContent = "ログアウト";
+
+  button.addEventListener("click", async () => {
+    if (button.disabled) {
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = "ログアウト中...";
+
+    try {
+      await logoutShiftBuilder();
+    } catch (error) {
+      console.error("[ShiftBuilder] logout error:", error);
+      button.disabled = false;
+      button.textContent = "ログアウト";
+      setStatus("ログアウトに失敗しました。通信状態を確認して再度お試しください。");
+    }
+  });
+
+  panel.appendChild(button);
+}
 
 async function requireMutationSession() {
   let session = getCurrentSession();
@@ -2906,6 +2951,8 @@ async function init() {
       }
       return;
     }
+
+    mountAccountMenuLogout();
 
     setStatus(`Firebaseログイン確認OK：${session.email}`);
 
