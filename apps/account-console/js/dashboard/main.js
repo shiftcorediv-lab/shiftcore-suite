@@ -16,6 +16,8 @@ let dashboardData = null;
 let busy = false;
 let selectedScheduleId = "";
 let dashboardLoadVersion = 0;
+const SCHEDULE_SYNC_RETRY_DELAY_MS = 2000;
+const MAX_SCHEDULE_SYNC_RETRIES = 6;
 
 if (!storedUser) {
   showStatus("セッション情報がありません。ログイン画面へ戻ります。", true);
@@ -74,16 +76,23 @@ async function loadDashboard() {
     if (loadVersion !== dashboardLoadVersion) return;
     dashboardData = loadedDashboard;
     selectedScheduleId = dashboardData.schedule?.schedule_id || selectedScheduleId;
-    renderDashboard(dashboardData);
-    writeDashboardCache(dashboardData);
     rememberServerTiming("dashboard", dashboardData.serverTiming);
     const syncStatus = dashboardData.scheduleSync?.status;
-    if (syncStatus === "fresh-cache") showStatus("5分以内に同期済みの予定を表示しています");
+    const scheduleSyncPending = isScheduleSyncPending(dashboardData);
+    if (scheduleSyncPending) renderDashboardLoading();
+    else {
+      renderDashboard(dashboardData);
+      writeDashboardCache(dashboardData);
+    }
+    if (scheduleSyncPending) showStatus("最新の稼働予定を確認しています…", false, true);
+    else if (syncStatus === "fresh-cache") showStatus("5分以内に同期済みの予定を表示しています");
     else if (syncStatus === "in-progress") showStatus("勤怠情報を表示しました。別の画面で最新予定を同期中です。", false, true);
     else showStatus("勤怠情報を表示しました。最新予定を確認中です。", false, true);
     // 打刻可能な状態を先に返し、重い成績集計と外部予定同期は表示後に並行する。
     const secondaryLoads = [loadMyWorkReportSummary(loadVersion)];
-    if (!["fresh-cache", "in-progress"].includes(syncStatus)) secondaryLoads.push(refreshDashboardInBackground(loadVersion));
+    if (!["fresh-cache", "in-progress"].includes(syncStatus) || scheduleSyncPending) {
+      secondaryLoads.push(refreshDashboardInBackground(loadVersion));
+    }
     void Promise.allSettled(secondaryLoads);
   } catch (error) {
     if (loadVersion !== dashboardLoadVersion) return;
@@ -104,15 +113,34 @@ async function loadMyWorkReportSummary(loadVersion) {
   }
 }
 
-async function refreshDashboardInBackground(loadVersion) {
+async function refreshDashboardInBackground(loadVersion, retryCount = 0) {
   try {
     const refreshed = await attendanceRequest("refreshDashboardData", { scheduleId: selectedScheduleId });
     if (loadVersion !== dashboardLoadVersion) return;
     dashboardData = refreshed;
+    const syncStatus = refreshed.scheduleSync?.status;
+
+    if (isScheduleSyncPending(refreshed)) {
+      renderDashboardLoading();
+      if (retryCount >= MAX_SCHEDULE_SYNC_RETRIES) {
+        showStatus("最新予定の同期に時間がかかっています。しばらくして再読み込みしてください。", true);
+        return;
+      }
+      showStatus("別の画面で進行中の最新予定同期を待っています…", false, true);
+      await waitFor(SCHEDULE_SYNC_RETRY_DELAY_MS);
+      if (loadVersion !== dashboardLoadVersion) return;
+      return refreshDashboardInBackground(loadVersion, retryCount + 1);
+    }
+
+    if (syncStatus === "failed" && !refreshed.schedule && !refreshed.record) {
+      renderUnavailable("最新の稼働予定を確認できませんでした");
+      showStatus("最新予定の同期に失敗しました。再読み込みしてください。", true);
+      return;
+    }
+
     renderDashboard(refreshed);
     writeDashboardCache(refreshed);
     rememberServerTiming("scheduleSync", refreshed.serverTiming);
-    const syncStatus = refreshed.scheduleSync?.status;
     if (syncStatus === "failed") showStatus("保存済み予定を表示中（SB同期失敗）", true);
     else if (syncStatus === "in-progress") showStatus("保存済み予定を表示中（別の画面で最新予定を同期中です）", false, true);
     else if (syncStatus === "fresh-cache") showStatus("5分以内に同期済みの予定を表示しています");
@@ -121,6 +149,15 @@ async function refreshDashboardInBackground(loadVersion) {
     if (loadVersion !== dashboardLoadVersion) return;
     showStatus(`保存済み予定を表示中（SB同期失敗: ${error.message}）`, true);
   }
+}
+
+function isScheduleSyncPending(data) {
+  const syncStatus = data?.scheduleSync?.status;
+  return !data?.schedule && !data?.record && ["stale", "in-progress"].includes(syncStatus);
+}
+
+function waitFor(milliseconds) {
+  return new Promise(resolve => setTimeout(resolve, milliseconds));
 }
 
 function rememberServerTiming(name, timing) {
@@ -263,12 +300,15 @@ async function submitDeparture() {
   });
 }
 
-function renderUnavailable() {
+function renderUnavailable(message = "勤怠情報を確認できませんでした") {
   setActivity($("workStatus"), false);
   setActivity($("workLocation"), false);
-  $("workStatus").textContent = "接続待ち";
-  $("workLocation").textContent = "勤怠APIの公開完了後に表示します";
+  $("workStatus").textContent = "確認エラー";
+  $("workStatus").dataset.status = "確認エラー";
+  $("workLocation").textContent = message;
   $("startBtn").disabled = true;
+  $("startBtn").textContent = "再読み込みしてください";
+  $("deadlineNote").textContent = "通信状態を確認し、画面を再読み込みしてください。";
 }
 
 function renderUpcoming(items) {
