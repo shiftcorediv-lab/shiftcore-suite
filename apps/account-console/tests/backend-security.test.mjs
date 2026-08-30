@@ -213,6 +213,23 @@ test("個人成績APIはログイン本人の対象勤怠と回答だけを返�
   assert.deepEqual(Array.from(summary.submissions, item => item.recordId), ["REC-ME"]);
 });
 
+test("ポータル初期表示は勤怠と個人成績を一括取得し、成績失敗時も勤怠を返す", () => {
+  const { context } = createAttendanceContext([]);
+  context.getDashboardData_ = () => ({ ok: true, today: "2026-08-28", marker: "dashboard" });
+  context.getMyWorkReportSummary_ = () => ({ ok: true, ownerEmail: "member@example.com" });
+  const success = context.getPortalBootstrap_({ email: "member@example.com" }, { month: "2026-08" });
+  assert.equal(success.marker, "dashboard");
+  assert.equal(success.workReportSummary.ownerEmail, "member@example.com");
+  assert.equal(success.workReportSummaryError, null);
+  assert.equal(typeof success.serverTiming.totalMs, "number");
+
+  context.getMyWorkReportSummary_ = () => { throw context.apiError_("SUMMARY_FAILED", "成績集計に失敗"); };
+  const partial = context.getPortalBootstrap_({ email: "member@example.com" }, { month: "2026-08" });
+  assert.equal(partial.marker, "dashboard");
+  assert.equal(partial.workReportSummary, null);
+  assert.equal(partial.workReportSummaryError.code, "SUMMARY_FAILED");
+});
+
 test("CSVは通常出力で最新版だけ、履歴出力で修正前後を含める", () => {
   const { context } = createAttendanceContext([{ record_id: "REC-CSV", email: "member@example.com", workDate: "2026-08-28" }]);
   context.submitReport_({ email: "member@example.com", name: "本人" }, reportPayload("REC-CSV", "CSV-1"));
