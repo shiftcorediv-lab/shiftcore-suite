@@ -132,7 +132,7 @@ test("管理画面は未提出・集計・項目編集停止・CSV出力を備�
 test("個人ダッシュボードは勤怠を先に表示し、本人専用成績と予定同期を後から並行取得する", () => {
   assert.ok(dashboardHtml.includes("今月の成績"));
   assert.ok(dashboardHtml.includes("ログインしている本人の実績だけを表示します"));
-  assert.match(dashboardHtml, /dashboard\/main\.js\?v=20260831-departure-location-1/);
+  assert.match(dashboardHtml, /dashboard\/main\.js\?v=20260831-work-report-alert-1/);
   assert.doesNotMatch(dashboardSource, /attendanceRequest\("getPortalBootstrap"/);
   assert.match(dashboardSource, /attendanceRequest\("getDashboardData"/);
   assert.match(dashboardSource, /attendanceRequest\("getMyWorkReportSummary"/);
@@ -146,6 +146,18 @@ test("個人ダッシュボードは勤怠を先に表示し、本人専用成�
   assert.match(dashboardSource, /workReportSummary: null, workReportSummaryError: null/);
   assert.match(dashboardSource, /syncStatus === "fresh-cache"/);
   assert.match(dashboardSource, /sessionStorage\.setItem\("shiftcore_report_context", JSON\.stringify\(\{ recordId \}\)\)/);
+  assert.match(dashboardHtml, /id="workReportActionAlert"[^>]*hidden/);
+  assert.ok(
+    dashboardHtml.indexOf('id="statusBox"') < dashboardHtml.indexOf('id="workReportActionAlert"'),
+    "差戻し通知は読み込み状況の直後に配置する",
+  );
+  assert.ok(
+    dashboardHtml.indexOf('id="workReportActionAlert"') < dashboardHtml.indexOf('class="hero-grid"'),
+    "差戻し通知はダッシュボード本文より前に配置する",
+  );
+  assert.match(dashboardSource, /実績報告の修正依頼があります/);
+  assert.match(dashboardSource, /openReturnedReportBtn/);
+  assert.match(dashboardCss, /\.work-report-action-alert/);
   assert.match(dashboardCss, /\.performance-metrics/);
   assert.match(dashboardCss, /@media\(max-width:820px\)/);
 });
