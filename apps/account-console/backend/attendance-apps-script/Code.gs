@@ -1,6 +1,40 @@
-const LOGIN_PROXY_URL = "https://shiftcore-login-proxy.shiftcore-div.workers.dev/";
+const ATTENDANCE_PRODUCTION_SCRIPT_ID = "1tsjulGLiTCpX8dG66cdqR0E0rx2ntKcKpRxwr_6H_UYy5FExuZgmNi-Y";
+
+function attendanceRuntimeEnvironment_() {
+  if (typeof ScriptApp === "undefined" || typeof PropertiesService === "undefined") return "unit-test";
+  const explicit = String(PropertiesService.getScriptProperties().getProperty("SHIFTCORE_ENVIRONMENT") || "").trim().toLowerCase();
+  const scriptId = String(ScriptApp.getScriptId() || "");
+  if (scriptId === ATTENDANCE_PRODUCTION_SCRIPT_ID) {
+    if (explicit && explicit !== "production") throw new Error("本番勤怠GASの環境設定が不正です。");
+    return "production";
+  }
+  if (explicit !== "staging") throw new Error("勤怠GASはSHIFTCORE_ENVIRONMENT=stagingの明示設定が必要です。");
+  return "staging";
+}
+
+function attendanceRequiredConfig_(key, productionValue) {
+  const environment = attendanceRuntimeEnvironment_();
+  if (environment === "production" || environment === "unit-test") return productionValue;
+  const value = String(PropertiesService.getScriptProperties().getProperty(key) || "").trim();
+  if (!value) throw new Error("テスト環境の必須設定がありません: " + key);
+  return value;
+}
+
+function sendAttendanceMail_(options) {
+  const mail = Object.assign({}, options || {});
+  if (attendanceRuntimeEnvironment_() === "staging") {
+    mail.to = attendanceRequiredConfig_("NOTIFICATION_EMAIL_OVERRIDE", "");
+    mail.cc = "";
+    mail.bcc = "";
+    mail.subject = "[TEST] " + String(mail.subject || "ShiftCore通知");
+  }
+  return MailApp.sendEmail(mail);
+}
+
+const LOGIN_PROXY_URL = attendanceRequiredConfig_("SHIFTCORE_LOGIN_API_URL", "https://shiftcore-login-proxy.shiftcore-div.workers.dev/");
 const ACCOUNT_APPROVAL_API_URL = "https://script.google.com/macros/s/AKfycbx83rAzXDfQPJUEu9tX4dpULH4QHYUoqfaTnfzzySkW3KjGVbcH4tnq9PKCCvfuEx6eRA/exec";
-const SHIFTBUILDER_API_URL = "https://script.google.com/macros/s/AKfycbxlWX3iPy6b1LDjKDc91G7jvBHeee4b5kr7o2wBYy859Uv_R-XI9tLzB2Xu6fz4_-5X/exec";
+const ACCOUNT_APPROVAL_API_RUNTIME_URL = attendanceRequiredConfig_("SHIFTCORE_ACCOUNT_API_URL", ACCOUNT_APPROVAL_API_URL);
+const SHIFTBUILDER_API_URL = attendanceRequiredConfig_("SHIFTBUILDER_API_URL", "https://script.google.com/macros/s/AKfycbxlWX3iPy6b1LDjKDc91G7jvBHeee4b5kr7o2wBYy859Uv_R-XI9tLzB2Xu6fz4_-5X/exec");
 const TZ = "Asia/Tokyo";
 const DEFAULT_WORK_REPORT_TEMPLATE_ID = "docomo";
 
@@ -75,7 +109,7 @@ const DEFAULT_WORK_REPORT_ITEMS = [
 ];
 
 function doGet(e) {
-  return jsonOutput_({ ok: true, service: "shiftcore-attendance", now: nowIso_() });
+  return jsonOutput_({ ok: true, service: "shiftcore-attendance", environment: attendanceRuntimeEnvironment_(), now: nowIso_() });
 }
 
 function doPost(e) {
@@ -1169,7 +1203,7 @@ function assertRequestContract_(request) {
 function accountApprovalRequest_(payload) {
   const request = Object.assign({ action: "attendanceApprovalContract" }, payload);
   request.service_secret = PropertiesService.getScriptProperties().getProperty("ATTENDANCE_APPROVAL_SERVICE_SECRET") || "";
-  const response = UrlFetchApp.fetch(ACCOUNT_APPROVAL_API_URL, { method: "post", contentType: "text/plain;charset=utf-8", payload: JSON.stringify(request), muteHttpExceptions: true });
+  const response = UrlFetchApp.fetch(ACCOUNT_APPROVAL_API_RUNTIME_URL, { method: "post", contentType: "text/plain;charset=utf-8", payload: JSON.stringify(request), muteHttpExceptions: true });
   let result;
   try { result = JSON.parse(response.getContentText() || "{}"); } catch (error) { result = {}; }
   if (!result.ok) throw apiError_(result.code || "ACCOUNT_APPROVAL_UNAVAILABLE", result.message || "承認経路を確認できません。");
@@ -1215,7 +1249,7 @@ function notifyManagers_(subjectUser, title, message) {
   createNotification_(subjectUser.email, subjectUser.name || "", title, message, "");
   managers.forEach(m => createNotification_(m.email, m.name, title, message, ""));
   const recipients = [subjectUser.email].concat(managers.map(m => m.email)).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
-  if (recipients.length) MailApp.sendEmail({ to: recipients.join(","), subject: `[Another Portal] ${title}`, body: message });
+  if (recipients.length) sendAttendanceMail_({ to: recipients.join(","), subject: `[Another Portal] ${title}`, body: message });
 }
 
 function createNotification_(email, name, type, body, targetId) {
@@ -1354,7 +1388,7 @@ function notifyScheduledPerson_(subject, title, message, targetId) {
     if (!notificationExists_(manager.email, title, targetId)) createNotification_(manager.email, manager.name, title, message, targetId);
   });
   const recipients = [subject.email].concat(managers.map(manager => manager.email)).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
-  if (recipients.length) MailApp.sendEmail({ to: recipients.join(","), subject: `[Another Portal] ${title}`, body: message });
+  if (recipients.length) sendAttendanceMail_({ to: recipients.join(","), subject: `[Another Portal] ${title}`, body: message });
 }
 
 function notificationExists_(email, type, targetId) {

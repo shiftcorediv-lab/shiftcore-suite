@@ -4,7 +4,10 @@
  ****************************************************/
 
 window.ORDERCASE_CONFIG = {
-  API_URL: 'https://ordercaseapiproxyworker.shiftcore-div.workers.dev',
+  API_URL: window.ShiftCoreEnvironment.endpoint(
+    'ordercaseApi',
+    'https://ordercaseapiproxyworker.shiftcore-div.workers.dev'
+  ),
 
   FIREBASE_CONFIG: {
     apiKey: "AIzaSyAXDhMT1IP1xQ9f0WiOIjmmfBHoQDWZ0dI",
@@ -15,5 +18,7 @@ window.ORDERCASE_CONFIG = {
     appId: "1:882342275588:web:bab610608d1bc00453e351"
   },
 
-  LOGIN_URL: 'https://shiftcorediv-lab.github.io/shiftcore-account-front/'
+  LOGIN_URL: window.ShiftCoreEnvironment.isStaging
+    ? window.ShiftCoreEnvironment.withEnvironment('../account-console/')
+    : 'https://shiftcorediv-lab.github.io/shiftcore-account-front/'
 };

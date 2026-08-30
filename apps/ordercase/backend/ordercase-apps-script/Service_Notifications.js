@@ -29,7 +29,7 @@ function sendCreateCaseNotification_(caseRecord, caseDates, createdByEmail) {
 
   const body = buildCreateCaseNotificationBody_(caseRecord, caseDates, listUrl);
 
-  MailApp.sendEmail({
+  sendOrderCaseMail_({
     to: uniqueRecipients.join(','),
     subject: subject,
     body: body

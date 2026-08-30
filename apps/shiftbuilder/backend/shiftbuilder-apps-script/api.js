@@ -61,7 +61,8 @@ case "shiftBuilderGetAssignmentCandidates":
 function doGet(e) {
   return createJsonResponse_(ok_({
     message: "ShiftBuilder API is running",
-    service: "ShiftBuilder_API"
+    service: "ShiftBuilder_API",
+    environment: shiftBuilderRuntimeEnvironment_()
   }));
 }
 // ===== Web App entrypoint ここまで =====

@@ -3,12 +3,20 @@
 import { APP_URLS } from "../../../../shared/js/shiftcore-urls.js?v=20260801-authfix-1";
 
 export const SHIFTBUILDER_API_URL =
-  "https://script.google.com/macros/s/AKfycbxlWX3iPy6b1LDjKDc91G7jvBHeee4b5kr7o2wBYy859Uv_R-XI9tLzB2Xu6fz4_-5X/exec";
+  window.ShiftCoreEnvironment.endpoint(
+    "shiftbuilderApi",
+    "https://script.google.com/macros/s/AKfycbxlWX3iPy6b1LDjKDc91G7jvBHeee4b5kr7o2wBYy859Uv_R-XI9tLzB2Xu6fz4_-5X/exec"
+  );
 
 export const ACCOUNT_AUTHORIZATION_API_URL =
-  "https://script.google.com/macros/s/AKfycbx83rAzXDfQPJUEu9tX4dpULH4QHYUoqfaTnfzzySkW3KjGVbcH4tnq9PKCCvfuEx6eRA/exec";
+  window.ShiftCoreEnvironment.endpoint(
+    "accountApi",
+    "https://script.google.com/macros/s/AKfycbx83rAzXDfQPJUEu9tX4dpULH4QHYUoqfaTnfzzySkW3KjGVbcH4tnq9PKCCvfuEx6eRA/exec"
+  );
 
 export const DASHBOARD_URL = "../account-console/dashboard.html";
-export const LOGIN_URL = APP_URLS.accountConsole;
+export const LOGIN_URL = window.ShiftCoreEnvironment.isStaging
+  ? window.ShiftCoreEnvironment.withEnvironment("../account-console/")
+  : APP_URLS.accountConsole;
 
 // ===== ShiftBuilder config ここまで =====

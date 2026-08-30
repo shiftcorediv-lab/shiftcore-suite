@@ -6,7 +6,7 @@ function sendSignupApprovedMail_(email, name) {
     return;
   }
 
-  MailApp.sendEmail({
+  sendAccountMail_({
     to: targetEmail,
     subject: "【Another Portal】利用申請が承認されました",
     body:

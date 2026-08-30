@@ -9,6 +9,7 @@ function doGet(e) {
       return jsonResponse_({
         success: true,
         message: "pong",
+        environment: pmoRuntimeEnvironment_(),
         timestamp: getNowIsoStringJst()
       });
     }
