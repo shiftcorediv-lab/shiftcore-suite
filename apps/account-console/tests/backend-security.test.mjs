@@ -296,9 +296,10 @@ test("ポータル初期表示は大きいシートを同一リクエスト内�
 test("勤怠ダッシュボードは本人の読取データを再利用し、打刻後の無効化で全件再読込する", () => {
   const { context } = createAttendanceContext([]);
   const cacheValues = new Map();
+  const cacheTtls = new Map();
   context.CacheService = { getScriptCache: () => ({
     get: key => cacheValues.get(key) || null,
-    put: (key, value) => cacheValues.set(key, value),
+    put: (key, value, ttl) => { cacheValues.set(key, value); cacheTtls.set(key, ttl); },
     remove: key => cacheValues.delete(key)
   }) };
   const rowReads = Object.create(null);
@@ -321,6 +322,7 @@ test("勤怠ダッシュボードは本人の読取データを再利用し、�
   assert.equal(second._serverTiming.referenceCache, "hit");
   assert.equal(first._serverTiming.recordsCache, "miss");
   assert.equal(second._serverTiming.recordsCache, "hit");
+  assert.ok(Array.from(cacheTtls.entries()).some(([key, ttl]) => key.includes("dashboard-records") && ttl === 900));
   for (const sheetName of ["稼働予定", "現場報告", "通知", "設定"]) assert.equal(rowReads[sheetName], 1, sheetName);
   assert.equal(rowReads["勤怠記録"], 1);
 
@@ -332,12 +334,13 @@ test("勤怠ダッシュボードは本人の読取データを再利用し、�
   assert.equal(rowReads["勤怠記録"], 2);
 });
 
-test("読取専用認証だけ短時間再利用し、打刻などの書込認証は毎回確認する", () => {
+test("読取専用認証だけ15分再利用し、打刻などの書込認証は毎回確認する", () => {
   const { context } = createAttendanceContext([]);
   const cacheValues = new Map();
+  const cacheTtls = new Map();
   context.CacheService = { getScriptCache: () => ({
     get: key => cacheValues.get(key) || null,
-    put: (key, value) => cacheValues.set(key, value),
+    put: (key, value, ttl) => { cacheValues.set(key, value); cacheTtls.set(key, ttl); },
     remove: key => cacheValues.delete(key)
   }) };
   context.Utilities.DigestAlgorithm = { SHA_256: "SHA_256" };
@@ -351,6 +354,7 @@ test("読取専用認証だけ短時間再利用し、打刻などの書込認�
   context.resolveUser_("TOKEN", { allowReadCache: true });
   context.resolveUser_("TOKEN");
   assert.equal(fetchCalls, 2);
+  assert.ok(Array.from(cacheTtls.entries()).some(([key, ttl]) => key.includes("dashboard-auth") && ttl === 900));
 });
 
 test("背景予定同期は成功後5分の印だけを共有し、予定本体は勤怠シートから再読込する", () => {
