@@ -4,7 +4,7 @@ import { goToLogin } from "./navigation.js?v=20260803-role-1";
 import { renderModules, renderModuleMenu } from "./modules.js?v=20260812-developer-1";
 import { attendanceRequest } from "./attendance-api.js?v=20260802-attendance-3";
 import { resolveCurrentUserWithGasByIdToken } from "../login/api.js?v=20260803-logintoken-1";
-import { LOCATION_CONSENT_VERSION } from "./config.js?v=20260802-attendance-2";
+import { LOCATION_CONSENT_VERSION } from "./config.js?v=20260831-departure-location-1";
 import { setActivity } from "../common/activity.js?v=20260831-activity-1";
 
 const $ = id => document.getElementById(id);
@@ -291,10 +291,11 @@ function renderDashboardLoading({ preserveSchedule = false } = {}) {
 
 async function submitDeparture() {
   if (busy || !dashboardData?.schedule) return;
-  const accepted = await openDialog("出発", "<p>現在時刻で出発を報告します。</p>", "出発する");
+  const accepted = await openDialog("出発", "<p>現在時刻と位置情報を添えて出発を報告します。</p>", "出発する");
   if (!accepted) return;
+  const location = await readAttendanceLocation();
   await runAction(async () => {
-    await attendanceRequest("submitFieldReport", { reportType: "出発", scheduleId: dashboardData.schedule.schedule_id || "" });
+    await attendanceRequest("submitFieldReport", { reportType: "出発", scheduleId: dashboardData.schedule.schedule_id || "", location });
     await loadDashboard();
     showAlert("出発を記録しました。", "success");
   });
@@ -382,7 +383,7 @@ async function submitArrival() {
   if (!await openDialog("入店", body, "入店する")) return;
   const reason = readReason();
   if (approvalRequired && !reason) return showStatus("理由を入力してください。", true);
-  const location = await readArrivalLocation();
+  const location = await readAttendanceLocation();
   await runAction(async () => {
     const result = await attendanceRequest("arrive", { scheduleId: dashboardData.schedule.schedule_id || "", reason, reasonType: $("reasonType")?.value || "その他", location });
     await loadDashboard();
@@ -390,15 +391,24 @@ async function submitArrival() {
   });
 }
 
-async function readArrivalLocation() {
-  let consent = localStorage.getItem("shiftcore_location_consent");
+async function readAttendanceLocation() {
+  let consent = "";
+  const storedConsent = localStorage.getItem("shiftcore_location_consent");
+  if (storedConsent) {
+    try {
+      const parsed = JSON.parse(storedConsent);
+      if (parsed.version === LOCATION_CONSENT_VERSION) consent = parsed.value;
+    } catch (_) {
+      consent = "";
+    }
+  }
   if (!consent) {
     $("locationConsentDialog").showModal();
     consent = await new Promise(resolve => {
       $("locationConsentDialog").addEventListener("close", () => resolve($("locationConsentDialog").returnValue || "deny"), { once: true });
     });
     localStorage.setItem("shiftcore_location_consent", JSON.stringify({ value: consent, version: LOCATION_CONSENT_VERSION, at: new Date().toISOString() }));
-  } else { try { consent = JSON.parse(consent).value; } catch { consent = "deny"; } }
+  }
   return consent === "allow" ? getLocation() : { status: "許可なし", consentVersion: LOCATION_CONSENT_VERSION };
 }
 
@@ -408,7 +418,7 @@ async function submitUnplanned() {
   const workLocation = $("workLocationInput")?.value?.trim() || "";
   const reason = readReason();
   if (!workLocation || !reason) return showStatus("稼働場所と理由を入力してください。", true);
-  const location = await readArrivalLocation();
+  const location = await readAttendanceLocation();
   await runAction(async () => {
     const result = await attendanceRequest("clockIn", { unplanned: true, workLocation, reason, reasonType: $("reasonType")?.value || "その他", location });
     await loadDashboard();

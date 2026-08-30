@@ -75,6 +75,25 @@ test("利用者画面は1つの主操作が出発・入店・終了報告へ遷�
   assert.doesNotMatch(dashboardHtml, />稼働終了</);
 });
 
+test("出発報告でも同意済み位置情報を取得しGAS側で検証保存する", () => {
+  assert.match(dashboardSource, /const location = await readAttendanceLocation\(\)/);
+  assert.match(dashboardSource, /reportType: "出発", scheduleId: dashboardData\.schedule\.schedule_id \|\| "", location/);
+  assert.match(dashboardSource, /parsed\.version === LOCATION_CONSENT_VERSION/);
+  assert.match(dashboardHtml, /出発・入店・予定外稼働のボタンを押した時点の位置情報/);
+  assert.match(backendSource, /validateDepartureLocation_\(payload\.location\)/);
+  assert.match(backendSource, /saveLocation_\(user, fieldReportId, locationPayload/);
+  assert.match(backendSource, /departureLocation: departureLocation \|\| null/);
+
+  const context = timingContext();
+  assert.equal(context.validateDepartureLocation_({ status: "取得済み", latitude: 35, longitude: 135, accuracy: 10, consentVersion: "v2" }).status, "取得済み");
+  const zeroLocation = context.validateDepartureLocation_({ status: "取得済み", latitude: 0, longitude: 0, accuracy: 0 });
+  assert.equal(zeroLocation.latitude, 0);
+  assert.equal(zeroLocation.longitude, 0);
+  assert.equal(zeroLocation.accuracy, 0);
+  assert.throws(() => context.validateDepartureLocation_({ status: "取得済み", latitude: 91, longitude: 135, accuracy: 10 }), error => error.code === "DEPARTURE_LOCATION_INVALID");
+  assert.throws(() => context.validateDepartureLocation_(null), error => error.code === "DEPARTURE_LOCATION_REQUIRED");
+});
+
 test("同日複数予定は選択したschedule_idを画面・現場報告・勤怠記録へ維持する", () => {
   assert.match(dashboardHtml, /id="scheduleSelect"/);
   assert.match(dashboardSource, /selectedScheduleId/);

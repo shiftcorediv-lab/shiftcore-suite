@@ -427,9 +427,12 @@ function submitFieldReport_(user, payload, idToken) {
     const existing = reports.find(report => String(report["報告種別"]) === reportType);
     if (existing) return { ok: true, duplicate: true, report: existing };
     const now = new Date();
-    appendObject_(SHEETS.fieldReports, { field_report_id: Utilities.getUuid(), "勤務日": today, "開発予定ID": schedule["開発予定ID"] || "", "報告種別": reportType, "報告者メール": user.email, "報告者氏名": user.name || "", "報告日時": now, schedule_id: schedule.schedule_id || "" });
+    const fieldReportId = Utilities.getUuid();
+    const locationPayload = validateDepartureLocation_(payload.location);
+    const location = saveLocation_(user, fieldReportId, locationPayload, `出発: ${schedule["稼働場所"] || ""}`);
+    appendObject_(SHEETS.fieldReports, { field_report_id: fieldReportId, "勤務日": today, "開発予定ID": schedule["開発予定ID"] || "", "報告種別": reportType, "報告者メール": user.email, "報告者氏名": user.name || "", "報告日時": now, schedule_id: schedule.schedule_id || "" });
     notifyManagers_(user, `${reportType}報告`, `${user.name || user.email}さんが${formatJst_(now)}に${reportType}を報告しました。`);
-    return { ok: true, report: fieldReportsFor_(user, today, scheduleKey, schedule["開発予定ID"]).find(report => String(report["報告種別"]) === reportType) || null };
+    return { ok: true, report: fieldReportsFor_(user, today, scheduleKey, schedule["開発予定ID"]).find(report => String(report["報告種別"]) === reportType) || null, locationStatus: location.status };
   } finally {
     lock.releaseLock();
   }
@@ -1279,8 +1282,11 @@ function getAdminDashboard_(user, idToken) {
   const locations = admin && canViewPreciseLocation_(user) ? locationRows_() : [];
   const people = schedules.map(schedule => {
     const record = findScheduleRecordIn_(records, schedule, schedules);
+    const matchingReports = fieldReports.filter(r => fieldReportMatchesSchedule_(r, schedule, schedules));
+    const departureReport = matchingReports.find(r => String(r["報告種別"]) === "出発");
     const loc = record && locations.find(l => String(l.attendance_record_id) === String(record.record_id));
-    return { schedule, record: record || null, location: loc || null, fieldReports: fieldReports.filter(r => fieldReportMatchesSchedule_(r, schedule, schedules)) };
+    const departureLocation = departureReport && locations.find(l => String(l.attendance_record_id) === String(departureReport.field_report_id));
+    return { schedule, record: record || null, location: loc || null, departureLocation: departureLocation || null, fieldReports: matchingReports };
   });
   records.filter(record => !schedules.some(s => recordMatchesSchedule_(record, s, schedules))).forEach(record => {
     const loc = locations.find(l => String(l.attendance_record_id) === String(record.record_id));
@@ -1497,11 +1503,36 @@ function saveLocation_(user, recordId, location, plannedLocation) {
   const now = new Date();
   sheet.appendRow([
     id, recordId, user.organization_id || "", user.employee_code || "", now,
-    location.latitude || "", location.longitude || "", location.accuracy || "", status,
+    location.latitude == null ? "" : location.latitude,
+    location.longitude == null ? "" : location.longitude,
+    location.accuracy == null ? "" : location.accuracy,
+    status,
     location.consentVersion || "2026-08-02-v1", location.consentAt ? new Date(location.consentAt) : "", plannedLocation || "",
     "未確認", "", "", addDays_(now, 7)
   ]);
   return { id, status };
+}
+
+function validateDepartureLocation_(location) {
+  if (!location || typeof location !== "object") throw apiError_("DEPARTURE_LOCATION_REQUIRED", "出発位置情報を確認できません。画面を再読み込みしてください。");
+  const status = String(location.status || "");
+  if (!["取得済み", "取得失敗", "許可なし"].includes(status)) throw apiError_("DEPARTURE_LOCATION_INVALID", "出発位置情報の状態が不正です。");
+  const normalized = {
+    status: status,
+    consentVersion: String(location.consentVersion || ""),
+    consentAt: location.consentAt || ""
+  };
+  if (status !== "取得済み") return normalized;
+  const latitude = Number(location.latitude);
+  const longitude = Number(location.longitude);
+  const accuracy = Number(location.accuracy);
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180 || !Number.isFinite(accuracy) || accuracy < 0) {
+    throw apiError_("DEPARTURE_LOCATION_INVALID", "出発位置情報の値が不正です。");
+  }
+  normalized.latitude = latitude;
+  normalized.longitude = longitude;
+  normalized.accuracy = accuracy;
+  return normalized;
 }
 
 function notifyManagers_(subjectUser, title, message) {
