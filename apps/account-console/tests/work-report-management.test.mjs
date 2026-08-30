@@ -129,16 +129,18 @@ test("管理画面は未提出・集計・項目編集停止・CSV出力を備�
   assert.match(adminCss, /\.table-wrap\{overflow:auto/);
 });
 
-test("個人ダッシュボードは本人専用成績を初期表示と一括取得し、報告の確認・修正へ進める", () => {
+test("個人ダッシュボードは勤怠を先に表示し、本人専用成績と予定同期を後から並行取得する", () => {
   assert.ok(dashboardHtml.includes("今月の成績"));
   assert.ok(dashboardHtml.includes("ログインしている本人の実績だけを表示します"));
-  assert.match(dashboardHtml, /dashboard\/main\.js\?v=20260831-activity-1/);
-  assert.match(dashboardSource, /attendanceRequest\("getPortalBootstrap"/);
-  assert.match(dashboardSource, /error\.code !== "UNKNOWN_ACTION"/);
-  assert.match(dashboardSource, /loadMyWorkReportSummaryFallback/);
-  assert.doesNotMatch(dashboardSource, /\bloadDashboard\s*\(/);
-  assert.doesNotMatch(dashboardSource, /\bloadMyWorkReportSummary\s*\(/);
-  assert.match(dashboardSource, /void refreshModuleAccess\(user\);\s+await loadPortalBootstrap\(\);/);
+  assert.match(dashboardHtml, /dashboard\/main\.js\?v=20260831-performance-1/);
+  assert.doesNotMatch(dashboardSource, /attendanceRequest\("getPortalBootstrap"/);
+  assert.match(dashboardSource, /attendanceRequest\("getDashboardData"/);
+  assert.match(dashboardSource, /attendanceRequest\("getMyWorkReportSummary"/);
+  assert.match(dashboardSource, /secondaryLoads = \[loadMyWorkReportSummary\(loadVersion\)\]/);
+  assert.match(dashboardSource, /!\["fresh-cache", "in-progress"\]\.includes\(syncStatus\)/);
+  assert.match(dashboardSource, /Promise\.allSettled\(secondaryLoads\)/);
+  assert.match(dashboardSource, /await loadDashboard\(\);\s+void refreshModuleAccess\(user\);/);
+  assert.match(dashboardSource, /loadVersion !== dashboardLoadVersion/);
   assert.match(dashboardSource, /workReportSummary: null, workReportSummaryError: null/);
   assert.match(dashboardSource, /syncStatus === "fresh-cache"/);
   assert.match(dashboardSource, /sessionStorage\.setItem\("shiftcore_report_context", JSON\.stringify\(\{ recordId \}\)\)/);

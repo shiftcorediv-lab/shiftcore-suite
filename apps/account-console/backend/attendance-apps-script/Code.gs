@@ -116,16 +116,41 @@ function doGet(e) {
 
 function doPost(e) {
   try {
+    const requestStartedAt = Date.now();
     const body = JSON.parse((e && e.postData && e.postData.contents) || "{}");
     const user = resolveUser_(body.idToken);
+    const authenticatedAt = Date.now();
     const action = String(body.action || "");
     const payload = body.payload || {};
 
     if (action === "getPortalBootstrap") return jsonOutput_(getPortalBootstrap_(user, payload));
-    if (action === "getDashboardData") return jsonOutput_(getDashboardData_(user, null, payload.scheduleId));
+    if (action === "getDashboardData") {
+      const startedAt = Date.now();
+      const dashboard = getDashboardData_(user, null, payload.scheduleId);
+      const completedAt = Date.now();
+      dashboard.scheduleSync = dashboardScheduleSyncStatus_();
+      dashboard.serverTiming = {
+        authMs: authenticatedAt - requestStartedAt,
+        dashboardMs: completedAt - startedAt,
+        totalMs: completedAt - requestStartedAt
+      };
+      return jsonOutput_(dashboard);
+    }
     if (action === "refreshDashboardData") {
+      const startedAt = Date.now();
       const scheduleResult = getDashboardSchedules_(body.idToken);
-      return jsonOutput_(Object.assign(getDashboardData_(user, scheduleResult.schedules, payload.scheduleId), { scheduleSync: scheduleResult.sync }));
+      const scheduleCompletedAt = Date.now();
+      const dashboard = getDashboardData_(user, scheduleResult.schedules, payload.scheduleId);
+      const completedAt = Date.now();
+      return jsonOutput_(Object.assign(dashboard, {
+        scheduleSync: scheduleResult.sync,
+        serverTiming: {
+          authMs: authenticatedAt - requestStartedAt,
+          scheduleSyncMs: scheduleCompletedAt - startedAt,
+          dashboardMs: completedAt - scheduleCompletedAt,
+          totalMs: completedAt - requestStartedAt
+        }
+      }));
     }
     if (action === "clockIn") return jsonOutput_(clockIn_(user, payload, body.idToken));
     if (action === "arrive") return jsonOutput_(arrive_(user, payload, body.idToken));
@@ -134,7 +159,16 @@ function doPost(e) {
     if (action === "submitCorrection") return jsonOutput_(submitCorrection_(user, payload, body.idToken));
     if (action === "getWorkReportForm") return jsonOutput_(getWorkReportForm_(user, payload));
     if (action === "submitReport") return jsonOutput_(submitReport_(user, payload));
-    if (action === "getMyWorkReportSummary") return jsonOutput_(getMyWorkReportSummary_(user, payload));
+    if (action === "getMyWorkReportSummary") {
+      const summary = getMyWorkReportSummary_(user, payload);
+      const actionMs = Number(summary.serverTiming && summary.serverTiming.totalMs) || 0;
+      summary.serverTiming = {
+        authMs: authenticatedAt - requestStartedAt,
+        summaryMs: actionMs,
+        totalMs: Date.now() - requestStartedAt
+      };
+      return jsonOutput_(summary);
+    }
     if (action === "getWorkReportAdminData") return jsonOutput_(getWorkReportAdminData_(user, payload));
     if (action === "saveWorkReportItem") return jsonOutput_(saveWorkReportItem_(user, payload));
     if (action === "saveWorkReportCaseMapping") return jsonOutput_(saveWorkReportCaseMapping_(user, payload));
@@ -194,8 +228,6 @@ function resolveUser_(idToken) {
 }
 
 function getDashboardData_(user, sourceSchedules, selectedScheduleId, sourceRows) {
-  ensureReportSheet_();
-  ensureFieldReportSheet_();
   const sources = sourceRows || {};
   const today = today_();
   const schedules = (sourceSchedules || sources.schedules || rows_(SHEETS.schedules)).filter(r => matchesUser_(r, user));
@@ -571,13 +603,13 @@ function completeWorkReportHeader_(reportId, context, templateId, definitionVers
 }
 
 function getMyWorkReportSummary_(user, payload, sourceRows) {
-  const ensuredRows = ensureWorkReportSheetsWithLock_() || {};
+  const startedAt = Date.now();
   const sources = sourceRows || {};
   const month = /^\d{4}-\d{2}$/.test(String(payload && payload.month || "")) ? String(payload.month) : today_().slice(0, 7);
   const dateFrom = `${month}-01`;
   const dateTo = monthEnd_(month);
   const schedules = sources.schedules || rows_(SHEETS.schedules);
-  const templates = sources.reportTemplates || ensuredRows.templates || rows_(SHEETS.reportTemplates);
+  const templates = sources.reportTemplates || rows_(SHEETS.reportTemplates);
   const mappings = rows_(SHEETS.reportCaseMappings);
   const reports = rows_(SHEETS.reports);
   const reportAnswers = rows_(SHEETS.reportAnswers);
@@ -604,7 +636,7 @@ function getMyWorkReportSummary_(user, payload, sourceRows) {
   }).sort((a, b) => b.workDate.localeCompare(a.workDate));
   const metrics = Object.create(null);
   const targetRecordIds = submissions.map(item => item.recordId);
-  const reportItems = (sources.reportItems || ensuredRows.items || rows_(SHEETS.reportItems)).slice().sort(workReportItemSort_);
+  const reportItems = (sources.reportItems || rows_(SHEETS.reportItems)).slice().sort(workReportItemSort_);
   const itemById = reportItems.reduce((result, item) => (result[String(item.item_id || "")] = item, result), Object.create(null));
   reports.filter(report => targetRecordIds.includes(String(report.record_id || "")) && normalizeEmail_(report["報告者メール"]) === normalizeEmail_(user.email) && isSubmittedWorkReport_(report)).forEach(report => {
     currentWorkReportAnswers_(report, reportAnswers).forEach(answer => {
@@ -627,7 +659,8 @@ function getMyWorkReportSummary_(user, payload, sourceRows) {
       returned: submissions.filter(item => item.status === "差戻し中").length
     },
     metrics: Object.keys(metrics).map(key => metrics[key]).sort((a, b) => a.order - b.order || a.label.localeCompare(b.label, "ja")),
-    submissions
+    submissions,
+    serverTiming: { totalMs: Date.now() - startedAt }
   };
 }
 
@@ -1332,6 +1365,16 @@ function getDashboardSchedules_(idToken) {
   }
   clearDashboardScheduleSyncState_(cache, key);
   return { schedules: local, sync: { status: "failed", syncedAt: "" } };
+}
+
+function dashboardScheduleSyncStatus_() {
+  const cache = dashboardScheduleSyncCache_();
+  const cached = readDashboardScheduleSyncState_(cache, dashboardScheduleSyncCacheKey_());
+  if (!cached) return { status: "stale", syncedAt: "" };
+  return {
+    status: cached.status === "syncing" ? "in-progress" : "fresh-cache",
+    syncedAt: cached.syncedAt || ""
+  };
 }
 
 function syncSchedules_(idToken, sourceLocal) {

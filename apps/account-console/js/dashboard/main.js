@@ -13,6 +13,7 @@ const dashboardCacheKey = `shiftcore_attendance_dashboard:${storedUser?.email ||
 let dashboardData = null;
 let busy = false;
 let selectedScheduleId = "";
+let dashboardLoadVersion = 0;
 
 if (!storedUser) {
   showStatus("セッション情報がありません。ログイン画面へ戻ります。", true);
@@ -35,9 +36,9 @@ onAuthStateChanged(auth, async user => {
     goToLogin();
     return;
   }
-  // 勤怠API側も本人確認を行うため、権限の再取得と初期表示は安全に並行できる。
+  // 打刻に必要な勤怠を最優先し、メニュー権限の再確認は初期表示後に回す。
+  await loadDashboard();
   void refreshModuleAccess(user);
-  await loadPortalBootstrap();
 });
 
 async function refreshModuleAccess(firebaseUser) {
@@ -54,55 +55,67 @@ async function refreshModuleAccess(firebaseUser) {
   }
 }
 
-async function loadPortalBootstrap() {
-  showStatus("勤怠と成績を読み込んでいます…", false, true);
+async function loadDashboard() {
+  const loadVersion = ++dashboardLoadVersion;
+  showStatus("打刻に必要な勤怠情報を読み込んでいます…", false, true);
   try {
-    try {
-      dashboardData = await attendanceRequest("getPortalBootstrap", { scheduleId: selectedScheduleId, month: todayKey().slice(0, 7) });
-    } catch (error) {
-      if (error.code !== "UNKNOWN_ACTION") throw error;
-      // GASの公開順が前後しても打刻画面を止めず、更新前APIへ一時的に戻す。
-      dashboardData = await attendanceRequest("getDashboardData", { scheduleId: selectedScheduleId });
-      void loadMyWorkReportSummaryFallback();
-    }
+    const loadedDashboard = await attendanceRequest("getDashboardData", { scheduleId: selectedScheduleId });
+    if (loadVersion !== dashboardLoadVersion) return;
+    dashboardData = loadedDashboard;
     selectedScheduleId = dashboardData.schedule?.schedule_id || selectedScheduleId;
     renderDashboard(dashboardData);
     writeDashboardCache(dashboardData);
-    if (dashboardData.workReportSummary) {
-      renderMyWorkReportSummary(dashboardData.workReportSummary);
-    } else if (dashboardData.workReportSummaryError) {
-      renderMyWorkReportSummaryError(dashboardData.workReportSummaryError.message);
-    }
-    showStatus("保存済みの勤怠情報を表示しています。SBの最新予定を確認中です。", false, true);
-    setTimeout(refreshDashboardInBackground, 0);
+    rememberServerTiming("dashboard", dashboardData.serverTiming);
+    const syncStatus = dashboardData.scheduleSync?.status;
+    if (syncStatus === "fresh-cache") showStatus("5分以内に同期済みの予定を表示しています");
+    else if (syncStatus === "in-progress") showStatus("勤怠情報を表示しました。別の画面で最新予定を同期中です。", false, true);
+    else showStatus("勤怠情報を表示しました。最新予定を確認中です。", false, true);
+    // 打刻可能な状態を先に返し、重い成績集計と外部予定同期は表示後に並行する。
+    const secondaryLoads = [loadMyWorkReportSummary(loadVersion)];
+    if (!["fresh-cache", "in-progress"].includes(syncStatus)) secondaryLoads.push(refreshDashboardInBackground(loadVersion));
+    void Promise.allSettled(secondaryLoads);
   } catch (error) {
+    if (loadVersion !== dashboardLoadVersion) return;
     showStatus(error.message, true);
     renderUnavailable();
   }
 }
 
-async function loadMyWorkReportSummaryFallback() {
+async function loadMyWorkReportSummary(loadVersion) {
   try {
-    renderMyWorkReportSummary(await attendanceRequest("getMyWorkReportSummary", { month: todayKey().slice(0, 7) }));
+    const summary = await attendanceRequest("getMyWorkReportSummary", { month: todayKey().slice(0, 7) });
+    if (loadVersion !== dashboardLoadVersion) return;
+    rememberServerTiming("performance", summary.serverTiming);
+    renderMyWorkReportSummary(summary);
   } catch (error) {
+    if (loadVersion !== dashboardLoadVersion) return;
     renderMyWorkReportSummaryError(error.message);
   }
 }
 
-async function refreshDashboardInBackground() {
+async function refreshDashboardInBackground(loadVersion) {
   try {
     const refreshed = await attendanceRequest("refreshDashboardData", { scheduleId: selectedScheduleId });
+    if (loadVersion !== dashboardLoadVersion) return;
     dashboardData = refreshed;
     renderDashboard(refreshed);
     writeDashboardCache(refreshed);
+    rememberServerTiming("scheduleSync", refreshed.serverTiming);
     const syncStatus = refreshed.scheduleSync?.status;
     if (syncStatus === "failed") showStatus("保存済み予定を表示中（SB同期失敗）", true);
     else if (syncStatus === "in-progress") showStatus("保存済み予定を表示中（別の画面で最新予定を同期中です）", false, true);
     else if (syncStatus === "fresh-cache") showStatus("5分以内に同期済みの予定を表示しています");
     else showStatus("SBの最新予定を反映しました");
   } catch (error) {
+    if (loadVersion !== dashboardLoadVersion) return;
     showStatus(`保存済み予定を表示中（SB同期失敗: ${error.message}）`, true);
   }
+}
+
+function rememberServerTiming(name, timing) {
+  const totalMs = Number(timing?.totalMs);
+  if (!Number.isFinite(totalMs) || totalMs < 0) return;
+  $("statusBox").dataset[`${name}ServerMs`] = String(Math.round(totalMs));
 }
 
 function renderMyWorkReportSummaryError(message) {
@@ -203,7 +216,7 @@ async function submitDeparture() {
   if (!accepted) return;
   await runAction(async () => {
     await attendanceRequest("submitFieldReport", { reportType: "出発", scheduleId: dashboardData.schedule.schedule_id || "" });
-    await loadPortalBootstrap();
+    await loadDashboard();
     showAlert("出発を記録しました。", "success");
   });
 }
@@ -222,7 +235,7 @@ function renderUpcoming(items) {
 
 function renderScheduleSelector(schedules, selected) { const wrap = $("scheduleSelectWrap"); const select = $("scheduleSelect"); wrap.hidden = schedules.length < 2; select.innerHTML = schedules.map(item => `<option value="${escapeHtml(item.schedule_id || "")}" ${String(item.schedule_id || "") === String(selected?.schedule_id || "") ? "selected" : ""}>${escapeHtml(item["開発予定名"] || item["稼働場所"] || item.schedule_id || "予定")}</option>`).join(""); select.disabled = Boolean(dashboardData?.record?.["実開始"] && !dashboardData?.record?.["実終了"]); }
 
-$("scheduleSelect").addEventListener("change", async event => { if (busy) return; selectedScheduleId = event.target.value; await loadPortalBootstrap(); });
+$("scheduleSelect").addEventListener("change", async event => { if (busy) return; selectedScheduleId = event.target.value; await loadDashboard(); });
 
 function renderNotifications(items) {
   const unread = items.filter(item => !truthy(item["既読"])).length;
@@ -277,7 +290,7 @@ async function openCorrection(type) {
   await runAction(async () => {
     await attendanceRequest("submitCorrection", { type, recordId: dashboardData?.record?.record_id || "", workDate: dashboardData.today, actualStart: type === "開始修正" ? actual : "", actualEnd: type === "終了修正" ? actual : "", reasonType: $("reasonType")?.value || "その他", reason });
     showAlert("修正申請を送信しました。管理者の確認をお待ちください。", "success");
-    await loadPortalBootstrap();
+    await loadDashboard();
   });
 }
 
@@ -290,7 +303,7 @@ async function submitArrival() {
   const location = await readArrivalLocation();
   await runAction(async () => {
     const result = await attendanceRequest("arrive", { scheduleId: dashboardData.schedule.schedule_id || "", reason, reasonType: $("reasonType")?.value || "その他", location });
-    await loadPortalBootstrap();
+    await loadDashboard();
     showAlert(result.approvalRequired ? "入店を記録し、直属承認を申請しました。" : "入店を記録しました。", "success");
   });
 }
@@ -316,7 +329,7 @@ async function submitUnplanned() {
   const location = await readArrivalLocation();
   await runAction(async () => {
     const result = await attendanceRequest("clockIn", { unplanned: true, workLocation, reason, reasonType: $("reasonType")?.value || "その他", location });
-    await loadPortalBootstrap();
+    await loadDashboard();
     showAlert("予定外稼働を記録しました。", "success");
   });
 }
@@ -327,7 +340,7 @@ async function submitCompletion() {
   if (!await openDialog("終了報告", body, "終了報告する")) return;
   const reason = readReason();
   if (approvalRequired && !reason) return showStatus("理由を入力してください。", true);
-  await runAction(async () => { const result = await attendanceRequest("clockOut", { scheduleId: dashboardData.schedule?.schedule_id || "", reason, reasonType: $("reasonType")?.value || "その他" }); if (result.workReportRequired) { sessionStorage.setItem("shiftcore_report_context", JSON.stringify({ recordId: result.record.record_id })); window.location.href = "./work-report.html"; return; } await loadPortalBootstrap(); showAlert("終了報告を記録しました。この案件は実績報告の対象外です。", "success"); });
+  await runAction(async () => { const result = await attendanceRequest("clockOut", { scheduleId: dashboardData.schedule?.schedule_id || "", reason, reasonType: $("reasonType")?.value || "その他" }); if (result.workReportRequired) { sessionStorage.setItem("shiftcore_report_context", JSON.stringify({ recordId: result.record.record_id })); window.location.href = "./work-report.html"; return; } await loadDashboard(); showAlert("終了報告を記録しました。この案件は実績報告の対象外です。", "success"); });
 }
 
 function actionState(data) { const reports = data.fieldReports || []; const departure = reports.some(r => r["報告種別"] === "出発"); const arrival = reports.some(r => r["報告種別"] === "入店"); if (!data.schedule) return data.record?.["実開始"] && !data.record?.["実終了"] ? { name: "completion", label: "終了報告", hidden: false } : { name: "unplanned", label: "予定外稼働", hidden: Boolean(data.record?.["実終了"]) }; if (!departure) return { name: "departure", label: "出発", hidden: false }; if (!arrival || !data.record?.["実開始"]) return { name: "arrival", label: "入店", hidden: false }; if (!data.record?.["実終了"]) return { name: "completion", label: "終了報告", hidden: false }; return { name: "done", label: "終了報告済み", hidden: true }; }
