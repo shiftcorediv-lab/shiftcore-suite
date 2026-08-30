@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Another Portal 実績報告</title>
-  <link rel="stylesheet" href="./css/work-report.css?v=20260830-normalized-report-1">
+  <link rel="stylesheet" href="./css/work-report.css?v=20260830-report-revisions-1">
   <script src="../theme/shiftcore-theme.js"></script>
   <link rel="stylesheet" href="../theme/shiftcore-theme.css">
 </head>
@@ -17,6 +17,7 @@
       <p>終了済みの勤怠記録と実績項目を確認して表示します。案件・店舗・勤務日は勤怠記録から確定します。</p>
       <div id="loadingState" class="loading-state">実績項目を読み込んでいます…</div>
       <dl id="reportContext" class="report-context" hidden></dl>
+      <div id="revisionNotice" class="revision-notice" hidden></div>
       <form id="reportForm" hidden>
         <p class="form-help">数値項目の未入力は0件として保存し、未入力だったことも記録します。</p>
         <div id="reportFields" class="report-fields"></div>
@@ -25,6 +26,6 @@
       </form>
     </section>
   </main>
-  <script type="module" src="./js/work-report/main.js?v=20260830-normalized-report-1"></script>
+  <script type="module" src="./js/work-report/main.js?v=20260830-report-revisions-1"></script>
 </body>
 </html>

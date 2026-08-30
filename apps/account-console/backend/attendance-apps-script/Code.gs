@@ -2,6 +2,7 @@ const LOGIN_PROXY_URL = "https://shiftcore-login-proxy.shiftcore-div.workers.dev
 const ACCOUNT_APPROVAL_API_URL = "https://script.google.com/macros/s/AKfycbx83rAzXDfQPJUEu9tX4dpULH4QHYUoqfaTnfzzySkW3KjGVbcH4tnq9PKCCvfuEx6eRA/exec";
 const SHIFTBUILDER_API_URL = "https://script.google.com/macros/s/AKfycbxlWX3iPy6b1LDjKDc91G7jvBHeee4b5kr7o2wBYy859Uv_R-XI9tLzB2Xu6fz4_-5X/exec";
 const TZ = "Asia/Tokyo";
+const DEFAULT_WORK_REPORT_TEMPLATE_ID = "docomo";
 
 const SHEETS = {
   records: "勤怠記録",
@@ -10,6 +11,9 @@ const SHEETS = {
   settings: "設定",
   schedules: "稼働予定",
   reports: "実績報告",
+  reportTemplates: "実績テンプレート",
+  reportCaseMappings: "実績対象案件",
+  reportRevisions: "実績報告改訂",
   reportItems: "実績項目",
   reportAnswers: "実績回答",
   fieldReports: "現場報告"
@@ -17,9 +21,12 @@ const SHEETS = {
 
 const HEADERS = {
   reports: ["report_id", "record_id", "開発予定ID", "開発予定名", "報告者メール", "報告者氏名", "実績内容", "課題・申し送り", "報告日時"],
-  reportContract: ["勤務日", "店舗名", "schedule_id", "保存状態", "項目定義版"],
-  reportItems: ["item_id", "項目名", "種別", "カテゴリID", "カテゴリ名", "表示順", "必須", "有効", "定義版", "作成日時", "更新日時"],
-  reportAnswers: ["answer_id", "report_id", "record_id", "item_id", "定義版", "項目名", "種別", "カテゴリID", "カテゴリ名", "表示順", "数値回答", "文章回答", "入力状態", "作成日時"],
+  reportContract: ["勤務日", "店舗名", "schedule_id", "保存状態", "項目定義版", "template_id", "current_revision_id", "current_revision_number", "差戻し理由", "差戻し日時", "差戻し者メール"],
+  reportTemplates: ["template_id", "テンプレート名", "有効", "作成日時", "更新日時"],
+  reportCaseMappings: ["mapping_id", "開発予定ID", "開発予定名", "template_id", "有効", "作成日時", "更新日時"],
+  reportRevisions: ["revision_id", "report_id", "record_id", "改訂番号", "状態", "編集者メール", "編集者氏名", "編集種別", "submission_token", "作成日時", "提出日時"],
+  reportItems: ["item_id", "template_id", "項目名", "種別", "カテゴリID", "カテゴリ名", "表示順", "必須", "有効", "定義版", "ダッシュボード表示", "ダッシュボード名", "ダッシュボード順", "作成日時", "更新日時"],
+  reportAnswers: ["answer_id", "report_id", "revision_id", "record_id", "item_id", "定義版", "項目名", "種別", "カテゴリID", "カテゴリ名", "表示順", "数値回答", "文章回答", "入力状態", "作成日時"],
   fieldReports: ["field_report_id", "勤務日", "開発予定ID", "報告種別", "報告者メール", "報告者氏名", "報告日時", "schedule_id"],
   requests: ["request_id", "record_id", "種別", "申請者メール", "申請者氏名", "実勤務日", "申請開始", "申請終了", "理由区分", "理由詳細", "状態", "承認者メール", "承認者氏名", "承認理由", "申請日時", "処理日時"],
   requestContract: ["applicant_internal_user_id", "request_version", "approval_reviewer_internal_user_id", "applicant_organization_version"]
@@ -87,8 +94,11 @@ function doPost(e) {
     if (action === "submitCorrection") return jsonOutput_(submitCorrection_(user, payload, body.idToken));
     if (action === "getWorkReportForm") return jsonOutput_(getWorkReportForm_(user, payload));
     if (action === "submitReport") return jsonOutput_(submitReport_(user, payload));
+    if (action === "getMyWorkReportSummary") return jsonOutput_(getMyWorkReportSummary_(user, payload));
     if (action === "getWorkReportAdminData") return jsonOutput_(getWorkReportAdminData_(user, payload));
     if (action === "saveWorkReportItem") return jsonOutput_(saveWorkReportItem_(user, payload));
+    if (action === "saveWorkReportCaseMapping") return jsonOutput_(saveWorkReportCaseMapping_(user, payload));
+    if (action === "returnWorkReport") return jsonOutput_(returnWorkReport_(user, payload));
     if (action === "exportWorkReportsCsv") return jsonOutput_(exportWorkReportsCsv_(user, payload));
     if (action === "markNotificationRead") return jsonOutput_(markNotificationRead_(user, payload));
     if (action === "getAdminDashboard") return jsonOutput_(getAdminDashboard_(user, body.idToken));
@@ -266,7 +276,7 @@ function clockOut_(user, payload, idToken) {
   if (!recordBeforeLock || !recordBeforeLock["実開始"]) throw apiError_("NOT_STARTED", "入店記録がありません。");
   if (requestedScheduleId && String(recordBeforeLock.schedule_id || "") !== requestedScheduleId) throw apiError_("SCHEDULE_RECORD_MISMATCH", "選択した予定の入店記録を確認できません。");
   const workDate = dateKey_(recordBeforeLock["勤務日"]);
-  if (recordBeforeLock["実終了"]) return { ok: true, duplicate: true, record: recordBeforeLock, plans: findPlansForDate_(user, idToken, workDate), approvalRequired: hasPendingApproval_(recordBeforeLock.record_id, "日付またぎ終了報告"), requestId: findApprovalRequestId_(recordBeforeLock.record_id, "日付またぎ終了報告") };
+  if (recordBeforeLock["実終了"]) return { ok: true, duplicate: true, record: recordBeforeLock, plans: findPlansForDate_(user, idToken, workDate), approvalRequired: hasPendingApproval_(recordBeforeLock.record_id, "日付またぎ終了報告"), requestId: findApprovalRequestId_(recordBeforeLock.record_id, "日付またぎ終了報告"), workReportRequired: workReportRequiredForRecord_(recordBeforeLock) };
   const schedule = findSchedule_(user, workDate, payload.scheduleId || "", idToken);
   const timing = schedule ? buildTimingStatus_(schedule, now) : { endApprovalRequired: dateKey_(now) > workDate, endWarning: false };
   if (timing.endApprovalRequired && !String(payload.reason || "").trim()) throw apiError_("REASON_REQUIRED", "0:00以降の終了理由を入力してください。");
@@ -277,11 +287,12 @@ function clockOut_(user, payload, idToken) {
     const record = selectClockOutRecord_(user.email, requestedScheduleId);
     if (!record || !record["実開始"]) throw apiError_("NOT_STARTED", "入店記録がありません。");
     if (requestedScheduleId && String(record.schedule_id || "") !== requestedScheduleId) throw apiError_("SCHEDULE_RECORD_MISMATCH", "選択した予定の入店記録を確認できません。");
-    if (record["実終了"]) return { ok: true, duplicate: true, record, plans: findPlansForDate_(user, idToken, workDate), approvalRequired: hasPendingApproval_(record.record_id, "日付またぎ終了報告") };
+    if (record["実終了"]) return { ok: true, duplicate: true, record, plans: findPlansForDate_(user, idToken, workDate), approvalRequired: hasPendingApproval_(record.record_id, "日付またぎ終了報告"), workReportRequired: workReportRequiredForRecord_(record) };
     updateById_(SHEETS.records, "record_id", record.record_id, { "状態": timing.endApprovalRequired ? "終了承認待ち" : "終了済み", "実終了": now, "終了押下": now, "更新日時": now });
     let requestId = "";
     if (timing.endApprovalRequired) requestId = createApprovalRequestIfMissing_(user, approval, { recordId: record.record_id, type: "日付またぎ終了報告", workDate: workDate, actualEnd: now, reasonType: payload.reasonType || "その他", reason: payload.reason || "0:00以降の終了報告" });
-    return { ok: true, record: findRecord_(user.email, workDate, record.schedule_id || ""), plans: findPlansForDate_(user, idToken, workDate), approvalRequired: timing.endApprovalRequired, requestId: requestId };
+    const completedRecord = findRecord_(user.email, workDate, record.schedule_id || "");
+    return { ok: true, record: completedRecord, plans: findPlansForDate_(user, idToken, workDate), approvalRequired: timing.endApprovalRequired, requestId: requestId, workReportRequired: workReportRequiredForRecord_(completedRecord) };
   } finally {
     lock.releaseLock();
   }
@@ -324,10 +335,22 @@ function getWorkReportForm_(user, payload) {
   const record = assertReportableRecord_(user, payload.recordId);
   const context = workReportContext_(record);
   const existing = findWorkReportByRecordId_(record.record_id);
+  const template = existing ? workReportTemplateForExistingReport_(existing, context) : assertWorkReportTarget_(context);
+  const currentAnswers = existing ? currentWorkReportAnswers_(existing) : [];
+  const pendingRevision = existing ? pendingWorkReportRevision_(existing) : null;
+  const pendingAnswers = pendingRevision ? rows_(SHEETS.reportAnswers).filter(answer => String(answer.revision_id || "") === String(pendingRevision.revision_id || "")) : [];
+  const displayAnswers = mergeWorkReportDraftAnswers_(currentAnswers, pendingAnswers);
+  const definitions = workReportDefinitionsFor_(template.templateId, currentAnswers);
   return {
     ok: true,
     submitted: Boolean(existing && isSubmittedWorkReport_(existing)),
+    status: existing ? workReportStatus_(existing) : "未提出",
+    editable: true,
     reportId: existing ? String(existing.report_id || "") : "",
+    revisionNumber: existing ? Number(existing.current_revision_number) || 0 : 0,
+    returnReason: existing ? String(existing["差戻し理由"] || "") : "",
+    resuming: Boolean(pendingRevision),
+    resumeSubmissionToken: pendingRevision ? String(pendingRevision.submission_token || "") : "",
     record: {
       recordId: String(record.record_id || ""),
       scheduleId: context.scheduleId,
@@ -337,27 +360,52 @@ function getWorkReportForm_(user, payload) {
       storeName: context.storeName,
       reporterName: user.name || record["氏名"] || ""
     },
-    items: activeWorkReportItems_().map(publicWorkReportItem_)
+    items: definitions.map(definition => {
+      const item = publicWorkReportItem_(definition);
+      const answer = displayAnswers.find(candidate => String(candidate.item_id || "") === item.itemId);
+      item.inputState = answer ? String(answer["入力状態"] || "answered") : "";
+      item.value = answer && item.inputState !== "defaulted" && item.inputState !== "blank" ? publicWorkReportAnswer_(answer).value : "";
+      item.retired = !activeWorkReportItems_(template.templateId).some(active => String(active.item_id || "") === item.itemId);
+      return item;
+    })
   };
 }
 
 function submitReport_(user, payload) {
-  if (!payload.recordId || !Array.isArray(payload.answers)) throw apiError_("REPORT_REQUIRED", "実績回答を確認できません。");
+  if (!payload.recordId || !Array.isArray(payload.answers) || !String(payload.submissionToken || "").trim()) throw apiError_("REPORT_REQUIRED", "実績回答を確認できません。");
   const lock = LockService.getDocumentLock();
   lock.waitLock(20000);
   try {
     ensureWorkReportSheets_();
     const record = assertReportableRecord_(user, payload.recordId);
-    const definitions = activeWorkReportItems_();
-    const normalizedAnswers = normalizeWorkReportAnswers_(definitions, payload.answers);
     const context = workReportContext_(record);
     let report = findWorkReportByRecordId_(record.record_id);
-    if (report && isSubmittedWorkReport_(report)) {
-      return { ok: true, duplicate: true, reportId: String(report.report_id || "") };
+    const template = report ? workReportTemplateForExistingReport_(report, context) : assertWorkReportTarget_(context);
+    const currentAnswers = report ? currentWorkReportAnswers_(report) : [];
+    const definitions = workReportDefinitionsFor_(template.templateId, currentAnswers);
+    const normalizedAnswers = normalizeWorkReportAnswers_(definitions, payload.answers);
+    const definitionVersion = definitions.reduce((max, item) => Math.max(max, Number(item["定義版"]) || 1), 1);
+    const reportId = report && report.report_id ? String(report.report_id) : Utilities.getUuid();
+    const submissionToken = String(payload.submissionToken).trim().slice(0, 200);
+    const previousRevisionNumber = report ? Number(report.current_revision_number) || 0 : 0;
+    const reportRevisions = rows_(SHEETS.reportRevisions);
+    const existingRevision = reportRevisions.find(revision => String(revision.submission_token || "") === submissionToken);
+    const pendingRevision = report ? pendingWorkReportRevision_(report, reportRevisions) : null;
+    if (!existingRevision && pendingRevision) throw apiError_("REPORT_SUBMISSION_IN_PROGRESS", "前回の実績報告が保存途中です。画面を再読込して続きから送信してください。");
+    if (existingRevision) {
+      if (String(existingRevision.report_id || "") !== reportId) throw apiError_("REPORT_SUBMISSION_TOKEN_INVALID", "送信情報が別の実績報告と重複しています。画面を再読込してください。");
+      const storedRevisionAnswers = rows_(SHEETS.reportAnswers).filter(answer => String(answer.revision_id || "") === String(existingRevision.revision_id || ""));
+      assertStoredWorkReportAnswersMatch_(storedRevisionAnswers, normalizedAnswers);
+      if (String(existingRevision["状態"] || "") === "提出済み") {
+        const recoveredRevisionNumber = Number(existingRevision["改訂番号"]) || previousRevisionNumber;
+        completeWorkReportHeader_(reportId, context, template.templateId, definitionVersion, String(existingRevision.revision_id || ""), recoveredRevisionNumber, user, record);
+        return { ok: true, duplicate: true, reportId, revisionNumber: recoveredRevisionNumber };
+      }
+    }
+    if (report && isSubmittedWorkReport_(report) && workReportAnswersEqual_(currentAnswers, normalizedAnswers)) {
+      return { ok: true, duplicate: true, reportId, revisionNumber: previousRevisionNumber };
     }
 
-    const reportId = report && report.report_id ? String(report.report_id) : Utilities.getUuid();
-    const definitionVersion = definitions.reduce((max, item) => Math.max(max, Number(item["定義版"]) || 1), 1);
     if (!report) {
       appendObject_(SHEETS.reports, {
         report_id: reportId,
@@ -373,16 +421,39 @@ function submitReport_(user, payload) {
         "店舗名": sheetText_(context.storeName),
         schedule_id: context.scheduleId,
         "保存状態": "保存中",
-        "項目定義版": definitionVersion
+        "項目定義版": definitionVersion,
+        template_id: template.templateId,
+        current_revision_id: "",
+        current_revision_number: 0,
+        "差戻し理由": "",
+        "差戻し日時": "",
+        "差戻し者メール": ""
       });
+      report = findWorkReportByRecordId_(record.record_id);
     }
 
+    const revisionId = existingRevision ? String(existingRevision.revision_id || "") : Utilities.getUuid();
+    const revisionNumber = existingRevision ? Number(existingRevision["改訂番号"]) || previousRevisionNumber + 1 : previousRevisionNumber + 1;
+    if (!existingRevision) appendObject_(SHEETS.reportRevisions, {
+      revision_id: revisionId,
+      report_id: reportId,
+      record_id: record.record_id,
+      "改訂番号": revisionNumber,
+      "状態": "保存中",
+      "編集者メール": user.email,
+      "編集者氏名": sheetText_(user.name || record["氏名"] || ""),
+      "編集種別": previousRevisionNumber === 0 ? "初回提出" : workReportStatus_(report) === "差戻し中" ? "差戻し後再提出" : "本人修正",
+      submission_token: submissionToken,
+      "作成日時": new Date(),
+      "提出日時": ""
+    });
     const existingItemIds = rows_(SHEETS.reportAnswers)
-      .filter(answer => String(answer.report_id || "") === reportId)
+      .filter(answer => String(answer.revision_id || "") === revisionId)
       .map(answer => String(answer.item_id || ""));
     const answerRows = normalizedAnswers.filter(answer => !existingItemIds.includes(String(answer.item.item_id || ""))).map(answer => ({
       answer_id: Utilities.getUuid(),
       report_id: reportId,
+      revision_id: revisionId,
       record_id: record.record_id,
       item_id: answer.item.item_id,
       "定義版": Number(answer.item["定義版"]) || 1,
@@ -398,25 +469,90 @@ function submitReport_(user, payload) {
     }));
     appendObjects_(SHEETS.reportAnswers, answerRows);
 
-    const legacy = buildLegacyWorkReportText_(normalizedAnswers, context, user);
-    updateById_(SHEETS.reports, "report_id", reportId, {
+    updateById_(SHEETS.reportRevisions, "revision_id", revisionId, { "状態": "提出済み", "提出日時": new Date() });
+    completeWorkReportHeader_(reportId, context, template.templateId, definitionVersion, revisionId, revisionNumber, user, record);
+    return { ok: true, reportId: reportId, revisionNumber };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function completeWorkReportHeader_(reportId, context, templateId, definitionVersion, revisionId, revisionNumber, user, record) {
+  updateById_(SHEETS.reports, "report_id", reportId, {
       "開発予定ID": context.planId,
       "開発予定名": sheetText_(context.planName),
       "報告者メール": user.email,
       "報告者氏名": sheetText_(user.name || record["氏名"] || ""),
-      "実績内容": sheetText_(legacy.result),
-      "課題・申し送り": sheetText_(legacy.notes),
       "報告日時": new Date(),
       "勤務日": context.workDate,
       "店舗名": sheetText_(context.storeName),
       schedule_id: context.scheduleId,
       "保存状態": "提出済み",
-      "項目定義版": definitionVersion
+      "項目定義版": definitionVersion,
+      template_id: templateId,
+      current_revision_id: revisionId,
+      current_revision_number: revisionNumber,
+      "差戻し理由": "",
+      "差戻し日時": "",
+      "差戻し者メール": ""
+  });
+}
+
+function getMyWorkReportSummary_(user, payload) {
+  ensureWorkReportSheetsWithLock_();
+  const month = /^\d{4}-\d{2}$/.test(String(payload && payload.month || "")) ? String(payload.month) : today_().slice(0, 7);
+  const dateFrom = `${month}-01`;
+  const dateTo = monthEnd_(month);
+  const schedules = rows_(SHEETS.schedules);
+  const templates = rows_(SHEETS.reportTemplates);
+  const reports = rows_(SHEETS.reports);
+  const reportByRecord = reports.reduce((result, report) => (result[String(report.record_id || "")] = report, result), Object.create(null));
+  const records = rows_(SHEETS.records).filter(record => {
+    const workDate = dateKey_(record["勤務日"]);
+    if (normalizeEmail_(record.email) !== normalizeEmail_(user.email) || !Boolean(record["実終了"] || record["正式終了"]) || workDate < dateFrom || workDate > dateTo) return false;
+    return Boolean(reportByRecord[String(record.record_id || "")] || workReportTemplateForContext_(workReportContext_(record, schedules)));
+  });
+  const submissions = records.map(record => {
+    const context = workReportContext_(record, schedules);
+    const report = reportByRecord[String(record.record_id || "")] || null;
+    const storedTemplate = report && templates.find(template => String(template.template_id || "") === String(report.template_id || ""));
+    return {
+      recordId: String(record.record_id || ""),
+      workDate: context.workDate,
+      planName: context.planName,
+      storeName: context.storeName,
+      status: report ? workReportStatus_(report) : "未提出",
+      revisionNumber: report ? Number(report.current_revision_number) || 0 : 0,
+      returnReason: report ? String(report["差戻し理由"] || "") : "",
+      editable: Boolean(storedTemplate || workReportTemplateForContext_(context))
+    };
+  }).sort((a, b) => b.workDate.localeCompare(a.workDate));
+  const metrics = Object.create(null);
+  const targetRecordIds = submissions.map(item => item.recordId);
+  const itemById = allWorkReportItems_().reduce((result, item) => (result[String(item.item_id || "")] = item, result), Object.create(null));
+  reports.filter(report => targetRecordIds.includes(String(report.record_id || "")) && normalizeEmail_(report["報告者メール"]) === normalizeEmail_(user.email) && isSubmittedWorkReport_(report)).forEach(report => {
+    currentWorkReportAnswers_(report).forEach(answer => {
+      const master = itemById[String(answer.item_id || "")];
+      if (!master || !booleanValue_(master["ダッシュボード表示"]) || String(answer["種別"] || "") !== "number") return;
+      const key = [answer.item_id, answer["種別"], answer["項目名"], answer["カテゴリ名"]].join("\u001f");
+      const currentMeaning = String(master["項目名"] || "") === String(answer["項目名"] || "") && String(master["カテゴリ名"] || "") === String(answer["カテゴリ名"] || "");
+      if (!metrics[key]) metrics[key] = { itemId: String(answer.item_id || ""), label: currentMeaning ? String(master["ダッシュボード名"] || answer["項目名"] || "") : String(answer["項目名"] || ""), order: Number(master["ダッシュボード順"]) || Number(answer["表示順"]) || 0, value: 0 };
+      metrics[key].value += Number(answer["数値回答"]) || 0;
     });
-    return { ok: true, reportId: reportId };
-  } finally {
-    lock.releaseLock();
-  }
+  });
+  return {
+    ok: true,
+    ownerEmail: normalizeEmail_(user.email),
+    month,
+    counts: {
+      total: submissions.length,
+      submitted: submissions.filter(item => item.status === "提出済み").length,
+      missing: submissions.filter(item => item.status === "未提出" || item.status === "保存未完了").length,
+      returned: submissions.filter(item => item.status === "差戻し中").length
+    },
+    metrics: Object.keys(metrics).map(key => metrics[key]).sort((a, b) => a.order - b.order || a.label.localeCompare(b.label, "ja")),
+    submissions
+  };
 }
 
 function getWorkReportAdminData_(user, payload) {
@@ -434,14 +570,15 @@ function buildWorkReportAdminData_(payload) {
     return result;
   }, Object.create(null));
   const reportAnswers = rows_(SHEETS.reportAnswers);
+  const revisions = rows_(SHEETS.reportRevisions);
   const completedRecords = rows_(SHEETS.records).filter(record => {
     const workDate = dateKey_(record["勤務日"]);
-    return Boolean(record["実終了"] || record["正式終了"]) && workDate >= filters.dateFrom && workDate <= filters.dateTo;
+    if (!Boolean(record["実終了"] || record["正式終了"]) || workDate < filters.dateFrom || workDate > filters.dateTo) return false;
+    return Boolean(reportByRecord[String(record.record_id || "")] || workReportTemplateForContext_(workReportContext_(record, schedules)));
   });
   const submissionRows = completedRecords.map(record => {
     const context = workReportContext_(record, schedules);
     const report = reportByRecord[String(record.record_id || "")] || null;
-    const submitted = Boolean(report && isSubmittedWorkReport_(report));
     return {
       recordId: String(record.record_id || ""),
       reportId: report ? String(report.report_id || "") : "",
@@ -452,18 +589,34 @@ function buildWorkReportAdminData_(payload) {
       storeName: context.storeName,
       reporterEmail: String(record.email || report && report["報告者メール"] || ""),
       reporterName: String(record["氏名"] || report && report["報告者氏名"] || record.email || ""),
-      status: submitted ? "提出済み" : report ? "保存未完了" : "未提出",
+      status: report ? workReportStatus_(report) : "未提出",
+      revisionNumber: report ? Number(report.current_revision_number) || 0 : 0,
+      returnReason: report ? String(report["差戻し理由"] || "") : "",
       reportedAt: report && report["報告日時"] ? displayDateTime_(report["報告日時"]) : ""
     };
   }).filter(row => matchesWorkReportFilters_(row, filters));
   const visibleReportIds = submissionRows.map(row => row.reportId).filter(Boolean);
-  const reportDetails = reports.filter(report => visibleReportIds.includes(String(report.report_id || ""))).map(report => ({
-    reportId: String(report.report_id || ""),
-    legacy: !reportAnswers.some(answer => String(answer.report_id || "") === String(report.report_id || "")),
-    result: String(report["実績内容"] || ""),
-    notes: String(report["課題・申し送り"] || ""),
-    answers: reportAnswers.filter(answer => String(answer.report_id || "") === String(report.report_id || "")).sort(workReportItemSort_).map(publicWorkReportAnswer_)
-  }));
+  const reportDetails = reports.filter(report => visibleReportIds.includes(String(report.report_id || ""))).map(report => {
+    const reportId = String(report.report_id || "");
+    const currentAnswers = currentWorkReportAnswers_(report, reportAnswers);
+    const reportRevisions = revisions.filter(revision => String(revision.report_id || "") === reportId && String(revision["状態"] || "") === "提出済み").sort((a, b) => Number(b["改訂番号"] || 0) - Number(a["改訂番号"] || 0));
+    return {
+      reportId,
+      legacy: !currentAnswers.length && !reportRevisions.length,
+      result: String(report["実績内容"] || ""),
+      notes: String(report["課題・申し送り"] || ""),
+      answers: currentAnswers.sort(workReportItemSort_).map(publicWorkReportAnswer_),
+      revisions: reportRevisions.map(revision => ({
+        revisionId: String(revision.revision_id || ""),
+        revisionNumber: Number(revision["改訂番号"]) || 0,
+        editType: String(revision["編集種別"] || ""),
+        editorName: String(revision["編集者氏名"] || revision["編集者メール"] || ""),
+        submittedAt: displayDateTime_(revision["提出日時"] || revision["作成日時"]),
+        current: String(report.current_revision_id || "") === String(revision.revision_id || ""),
+        answers: reportAnswers.filter(answer => String(answer.revision_id || "") === String(revision.revision_id || "")).sort(workReportItemSort_).map(publicWorkReportAnswer_)
+      }))
+    };
+  });
   const aggregates = aggregateWorkReportAnswers_(submissionRows, reportDetails, filters.groupBy);
   return {
     ok: true,
@@ -471,12 +624,15 @@ function buildWorkReportAdminData_(payload) {
     counts: {
       total: submissionRows.length,
       submitted: submissionRows.filter(row => row.status === "提出済み").length,
+      returned: submissionRows.filter(row => row.status === "差戻し中").length,
       missing: submissionRows.filter(row => row.status !== "提出済み").length
     },
     submissions: submissionRows,
     aggregates,
     reportDetails,
-    items: allWorkReportItems_().map(publicWorkReportItem_)
+    items: allWorkReportItems_().map(publicWorkReportItem_),
+    templates: activeWorkReportTemplates_().map(publicWorkReportTemplate_),
+    caseMappings: workReportCaseCandidates_(schedules)
   };
 }
 
@@ -486,11 +642,15 @@ function saveWorkReportItem_(user, payload) {
   lock.waitLock(20000);
   try {
     ensureWorkReportSheets_();
-    if (rows_(SHEETS.reports).some(report => String(report["保存状態"] || "") === "保存中")) throw apiError_("REPORT_SUBMISSION_IN_PROGRESS", "保存中の実績報告があります。完了または再送後に項目を変更してください。");
+    const reports = rows_(SHEETS.reports);
+    const revisions = rows_(SHEETS.reportRevisions);
+    if (reports.some(report => String(report["保存状態"] || "") === "保存中" || pendingWorkReportRevision_(report, revisions)) || revisions.some(revision => String(revision["状態"] || "") === "保存中")) throw apiError_("REPORT_SUBMISSION_IN_PROGRESS", "保存中の実績報告があります。完了または再送後に項目を変更してください。");
     const existing = payload.itemId ? rows_(SHEETS.reportItems).find(item => String(item.item_id || "") === String(payload.itemId)) : null;
     if (payload.itemId && !existing) throw apiError_("REPORT_ITEM_NOT_FOUND", "対象の実績項目が見つかりません。");
     const name = String(payload.name || "").trim();
     const type = String(payload.type || existing && existing["種別"] || "");
+    const templateId = String(payload.templateId || existing && existing.template_id || DEFAULT_WORK_REPORT_TEMPLATE_ID);
+    if (!activeWorkReportTemplates_().some(template => String(template.template_id || "") === templateId)) throw apiError_("REPORT_TEMPLATE_INVALID", "実績テンプレートを確認できません。");
     const categoryName = String(payload.categoryName || "").trim();
     if (!name || name.length > 100 || /^[=+\-@]/.test(name)) throw apiError_("REPORT_ITEM_NAME_INVALID", "項目名は1〜100文字で入力してください。先頭に数式記号は使用できません。");
     if (!["number", "text"].includes(type)) throw apiError_("REPORT_ITEM_TYPE_INVALID", "項目種別は数値または文章を指定してください。");
@@ -503,6 +663,7 @@ function saveWorkReportItem_(user, payload) {
     const now = new Date();
     const changes = {
       item_id: itemId,
+      template_id: templateId,
       "項目名": name,
       "種別": type,
       "カテゴリID": categoryId,
@@ -511,6 +672,9 @@ function saveWorkReportItem_(user, payload) {
       "必須": payload.required == null && existing ? booleanValue_(existing["必須"]) : booleanValue_(payload.required),
       "有効": payload.active == null && existing ? booleanValue_(existing["有効"]) : booleanValue_(payload.active),
       "定義版": existing ? (Number(existing["定義版"]) || 1) + 1 : 1,
+      "ダッシュボード表示": type === "number" && (payload.dashboardVisible == null && existing ? booleanValue_(existing["ダッシュボード表示"]) : booleanValue_(payload.dashboardVisible)),
+      "ダッシュボード名": sheetText_(String(payload.dashboardName == null && existing ? existing["ダッシュボード名"] || "" : payload.dashboardName || "").trim().slice(0, 40)),
+      "ダッシュボード順": normalizeDashboardOrder_(payload.dashboardOrder == null && existing ? existing["ダッシュボード順"] : payload.dashboardOrder),
       "作成日時": existing && existing["作成日時"] || now,
       "更新日時": now
     };
@@ -522,26 +686,85 @@ function saveWorkReportItem_(user, payload) {
   }
 }
 
+function saveWorkReportCaseMapping_(user, payload) {
+  requireAdmin_(user);
+  const lock = LockService.getDocumentLock();
+  lock.waitLock(20000);
+  try {
+    ensureWorkReportSheets_();
+    const planId = String(payload.planId || "").trim();
+    const planName = String(payload.planName || "").trim();
+    const templateId = String(payload.templateId || DEFAULT_WORK_REPORT_TEMPLATE_ID);
+    if (!planId || planId.length > 200 || /^[=+\-@]/.test(planId)) throw apiError_("REPORT_CASE_INVALID", "対象案件IDを確認してください。");
+    if (!activeWorkReportTemplates_().some(template => String(template.template_id || "") === templateId)) throw apiError_("REPORT_TEMPLATE_INVALID", "実績テンプレートを確認できません。");
+    const existing = rows_(SHEETS.reportCaseMappings).find(mapping => String(mapping["開発予定ID"] || "") === planId);
+    const now = new Date();
+    const changes = {
+      mapping_id: existing ? String(existing.mapping_id || "") : Utilities.getUuid(),
+      "開発予定ID": planId,
+      "開発予定名": sheetText_(planName.slice(0, 200)),
+      template_id: templateId,
+      "有効": booleanValue_(payload.active),
+      "作成日時": existing && existing["作成日時"] || now,
+      "更新日時": now
+    };
+    if (existing) updateById_(SHEETS.reportCaseMappings, "mapping_id", changes.mapping_id, changes);
+    else appendObject_(SHEETS.reportCaseMappings, changes);
+    return { ok: true, mapping: publicWorkReportCaseMapping_(changes) };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function returnWorkReport_(user, payload) {
+  requireAdmin_(user);
+  const reason = String(payload.reason || "").trim();
+  if (!reason || reason.length > 1000) throw apiError_("REPORT_RETURN_REASON_REQUIRED", "差戻し理由を1〜1000文字で入力してください。");
+  const lock = LockService.getDocumentLock();
+  lock.waitLock(20000);
+  try {
+    ensureWorkReportSheets_();
+    const report = rows_(SHEETS.reports).find(candidate => String(candidate.report_id || "") === String(payload.reportId || ""));
+    if (!report || !isSubmittedWorkReport_(report)) throw apiError_("REPORT_RETURN_INVALID", "提出済みの実績報告を確認できません。");
+    if (pendingWorkReportRevision_(report)) throw apiError_("REPORT_SUBMISSION_IN_PROGRESS", "本人の実績報告が保存途中です。再送完了後に差し戻してください。");
+    updateById_(SHEETS.reports, "report_id", report.report_id, {
+      "保存状態": "差戻し中",
+      "差戻し理由": sheetText_(reason),
+      "差戻し日時": new Date(),
+      "差戻し者メール": user.email
+    });
+    createNotification_(report["報告者メール"], report["報告者氏名"], "実績報告の差戻し", `実績報告が差し戻されました。理由: ${reason}`, report.report_id);
+    return { ok: true, reportId: String(report.report_id || "") };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function exportWorkReportsCsv_(user, payload) {
   requireAdmin_(user);
   ensureWorkReportSheetsWithLock_();
   const data = buildWorkReportAdminData_(payload || {});
   const detailById = data.reportDetails.reduce((result, detail) => (result[detail.reportId] = detail, result), {});
-  const headers = ["勤務日", "店舗名", "案件ID", "案件名", "報告者", "報告者メール", "提出状態", "報告日時", "項目ID", "定義版", "カテゴリ", "項目名", "種別", "数値回答", "文章回答", "入力状態", "旧実績内容", "旧課題・申し送り"];
+  const includeHistory = booleanValue_(payload && payload.includeHistory);
+  const headers = ["勤務日", "店舗名", "案件ID", "案件名", "報告者", "報告者メール", "提出状態", "報告日時", "改訂番号", "改訂種別", "改訂者", "改訂日時", "最新版", "項目ID", "定義版", "カテゴリ", "項目名", "種別", "数値回答", "文章回答", "入力状態", "旧実績内容", "旧課題・申し送り"];
   const rows = [];
   data.submissions.forEach(submission => {
     const detail = detailById[submission.reportId];
-    const answers = detail && detail.answers.length ? detail.answers : [null];
-    answers.forEach(answer => rows.push([
-      submission.workDate, submission.storeName, submission.planId, submission.planName,
-      submission.reporterName, submission.reporterEmail, submission.status, submission.reportedAt,
-      answer && answer.itemId || "", answer && answer.version || "", answer && answer.categoryName || "", answer && answer.name || "", answer && answer.type || "",
-      answer && answer.type === "number" ? answer.value : "", answer && answer.type === "text" ? answer.value : "", answer && answer.inputState || "",
-      detail && detail.legacy ? detail.result : "", detail && detail.legacy ? detail.notes : ""
-    ]));
+    const revisionRows = includeHistory && detail && detail.revisions.length ? detail.revisions : [{ revisionNumber: submission.revisionNumber || "", editType: "", editorName: "", submittedAt: submission.reportedAt, current: true, answers: detail && detail.answers || [] }];
+    revisionRows.forEach(revision => {
+      const answers = revision.answers && revision.answers.length ? revision.answers : [null];
+      answers.forEach(answer => rows.push([
+        submission.workDate, submission.storeName, submission.planId, submission.planName,
+        submission.reporterName, submission.reporterEmail, submission.status, submission.reportedAt,
+        revision.revisionNumber || "", revision.editType || "", revision.editorName || "", revision.submittedAt || "", revision.current ? "TRUE" : "FALSE",
+        answer && answer.itemId || "", answer && answer.version || "", answer && answer.categoryName || "", answer && answer.name || "", answer && answer.type || "",
+        answer && answer.type === "number" ? answer.value : "", answer && answer.type === "text" ? answer.value : "", answer && answer.inputState || "",
+        detail && detail.legacy ? detail.result : "", detail && detail.legacy ? detail.notes : ""
+      ]));
+    });
   });
   const csv = [headers].concat(rows).map(row => row.map(csvCell_).join(",")).join("\r\n");
-  return { ok: true, fileName: `work-reports_${data.filters.dateFrom}_${data.filters.dateTo}.csv`, csv: "\uFEFF" + csv };
+  return { ok: true, fileName: `work-reports${includeHistory ? "-history" : ""}_${data.filters.dateFrom}_${data.filters.dateTo}.csv`, csv: "\uFEFF" + csv };
 }
 
 function assertReportableRecord_(user, recordId) {
@@ -550,6 +773,19 @@ function assertReportableRecord_(user, recordId) {
   if (!record["実終了"] && !record["正式終了"]) throw apiError_("REPORT_CLOCK_OUT_REQUIRED", "稼働終了後に実績報告を送信してください。");
   return record;
 }
+
+function assertWorkReportTarget_(context) {
+  const template = workReportTemplateForContext_(context);
+  if (!template) throw apiError_("REPORT_NOT_REQUIRED", "この案件は現在の実績報告対象ではありません。");
+  return template;
+}
+function workReportTemplateForExistingReport_(report, context) {
+  const templateId = String(report && report.template_id || "");
+  const storedTemplate = templateId ? rows_(SHEETS.reportTemplates).find(template => String(template.template_id || "") === templateId) : null;
+  if (storedTemplate) return publicWorkReportTemplate_(storedTemplate);
+  return assertWorkReportTarget_(context);
+}
+function workReportRequiredForRecord_(record) { return Boolean(record && workReportTemplateForContext_(workReportContext_(record))); }
 
 function workReportContext_(record, sourceSchedules) {
   const schedules = sourceSchedules || rows_(SHEETS.schedules);
@@ -569,12 +805,101 @@ function workReportContext_(record, sourceSchedules) {
 function scheduleMatchesReportRecord_(schedule, record) { const emailMatch = schedule.email && record.email && normalizeEmail_(schedule.email) === normalizeEmail_(record.email); const employeeMatch = schedule.employee_code && record.employee_code && String(schedule.employee_code) === String(record.employee_code); return Boolean(emailMatch || employeeMatch); }
 
 function findWorkReportByRecordId_(recordId) { return rows_(SHEETS.reports).find(report => String(report.record_id || "") === String(recordId || "")) || null; }
-function isSubmittedWorkReport_(report) { return Boolean(report) && (!["保存中", "保存失敗"].includes(String(report["保存状態"] || ""))); }
+function isSubmittedWorkReport_(report) { return Boolean(report) && workReportStatus_(report) === "提出済み"; }
+function workReportStatus_(report) { const status = String(report && report["保存状態"] || ""); if (status === "差戻し中") return "差戻し中"; if (["保存中", "保存失敗"].includes(status)) return "保存未完了"; return report ? "提出済み" : "未提出"; }
 function allWorkReportItems_() { return rows_(SHEETS.reportItems).sort(workReportItemSort_); }
-function activeWorkReportItems_() { return allWorkReportItems_().filter(item => booleanValue_(item["有効"])); }
+function activeWorkReportItems_(templateId) { return allWorkReportItems_().filter(item => booleanValue_(item["有効"]) && (!templateId || String(item.template_id || DEFAULT_WORK_REPORT_TEMPLATE_ID) === String(templateId))); }
 function workReportItemSort_(a, b) { return (Number(a["表示順"] || a.displayOrder) || 0) - (Number(b["表示順"] || b.displayOrder) || 0); }
-function publicWorkReportItem_(item) { return { itemId: String(item.item_id || ""), name: String(item["項目名"] || ""), type: String(item["種別"] || ""), categoryId: String(item["カテゴリID"] || ""), categoryName: String(item["カテゴリ名"] || ""), displayOrder: Number(item["表示順"]) || 0, required: booleanValue_(item["必須"]), active: booleanValue_(item["有効"]), version: Number(item["定義版"]) || 1 }; }
+function publicWorkReportItem_(item) { return { itemId: String(item.item_id || ""), templateId: String(item.template_id || DEFAULT_WORK_REPORT_TEMPLATE_ID), name: String(item["項目名"] || ""), type: String(item["種別"] || ""), categoryId: String(item["カテゴリID"] || ""), categoryName: String(item["カテゴリ名"] || ""), displayOrder: Number(item["表示順"]) || 0, required: booleanValue_(item["必須"]), active: booleanValue_(item["有効"]), version: Number(item["定義版"]) || 1, dashboardVisible: booleanValue_(item["ダッシュボード表示"]), dashboardName: String(item["ダッシュボード名"] || item["項目名"] || ""), dashboardOrder: Number(item["ダッシュボード順"]) || 0 }; }
 function publicWorkReportAnswer_(answer) { const type = String(answer["種別"] || ""); return { itemId: String(answer.item_id || ""), name: String(answer["項目名"] || ""), type, categoryId: String(answer["カテゴリID"] || ""), categoryName: String(answer["カテゴリ名"] || ""), displayOrder: Number(answer["表示順"]) || 0, version: Number(answer["定義版"]) || 1, value: type === "number" ? Number(answer["数値回答"]) || 0 : String(answer["文章回答"] || ""), inputState: String(answer["入力状態"] || "answered") }; }
+
+function currentWorkReportAnswers_(report, sourceAnswers) {
+  const answers = sourceAnswers || rows_(SHEETS.reportAnswers);
+  const reportId = String(report && report.report_id || "");
+  const revisionId = String(report && report.current_revision_id || "");
+  if (revisionId) return answers.filter(answer => String(answer.revision_id || "") === revisionId);
+  return answers.filter(answer => String(answer.report_id || "") === reportId && !answer.revision_id);
+}
+
+function pendingWorkReportRevision_(report, sourceRevisions) {
+  const currentNumber = Number(report && report.current_revision_number) || 0;
+  return (sourceRevisions || rows_(SHEETS.reportRevisions))
+    .filter(revision => String(revision.report_id || "") === String(report && report.report_id || "") && (String(revision["状態"] || "") === "保存中" || (String(revision["状態"] || "") === "提出済み" && Number(revision["改訂番号"] || 0) > currentNumber)))
+    .sort((a, b) => Number(b["改訂番号"] || 0) - Number(a["改訂番号"] || 0))[0] || null;
+}
+
+function mergeWorkReportDraftAnswers_(currentAnswers, pendingAnswers) {
+  const merged = (currentAnswers || []).slice();
+  (pendingAnswers || []).forEach(answer => {
+    const index = merged.findIndex(candidate => String(candidate.item_id || "") === String(answer.item_id || ""));
+    if (index >= 0) merged[index] = answer;
+    else merged.push(answer);
+  });
+  return merged;
+}
+
+function workReportDefinitionsFor_(templateId, currentAnswers) {
+  const definitions = (currentAnswers || []).map(answer => ({
+    item_id: answer.item_id,
+    template_id: templateId,
+    "項目名": answer["項目名"],
+    "種別": answer["種別"],
+    "カテゴリID": answer["カテゴリID"],
+    "カテゴリ名": answer["カテゴリ名"],
+    "表示順": answer["表示順"],
+    "必須": false,
+    "有効": false,
+    "定義版": answer["定義版"]
+  }));
+  const seen = definitions.map(item => String(item.item_id || ""));
+  activeWorkReportItems_(templateId).forEach(item => {
+    if (!seen.includes(String(item.item_id || ""))) definitions.push(item);
+  });
+  return definitions.sort(workReportItemSort_);
+}
+
+function workReportAnswersEqual_(currentAnswers, normalizedAnswers) {
+  if (currentAnswers.length !== normalizedAnswers.length) return false;
+  const currentByItem = currentAnswers.reduce((result, answer) => (result[String(answer.item_id || "")] = publicWorkReportAnswer_(answer), result), Object.create(null));
+  return normalizedAnswers.every(answer => {
+    const current = currentByItem[String(answer.item.item_id || "")];
+    return current && current.type === answer.type && String(current.value) === String(answer.value) && current.inputState === answer.inputState && current.name === String(answer.item["項目名"] || "") && current.categoryName === String(answer.item["カテゴリ名"] || "");
+  });
+}
+
+function assertStoredWorkReportAnswersMatch_(storedAnswers, normalizedAnswers) {
+  const normalizedByItem = normalizedAnswers.reduce((result, answer) => (result[String(answer.item.item_id || "")] = answer, result), Object.create(null));
+  const mismatch = storedAnswers.find(stored => {
+    const normalized = normalizedByItem[String(stored.item_id || "")];
+    if (!normalized || String(stored["種別"] || "") !== normalized.type || String(stored["入力状態"] || "") !== normalized.inputState) return true;
+    return normalized.type === "number" ? Number(stored["数値回答"]) !== Number(normalized.value) : String(stored["文章回答"] || "") !== String(sheetText_(normalized.value));
+  });
+  if (mismatch) throw apiError_("REPORT_SUBMISSION_RETRY_MISMATCH", "同じ送信情報で異なる回答は保存できません。画面を再読込してください。");
+}
+
+function activeWorkReportTemplates_() { return rows_(SHEETS.reportTemplates).filter(template => booleanValue_(template["有効"])); }
+function publicWorkReportTemplate_(template) { return { templateId: String(template.template_id || ""), name: String(template["テンプレート名"] || ""), active: booleanValue_(template["有効"]) }; }
+function publicWorkReportCaseMapping_(mapping) { return { mappingId: String(mapping.mapping_id || ""), planId: String(mapping["開発予定ID"] || ""), planName: String(mapping["開発予定名"] || ""), templateId: String(mapping.template_id || ""), active: booleanValue_(mapping["有効"]) }; }
+function workReportTemplateForContext_(context, sourceMappings, sourceTemplates) {
+  const mapping = (sourceMappings || rows_(SHEETS.reportCaseMappings)).find(candidate => booleanValue_(candidate["有効"]) && String(candidate["開発予定ID"] || "") === String(context && context.planId || ""));
+  if (!mapping) return null;
+  const template = (sourceTemplates || activeWorkReportTemplates_()).find(candidate => booleanValue_(candidate["有効"]) && String(candidate.template_id || "") === String(mapping.template_id || ""));
+  return template ? publicWorkReportTemplate_(template) : null;
+}
+
+function workReportCaseCandidates_(schedules) {
+  const mappings = rows_(SHEETS.reportCaseMappings);
+  const plans = Object.create(null);
+  (schedules || []).forEach(schedule => {
+    const planId = String(schedule["開発予定ID"] || "");
+    if (planId && !plans[planId]) plans[planId] = String(schedule["開発予定名"] || schedule["稼働場所"] || planId);
+  });
+  mappings.forEach(mapping => { const planId = String(mapping["開発予定ID"] || ""); if (planId && !plans[planId]) plans[planId] = String(mapping["開発予定名"] || planId); });
+  return Object.keys(plans).sort((a, b) => plans[a].localeCompare(plans[b], "ja")).map(planId => {
+    const mapping = mappings.find(candidate => String(candidate["開発予定ID"] || "") === planId);
+    return mapping ? publicWorkReportCaseMapping_(mapping) : { mappingId: "", planId, planName: plans[planId], templateId: DEFAULT_WORK_REPORT_TEMPLATE_ID, active: false };
+  });
+}
 
 function normalizeWorkReportAnswers_(definitions, answers) {
   const answerMap = Object.create(null);
@@ -605,26 +930,6 @@ function normalizeWorkReportAnswers_(definitions, answers) {
   });
 }
 
-function buildLegacyWorkReportText_(answers, context, user) {
-  const byCategory = Object.create(null);
-  answers.forEach(answer => {
-    const category = String(answer.item["カテゴリ名"] || "その他");
-    if (!byCategory[category]) byCategory[category] = [];
-    byCategory[category].push(answer);
-  });
-  const result = ["【基本情報】", `氏名：${user.name || user.email}`, `店舗名：${context.storeName}`, `入店日：${context.workDate}`];
-  (byCategory["基本情報"] || []).forEach(answer => result.push(`${answer.item["項目名"]}：${answer.value}件`));
-  Object.keys(byCategory).filter(category => !["基本情報", "定性報告"].includes(category)).forEach(category => {
-    result.push("", `【${category}】`);
-    byCategory[category].forEach(answer => result.push(`${answer.item["項目名"]}：${answer.value}件`));
-  });
-  const qualitative = byCategory["定性報告"] || [];
-  const primaryText = qualitative.filter(answer => ["successfulActions", "measuresAndResults"].includes(String(answer.item.item_id))).map(answer => `${answer.item["項目名"]}：${answer.value}`).join("\n");
-  if (primaryText) result.push("", "【定性報告】", primaryText);
-  const notes = qualitative.filter(answer => !["successfulActions", "measuresAndResults"].includes(String(answer.item.item_id))).map(answer => `${answer.item["項目名"]}：${answer.value || "なし"}`).join("\n");
-  return { result: result.join("\n"), notes };
-}
-
 function normalizeWorkReportFilters_(payload) {
   const currentMonth = today_().slice(0, 7);
   const dateFrom = dateKey_(payload.dateFrom || `${currentMonth}-01`);
@@ -633,7 +938,7 @@ function normalizeWorkReportFilters_(payload) {
   const groupBy = ["day", "month", "store", "person", "plan"].includes(String(payload.groupBy || "")) ? String(payload.groupBy) : "day";
   return { dateFrom, dateTo, groupBy, status: String(payload.status || ""), query: String(payload.query || "").trim().toLowerCase() };
 }
-function matchesWorkReportFilters_(row, filters) { const statusMatch = !filters.status || row.status === filters.status || (filters.status === "未提出" && row.status !== "提出済み"); const haystack = [row.workDate, row.storeName, row.planId, row.planName, row.reporterName, row.reporterEmail].join(" ").toLowerCase(); return statusMatch && (!filters.query || haystack.includes(filters.query)); }
+function matchesWorkReportFilters_(row, filters) { const statusMatch = !filters.status || row.status === filters.status || (filters.status === "未提出" && row.status === "保存未完了"); const haystack = [row.workDate, row.storeName, row.planId, row.planName, row.reporterName, row.reporterEmail].join(" ").toLowerCase(); return statusMatch && (!filters.query || haystack.includes(filters.query)); }
 function aggregateWorkReportAnswers_(submissions, reportDetails, groupBy) {
   const detailById = reportDetails.reduce((result, detail) => (result[detail.reportId] = detail, result), {});
   const groups = Object.create(null);
@@ -656,6 +961,7 @@ function displayDateTime_(value) { if (!value) return ""; if (Object.prototype.t
 function csvCell_(value) { let text = String(value == null ? "" : value); if (/^[=+\-@]/.test(text)) text = "'" + text; return `"${text.replace(/"/g, '""')}"`; }
 function sheetText_(value) { const text = String(value == null ? "" : value); return /^[=+\-@]/.test(text) ? "'" + text : text; }
 function booleanValue_(value) { return value === true || value === 1 || ["true", "1", "yes", "on", "有効", "必須"].includes(String(value || "").trim().toLowerCase()); }
+function normalizeDashboardOrder_(value) { const order = Number(value || 0); if (!Number.isInteger(order) || order < 0 || order > 100000) throw apiError_("REPORT_DASHBOARD_ORDER_INVALID", "成績表示順は0以上の整数で入力してください。"); return order; }
 
 function getAdminDashboard_(user, idToken) {
   const today = today_();
@@ -1128,16 +1434,26 @@ function ensureWorkReportSheetsWithLock_() { const lock = LockService.getDocumen
 function ensureWorkReportSheets_() {
   ensureReportSheet_();
   ensureReportContractHeaders_();
-  ensureSheet_(SHEETS.reportItems, HEADERS.reportItems);
-  ensureSheet_(SHEETS.reportAnswers, HEADERS.reportAnswers);
+  ensureAppendOnlySheet_(SHEETS.reportTemplates, HEADERS.reportTemplates);
+  ensureAppendOnlySheet_(SHEETS.reportCaseMappings, HEADERS.reportCaseMappings);
+  ensureAppendOnlySheet_(SHEETS.reportRevisions, HEADERS.reportRevisions);
+  ensureAppendOnlySheet_(SHEETS.reportItems, HEADERS.reportItems);
+  ensureAppendOnlySheet_(SHEETS.reportAnswers, HEADERS.reportAnswers);
+  if (!rows_(SHEETS.reportTemplates).length) {
+    const now = new Date();
+    appendObject_(SHEETS.reportTemplates, { template_id: DEFAULT_WORK_REPORT_TEMPLATE_ID, "テンプレート名": "ドコモ案件", "有効": true, "作成日時": now, "更新日時": now });
+  }
   if (!rows_(SHEETS.reportItems).length) {
     const now = new Date();
     appendObjects_(SHEETS.reportItems, DEFAULT_WORK_REPORT_ITEMS.map(item => ({
-      item_id: item[0], "項目名": item[1], "種別": item[2], "カテゴリID": item[3], "カテゴリ名": item[4], "表示順": item[5], "必須": item[6], "有効": true, "定義版": 1, "作成日時": now, "更新日時": now
+      item_id: item[0], template_id: DEFAULT_WORK_REPORT_TEMPLATE_ID, "項目名": item[1], "種別": item[2], "カテゴリID": item[3], "カテゴリ名": item[4], "表示順": item[5], "必須": item[6], "有効": true, "定義版": 1,
+      "ダッシュボード表示": ["responseCount", "u39Mnp", "u39New", "smartphoneSales"].includes(item[0]), "ダッシュボード名": item[1], "ダッシュボード順": item[5], "作成日時": now, "更新日時": now
     })));
+  } else {
+    rows_(SHEETS.reportItems).filter(item => !item.template_id).forEach(item => updateById_(SHEETS.reportItems, "item_id", item.item_id, { template_id: DEFAULT_WORK_REPORT_TEMPLATE_ID }));
   }
 }
-function ensureSheet_(name, headers) { const ss = SpreadsheetApp.getActive(); let sheet = ss.getSheetByName(name); if (!sheet) { sheet = ss.insertSheet(name); sheet.appendRow(headers); sheet.setFrozenRows(1); return; } const existing = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String); const duplicate = existing.find((header, index) => header && existing.indexOf(header) !== index); if (duplicate) throw apiError_("SHEET_SCHEMA_MISMATCH", `${name}シートに重複列があります: ${duplicate}`); const missing = headers.filter(header => !existing.includes(header)); if (missing.length) throw apiError_("SHEET_SCHEMA_MISMATCH", `${name}シートの列が不足しています: ${missing.join(",")}`); }
+function ensureAppendOnlySheet_(name, headers) { const ss = SpreadsheetApp.getActive(); let sheet = ss.getSheetByName(name); if (!sheet) { sheet = ss.insertSheet(name); sheet.appendRow(headers); sheet.setFrozenRows(1); return; } const existing = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String); const duplicate = existing.find((header, index) => header && existing.indexOf(header) !== index); if (duplicate) throw apiError_("SHEET_SCHEMA_MISMATCH", `${name}シートに重複列があります: ${duplicate}`); headers.forEach(header => { if (!existing.includes(header)) { sheet.getRange(1, sheet.getLastColumn() + 1).setValue(header); existing.push(header); } }); }
 function ensureReportContractHeaders_() { const sheet = SpreadsheetApp.getActive().getSheetByName(SHEETS.reports); if (!sheet) throw apiError_("SHEET_NOT_FOUND", `${SHEETS.reports}シートがありません。`); const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String); const duplicate = headers.find((header, index) => header && headers.indexOf(header) !== index); if (duplicate) throw apiError_("SHEET_SCHEMA_MISMATCH", `${SHEETS.reports}シートに重複列があります: ${duplicate}`); const missingExisting = HEADERS.reports.filter(header => !headers.includes(header)); if (missingExisting.length) throw apiError_("SHEET_SCHEMA_MISMATCH", `${SHEETS.reports}シートの既存列が不足しています: ${missingExisting.join(",")}`); HEADERS.reportContract.forEach(header => { if (!headers.includes(header)) { sheet.getRange(1, sheet.getLastColumn() + 1).setValue(header); headers.push(header); } }); }
 function ensureFieldReportSheet_() { const ss = SpreadsheetApp.getActive(); if (!ss.getSheetByName(SHEETS.fieldReports)) { const s = ss.insertSheet(SHEETS.fieldReports); s.appendRow(HEADERS.fieldReports); s.setFrozenRows(1); } }
 function ensureFieldReportContractHeaders_() { const sheet = SpreadsheetApp.getActive().getSheetByName(SHEETS.fieldReports); if (!sheet) throw apiError_("SHEET_NOT_FOUND", `${SHEETS.fieldReports}シートがありません。`); const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String); if (!headers.includes("schedule_id")) sheet.getRange(1, sheet.getLastColumn() + 1).setValue("schedule_id"); }

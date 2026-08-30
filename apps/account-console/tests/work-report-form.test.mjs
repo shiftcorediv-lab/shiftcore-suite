@@ -20,9 +20,11 @@ test("項目マスターをカテゴリ別に折りたたみ、数値と文章�
   assert.match(css, /@media\(max-width:640px\)/);
 });
 
-test("正規化回答だけをrecordIdと共に送信し、失敗時は入力を保持する", () => {
-  assert.match(source, /attendanceRequest\("submitReport", \{ recordId: formData\.record\.recordId, answers \}\)/);
+test("正規化回答と再送トークンだけをrecordIdと共に送信し、失敗時は入力を保持する", () => {
+  assert.match(source, /attendanceRequest\("submitReport", \{ recordId: formData\.record\.recordId, answers, submissionToken \}\)/);
   assert.doesNotMatch(source, /planId:|planName:|result, notes/);
   assert.match(source, /入力内容は画面に残っています/);
   assert.match(source, /同じ勤怠記録へ安全に再送できます/);
+  assert.match(source, /formData\.resumeSubmissionToken/);
+  assert.ok(source.includes("前回の送信を復元しました"));
 });

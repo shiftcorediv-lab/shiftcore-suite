@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Another Portal Dashboard</title>
-  <link rel="stylesheet" href="./css/dashboard.css?v=20260802-reorder-1">
+  <link rel="stylesheet" href="./css/dashboard.css?v=20260830-personal-performance-1">
   <script src="../theme/shiftcore-theme.js"></script>
   <link rel="stylesheet" href="../theme/shiftcore-theme.css">
 </head>
@@ -67,6 +67,17 @@
         </article>
       </section>
 
+      <section class="performance-card card" aria-labelledby="performanceTitle">
+        <div class="card-heading"><div><span class="section-label">MY PERFORMANCE</span><h2 id="performanceTitle">今月の成績</h2></div><span id="performanceMonth" class="status-pill">確認中</span></div>
+        <p class="performance-scope">ログインしている本人の実績だけを表示します。</p>
+        <div id="performanceLoading" class="empty-state">成績を読み込んでいます…</div>
+        <div id="performanceContent" hidden>
+          <div id="performanceMetrics" class="performance-metrics"></div>
+          <div id="performanceSubmissionSummary" class="performance-submission-summary"></div>
+          <div id="myReportRows" class="my-report-list"></div>
+        </div>
+      </section>
+
       <section class="content-grid">
         <article class="card schedule-card"><div class="card-heading"><div><span class="section-label">UPCOMING</span><h2>直近の稼働予定</h2></div></div><div id="upcomingList" class="schedule-list"></div></article>
         <article class="card module-card-wrap"><div class="card-heading"><div><span class="section-label">MODULES</span><h2>業務モジュール</h2></div></div><div id="moduleList" class="module-list"></div></article>
@@ -95,6 +106,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="./js/dashboard/main.js?v=20260828-field-report-2"></script>
+  <script type="module" src="./js/dashboard/main.js?v=20260830-personal-performance-1"></script>
 </body>
 </html>

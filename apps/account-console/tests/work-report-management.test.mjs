@@ -7,6 +7,9 @@ const backendSource = fs.readFileSync(new URL("../backend/attendance-apps-script
 const adminHtml = fs.readFileSync(new URL("../work-report-admin.html", import.meta.url), "utf8");
 const adminSource = fs.readFileSync(new URL("../js/work-report-admin/main.js", import.meta.url), "utf8");
 const adminCss = fs.readFileSync(new URL("../css/work-report-admin.css", import.meta.url), "utf8");
+const dashboardHtml = fs.readFileSync(new URL("../dashboard.html", import.meta.url), "utf8");
+const dashboardSource = fs.readFileSync(new URL("../js/dashboard/main.js", import.meta.url), "utf8");
+const dashboardCss = fs.readFileSync(new URL("../css/dashboard.css", import.meta.url), "utf8");
 
 function backendContext() {
   const context = vm.createContext({
@@ -91,16 +94,36 @@ test("旧形式は提出済みとして保持し、保存中だけ未完了に�
   const context = backendContext();
   assert.equal(context.isSubmittedWorkReport_({ report_id: "LEGACY", "保存状態": "" }), true);
   assert.equal(context.isSubmittedWorkReport_({ report_id: "PENDING", "保存状態": "保存中" }), false);
+  assert.equal(context.isSubmittedWorkReport_({ report_id: "RETURNED", "保存状態": "差戻し中" }), false);
+});
+
+test("対象案件は案件名の文字列ではなく案件IDとテンプレートの明示対応で決める", () => {
+  const context = backendContext();
+  const mappings = [{ "開発予定ID": "PLAN-DOCOMO", template_id: "docomo", "有効": true }];
+  const templates = [{ template_id: "docomo", "テンプレート名": "ドコモ案件", "有効": true }];
+  assert.equal(context.workReportTemplateForContext_({ planId: "PLAN-DOCOMO", planName: "名称にキャリア表記なし" }, mappings, templates).templateId, "docomo");
+  assert.equal(context.workReportTemplateForContext_({ planId: "PLAN-OTHER", planName: "ドコモショップ案件" }, mappings, templates), null);
 });
 
 test("管理画面は未提出・集計・項目編集停止・CSV出力を備える", () => {
-  for (const value of ["未提出", "日別", "月別", "店舗別", "人員別", "案件別", "CSV出力", "実績項目管理"]) assert.ok(adminHtml.includes(value), value);
+  for (const value of ["未提出", "差戻し中", "日別", "月別", "店舗別", "人員別", "案件別", "CSV出力", "修正履歴も出力", "実績項目管理", "実績報告の対象案件"]) assert.ok(adminHtml.includes(value), value);
   assert.match(adminSource, /attendanceRequest\("getWorkReportAdminData"/);
   assert.match(adminSource, /attendanceRequest\("saveWorkReportItem"/);
+  assert.match(adminSource, /attendanceRequest\("saveWorkReportCaseMapping"/);
+  assert.match(adminSource, /attendanceRequest\("returnWorkReport"/);
   assert.match(adminSource, /attendanceRequest\("exportWorkReportsCsv"/);
   assert.match(backendSource, /csv: "\\uFEFF" \+ csv/);
   assert.match(adminCss, /@media\(max-width:900px\)/);
   assert.match(adminCss, /\.table-wrap\{overflow:auto/);
+});
+
+test("個人ダッシュボードは本人専用成績APIを別読込し、報告の確認・修正へ進める", () => {
+  assert.ok(dashboardHtml.includes("今月の成績"));
+  assert.ok(dashboardHtml.includes("ログインしている本人の実績だけを表示します"));
+  assert.match(dashboardSource, /attendanceRequest\("getMyWorkReportSummary"/);
+  assert.match(dashboardSource, /sessionStorage\.setItem\("shiftcore_report_context", JSON\.stringify\(\{ recordId \}\)\)/);
+  assert.match(dashboardCss, /\.performance-metrics/);
+  assert.match(dashboardCss, /@media\(max-width:820px\)/);
 });
 
 test("実績管理APIは既存の勤怠管理者以外を拒否する", () => {

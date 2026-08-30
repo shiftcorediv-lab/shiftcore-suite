@@ -5,6 +5,7 @@ const context = JSON.parse(sessionStorage.getItem("shiftcore_report_context") ||
 const $ = id => document.getElementById(id);
 let formData = null;
 let loadingStarted = false;
+let submissionToken = createSubmissionToken();
 
 if (!context?.recordId) location.replace("./dashboard.html");
 
@@ -19,13 +20,11 @@ onAuthStateChanged(auth, user => {
 async function loadForm() {
   try {
     formData = await attendanceRequest("getWorkReportForm", { recordId: context.recordId });
+    if (formData.resumeSubmissionToken) submissionToken = formData.resumeSubmissionToken;
     renderContext(formData.record);
-    if (formData.submitted) {
-      $("loadingState").textContent = "この勤怠記録の実績報告は提出済みです。";
-      sessionStorage.removeItem("shiftcore_report_context");
-      return;
-    }
     renderFields(formData.items || []);
+    renderRevisionNotice(formData);
+    $("submitBtn").textContent = formData.revisionNumber ? "修正内容を保存" : "実績報告を送信";
     $("loadingState").hidden = true;
     $("reportForm").hidden = false;
   } catch (error) {
@@ -70,8 +69,22 @@ function renderField(item) {
   const id = `report-item-${escapeAttribute(item.itemId)}`;
   const required = item.required ? " required" : "";
   const mark = item.required ? '<span class="required-mark">*</span>' : "";
-  if (item.type === "number") return `<label for="${id}">${escapeHtml(item.name)}${mark}<input id="${id}" data-item-id="${escapeAttribute(item.itemId)}" data-item-type="number" type="number" min="0" step="1" inputmode="numeric" placeholder="0"${required}></label>`;
-  return `<label for="${id}">${escapeHtml(item.name)}${mark}<textarea id="${id}" data-item-id="${escapeAttribute(item.itemId)}" data-item-type="text" maxlength="5000"${required}></textarea></label>`;
+  const retired = item.retired ? '<small class="retired-mark">現在は停止中の項目です。過去報告の意味を保つため、この修正画面では引き続き表示します。</small>' : "";
+  if (item.type === "number") return `<label for="${id}">${escapeHtml(item.name)}${mark}${retired}<input id="${id}" data-item-id="${escapeAttribute(item.itemId)}" data-item-type="number" type="number" min="0" step="1" inputmode="numeric" placeholder="0" value="${item.value === "" ? "" : escapeAttribute(item.value)}"${required}></label>`;
+  return `<label for="${id}">${escapeHtml(item.name)}${mark}${retired}<textarea id="${id}" data-item-id="${escapeAttribute(item.itemId)}" data-item-type="text" maxlength="5000"${required}>${escapeHtml(item.value || "")}</textarea></label>`;
+}
+
+function renderRevisionNotice(data) {
+  if (data.resuming) {
+    $("revisionNotice").innerHTML = "<strong>前回の送信を復元しました</strong><p>保存できていた回答を表示しています。内容を確認して、もう一度送信してください。</p>";
+    $("revisionNotice").hidden = false;
+    return;
+  }
+  if (!data.revisionNumber) return;
+  const returned = data.status === "差戻し中";
+  $("revisionNotice").innerHTML = `<strong>${returned ? "修正をお願いします" : `提出済み・第${data.revisionNumber}版`}</strong><p>${returned ? escapeHtml(data.returnReason || "管理者から修正依頼があります。") : "保存すると新しい版になり、現在の入力内容が画面上の最新版になります。以前の版も履歴として残ります。"}</p>`;
+  $("revisionNotice").classList.toggle("returned", returned);
+  $("revisionNotice").hidden = false;
 }
 
 $("reportForm").addEventListener("submit", async event => {
@@ -84,9 +97,9 @@ $("reportForm").addEventListener("submit", async event => {
       itemId: input.dataset.itemId,
       value: input.dataset.itemType === "number" && input.value.trim() === "" ? null : input.value
     }));
-    const result = await attendanceRequest("submitReport", { recordId: formData.record.recordId, answers });
+    const result = await attendanceRequest("submitReport", { recordId: formData.record.recordId, answers, submissionToken });
     sessionStorage.removeItem("shiftcore_report_context");
-    setMessage(result.duplicate ? "この実績報告は提出済みです。" : "実績報告を送信しました。");
+    setMessage(result.duplicate ? "同じ内容はすでに保存されています。" : `実績報告を第${result.revisionNumber}版として保存しました。`);
     setTimeout(() => location.replace("./dashboard.html"), 900);
   } catch (error) {
     setMessage(`${error.message} 入力内容は画面に残っています。通信結果が不明な場合も、同じ勤怠記録へ安全に再送できます。`, true);
@@ -105,4 +118,8 @@ function escapeHtml(value) {
 }
 function escapeAttribute(value) {
   return String(value ?? "").replace(/[^A-Za-z0-9_-]/g, "_");
+}
+function createSubmissionToken() {
+  if (globalThis.crypto?.randomUUID) return crypto.randomUUID();
+  return `report-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }

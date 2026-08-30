@@ -3,6 +3,7 @@ import { attendanceRequest } from "../dashboard/attendance-api.js";
 
 const $ = id => document.getElementById(id);
 let data = null;
+let returningReportId = "";
 
 setInitialDates();
 onAuthStateChanged(auth, user => user ? load() : location.replace("./index.html"));
@@ -10,11 +11,15 @@ $("refreshBtn").addEventListener("click", load);
 $("applyBtn").addEventListener("click", load);
 $("csvBtn").addEventListener("click", downloadCsv);
 $("showAddItemBtn").addEventListener("click", () => {
-  $("newDisplayOrder").value = String(Math.max(0, ...(data?.items || []).map(item => Number(item.displayOrder) || 0)) + 10);
+  const nextOrder = Math.max(0, ...(data?.items || []).map(item => Number(item.displayOrder) || 0)) + 10;
+  $("newDisplayOrder").value = String(nextOrder);
+  $("newDashboardOrder").value = String(nextOrder);
   $("itemDialog").showModal();
 });
 $("cancelItemBtn").addEventListener("click", () => $("itemDialog").close());
 $("itemForm").addEventListener("submit", addItem);
+$("cancelReturnBtn").addEventListener("click", () => $("returnDialog").close());
+$("returnForm").addEventListener("submit", submitReturn);
 
 async function load() {
   try {
@@ -33,15 +38,17 @@ function filterPayload() {
     dateTo: $("dateTo").value,
     status: $("statusFilter").value,
     query: $("searchInput").value.trim(),
-    groupBy: $("groupBy").value
+    groupBy: $("groupBy").value,
+    includeHistory: $("includeHistory").checked
   };
 }
 
 function render() {
-  $("summary").innerHTML = summaryCard("終了済み勤怠", data.counts.total) + summaryCard("提出済み", data.counts.submitted) + summaryCard("未提出・未完了", data.counts.missing);
+  $("summary").innerHTML = summaryCard("対象の終了済み勤怠", data.counts.total) + summaryCard("提出済み", data.counts.submitted) + summaryCard("未提出・未完了", data.counts.missing) + summaryCard("差戻し中", data.counts.returned || 0);
   renderSubmissions();
   renderAggregates();
   renderItems();
+  renderCaseMappings();
 }
 
 function renderSubmissions() {
@@ -50,10 +57,12 @@ function renderSubmissions() {
     <tr>
       <td>${escapeHtml(row.workDate)}</td><td><strong>${escapeHtml(row.reporterName)}</strong><br><small>${escapeHtml(row.reporterEmail)}</small></td>
       <td>${escapeHtml(row.storeName || "—")}</td><td>${escapeHtml(row.planName || "—")}</td>
-      <td><span class="badge ${row.status === "提出済み" ? "submitted" : ""}">${escapeHtml(row.status)}</span></td>
-      <td>${escapeHtml(row.reportedAt || "—")}</td><td>${row.reportId ? `<button type="button" data-report-id="${escapeAttribute(row.reportId)}">詳細</button>` : ""}</td>
+      <td><span class="badge ${row.status === "提出済み" ? "submitted" : ""}">${escapeHtml(row.status)}</span>${row.returnReason ? `<small class="return-reason">${escapeHtml(row.returnReason)}</small>` : ""}</td>
+      <td>${row.revisionNumber ? `第${row.revisionNumber}版` : "—"}</td>
+      <td>${escapeHtml(row.reportedAt || "—")}</td><td class="row-actions">${row.reportId ? `<button type="button" data-report-id="${escapeAttribute(row.reportId)}">詳細</button>${row.status === "提出済み" ? `<button class="secondary" type="button" data-return-report="${escapeAttribute(row.reportId)}">差戻し</button>` : ""}` : ""}</td>
     </tr>`).join("") : '<tr><td colspan="7">該当する終了済み勤怠はありません。</td></tr>';
   document.querySelectorAll("[data-report-id]").forEach(button => button.addEventListener("click", () => showDetail(button.dataset.reportId)));
+  document.querySelectorAll("[data-return-report]").forEach(button => button.addEventListener("click", () => openReturn(button.dataset.returnReport)));
 }
 
 function renderAggregates() {
@@ -74,6 +83,9 @@ function renderItems() {
       <td><input data-field="displayOrder" type="number" min="0" step="1" value="${item.displayOrder}"></td>
       <td><input data-field="required" type="checkbox" ${item.required ? "checked" : ""}></td>
       <td><input data-field="active" type="checkbox" ${item.active ? "checked" : ""}></td>
+      <td><input data-field="dashboardVisible" type="checkbox" ${item.dashboardVisible ? "checked" : ""} ${item.type === "text" ? "disabled" : ""}></td>
+      <td><input data-field="dashboardName" value="${escapeAttribute(item.dashboardName || item.name)}" maxlength="40" ${item.type === "text" ? "disabled" : ""}></td>
+      <td><input data-field="dashboardOrder" type="number" min="0" step="1" value="${item.dashboardOrder || 0}" ${item.type === "text" ? "disabled" : ""}></td>
       <td>${item.version}</td><td><button type="button" data-save-item="${escapeAttribute(item.itemId)}">保存</button></td>
     </tr>`).join("");
   document.querySelectorAll("[data-save-item]").forEach(button => button.addEventListener("click", () => saveItem(button.dataset.saveItem)));
@@ -90,7 +102,10 @@ async function saveItem(itemId) {
       categoryName: field(row, "categoryName").value,
       displayOrder: field(row, "displayOrder").value,
       required: field(row, "required").checked,
-      active: field(row, "active").checked
+      active: field(row, "active").checked,
+      dashboardVisible: field(row, "dashboardVisible").checked,
+      dashboardName: field(row, "dashboardName").value,
+      dashboardOrder: field(row, "dashboardOrder").value
     });
     message("実績項目を保存しました。");
     await load();
@@ -108,6 +123,9 @@ async function addItem(event) {
       categoryName: $("newCategoryName").value,
       displayOrder: $("newDisplayOrder").value,
       required: $("newRequired").checked,
+      dashboardVisible: $("newDashboardVisible").checked,
+      dashboardName: $("newDashboardName").value,
+      dashboardOrder: $("newDashboardOrder").value,
       active: true
     });
     $("itemDialog").close();
@@ -129,9 +147,44 @@ function showDetail(reportId) {
   if (detail.legacy) {
     $("detailBody").innerHTML = '<p class="legacy-note">旧形式の報告です。内容を推測して項目別集計へ変換していません。</p>' + detailList(rows.concat([["実績内容", detail.result || "—"], ["課題・申し送り", detail.notes || "—"]]));
   } else {
-    $("detailBody").innerHTML = detailList(rows.concat(detail.answers.map(answer => [`${answer.categoryName} / ${answer.name}`, answer.type === "number" ? `${answer.value}件${answer.inputState === "defaulted" ? "（未入力を0扱い）" : ""}` : answer.value || "—"])));
+    const current = detailList(rows.concat([["現在の版", `第${submission.revisionNumber || 0}版`], ...detail.answers.map(answer => [`${answer.categoryName} / ${answer.name}`, answer.type === "number" ? `${answer.value}件${answer.inputState === "defaulted" ? "（未入力を0扱い）" : ""}` : answer.value || "—"])]));
+    const history = (detail.revisions || []).map(revision => `<details class="revision"><summary>第${revision.revisionNumber}版 / ${escapeHtml(revision.editType || "提出")} / ${escapeHtml(revision.submittedAt || "")}${revision.current ? "（最新版）" : ""}</summary>${detailList([["編集者", revision.editorName || "—"], ...revision.answers.map(answer => [`${answer.categoryName} / ${answer.name}`, answer.type === "number" ? `${answer.value}件` : answer.value || "—"])] )}</details>`).join("");
+    $("detailBody").innerHTML = current + (history ? `<h3>修正履歴</h3>${history}` : "");
   }
   $("detailDialog").showModal();
+}
+
+function renderCaseMappings() {
+  const templates = data.templates || [];
+  $("caseMappingRows").innerHTML = (data.caseMappings || []).map(mapping => `<tr data-case-mapping="${escapeAttribute(mapping.planId)}"><td><code>${escapeHtml(mapping.planId)}</code></td><td>${escapeHtml(mapping.planName || "—")}</td><td><select data-field="templateId">${templates.map(template => `<option value="${escapeAttribute(template.templateId)}" ${template.templateId === mapping.templateId ? "selected" : ""}>${escapeHtml(template.name)}</option>`).join("")}</select></td><td><input data-field="mappingActive" type="checkbox" ${mapping.active ? "checked" : ""}></td><td><button type="button" data-save-mapping="${escapeAttribute(mapping.planId)}">保存</button></td></tr>`).join("") || '<tr><td colspan="5">稼働予定から選べる案件がありません。</td></tr>';
+  document.querySelectorAll("[data-save-mapping]").forEach(button => button.addEventListener("click", () => saveCaseMapping(button.dataset.saveMapping)));
+}
+
+async function saveCaseMapping(planId) {
+  const mapping = (data.caseMappings || []).find(item => item.planId === planId);
+  const row = document.querySelector(`[data-case-mapping="${cssEscape(planId)}"]`);
+  if (!mapping || !row) return;
+  try {
+    await attendanceRequest("saveWorkReportCaseMapping", { planId, planName: mapping.planName, templateId: field(row, "templateId").value, active: field(row, "mappingActive").checked });
+    message("対象案件を保存しました。");
+    await load();
+  } catch (error) { message(error.message, true); }
+}
+
+function openReturn(reportId) {
+  returningReportId = reportId;
+  $("returnReason").value = "";
+  $("returnDialog").showModal();
+}
+
+async function submitReturn(event) {
+  event.preventDefault();
+  try {
+    await attendanceRequest("returnWorkReport", { reportId: returningReportId, reason: $("returnReason").value.trim() });
+    $("returnDialog").close();
+    message("実績報告を差し戻しました。本人の提出内容は履歴に残っています。");
+    await load();
+  } catch (error) { message(error.message, true); }
 }
 
 async function downloadCsv() {
