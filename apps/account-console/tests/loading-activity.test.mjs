@@ -6,6 +6,7 @@ const read = path => fs.readFileSync(new URL(path, import.meta.url), "utf8");
 const themeCss = read("../../theme/shiftcore-theme.css");
 const activitySource = read("../js/common/activity.js");
 const dashboardHtml = read("../dashboard.html");
+const dashboardCss = read("../css/dashboard.css");
 const dashboardSource = read("../js/dashboard/main.js");
 const attendanceHtml = read("../attendance-admin.html");
 const attendanceSource = read("../js/attendance-admin/main.js");
@@ -45,4 +46,11 @@ test("既存のOrderとShiftの全画面ローダーも維持する", () => {
   assert.match(orderCss, /animation:/);
   assert.match(shiftCss, /\.loading-spinner\s*\{/);
   assert.match(shiftCss, /animation:/);
+});
+
+test("ダッシュボードの現状表示は先頭側へ配置し、表示域内へ追従する", () => {
+  assert.ok(dashboardHtml.indexOf('id="statusBox"') < dashboardHtml.indexOf('class="hero-grid"'));
+  assert.match(dashboardHtml, /dashboard\.css\?v=20260831-sticky-status-1/);
+  assert.match(dashboardCss, /\.status-box\{position:sticky;top:84px/);
+  assert.match(dashboardCss, /data-shiftcore-environment="staging"\] \.status-box\{top:124px/);
 });
