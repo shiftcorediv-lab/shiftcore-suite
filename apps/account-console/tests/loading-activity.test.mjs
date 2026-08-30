@@ -58,7 +58,7 @@ test("ダッシュボードの現状表示は先頭側へ配置し、表示域�
 test("ダッシュボードの日付は年月日を省略せず表示する", () => {
   assert.match(dashboardSource, /month: "numeric"/);
   assert.match(dashboardSource, /\$\{part\("year"\)\}年\$\{part\("month"\)\}月\$\{part\("day"\)\}日/);
-  assert.match(dashboardHtml, /main\.js\?v=20260831-attendance-loading-1/);
+  assert.match(dashboardHtml, /main\.js\?v=20260831-attendance-loading-2/);
 });
 
 test("最新勤怠の取得前は非稼働と断定せず稼働予定を読込中にする", () => {
@@ -73,4 +73,12 @@ test("最新勤怠の取得前は非稼働と断定せず稼働予定を読込�
   assert.match(dashboardSource, /\$\("startBtn"\)\.disabled = true/);
   assert.match(dashboardSource, /\$\("startBtn"\)\.disabled = false/);
   assert.match(dashboardSource, /cachedDashboard\.schedule \|\| cachedDashboard\.record/);
+});
+
+test("予定同期が続く間も非稼働へ切り替えず読込表示を維持する", () => {
+  assert.match(dashboardSource, /isScheduleSyncPending\(dashboardData\)/);
+  assert.match(dashboardSource, /!data\?\.schedule && !data\?\.record && \["stale", "in-progress"\]\.includes\(syncStatus\)/);
+  assert.match(dashboardSource, /refreshDashboardInBackground\(loadVersion, retryCount \+ 1\)/);
+  assert.match(dashboardSource, /MAX_SCHEDULE_SYNC_RETRIES = 6/);
+  assert.match(dashboardSource, /最新予定の同期に失敗しました。再読み込みしてください。/);
 });
