@@ -10,6 +10,9 @@ const adminCss = fs.readFileSync(new URL("../css/work-report-admin.css", import.
 const dashboardHtml = fs.readFileSync(new URL("../dashboard.html", import.meta.url), "utf8");
 const dashboardSource = fs.readFileSync(new URL("../js/dashboard/main.js", import.meta.url), "utf8");
 const dashboardCss = fs.readFileSync(new URL("../css/dashboard.css", import.meta.url), "utf8");
+const reportHtml = fs.readFileSync(new URL("../work-report.html", import.meta.url), "utf8");
+const reportSource = fs.readFileSync(new URL("../js/work-report/main.js", import.meta.url), "utf8");
+const reportHistoryCss = fs.readFileSync(new URL("../css/work-report-history.css", import.meta.url), "utf8");
 
 function backendContext() {
   const context = vm.createContext({
@@ -168,6 +171,19 @@ test("管理者ダッシュボードから勤怠管理と実績報告管理へ�
   assert.match(dashboardHtml, /href="\.\/work-report-admin\.html">実績報告管理<\/a>/);
   assert.match(dashboardSource, /\$\("adminLinks"\)\.hidden = !data\.adminAccess/);
   assert.match(dashboardCss, /\.admin-links\[hidden\]\{display:none\}/);
+});
+
+test("本人は自分の提出履歴と版ごとの差戻し理由を確認できる", () => {
+  assert.match(reportHtml, /id="revisionHistory"[^>]*hidden/);
+  assert.match(reportHtml, /過去の版は確認専用です/);
+  assert.match(reportHtml, /work-report-history\.css\?v=20260831-self-history-1/);
+  assert.match(reportHtml, /main\.js\?v=20260831-self-history-1/);
+  assert.match(reportSource, /renderRevisionHistory\(formData\)/);
+  assert.match(reportSource, /この版への差戻し理由/);
+  assert.match(reportSource, /history\.open = data\.status === "差戻し中"/);
+  assert.match(reportHistoryCss, /@media \(max-width: 640px\)/);
+  assert.match(backendSource, /revisions: existing \? workReportRevisionHistory_/);
+  assert.match(backendSource, /assertReportableRecord_\(user, payload\.recordId\)/);
 });
 
 test("実績管理APIは既存の勤怠管理者以外を拒否する", () => {

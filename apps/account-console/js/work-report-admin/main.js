@@ -152,7 +152,7 @@ function showDetail(reportId) {
     $("detailBody").innerHTML = '<p class="legacy-note">旧形式の報告です。内容を推測して項目別集計へ変換していません。</p>' + detailList(rows.concat([["実績内容", detail.result || "—"], ["課題・申し送り", detail.notes || "—"]]));
   } else {
     const current = detailList(rows.concat([["現在の版", `第${submission.revisionNumber || 0}版`], ...detail.answers.map(answer => [`${answer.categoryName} / ${answer.name}`, answer.type === "number" ? `${answer.value}件${answer.inputState === "defaulted" ? "（未入力を0扱い）" : ""}` : answer.value || "—"])]));
-    const history = (detail.revisions || []).map(revision => `<details class="revision"><summary>第${revision.revisionNumber}版 / ${escapeHtml(revision.editType || "提出")} / ${escapeHtml(revision.submittedAt || "")}${revision.current ? "（最新版）" : ""}</summary>${detailList([["編集者", revision.editorName || "—"], ...revision.answers.map(answer => [`${answer.categoryName} / ${answer.name}`, answer.type === "number" ? `${answer.value}件` : answer.value || "—"])] )}</details>`).join("");
+    const history = (detail.revisions || []).map(revision => `<details class="revision"><summary>第${revision.revisionNumber}版 / ${escapeHtml(revision.editType || "提出")} / ${escapeHtml(revision.submittedAt || "")}${revision.current ? "（最新版）" : ""}${revision.returnReason ? " / 差戻しあり" : ""}</summary>${detailList([["編集者", revision.editorName || "—"], ...(revision.returnReason ? [["差戻し理由", revision.returnReason], ["差戻し日時", revision.returnedAt || "—"]] : []), ...revision.answers.map(answer => [`${answer.categoryName} / ${answer.name}`, answer.type === "number" ? `${answer.value}件` : answer.value || "—"])] )}</details>`).join("");
     $("detailBody").innerHTML = current + (history ? `<h3>修正履歴</h3>${history}` : "");
   }
   $("detailDialog").showModal();

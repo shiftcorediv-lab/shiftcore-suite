@@ -65,6 +65,7 @@ const HEADERS = {
   reportTemplates: ["template_id", "テンプレート名", "有効", "作成日時", "更新日時"],
   reportCaseMappings: ["mapping_id", "開発予定ID", "開発予定名", "template_id", "有効", "有効開始日時", "有効終了日時", "作成日時", "更新日時"],
   reportRevisions: ["revision_id", "report_id", "record_id", "改訂番号", "状態", "編集者メール", "編集者氏名", "編集種別", "submission_token", "作成日時", "提出日時"],
+  reportRevisionReturnContract: ["差戻し理由", "差戻し日時", "差戻し者メール"],
   reportItems: ["item_id", "template_id", "項目名", "種別", "カテゴリID", "カテゴリ名", "表示順", "必須", "有効", "定義版", "ダッシュボード表示", "ダッシュボード名", "ダッシュボード順", "作成日時", "更新日時"],
   reportAnswers: ["answer_id", "report_id", "revision_id", "record_id", "item_id", "定義版", "項目名", "種別", "カテゴリID", "カテゴリ名", "表示順", "数値回答", "文章回答", "入力状態", "作成日時"],
   fieldReports: ["field_report_id", "勤務日", "開発予定ID", "報告種別", "報告者メール", "報告者氏名", "報告日時", "schedule_id"],
@@ -589,9 +590,11 @@ function getWorkReportForm_(user, payload) {
   const context = workReportContext_(record);
   const existing = findWorkReportByRecordId_(record.record_id);
   const template = existing ? workReportTemplateForExistingReport_(existing, context) : assertWorkReportTarget_(context);
-  const currentAnswers = existing ? currentWorkReportAnswers_(existing) : [];
-  const pendingRevision = existing ? pendingWorkReportRevision_(existing) : null;
-  const pendingAnswers = pendingRevision ? rows_(SHEETS.reportAnswers).filter(answer => String(answer.revision_id || "") === String(pendingRevision.revision_id || "")) : [];
+  const reportAnswers = existing ? rows_(SHEETS.reportAnswers) : [];
+  const reportRevisions = existing ? rows_(SHEETS.reportRevisions) : [];
+  const currentAnswers = existing ? currentWorkReportAnswers_(existing, reportAnswers) : [];
+  const pendingRevision = existing ? pendingWorkReportRevision_(existing, reportRevisions) : null;
+  const pendingAnswers = pendingRevision ? reportAnswers.filter(answer => String(answer.revision_id || "") === String(pendingRevision.revision_id || "")) : [];
   const displayAnswers = mergeWorkReportDraftAnswers_(currentAnswers, pendingAnswers);
   const definitions = workReportDefinitionsFor_(template.templateId, currentAnswers);
   return {
@@ -602,6 +605,7 @@ function getWorkReportForm_(user, payload) {
     reportId: existing ? String(existing.report_id || "") : "",
     revisionNumber: existing ? Number(existing.current_revision_number) || 0 : 0,
     returnReason: existing ? String(existing["差戻し理由"] || "") : "",
+    revisions: existing ? workReportRevisionHistory_(existing, reportRevisions, reportAnswers) : [],
     resuming: Boolean(pendingRevision),
     resumeSubmissionToken: pendingRevision ? String(pendingRevision.submission_token || "") : "",
     record: {
@@ -836,6 +840,7 @@ function buildWorkReportAdminData_(payload) {
   }, Object.create(null));
   const reportAnswers = rows_(SHEETS.reportAnswers);
   const revisions = rows_(SHEETS.reportRevisions);
+  const notifications = rows_(SHEETS.notifications);
   const completedRecords = rows_(SHEETS.records).filter(record => {
     const workDate = dateKey_(record["勤務日"]);
     if (!Boolean(record["実終了"] || record["正式終了"]) || workDate < filters.dateFrom || workDate > filters.dateTo) return false;
@@ -864,22 +869,14 @@ function buildWorkReportAdminData_(payload) {
   const reportDetails = reports.filter(report => visibleReportIds.includes(String(report.report_id || ""))).map(report => {
     const reportId = String(report.report_id || "");
     const currentAnswers = currentWorkReportAnswers_(report, reportAnswers);
-    const reportRevisions = revisions.filter(revision => String(revision.report_id || "") === reportId && String(revision["状態"] || "") === "提出済み").sort((a, b) => Number(b["改訂番号"] || 0) - Number(a["改訂番号"] || 0));
+    const reportRevisions = workReportRevisionHistory_(report, revisions, reportAnswers, notifications);
     return {
       reportId,
       legacy: !currentAnswers.length && !reportRevisions.length,
       result: String(report["実績内容"] || ""),
       notes: String(report["課題・申し送り"] || ""),
       answers: currentAnswers.sort(workReportItemSort_).map(publicWorkReportAnswer_),
-      revisions: reportRevisions.map(revision => ({
-        revisionId: String(revision.revision_id || ""),
-        revisionNumber: Number(revision["改訂番号"]) || 0,
-        editType: String(revision["編集種別"] || ""),
-        editorName: String(revision["編集者氏名"] || revision["編集者メール"] || ""),
-        submittedAt: displayDateTime_(revision["提出日時"] || revision["作成日時"]),
-        current: String(report.current_revision_id || "") === String(revision.revision_id || ""),
-        answers: reportAnswers.filter(answer => String(answer.revision_id || "") === String(revision.revision_id || "")).sort(workReportItemSort_).map(publicWorkReportAnswer_)
-      }))
+      revisions: reportRevisions
     };
   });
   const aggregates = aggregateWorkReportAnswers_(submissionRows, reportDetails, filters.groupBy);
@@ -995,13 +992,20 @@ function returnWorkReport_(user, payload) {
   lock.waitLock(20000);
   try {
     assertWorkReportSchema_();
+    ensureReportRevisionReturnHeaders_();
     const report = rows_(SHEETS.reports).find(candidate => String(candidate.report_id || "") === String(payload.reportId || ""));
     if (!report || !isSubmittedWorkReport_(report)) throw apiError_("REPORT_RETURN_INVALID", "提出済みの実績報告を確認できません。");
     if (pendingWorkReportRevision_(report)) throw apiError_("REPORT_SUBMISSION_IN_PROGRESS", "本人の実績報告が保存途中です。再送完了後に差し戻してください。");
+    const returnedAt = new Date();
     updateById_(SHEETS.reports, "report_id", report.report_id, {
       "保存状態": "差戻し中",
       "差戻し理由": sheetText_(reason),
-      "差戻し日時": new Date(),
+      "差戻し日時": returnedAt,
+      "差戻し者メール": user.email
+    });
+    if (report.current_revision_id) updateById_(SHEETS.reportRevisions, "revision_id", report.current_revision_id, {
+      "差戻し理由": sheetText_(reason),
+      "差戻し日時": returnedAt,
       "差戻し者メール": user.email
     });
     createNotification_(report["報告者メール"], report["報告者氏名"], "実績報告の差戻し", `実績報告が差し戻されました。理由: ${reason}`, report.report_id);
@@ -1084,6 +1088,42 @@ function activeWorkReportItems_(templateId) { return allWorkReportItems_().filte
 function workReportItemSort_(a, b) { return (Number(a["表示順"] || a.displayOrder) || 0) - (Number(b["表示順"] || b.displayOrder) || 0); }
 function publicWorkReportItem_(item) { return { itemId: String(item.item_id || ""), templateId: String(item.template_id || DEFAULT_WORK_REPORT_TEMPLATE_ID), name: String(item["項目名"] || ""), type: String(item["種別"] || ""), categoryId: String(item["カテゴリID"] || ""), categoryName: String(item["カテゴリ名"] || ""), displayOrder: Number(item["表示順"]) || 0, required: booleanValue_(item["必須"]), active: booleanValue_(item["有効"]), version: Number(item["定義版"]) || 1, dashboardVisible: booleanValue_(item["ダッシュボード表示"]), dashboardName: String(item["ダッシュボード名"] || item["項目名"] || ""), dashboardOrder: Number(item["ダッシュボード順"]) || 0 }; }
 function publicWorkReportAnswer_(answer) { const type = String(answer["種別"] || ""); return { itemId: String(answer.item_id || ""), name: String(answer["項目名"] || ""), type, categoryId: String(answer["カテゴリID"] || ""), categoryName: String(answer["カテゴリ名"] || ""), displayOrder: Number(answer["表示順"]) || 0, version: Number(answer["定義版"]) || 1, value: type === "number" ? Number(answer["数値回答"]) || 0 : String(answer["文章回答"] || ""), inputState: String(answer["入力状態"] || "answered") }; }
+function workReportRevisionHistory_(report, sourceRevisions, sourceAnswers, sourceNotifications) {
+  const reportId = String(report && report.report_id || "");
+  if (!reportId) return [];
+  const answers = sourceAnswers || rows_(SHEETS.reportAnswers);
+  const revisions = (sourceRevisions || rows_(SHEETS.reportRevisions))
+    .filter(revision => String(revision.report_id || "") === reportId && String(revision["状態"] || "") === "提出済み")
+    .sort((a, b) => Number(a["改訂番号"] || 0) - Number(b["改訂番号"] || 0));
+  const notifications = (sourceNotifications || rows_(SHEETS.notifications))
+    .filter(notification => String(notification["対象ID"] || "") === reportId && String(notification["種別"] || "") === "実績報告の差戻し")
+    .sort((a, b) => dateTimeMillis_(a["作成日時"]) - dateTimeMillis_(b["作成日時"]));
+  return revisions.map((revision, index) => {
+    const submittedMillis = dateTimeMillis_(revision["提出日時"] || revision["作成日時"]);
+    const nextRevision = revisions[index + 1];
+    const nextSubmittedMillis = nextRevision ? dateTimeMillis_(nextRevision["提出日時"] || nextRevision["作成日時"]) : Infinity;
+    const fallbackReturn = notifications.filter(notification => {
+      const returnedMillis = dateTimeMillis_(notification["作成日時"]);
+      return Number.isFinite(returnedMillis) && (!Number.isFinite(submittedMillis) || returnedMillis >= submittedMillis) && returnedMillis < nextSubmittedMillis;
+    }).slice(-1)[0] || null;
+    const returnReason = String(revision["差戻し理由"] || workReportReturnReasonFromNotification_(fallbackReturn) || "");
+    return {
+      revisionId: String(revision.revision_id || ""),
+      revisionNumber: Number(revision["改訂番号"]) || 0,
+      editType: String(revision["編集種別"] || ""),
+      editorName: String(revision["編集者氏名"] || revision["編集者メール"] || ""),
+      submittedAt: displayDateTime_(revision["提出日時"] || revision["作成日時"]),
+      current: String(report.current_revision_id || "") === String(revision.revision_id || ""),
+      returnReason,
+      returnedAt: displayDateTime_(revision["差戻し日時"] || fallbackReturn && fallbackReturn["作成日時"] || ""),
+      answers: answers.filter(answer => String(answer.revision_id || "") === String(revision.revision_id || "")).sort(workReportItemSort_).map(publicWorkReportAnswer_)
+    };
+  }).reverse();
+}
+function workReportReturnReasonFromNotification_(notification) {
+  if (!notification) return "";
+  return String(notification["本文"] || "").replace(/^実績報告が差し戻されました。理由:\s*/, "").trim();
+}
 
 function currentWorkReportAnswers_(report, sourceAnswers) {
   const answers = sourceAnswers || rows_(SHEETS.reportAnswers);
@@ -1860,7 +1900,7 @@ function ensureWorkReportSheets_() {
   ensureReportContractHeaders_();
   ensureAppendOnlySheet_(SHEETS.reportTemplates, HEADERS.reportTemplates);
   ensureAppendOnlySheet_(SHEETS.reportCaseMappings, HEADERS.reportCaseMappings);
-  ensureAppendOnlySheet_(SHEETS.reportRevisions, HEADERS.reportRevisions);
+  ensureAppendOnlySheet_(SHEETS.reportRevisions, HEADERS.reportRevisions.concat(HEADERS.reportRevisionReturnContract));
   ensureAppendOnlySheet_(SHEETS.reportItems, HEADERS.reportItems);
   ensureAppendOnlySheet_(SHEETS.reportAnswers, HEADERS.reportAnswers);
   let templates = rows_(SHEETS.reportTemplates);
@@ -1884,6 +1924,7 @@ function ensureWorkReportSheets_() {
   }
   return { templates, items };
 }
+function ensureReportRevisionReturnHeaders_() { ensureAppendOnlySheet_(SHEETS.reportRevisions, HEADERS.reportRevisions.concat(HEADERS.reportRevisionReturnContract)); }
 function ensureAppendOnlySheet_(name, headers) { const ss = SpreadsheetApp.getActive(); let sheet = ss.getSheetByName(name); if (!sheet) { sheet = ss.insertSheet(name); sheet.appendRow(headers); sheet.setFrozenRows(1); return; } const existing = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String); const duplicate = existing.find((header, index) => header && existing.indexOf(header) !== index); if (duplicate) throw apiError_("SHEET_SCHEMA_MISMATCH", `${name}シートに重複列があります: ${duplicate}`); headers.forEach(header => { if (!existing.includes(header)) { sheet.getRange(1, sheet.getLastColumn() + 1).setValue(header); existing.push(header); } }); }
 function ensureReportContractHeaders_() { const sheet = SpreadsheetApp.getActive().getSheetByName(SHEETS.reports); if (!sheet) throw apiError_("SHEET_NOT_FOUND", `${SHEETS.reports}シートがありません。`); const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String); const duplicate = headers.find((header, index) => header && headers.indexOf(header) !== index); if (duplicate) throw apiError_("SHEET_SCHEMA_MISMATCH", `${SHEETS.reports}シートに重複列があります: ${duplicate}`); const missingExisting = HEADERS.reports.filter(header => !headers.includes(header)); if (missingExisting.length) throw apiError_("SHEET_SCHEMA_MISMATCH", `${SHEETS.reports}シートの既存列が不足しています: ${missingExisting.join(",")}`); HEADERS.reportContract.forEach(header => { if (!headers.includes(header)) { sheet.getRange(1, sheet.getLastColumn() + 1).setValue(header); headers.push(header); } }); }
 function ensureFieldReportSheet_() { const ss = SpreadsheetApp.getActive(); if (!ss.getSheetByName(SHEETS.fieldReports)) { const s = ss.insertSheet(SHEETS.fieldReports); s.appendRow(HEADERS.fieldReports); s.setFrozenRows(1); } }
