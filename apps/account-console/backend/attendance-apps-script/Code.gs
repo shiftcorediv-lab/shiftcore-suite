@@ -1021,7 +1021,9 @@ function exportWorkReportsCsv_(user, payload) {
   const data = buildWorkReportAdminData_(payload || {});
   const detailById = data.reportDetails.reduce((result, detail) => (result[detail.reportId] = detail, result), {});
   const includeHistory = booleanValue_(payload && payload.includeHistory);
-  const headers = ["勤務日", "店舗名", "案件ID", "案件名", "報告者", "報告者メール", "提出状態", "報告日時", "改訂番号", "改訂種別", "改訂者", "改訂日時", "最新版", "項目ID", "定義版", "カテゴリ", "項目名", "種別", "数値回答", "文章回答", "入力状態", "旧実績内容", "旧課題・申し送り"];
+  const headers = ["勤務日", "店舗名", "案件ID", "案件名", "報告者", "報告者メール", "提出状態", "報告日時", "改訂番号", "改訂種別", "改訂者", "改訂日時", "最新版"]
+    .concat(includeHistory ? ["差戻し理由", "差戻し日時"] : [])
+    .concat(["項目ID", "定義版", "カテゴリ", "項目名", "種別", "数値回答", "文章回答", "入力状態", "旧実績内容", "旧課題・申し送り"]);
   const rows = [];
   data.submissions.forEach(submission => {
     const detail = detailById[submission.reportId];
@@ -1032,6 +1034,7 @@ function exportWorkReportsCsv_(user, payload) {
         submission.workDate, submission.storeName, submission.planId, submission.planName,
         submission.reporterName, submission.reporterEmail, submission.status, submission.reportedAt,
         revision.revisionNumber || "", revision.editType || "", revision.editorName || "", revision.submittedAt || "", revision.current ? "TRUE" : "FALSE",
+        ...(includeHistory ? [revision.returnReason || "", revision.returnedAt || ""] : []),
         answer && answer.itemId || "", answer && answer.version || "", answer && answer.categoryName || "", answer && answer.name || "", answer && answer.type || "",
         answer && answer.type === "number" ? answer.value : "", answer && answer.type === "text" ? answer.value : "", answer && answer.inputState || "",
         detail && detail.legacy ? detail.result : "", detail && detail.legacy ? detail.notes : ""

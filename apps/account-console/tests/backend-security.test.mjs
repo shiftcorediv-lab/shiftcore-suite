@@ -452,16 +452,23 @@ test("CSVは通常出力で最新版だけ、履歴出力で修正前後を含�
   const { context } = createAttendanceContext([{ record_id: "REC-CSV", email: "member@example.com", workDate: "2026-08-28" }]);
   context.submitReport_({ email: "member@example.com", name: "本人" }, reportPayload("REC-CSV", "CSV-1"));
   const changedAnswers = validAnswers().map(answer => answer.itemId === "responseCount" ? { ...answer, value: 7 } : answer);
-  context.submitReport_({ email: "member@example.com", name: "本人" }, { recordId: "REC-CSV", answers: changedAnswers, submissionToken: "CSV-2" });
+  const changed = context.submitReport_({ email: "member@example.com", name: "本人" }, { recordId: "REC-CSV", answers: changedAnswers, submissionToken: "CSV-2" });
+  context.returnWorkReport_({ email: "admin@example.com", role: "admin" }, { reportId: changed.reportId, reason: "集計値を確認してください" });
+  context.submitReport_({ email: "member@example.com", name: "本人" }, { recordId: "REC-CSV", answers: changedAnswers, submissionToken: "CSV-3" });
   const filters = { dateFrom: "2026-08-01", dateTo: "2026-08-31", groupBy: "day" };
   const current = context.exportWorkReportsCsv_({ email: "admin@example.com", role: "admin" }, filters);
   const history = context.exportWorkReportsCsv_({ email: "admin@example.com", role: "admin" }, { ...filters, includeHistory: true });
   assert.ok(current.fileName.startsWith("work-reports_"));
   assert.ok(history.fileName.startsWith("work-reports-history_"));
   assert.equal(current.csv.split("\r\n").length, 40);
-  assert.equal(history.csv.split("\r\n").length, 79);
+  assert.equal(history.csv.split("\r\n").length, 118);
+  assert.ok(!current.csv.split("\r\n", 1)[0].includes("差戻し理由"));
+  assert.ok(history.csv.split("\r\n", 1)[0].includes('"差戻し理由","差戻し日時"'));
+  assert.ok(history.csv.includes('"集計値を確認してください"'));
+  assert.match(history.csv, /"FALSE","集計値を確認してください","\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}"/);
   assert.ok(history.csv.includes('"初回提出"'));
   assert.ok(history.csv.includes('"本人修正"'));
+  assert.ok(history.csv.includes('"差戻し後再提出"'));
 });
 
 test("案件の対象停止後も既存報告は履歴へ残し、新しい未提出勤怠だけ除外する", () => {
