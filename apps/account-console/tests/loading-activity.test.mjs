@@ -50,7 +50,7 @@ test("既存のOrderとShiftの全画面ローダーも維持する", () => {
 
 test("ダッシュボードの現状表示は先頭側へ配置し、表示域内へ追従する", () => {
   assert.ok(dashboardHtml.indexOf('id="statusBox"') < dashboardHtml.indexOf('class="hero-grid"'));
-  assert.match(dashboardHtml, /dashboard\.css\?v=20260831-sticky-status-1/);
+  assert.match(dashboardHtml, /dashboard\.css\?v=20260831-work-report-alert-1/);
   assert.match(dashboardCss, /\.status-box\{position:sticky;top:84px/);
   assert.match(dashboardCss, /data-shiftcore-environment="staging"\] \.status-box\{top:124px/);
 });
@@ -58,7 +58,7 @@ test("ダッシュボードの現状表示は先頭側へ配置し、表示域�
 test("ダッシュボードの日付は年月日を省略せず表示する", () => {
   assert.match(dashboardSource, /month: "numeric"/);
   assert.match(dashboardSource, /\$\{part\("year"\)\}年\$\{part\("month"\)\}月\$\{part\("day"\)\}日/);
-  assert.match(dashboardHtml, /main\.js\?v=20260831-departure-location-1/);
+  assert.match(dashboardHtml, /main\.js\?v=20260831-work-report-alert-1/);
 });
 
 test("最新勤怠の取得前は非稼働と断定せず稼働予定を読込中にする", () => {

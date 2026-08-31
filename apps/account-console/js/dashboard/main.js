@@ -175,6 +175,7 @@ function rememberServerTiming(name, timing) {
 function renderMyWorkReportSummaryError(message) {
   setActivity($("performanceLoading"), false);
   setActivity($("performanceMonth"), false);
+  renderWorkReportActionAlert([]);
   $("performanceLoading").textContent = `成績を読み込めませんでした: ${message}`;
   $("performanceLoading").classList.add("error");
 }
@@ -188,8 +189,23 @@ function renderMyWorkReportSummary(summary) {
   $("performanceSubmissionSummary").innerHTML = `<span>対象 ${Number(counts.total || 0)}件</span><span>提出済み ${Number(counts.submitted || 0)}件</span><span>未提出 ${Number(counts.missing || 0)}件</span>${counts.returned ? `<span class="needs-action">要修正 ${Number(counts.returned)}件</span>` : ""}`;
   $("myReportRows").innerHTML = (summary.submissions || []).map(item => `<article><div><small>${escapeHtml(item.workDate)}</small><strong>${escapeHtml(item.storeName || item.planName || "実績報告")}</strong><span>${escapeHtml(item.status)}${item.revisionNumber ? `・第${item.revisionNumber}版` : ""}</span>${item.returnReason ? `<p>${escapeHtml(item.returnReason)}</p>` : ""}</div>${item.editable ? `<button type="button" data-open-my-report="${escapeHtml(item.recordId)}">${item.status === "未提出" ? "入力" : "確認・修正"}</button>` : ""}</article>`).join("");
   document.querySelectorAll("[data-open-my-report]").forEach(button => button.addEventListener("click", () => openMyWorkReport(button.dataset.openMyReport)));
+  renderWorkReportActionAlert(summary.submissions || []);
   $("performanceLoading").hidden = true;
   $("performanceContent").hidden = false;
+}
+
+function renderWorkReportActionAlert(submissions) {
+  const alert = $("workReportActionAlert");
+  const returned = submissions.filter(item => item.status === "差戻し中" && item.editable);
+  if (!returned.length) {
+    alert.hidden = true;
+    alert.replaceChildren();
+    return;
+  }
+  const target = returned[0];
+  alert.innerHTML = `<div><strong>実績報告の修正依頼があります</strong><span>${returned.length}件の報告を確認して、修正後に再提出してください。</span></div><button id="openReturnedReportBtn" type="button">修正内容を確認</button>`;
+  alert.hidden = false;
+  $("openReturnedReportBtn").addEventListener("click", () => openMyWorkReport(target.recordId));
 }
 
 function openMyWorkReport(recordId) {
