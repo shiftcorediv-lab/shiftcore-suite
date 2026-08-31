@@ -10,7 +10,8 @@ setInitialDates();
 onAuthStateChanged(auth, user => user ? load() : location.replace("./index.html"));
 $("refreshBtn").addEventListener("click", load);
 $("applyBtn").addEventListener("click", load);
-$("csvBtn").addEventListener("click", downloadCsv);
+$("csvBtn").addEventListener("click", () => downloadCsv(false));
+$("historyCsvBtn").addEventListener("click", () => downloadCsv(true));
 $("showAddItemBtn").addEventListener("click", () => {
   const nextOrder = Math.max(0, ...(data?.items || []).map(item => Number(item.displayOrder) || 0)) + 10;
   $("newDisplayOrder").value = String(nextOrder);
@@ -40,8 +41,7 @@ function filterPayload() {
     dateTo: $("dateTo").value,
     status: $("statusFilter").value,
     query: $("searchInput").value.trim(),
-    groupBy: $("groupBy").value,
-    includeHistory: $("includeHistory").checked
+    groupBy: $("groupBy").value
   };
 }
 
@@ -229,10 +229,10 @@ async function submitReturn(event) {
   } catch (error) { message(error.message, true); }
 }
 
-async function downloadCsv() {
-  message("CSVを準備しています…", false, true);
+async function downloadCsv(includeHistory) {
+  message(includeHistory ? "監査用履歴CSVを準備しています…" : "集計CSVを準備しています…", false, true);
   try {
-    const result = await attendanceRequest("exportWorkReportsCsv", filterPayload());
+    const result = await attendanceRequest("exportWorkReportsCsv", { ...filterPayload(), includeHistory });
     const url = URL.createObjectURL(new Blob([result.csv], { type: "text/csv;charset=utf-8" }));
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -241,7 +241,7 @@ async function downloadCsv() {
     anchor.click();
     anchor.remove();
     setTimeout(() => URL.revokeObjectURL(url), 0);
-    message("CSVを出力しました。");
+    message(includeHistory ? "監査用履歴CSVを出力しました。" : "集計CSVを出力しました。");
   } catch (error) {
     message(error.message, true);
   }
