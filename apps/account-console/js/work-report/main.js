@@ -27,6 +27,7 @@ async function loadForm() {
     renderContext(formData.record);
     renderFields(formData.items || []);
     renderRevisionNotice(formData);
+    renderRevisionHistory(formData);
     $("submitBtn").textContent = formData.revisionNumber ? "修正内容を保存" : "実績報告を送信";
     setActivity($("loadingState"), false);
     $("loadingState").hidden = true;
@@ -90,6 +91,24 @@ function renderRevisionNotice(data) {
   $("revisionNotice").innerHTML = `<strong>${returned ? "修正をお願いします" : `提出済み・第${data.revisionNumber}版`}</strong><p>${returned ? escapeHtml(data.returnReason || "管理者から修正依頼があります。") : "保存すると新しい版になり、現在の入力内容が画面上の最新版になります。以前の版も履歴として残ります。"}</p>`;
   $("revisionNotice").classList.toggle("returned", returned);
   $("revisionNotice").hidden = false;
+}
+
+function renderRevisionHistory(data) {
+  const revisions = data.revisions || [];
+  const history = $("revisionHistory");
+  if (revisions.length < 2) {
+    history.hidden = true;
+    return;
+  }
+  $("revisionHistorySummary").textContent = `過去の提出内容（全${revisions.length}版）`;
+  $("revisionHistoryList").innerHTML = revisions.map(revision => {
+    const state = [revision.editType || "提出", revision.submittedAt || "", revision.current ? "最新版" : ""].filter(Boolean).join(" / ");
+    const answers = (revision.answers || []).map(answer => `<div><dt>${escapeHtml(answer.categoryName || "実績")} / ${escapeHtml(answer.name)}</dt><dd>${answer.type === "number" ? `${escapeHtml(answer.value)}件` : escapeHtml(answer.value || "—")}</dd></div>`).join("");
+    const returned = revision.returnReason ? `<div class="revision-return-reason"><strong>この版への差戻し理由</strong><p>${escapeHtml(revision.returnReason)}</p>${revision.returnedAt ? `<small>${escapeHtml(revision.returnedAt)}</small>` : ""}</div>` : "";
+    return `<details class="revision-entry" ${revision.current || revision.returnReason ? "open" : ""}><summary><strong>第${Number(revision.revisionNumber) || 0}版</strong><span>${escapeHtml(state)}</span>${revision.returnReason ? '<b>差戻しあり</b>' : ""}</summary><div class="revision-entry-body">${returned}<dl>${answers}</dl></div></details>`;
+  }).join("");
+  history.open = data.status === "差戻し中";
+  history.hidden = false;
 }
 
 $("reportForm").addEventListener("submit", event => {
@@ -198,6 +217,7 @@ function renderCompletion(result) {
   $("reportForm").hidden = true;
   $("reportContext").hidden = true;
   $("revisionNotice").hidden = true;
+  $("revisionHistory").hidden = true;
   $("completionTitle").textContent = `${name}さん、今日もお疲れさまでした`;
   $("completionMessage").textContent = "本日の稼働と実績報告をありがとうございます。ゆっくり休んでください。";
   $("completionDetail").textContent = result.duplicate ? "同じ内容はすでに安全に保存されています。" : `実績報告を第${result.revisionNumber}版として受け付けました。`;

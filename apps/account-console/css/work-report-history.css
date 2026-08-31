@@ -1,0 +1,129 @@
+.revision-history {
+  margin: 0 0 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #f8fafc;
+  overflow: hidden;
+}
+
+.revision-history > summary {
+  padding: 15px 17px;
+  color: var(--blue);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.revision-history > p {
+  margin: 0;
+  padding: 0 17px 14px;
+  font-size: 12px;
+}
+
+.revision-history-list {
+  display: grid;
+  gap: 10px;
+  padding: 0 12px 14px;
+}
+
+.revision-entry {
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.revision-entry > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+}
+
+.revision-entry > summary span {
+  flex: 1;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.revision-entry > summary b {
+  padding: 4px 7px;
+  border-radius: 99px;
+  background: #fff0f1;
+  color: var(--red);
+  font-size: 10px;
+}
+
+.revision-entry-body {
+  padding: 0 14px 12px;
+}
+
+.revision-return-reason {
+  margin: 0 0 10px;
+  padding: 12px;
+  border-radius: 9px;
+  background: #fff0f1;
+  color: var(--red);
+}
+
+.revision-return-reason p {
+  margin: 5px 0;
+  color: inherit;
+  font-size: 13px;
+}
+
+.revision-return-reason small {
+  color: inherit;
+  font-size: 10px;
+  letter-spacing: 0;
+}
+
+.revision-entry dl {
+  margin: 0;
+}
+
+.revision-entry dl > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(90px, .7fr);
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid #edf0f4;
+}
+
+.revision-entry dl > div:last-child {
+  border-bottom: 0;
+}
+
+.revision-entry dt {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.revision-entry dd {
+  margin: 0;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .revision-entry > summary {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .revision-entry > summary span {
+    flex-basis: 100%;
+    order: 3;
+  }
+
+  .revision-entry dl > div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .revision-entry dd {
+    text-align: left;
+  }
+}

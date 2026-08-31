@@ -166,15 +166,36 @@ test("本人修正と差戻し後再提出は旧版回答を残して最新版�
   const reportHeaders = sheets["実績報告"].values[0];
   const reportId = sheets["実績報告"].values[1][reportHeaders.indexOf("report_id")];
   context.returnWorkReport_({ email: "admin@example.com", role: "admin" }, { reportId, reason: "応対数を再確認してください" });
+  const revisionHeaders = sheets["実績報告改訂"].values[0];
+  const returnedRevision = sheets["実績報告改訂"].values[2];
+  assert.equal(returnedRevision[revisionHeaders.indexOf("差戻し理由")], "応対数を再確認してください");
+  assert.ok(returnedRevision[revisionHeaders.indexOf("差戻し日時")]);
   const resubmittedAnswers = changedAnswers.map(answer => answer.itemId === "responseCount" ? { ...answer, value: 5 } : answer);
   const resubmitted = context.submitReport_({ email: "member@example.com", name: "担当者" }, { recordId: "REC-EDIT", answers: resubmittedAnswers, submissionToken: "EDIT-3" });
   assert.equal(resubmitted.revisionNumber, 3);
   assert.equal(sheets["実績報告改訂"].values.length, 4);
-  const revisionHeaders = sheets["実績報告改訂"].values[0];
   assert.deepEqual(sheets["実績報告改訂"].values.slice(1).map(row => row[revisionHeaders.indexOf("編集種別")]), ["初回提出", "本人修正", "差戻し後再提出"]);
   const answerHeaders = sheets["実績回答"].values[0];
   const responseRows = sheets["実績回答"].values.slice(1).filter(row => row[answerHeaders.indexOf("item_id")] === "responseCount");
   assert.deepEqual(responseRows.map(row => row[answerHeaders.indexOf("数値回答")]), [0, 4, 5]);
+
+  const form = context.getWorkReportForm_({ email: "member@example.com", name: "担当者" }, { recordId: "REC-EDIT" });
+  assert.deepEqual(Array.from(form.revisions, revision => revision.revisionNumber), [3, 2, 1]);
+  assert.deepEqual(Array.from(form.revisions, revision => revision.answers.find(answer => answer.itemId === "responseCount").value), [5, 4, 0]);
+  assert.equal(form.revisions.find(revision => revision.revisionNumber === 2).returnReason, "応対数を再確認してください");
+  assert.throws(() => context.getWorkReportForm_({ email: "other@example.com" }, { recordId: "REC-EDIT" }), error => error.code === "REPORT_RECORD_FORBIDDEN");
+
+  // 新しい履歴列が追加される前の差戻しは、本人宛て通知から理由を復元する。
+  returnedRevision[revisionHeaders.indexOf("差戻し理由")] = "";
+  returnedRevision[revisionHeaders.indexOf("差戻し日時")] = "";
+  const submittedAtColumn = revisionHeaders.indexOf("提出日時");
+  sheets["実績報告改訂"].values[1][submittedAtColumn] = new Date("2026-08-28T10:00:00+09:00");
+  sheets["実績報告改訂"].values[2][submittedAtColumn] = new Date("2026-08-28T11:00:00+09:00");
+  sheets["実績報告改訂"].values[3][submittedAtColumn] = new Date("2026-08-28T12:00:00+09:00");
+  const notificationHeaders = sheets["通知"].values[0];
+  sheets["通知"].values[1][notificationHeaders.indexOf("作成日時")] = new Date("2026-08-28T11:30:00+09:00");
+  const legacyForm = context.getWorkReportForm_({ email: "member@example.com", name: "担当者" }, { recordId: "REC-EDIT" });
+  assert.equal(legacyForm.revisions.find(revision => revision.revisionNumber === 2).returnReason, "応対数を再確認してください");
 });
 
 test("通信断相当の保存中報告は不足回答だけを補完して完了する", () => {
