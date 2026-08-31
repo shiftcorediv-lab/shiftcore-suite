@@ -120,8 +120,11 @@ test("対象案件候補は同じ案件を一件にまとめ、稼働日と人�
   assert.deepEqual(Array.from(candidates[0].people), ["担当A", "担当B"]);
 });
 
-test("管理画面は未提出・集計・項目編集停止・CSV出力を備える", () => {
-  for (const value of ["未提出", "差戻し中", "日別", "月別", "店舗別", "人員別", "案件別", "CSV出力", "修正履歴も出力", "実績項目管理", "実績報告の対象案件", "稼働日", "人員名", "案件名"]) assert.ok(adminHtml.includes(value), value);
+test("管理画面は未提出・集計・項目編集停止・用途別CSV出力を備える", () => {
+  for (const value of ["未提出", "差戻し中", "日別", "月別", "店舗別", "人員別", "案件別", "集計CSVを出力", "監査用履歴CSVを出力", "実績項目管理", "実績報告の対象案件", "稼働日", "人員名", "案件名"]) assert.ok(adminHtml.includes(value), value);
+  assert.doesNotMatch(adminHtml, /includeHistory/);
+  assert.match(adminSource, /downloadCsv\(false\)/);
+  assert.match(adminSource, /downloadCsv\(true\)/);
   assert.match(adminSource, /attendanceRequest\("getWorkReportAdminData"/);
   assert.match(adminSource, /attendanceRequest\("saveWorkReportItem"/);
   assert.match(adminSource, /attendanceRequest\("saveWorkReportCaseMapping"/);
@@ -137,7 +140,7 @@ test("実績項目の保存応答が途切れても再取得した状態と照�
   assert.match(adminSource, /workReportItemMatches\(saved, payload\)/);
   assert.match(adminSource, /通信応答が途切れたため、保存結果を再確認しました/);
   assert.match(adminSource, /通信が途切れ、保存結果を確認できませんでした。更新して状態を確認してください/);
-  assert.match(adminHtml, /main\.js\?v=20260831-save-recovery-1/);
+  assert.match(adminHtml, /main\.js\?v=20260901-csv-actions-1/);
 });
 
 test("個人ダッシュボードは勤怠を先に表示し、本人専用成績と予定同期を後から並行取得する", () => {
