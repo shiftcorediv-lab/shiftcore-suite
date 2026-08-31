@@ -96,25 +96,61 @@ function renderItems() {
 async function saveItem(itemId) {
   const row = document.querySelector(`[data-item-row="${cssEscape(itemId)}"]`);
   if (!row) return;
+  const payload = {
+    itemId,
+    name: field(row, "name").value,
+    type: field(row, "type").value,
+    categoryName: field(row, "categoryName").value,
+    displayOrder: field(row, "displayOrder").value,
+    required: field(row, "required").checked,
+    active: field(row, "active").checked,
+    dashboardVisible: field(row, "dashboardVisible").checked,
+    dashboardName: field(row, "dashboardName").value,
+    dashboardOrder: field(row, "dashboardOrder").value
+  };
   message("実績項目を保存しています…", false, true);
   try {
-    await attendanceRequest("saveWorkReportItem", {
-      itemId,
-      name: field(row, "name").value,
-      type: field(row, "type").value,
-      categoryName: field(row, "categoryName").value,
-      displayOrder: field(row, "displayOrder").value,
-      required: field(row, "required").checked,
-      active: field(row, "active").checked,
-      dashboardVisible: field(row, "dashboardVisible").checked,
-      dashboardName: field(row, "dashboardName").value,
-      dashboardOrder: field(row, "dashboardOrder").value
-    });
+    await attendanceRequest("saveWorkReportItem", payload);
     message("実績項目を保存しました。");
     await load();
   } catch (error) {
-    message(error.message, true);
+    if (await recoverSavedWorkReportItem(itemId, payload, error)) return;
+    message(isNetworkFailure(error) ? "通信が途切れ、保存結果を確認できませんでした。更新して状態を確認してください。" : error.message, true);
   }
+}
+
+async function recoverSavedWorkReportItem(itemId, payload, error) {
+  if (!isNetworkFailure(error)) return false;
+  try {
+    const refreshed = await attendanceRequest("getWorkReportAdminData", filterPayload());
+    const saved = (refreshed.items || []).find(item => item.itemId === itemId);
+    if (!workReportItemMatches(saved, payload)) return false;
+    data = refreshed;
+    render();
+    message("実績項目を保存しました。通信応答が途切れたため、保存結果を再確認しました。");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function workReportItemMatches(item, payload) {
+  if (!item) return false;
+  const dashboardName = String(payload.dashboardName || payload.name || "").trim();
+  return item.itemId === payload.itemId
+    && item.name === String(payload.name || "").trim()
+    && item.type === payload.type
+    && item.categoryName === String(payload.categoryName || "").trim()
+    && Number(item.displayOrder) === Number(payload.displayOrder)
+    && item.required === Boolean(payload.required)
+    && item.active === Boolean(payload.active)
+    && item.dashboardVisible === Boolean(payload.dashboardVisible)
+    && item.dashboardName === dashboardName
+    && Number(item.dashboardOrder) === Number(payload.dashboardOrder || 0);
+}
+
+function isNetworkFailure(error) {
+  return error instanceof TypeError || /Failed to fetch|NetworkError|Load failed/i.test(String(error?.message || ""));
 }
 
 async function addItem(event) {
