@@ -7,7 +7,7 @@ import {
   setNoHolidayRequested,
   addSelectedDate
 } from "./state.js";
-import { apiGet, apiPost } from "./api.js";
+import { apiPost } from "./api.js";
 import {
   renderCalendar,
   renderSelectedDates,
@@ -18,9 +18,6 @@ import { showMessage, showMainMessage } from "./ui.js?v=20260802-xss-1";
 
 export function buildSubmitPayload() {
   return {
-    userId: currentUser.userId,
-    displayName: currentUser.displayName,
-    employeeCode: currentUser.employeeCode,
     targetYearMonth: getTargetYearMonth(),
     offDates: noHolidayRequested ? [] : Array.from(selectedDates).sort(),
     memo: noteInput.value.trim(),
@@ -35,8 +32,8 @@ export function buildConfirmMessage(payload) {
 
   return (
     "この内容で送信しますか？\n\n" +
-    "【氏名】\n" + payload.displayName + "\n\n" +
-    "【社員コード】\n" + payload.employeeCode + "\n\n" +
+    "【氏名】\n" + currentUser.displayName + "\n\n" +
+    "【社員コード】\n" + currentUser.employeeCode + "\n\n" +
     "【対象年月】\n" + payload.targetYearMonth + "\n\n" +
     "【希望休】\n" + holidayText + "\n\n" +
     "【メモ】\n" + (payload.memo || "なし")
@@ -65,7 +62,7 @@ offDates.forEach((dateStr) => addSelectedDate(dateStr));
   updateSubmitButtonState();
 }
 
-export async function loadLatestRequest() {
+export async function loadLatestRequest(idToken) {
   if (!currentUser.userId) {
     showMainMessage("Another Portalユーザー情報を取得できませんでした", "error");
     return;
@@ -74,8 +71,8 @@ export async function loadLatestRequest() {
   showMainMessage("提出済み内容を確認中...", "");
 
   try {
-    const result = await apiGet("getLatestShiftRequest", {
-      userId: currentUser.userId,
+    const result = await apiPost("getLatestShiftRequestSecure", {
+      idToken,
       targetYearMonth: getTargetYearMonth()
     });
 
@@ -115,9 +112,10 @@ export function validateBeforeSubmit(isUserInactive) {
   return true;
 }
 
-export async function submitRequest(payload, submitBtn, onSuccess, onFinally) {
+export async function submitRequest(payload, idToken, submitBtn, onSuccess, onFinally) {
   try {
-    const result = await apiPost("submitShiftRequest", {
+    const result = await apiPost("submitShiftRequestSecure", {
+      idToken,
       payload
     });
 

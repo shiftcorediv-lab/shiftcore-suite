@@ -7,13 +7,15 @@ import {
   dashboardBtn
 } from "./dom.js";
 import { DASHBOARD_URL } from "./config.js";
+import { apiPost } from "./api.js";
+import { requireAuthenticatedSession } from "../../account-console/js/common/auth-session.js";
 import {
   currentUser,
   setCurrentUser,
   clearSelectedDates,
   setNoHolidayRequested
 } from "./state.js";
-import { getQueryParams, buildCurrentUserFromQuery, isLineInAppBrowser } from "./query.js";
+import { getQueryParams, isLineInAppBrowser } from "./query.js";
 import {
   renderAccountInfo,
   setupShiftCoreEntryBanner,
@@ -33,7 +35,9 @@ import {
   loadLatestRequest,
   validateBeforeSubmit,
   submitRequest
-} from "./request.js?v=20260802-xss-1";
+} from "./request.js?v=20260902-pmo-auth-1";
+
+let currentIdToken = "";
 
 window.addEventListener("DOMContentLoaded", async () => {
   if (isLineInAppBrowser()) {
@@ -41,18 +45,37 @@ window.addEventListener("DOMContentLoaded", async () => {
   }
 
   const params = getQueryParams();
-  setCurrentUser(buildCurrentUserFromQuery(params));
-
   setupShiftCoreEntryBanner(params);
-  renderAccountInfo();
   renderCalendar();
   renderSelectedDates();
   updateSubmitButtonState();
 
-  if (currentUser.userId && currentUser.displayName && currentUser.employeeCode) {
-    await loadLatestRequest();
-  } else {
-    showMainMessage("Another Portalから必要なユーザー情報を受け取れていません", "error");
+  showMainMessage("ログインユーザーを確認中...", "");
+
+  try {
+    const session = await requireAuthenticatedSession();
+    if (!session.ok) {
+      renderAccountInfo();
+      showMainMessage("ログインが必要です。Dashboardから開き直してください", "error");
+      return;
+    }
+
+    currentIdToken = session.idToken;
+    const result = await apiPost("getPmoCurrentUserSecure", { idToken: currentIdToken });
+    if (!result.success || !result.user) {
+      renderAccountInfo();
+      showMainMessage(result.message || "本人情報を確認できませんでした", "error");
+      return;
+    }
+
+    setCurrentUser(result.user);
+    renderAccountInfo();
+    updateSubmitButtonState();
+    await loadLatestRequest(currentIdToken);
+  } catch (error) {
+    console.error(error);
+    renderAccountInfo();
+    showMainMessage("本人情報の確認に失敗しました。時間をおいて再読込してください", "error");
   }
 });
 
@@ -100,8 +123,28 @@ submitBtn.addEventListener("click", async () => {
   submitBtn.disabled = true;
   submitBtn.textContent = "送信中...";
 
+  try {
+    const session = await requireAuthenticatedSession();
+    if (!session.ok) {
+      showMainMessage("ログイン状態を確認できません。Dashboardから開き直してください", "error");
+      submitBtn.disabled = false;
+      submitBtn.textContent = "希望休を送信";
+      updateSubmitButtonState();
+      return;
+    }
+    currentIdToken = session.idToken;
+  } catch (error) {
+    console.error(error);
+    showMainMessage("ログイン状態の更新に失敗しました。もう一度お試しください", "error");
+    submitBtn.disabled = false;
+    submitBtn.textContent = "希望休を送信";
+    updateSubmitButtonState();
+    return;
+  }
+
   await submitRequest(
     payload,
+    currentIdToken,
     submitBtn,
     () => {
       submitBtn.disabled = false;
