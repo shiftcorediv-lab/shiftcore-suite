@@ -5,11 +5,14 @@
 
 function testCreateCase() {
   const payload = {
+    create_operation_id: Utilities.getUuid(),
     target_month: '2026-06',
     request_date: '2026-05-22',
     reply_deadline: '2026-05-31',
 
     case_type: 'event_sales',
+    case_rank: 'B',
+    shiftcore_display_name: 'テスト店舗',
     input_mode: 'dates',
 
     agency_name: 'テスト代理店',

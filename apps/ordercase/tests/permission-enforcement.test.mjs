@@ -170,3 +170,25 @@ test('更新認可は15分キャッシュを使わずAccountの現行状態を�
   assert.equal(cacheReadCount, 0);
   assert.equal(accountFetchCount, 1);
 });
+
+test('案件作成の操作IDとpayloadハッシュは読取APIへ公開しない', () => {
+  const context = createContext();
+  context.ORDERCASE_INTERNAL_FIELDS = ['create_operation_id', 'create_payload_hash'];
+  context.ORDERCASE_AMOUNT_FIELDS = ['amount'];
+
+  const visible = context.applyOrderCaseVisibility_({
+    case_id: 'CASE-1',
+    create_operation_id: 'operation-00000001',
+    create_payload_hash: 'private-hash',
+    amount: '1000',
+    nested: {
+      create_payload_hash: 'nested-private-hash'
+    }
+  }, { canViewAmount: true });
+
+  assert.equal(visible.case_id, 'CASE-1');
+  assert.equal(visible.amount, '1000');
+  assert.equal('create_operation_id' in visible, false);
+  assert.equal('create_payload_hash' in visible, false);
+  assert.equal('create_payload_hash' in visible.nested, false);
+});

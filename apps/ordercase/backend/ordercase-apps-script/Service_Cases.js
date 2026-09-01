@@ -23,12 +23,29 @@ function createCase_(payload) {
     lock.waitLock(10000);
     ensureCaseRankColumn_();
     ensureCaseDateConditionColumns_();
+    ensureCaseCreateOperationColumns_();
 
     const sameConditionCount = normalizeSameConditionCount_(payload.same_condition_count);
     const alternateWorkerCount = normalizeAlternateWorkerCount_(payload, sameConditionCount);
     validateCaseDateConditionOverrides_(payload, sameConditionCount);
     const targetMonth = String(payload.target_month).trim();
     const inputMode = String(payload.input_mode || 'dates').trim();
+    const operationId = normalizeCreateOperationId_(payload.create_operation_id);
+    const payloadHash = buildCreateOperationPayloadHash_(payload);
+    const replayResult = resolveCreateOperationReplay_(payload, {
+      operation_id: operationId,
+      payload_hash: payloadHash,
+      same_condition_count: sameConditionCount,
+      alternate_worker_count: alternateWorkerCount,
+      input_mode: inputMode
+    });
+
+    if (replayResult) {
+      return replayResult;
+    }
+
+    payload.create_operation_id = operationId;
+    payload.create_payload_hash = payloadHash;
 
     const caseGroupId = sameConditionCount > 1
       ? generateCaseGroupId_(targetMonth)
@@ -173,6 +190,8 @@ function createSingleCase_(payload, options) {
     case_group_id: payload.case_group_id || '',
     copy_index: payload.copy_index || '',
     copy_count: payload.copy_count || '',
+    create_operation_id: payload.create_operation_id || '',
+    create_payload_hash: payload.create_payload_hash || '',
 
     created_at: now,
     created_by: createdBy,
@@ -269,6 +288,155 @@ function ensureCaseDateConditionColumns_() {
       nextColumn += 1;
     }
   });
+}
+
+/****************************************************
+ * 案件作成の操作IDとpayloadハッシュを永続化する列を追加する。
+ * 既存行は補完せず、新規作成分だけを再送判定の対象にする。
+ ****************************************************/
+function ensureCaseCreateOperationColumns_() {
+  const sheet = getSheetForUpdate_(SHEET_CASES);
+  const lastColumn = Math.max(sheet.getLastColumn(), 1);
+  const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0].map(function(header) {
+    return String(header || '').trim();
+  });
+  const requiredHeaders = ['create_operation_id', 'create_payload_hash'];
+  let nextColumn = lastColumn + 1;
+
+  requiredHeaders.forEach(function(header) {
+    if (headers.indexOf(header) === -1) {
+      sheet.getRange(1, nextColumn).setValue(header);
+      nextColumn += 1;
+    }
+  });
+}
+
+function normalizeCreateOperationId_(value) {
+  const operationId = String(value || '').trim();
+
+  if (!/^[A-Za-z0-9._:-]{16,128}$/.test(operationId)) {
+    throw new Error('案件作成の操作IDが不正です。画面を再読み込みしてから再度お試しください。');
+  }
+
+  return operationId;
+}
+
+function buildCreateOperationPayloadHash_(payload) {
+  const canonicalPayload = canonicalizeCreateOperationValue_(payload, true);
+  const rawPayload = JSON.stringify(canonicalPayload);
+
+  return Utilities.base64EncodeWebSafe(
+    Utilities.computeDigest(
+      Utilities.DigestAlgorithm.SHA_256,
+      rawPayload,
+      Utilities.Charset.UTF_8
+    )
+  );
+}
+
+function canonicalizeCreateOperationValue_(value, isRoot) {
+  if (Array.isArray(value)) {
+    return value.map(function(item) {
+      return canonicalizeCreateOperationValue_(item, false);
+    });
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  if (value && typeof value === 'object') {
+    const normalized = {};
+
+    Object.keys(value).sort().forEach(function(key) {
+      if (isRoot && (
+        key === 'create_operation_id' ||
+        key === 'create_payload_hash' ||
+        key === 'created_by'
+      )) {
+        return;
+      }
+
+      if (value[key] !== undefined) {
+        normalized[key] = canonicalizeCreateOperationValue_(value[key], false);
+      }
+    });
+
+    return normalized;
+  }
+
+  return value;
+}
+
+/****************************************************
+ * 同じ操作IDの保存済み案件を返す。
+ * 件数・日付明細が途中状態なら追記せず、手動確認が必要な状態として停止する。
+ ****************************************************/
+function resolveCreateOperationReplay_(payload, operation) {
+  const existingCases = getSheetObjects_(SHEET_CASES).filter(function(row) {
+    return String(row.create_operation_id || '').trim() === operation.operation_id;
+  });
+
+  if (existingCases.length === 0) {
+    return null;
+  }
+
+  const hasDifferentPayload = existingCases.some(function(row) {
+    return String(row.create_payload_hash || '').trim() !== operation.payload_hash;
+  });
+
+  if (hasDifferentPayload) {
+    throw new Error('同じ操作IDで異なる案件内容が送信されました。画面を再読み込みして内容を確認してください。');
+  }
+
+  const sortedCases = existingCases.slice().sort(function(a, b) {
+    return Number(a.copy_index || 1) - Number(b.copy_index || 1);
+  });
+  const caseIds = sortedCases.map(function(row) {
+    return String(row.case_id || '').trim();
+  });
+  const uniqueCaseIds = {};
+  caseIds.forEach(function(caseId) {
+    if (caseId) uniqueCaseIds[caseId] = true;
+  });
+
+  const expectedDateCountPerCase = operation.input_mode === 'dates'
+    ? (Array.isArray(payload.case_dates) ? payload.case_dates.filter(function(item) {
+        return item && String(item.work_date || '').trim();
+      }).length : 0)
+    : 0;
+  const existingDateCount = getSheetObjects_(SHEET_CASE_DATES).filter(function(row) {
+    return uniqueCaseIds[String(row.case_id || '').trim()] === true;
+  }).length;
+  const expectedTotalDateCount = operation.same_condition_count * expectedDateCountPerCase;
+  const isComplete = sortedCases.length === operation.same_condition_count &&
+    Object.keys(uniqueCaseIds).length === operation.same_condition_count &&
+    existingDateCount === expectedTotalDateCount;
+
+  if (!isComplete) {
+    throw new Error('前回の案件作成が途中状態です。重複防止のため追記を停止しました。管理者へ操作IDを添えて確認を依頼してください: ' + operation.operation_id);
+  }
+
+  const firstCase = sortedCases[0];
+
+  return {
+    case_id: caseIds[0],
+    case_ids: caseIds,
+    created_count: sortedCases.length,
+    created_case_dates_count: existingDateCount,
+    input_mode: operation.input_mode,
+    same_condition_count: operation.same_condition_count,
+    alternate_worker_count: operation.alternate_worker_count,
+    case_group_id: String(firstCase.case_group_id || ''),
+    store_master: {
+      agency_id: firstCase.agency_id || '',
+      agency_name: firstCase.agency_name || '',
+      store_id: firstCase.store_id || '',
+      store_name: firstCase.store_name || '',
+      store_area: firstCase.store_area || ''
+    },
+    idempotent_replay: true
+  };
 }
 
 /****************************************************
@@ -839,6 +1007,8 @@ function validateCreateCasePayload_(payload) {
       throw new Error('必須項目が不足しています: ' + field);
     }
   });
+
+  normalizeCreateOperationId_(payload.create_operation_id);
 
   normalizeCaseRank_(payload.case_rank);
   validateWorkTimeRange_(

@@ -22,6 +22,7 @@ test("Pages成果物は公開許可した静的フロントだけを含む", asy
     await access(join(destination, "index.html"));
     await access(join(destination, "apps/account-console/index.html"));
     await access(join(destination, "apps/ordercase/index.html"));
+    await access(join(destination, "apps/ordercase/js/create-operation-policy.js"));
     await access(join(destination, "apps/shiftbuilder/index.html"));
     await access(join(destination, "apps/pmo/index.html"));
     await access(join(destination, "shared/js/shiftcore-auth.js"));

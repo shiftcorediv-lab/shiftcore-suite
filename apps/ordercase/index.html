@@ -650,6 +650,7 @@ input[type="time"] {
   <script src="./js/utils.js"></script>
   <script src="./js/auth-session.js"></script>
   <script src="./js/api.js?v=20260902-security-1"></script>
+  <script src="./js/create-operation-policy.js?v=20260902-idempotency-1"></script>
   <script src="./js/loading.js"></script>
   <script src="./js/navigation.js"></script>
 
@@ -662,6 +663,7 @@ input[type="time"] {
       selectedDates: [],
       storesMaster: []
     };
+    const createOperationTracker = window.OrderCaseCreateOperationPolicy.createTracker();
     /****************************************************
      * 状態 ここまで
      ****************************************************/
@@ -1456,11 +1458,16 @@ input[type="time"] {
      * submitCase ここから
      ****************************************************/
     async function submitCase() {
+      let registrationConfirmed = false;
+      let formResetCompleted = false;
+      let confirmedCaseId = '';
+
       try {
         clearMessage();
 
-        const payload = buildPayload();
-        validatePayload(payload);
+        const formPayload = buildPayload();
+        validatePayload(formPayload);
+        const payload = createOperationTracker.attach(formPayload);
 
         const button = document.getElementById('submitButton');
         button.disabled = true;
@@ -1476,10 +1483,14 @@ input[type="time"] {
 
         const createdCaseId = json.data.case_id;
         const createdCount = Number(json.data.created_count || 1);
+        registrationConfirmed = true;
+        confirmedCaseId = createdCaseId;
+        createOperationTracker.complete(payload.create_operation_id);
 
         sessionStorage.setItem('ordercase_force_list_refresh', '1');
 
         clearFormAfterSubmit();
+        formResetCompleted = true;
 
         if (createdCount > 1) {
           setMessage(`登録完了：${createdCount}件作成しました。代表ID：${createdCaseId}　続けて登録できます。`, 'success');
@@ -1490,12 +1501,16 @@ input[type="time"] {
         scrollToPageTop();
 
       } catch (error) {
-        setMessage(error.message, 'error');
+        if (registrationConfirmed) {
+          setMessage(`登録自体は完了しています（案件ID：${confirmedCaseId}）。画面の初期化に失敗したため、再登録せず画面を再読み込みしてください。`, 'error');
+        } else {
+          setMessage(error.message, 'error');
+        }
 
       } finally {
         const button = document.getElementById('submitButton');
-        button.disabled = false;
-        button.textContent = '案件を登録する';
+        button.disabled = registrationConfirmed && !formResetCompleted;
+        button.textContent = button.disabled ? '登録済み・再読み込みしてください' : '案件を登録する';
         hideLoading();
       }
     }
@@ -1514,7 +1529,6 @@ input[type="time"] {
 
       return {
         target_month: document.getElementById('targetMonth').value,
-        request_date: todayString(),
         reply_deadline: document.getElementById('replyDeadline').value,
 
         case_type: document.getElementById('caseType').value,
@@ -1559,9 +1573,6 @@ input[type="time"] {
         client_memo: document.getElementById('clientMemo').value.trim(),
         internal_memo: document.getElementById('internalMemo').value.trim(),
         operation_memo: document.getElementById('operationMemo').value.trim(),
-
-        created_by: '画面登録',
-        created_by_email: '',
 
         case_dates: inputMode === 'dates'
           ? state.selectedDates.map(item => ({

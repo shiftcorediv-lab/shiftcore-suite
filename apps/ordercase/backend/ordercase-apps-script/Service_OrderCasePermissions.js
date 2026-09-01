@@ -243,15 +243,41 @@ function getIdTokenFromBody_(body) {
  * 権限に応じて案件データを加工する
  ****************************************************/
 function applyOrderCaseVisibility_(data, context) {
+  const publicData = stripOrderCaseInternalFieldsDeep_(data);
+
   if (!context || context.canViewAmount) {
-    return data;
+    return publicData;
   }
 
-  return maskOrderCaseAmountFieldsDeep_(data);
+  return maskOrderCaseAmountFieldsDeep_(publicData);
 }
 /****************************************************
  * applyOrderCaseVisibility_ ここまで
  ****************************************************/
+
+function stripOrderCaseInternalFieldsDeep_(value) {
+  if (Array.isArray(value)) {
+    return value.map(function(item) {
+      return stripOrderCaseInternalFieldsDeep_(item);
+    });
+  }
+
+  if (value && typeof value === 'object') {
+    const copied = {};
+
+    Object.keys(value).forEach(function(key) {
+      if (ORDERCASE_INTERNAL_FIELDS.indexOf(key) !== -1) {
+        return;
+      }
+
+      copied[key] = stripOrderCaseInternalFieldsDeep_(value[key]);
+    });
+
+    return copied;
+  }
+
+  return value;
+}
 
 
 /****************************************************
