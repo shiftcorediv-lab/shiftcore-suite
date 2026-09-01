@@ -1,7 +1,8 @@
 import { DASHBOARD_URL, SIGNUP_ADMIN_URL } from "./config.js?v=20260802-modules-2";
 import { requireAccountConsoleSession } from "./auth.js";
-import { compareUsersBySortOrder } from "./sort.js?v=20260802-modules-2";
+import { compareUsersBySortOrder } from "./sort.js?v=20260902-name-sync-1";
 import { planSortOrderUpdates } from "./reorder.js?v=20260802-reorder-1";
+import { resolveAccountFullName } from "./name-policy.mjs?v=20260902-name-sync-1";
 import {
   getAccountConsoleBootstrap,
   listAccountUsers,
@@ -47,7 +48,7 @@ import {
   showLoading,
   hideLoading,
   setLogsLoading
-} from "./ui.js?v=20260902-account-write-auth-1";
+} from "./ui.js?v=20260902-name-sync-1";
 import { createResponseGeneration } from "../../../common/response-generation.js?v=20260902-response-1";
 
 // ===== 状態ここから =====
@@ -298,8 +299,8 @@ async function saveUser(event) {
       throw new Error("姓と名は両方入力してください");
     }
 
-    if (!user.name && hasFamilyName && hasGivenName) {
-      user.name = `${user.family_name}${user.given_name}`;
+    if (hasFamilyName && hasGivenName) {
+      user.name = resolveAccountFullName(user);
     }
 
     if (!user.name) {
