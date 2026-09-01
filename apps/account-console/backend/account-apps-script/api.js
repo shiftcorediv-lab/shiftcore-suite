@@ -116,14 +116,16 @@ function doPost(e) {
     }
 
     if (action === "getSignupRequestsSecure") {
-      const operator = requireSignupAdminOperator_(body);
+      const operator = requireSignupRequestViewer_(body);
 
       if (!operator.success) {
         return jsonResponse_(operator);
       }
 
       const status = normalizeText(body.status);
-      return jsonResponse_(getSignupRequests(status));
+      const result = getSignupRequests(status);
+      result.canEditRequests = isSignupRequestEditor_(operator.user);
+      return jsonResponse_(result);
     }
 
     if (action === "approveSignupRequest") {

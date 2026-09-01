@@ -214,3 +214,11 @@ export function setActionButtonsEnabled(enabled) {
   approveBtn.disabled = !enabled;
   rejectBtn.disabled = !enabled;
 }
+
+export function setApprovalFormEditable(editable) {
+  [roleSelect, organizationIdInput, allowedModulesInput, statusSelect, workStatusSelect]
+    .forEach((control) => {
+      control.disabled = !editable;
+    });
+  setActionButtonsEnabled(false);
+}

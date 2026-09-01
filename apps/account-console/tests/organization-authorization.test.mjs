@@ -530,9 +530,9 @@ test("自己ブートストラップ状態をUIへ公開し専用監査イベン
   assert.match(assignmentSource, /allowed_organization_levels:\s*selfBootstrap \? \["leader", "manager"\]/);
   assert.match(assignmentSource, /eventType[\s\S]*"organization\.self_bootstrap"/);
   assert.match(mainSource, /result\.self_bootstrap === true \? result\.allowed_organization_levels : \[\]/);
-  assert.match(mainSource, /ui\.js\?v=20260820-developer-self-bootstrap-1/);
+  assert.match(mainSource, /ui\.js\?v=20260902-account-write-auth-1/);
   assert.match(uiSource, /restrictOrganizationLevelOptions_\(allowedLevels\)/);
-  assert.match(htmlSource, /main\.js\?v=20260820-developer-self-bootstrap-1/);
+  assert.match(htmlSource, /main\.js\?v=20260902-account-write-auth-1/);
 });
 
 test("開発者でも最後の役員を変更できない", () => {

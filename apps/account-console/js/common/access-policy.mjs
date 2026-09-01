@@ -36,7 +36,7 @@ function canUseModule(moduleCode, user) {
   const role = String(user?.role || "").trim().toLowerCase();
 
   if (moduleCode === "account_console") {
-    return ADMIN_ROLES.includes(role);
+    return true;
   }
 
   if (moduleCode === "ordercase") {

@@ -1,7 +1,7 @@
 // ===== signup承認の操作者確認ここから =====
 const SIGNUP_ADMIN_ALLOWED_ROLES_SERVER = ["admin", "developer"];
 
-function requireSignupAdminOperator_(body) {
+function requireSignupRequestViewer_(body) {
   const idToken = normalizeText(body.idToken);
 
   if (!idToken) {
@@ -41,6 +41,29 @@ function requireSignupAdminOperator_(body) {
   }
 
   return { success: true, user: user, operatorId: operatorId };
+}
+
+function isSignupRequestEditor_(user) {
+  const role = normalizeText(user && user.role).toLowerCase();
+  return SIGNUP_ADMIN_ALLOWED_ROLES_SERVER.indexOf(role) !== -1;
+}
+
+function requireSignupAdminOperator_(body) {
+  const operator = requireSignupRequestViewer_(body);
+
+  if (!operator.success) {
+    return operator;
+  }
+
+  if (!isSignupRequestEditor_(operator.user)) {
+    return {
+      success: false,
+      code: "SIGNUP_REVIEW_WRITE_FORBIDDEN",
+      message: "登録申請の承認・却下は管理者だけが操作できます"
+    };
+  }
+
+  return operator;
 }
 // ===== signup承認の操作者確認ここまで =====
 

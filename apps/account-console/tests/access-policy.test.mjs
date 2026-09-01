@@ -7,7 +7,7 @@ import {
   normalizeModuleList
 } from "../js/common/access-policy.mjs";
 
-test("登録申請管理は既存仕様どおり管理roleまたはaccount_consoleで許可する", () => {
+test("登録申請管理の参照入口は管理roleまたはaccount_consoleで許可する", () => {
   assert.equal(canUseSignupAdminAccess({ role: "admin" }), true);
   assert.equal(canUseSignupAdminAccess({ role: "developer" }), true);
   assert.equal(canUseSignupAdminAccess({ role: "member", allowed_modules: ["account_console"] }), true);
@@ -25,11 +25,11 @@ test("ShiftBuilderの既知権限と旧値のどちらでも入口を維持す�
   assert.deepEqual(getEffectiveModuleCodes(["shift"], {}), ["shift"]);
 });
 
-test("OrderCaseとAccount Consoleは既存の詳細条件を維持する", () => {
+test("OrderCaseは権限値を必須にしAccount Consoleは割当済みなら閲覧入口を出す", () => {
   assert.deepEqual(getEffectiveModuleCodes(["ordercase"], { ordercase_permission: "view" }), ["ordercase"]);
   assert.deepEqual(getEffectiveModuleCodes(["ordercase"], { ordercase_permission: "" }), []);
   assert.deepEqual(getEffectiveModuleCodes(["account_console"], { role: "admin" }), ["account_console"]);
-  assert.deepEqual(getEffectiveModuleCodes(["account_console"], { role: "member" }), []);
+  assert.deepEqual(getEffectiveModuleCodes(["account_console"], { role: "member" }), ["account_console"]);
 });
 
 test("developerは個別モジュール設定に依存せず全機能の入口を持つ", () => {

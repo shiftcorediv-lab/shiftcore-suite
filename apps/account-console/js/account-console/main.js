@@ -18,6 +18,7 @@ import {
   newUserBtn,
   searchInput,
   userForm,
+  organizationAuthorityFieldset,
   contractTypeInput,
   organizationLevelInput,
   saveOrganizationBtn,
@@ -46,7 +47,7 @@ import {
   showLoading,
   hideLoading,
   setLogsLoading
-} from "./ui.js?v=20260820-developer-self-bootstrap-1";
+} from "./ui.js?v=20260902-account-write-auth-1";
 
 // ===== 状態ここから =====
 let session = null;
@@ -55,6 +56,7 @@ let allUsers = [];
 let selectedUser = null;
 let currentUser = null;
 let organizationCandidates = [];
+let canEditUsers = false;
 // ===== 状態ここまで =====
 
 
@@ -67,7 +69,17 @@ function isOkResult(result) {
 
 // ===== 操作ボタン制御ここから =====
 function setSaveDisabled(disabled) {
-  saveUserBtn.disabled = disabled;
+  saveUserBtn.disabled = disabled || !canEditUsers;
+}
+
+function applyUserEditingMode() {
+  newUserBtn.disabled = !canEditUsers;
+  clearFormBtn.disabled = !canEditUsers;
+  Array.from(userForm.elements).forEach((control) => {
+    if (control === organizationAuthorityFieldset || organizationAuthorityFieldset.contains(control)) return;
+    control.disabled = !canEditUsers;
+  });
+  setSaveDisabled(false);
 }
 // ===== 操作ボタン制御ここまで =====
 
@@ -100,14 +112,16 @@ async function init() {
     }
 
     currentUser = bootstrapResult.user;
+    canEditUsers = bootstrapResult.canEditUsers === true;
     allUsers = Array.isArray(bootstrapResult.users) ? bootstrapResult.users : [];
-    setOperator(currentUser);
+    setOperator(currentUser, canEditUsers);
     renderCurrentUserPermission(currentUser);
     renderCurrentUsers();
     renderLogs(Array.isArray(bootstrapResult.logs) ? bootstrapResult.logs : []);
 
     clearUserForm();
-    setStatus("人員マスターを読み込みました");
+    applyUserEditingMode();
+    setStatus(canEditUsers ? "人員マスターを読み込みました" : "人員マスターを閲覧モードで読み込みました");
 
   } catch (error) {
     setPermissionError(error.message);
@@ -246,6 +260,11 @@ async function saveOrganizationAssignment() {
 async function saveUser(event) {
   event.preventDefault();
 
+  if (!canEditUsers) {
+    setStatus("このアカウントは人員マスターを閲覧できますが、利用者の追加・更新はできません");
+    return;
+  }
+
   const user = collectUserForm();
 
   try {
@@ -269,12 +288,6 @@ async function saveUser(event) {
     }
 
     const modules = String(user.allowed_modules || "").split(",").map(value => value.trim()).filter(Boolean);
-    const role = String(user.role || "").trim().toLowerCase();
-    const isAdministrator = ["admin", "developer"].includes(role);
-
-    if (modules.includes("account_console") && !isAdministrator) {
-      throw new Error("人員マスターは、管理者・役員・開発者のみ許可できます");
-    }
     if (modules.includes("ordercase") && !user.ordercase_permission) {
       throw new Error("Orderを許可する場合は、Order権限を選択してください");
     }
@@ -465,6 +478,7 @@ reloadBtn.addEventListener("click", async () => {
 });
 
 newUserBtn.addEventListener("click", () => {
+  if (!canEditUsers) return;
   selectedUser = null;
   clearUserForm();
   renderCurrentUsers();
@@ -476,6 +490,7 @@ newUserBtn.addEventListener("click", () => {
 });
 
 clearFormBtn.addEventListener("click", () => {
+  if (!canEditUsers) return;
   selectedUser = null;
   clearUserForm();
   renderCurrentUsers();

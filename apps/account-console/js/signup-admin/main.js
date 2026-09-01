@@ -16,9 +16,10 @@ import {
   renderRequestDetail,
   applyApprovalDefaults,
   setActionButtonsEnabled,
+  setApprovalFormEditable,
   getApprovalSummary,
   showMessage
-} from "./ui.js?v=20260803-role-1";
+} from "./ui.js?v=20260902-account-write-auth-1";
 import { canUseSignupAdmin, goToAccountPortal } from "./navigation.js?v=20260812-developer-1";
 import { fetchSignupRequests, approveSignupRequest, rejectSignupRequest } from "./api.js?v=20260806-permission-2";
 import { requireAuthenticatedSession } from "../common/auth-session.js?v=20260802-signup-auth-1";
@@ -27,11 +28,13 @@ import { resolveCurrentUserWithGasByIdToken } from "../login/api.js?v=20260803-l
 const params = getQueryParams();
 let currentUser = buildCurrentUserFromQuery(params);
 let canUse = false;
+let canEditRequests = false;
 
 let selectedRequest = null;
 
 setupShiftCoreEntryBanner(params);
 setActionButtonsEnabled(false);
+setApprovalFormEditable(false);
 
 async function getFreshIdToken() {
   const session = await requireAuthenticatedSession();
@@ -71,15 +74,24 @@ async function loadRequests() {
       return;
     }
 
+    canEditRequests = result.canEditRequests === true;
+    setApprovalFormEditable(canEditRequests);
+
     renderRequestList(result.requests || [], (request) => {
       selectedRequest = request;
       renderRequestDetail(request);
       applyApprovalDefaults(request);
-      setActionButtonsEnabled(true);
-      showMessage("申請詳細を表示しました", "success");
+      setActionButtonsEnabled(canEditRequests);
+      showMessage(
+        canEditRequests ? "申請詳細を表示しました" : "申請詳細を閲覧モードで表示しました",
+        "success"
+      );
     });
 
-    showMessage("申請一覧を読み込みました", "success");
+    showMessage(
+      canEditRequests ? "申請一覧を読み込みました" : "申請一覧を閲覧モードで読み込みました",
+      "success"
+    );
   } catch (error) {
     console.error(error);
     showMessage(error.message || "申請一覧の取得に失敗しました", "error");
@@ -87,6 +99,10 @@ async function loadRequests() {
 }
 
 approveBtn.addEventListener("click", async () => {
+  if (!canEditRequests) {
+    showMessage("このアカウントは申請を閲覧できますが、承認はできません", "error");
+    return;
+  }
   if (!selectedRequest) {
     showMessage("承認対象の申請を選択してください", "error");
     return;
@@ -139,6 +155,10 @@ approveBtn.addEventListener("click", async () => {
 });
 
 rejectBtn.addEventListener("click", async () => {
+  if (!canEditRequests) {
+    showMessage("このアカウントは申請を閲覧できますが、却下はできません", "error");
+    return;
+  }
   if (!selectedRequest) {
     showMessage("却下対象の申請を選択してください", "error");
     return;

@@ -9,7 +9,8 @@ function accountConsoleGetCurrentUser(body) {
     success: true,
     ok: true,
     user: operator,
-    canUseAccountConsole: true
+    canUseAccountConsole: true,
+    canEditUsers: isAccountConsoleEditor_(operator)
   };
 }
 // ===== 現在ユーザー取得ここまで =====
@@ -37,7 +38,8 @@ function accountConsoleGetBootstrap(body) {
     user: operator,
     users: users,
     logs: logsResult.logs || [],
-    canUseAccountConsole: true
+    canUseAccountConsole: true,
+    canEditUsers: isAccountConsoleEditor_(operator)
   };
 }
 // ===== 初期表示データ取得ここまで =====
@@ -79,7 +81,7 @@ function shouldIncludeAccountConsoleUser_(operator, user) {
 
 // ===== ユーザー新規作成ここから =====
 function accountConsoleCreateUser(body) {
-  const operator = requireAccountConsoleOperator_(body);
+  const operator = requireAccountConsoleEditor_(body);
   const payload = body.payload || body.user || {};
 
   validateAccountConsoleUserPayload_(payload, true);
@@ -204,7 +206,7 @@ function accountConsoleCreateUser(body) {
 
 // ===== ユーザー更新ここから =====
 function accountConsoleUpdateUser(body) {
-  const operator = requireAccountConsoleOperator_(body);
+  const operator = requireAccountConsoleEditor_(body);
   const payload = body.payload || body.user || {};
 
   const targetUserId = normalizeText(
@@ -310,6 +312,13 @@ function accountConsoleUpdateUser(body) {
     afterUser.organization_id = "internal";
   }
 
+  assertAccountConsoleSelfSensitiveFieldsUnchanged_(
+    operator,
+    beforeUser,
+    afterUser,
+    targetUserId
+  );
+
   assertDeveloperAccountMutationAllowed_(
     operator,
     beforeUser.role,
@@ -397,6 +406,49 @@ function accountConsoleUpdateUser(body) {
   }
 }
 // ===== ユーザー更新ここまで =====
+
+
+// ===== 自分自身の権限・状態変更禁止 ここから =====
+function accountConsoleSensitiveValue_(user, field) {
+  if (field === "workStatus") {
+    return normalizeText(user && (user.workStatus || user.work_status)).toLowerCase();
+  }
+  if (field === "allowed_modules") {
+    return normalizeAccountConsoleModules_(user && user.allowed_modules)
+      .split(",")
+      .filter(function(value) { return value !== ""; })
+      .sort()
+      .join(",");
+  }
+  return normalizeText(user && user[field]).toLowerCase();
+}
+
+function assertAccountConsoleSelfSensitiveFieldsUnchanged_(operator, beforeUser, afterUser, targetUserId) {
+  if (normalizeText(operator && operator.internal_user_id) !== normalizeText(targetUserId)) {
+    return true;
+  }
+
+  const protectedFields = [
+    "role",
+    "status",
+    "workStatus",
+    "engagement_status",
+    "allowed_modules",
+    "ordercase_permission",
+    "shiftbuilder_permission"
+  ];
+  const changed = protectedFields.some(function(field) {
+    return accountConsoleSensitiveValue_(beforeUser, field) !==
+      accountConsoleSensitiveValue_(afterUser, field);
+  });
+
+  if (changed) {
+    throw new Error("SELF_ACCOUNT_PERMISSION_CHANGE_FORBIDDEN");
+  }
+
+  return true;
+}
+// ===== 自分自身の権限・状態変更禁止 ここまで =====
 
 
 // ===== developer特権保護 ここから =====
@@ -526,6 +578,24 @@ function requireAccountConsoleOperator_(body) {
   return user;
 }
 // ===== Account Console 操作者確認ここまで =====
+
+
+// ===== Account Console 編集者確認ここから =====
+function isAccountConsoleEditor_(user) {
+  const role = normalizeText(user && user.role).toLowerCase();
+  return role === "admin" || role === "developer";
+}
+
+function requireAccountConsoleEditor_(body) {
+  const operator = requireAccountConsoleOperator_(body);
+
+  if (!isAccountConsoleEditor_(operator)) {
+    throw new Error("ACCOUNT_CONSOLE_WRITE_FORBIDDEN");
+  }
+
+  return operator;
+}
+// ===== Account Console 編集者確認ここまで =====
 
 
 // ===== Account Console用ユーザー整形ここから =====

@@ -856,7 +856,7 @@ test("旧権限移行プレビューは不足を集計し利用者IDをログへ
   assert.equal(result.active_internal_users, 2);
   assert.equal(result.users_with_legacy_access, 1);
   assert.equal(result.users_requiring_additions, 1);
-  assert.equal(result.missing_capabilities, 8);
+  assert.equal(result.missing_capabilities, 3);
   assert.equal(result.missing_scopes, 2);
   assert.equal(executionLogs.length, 1);
   assert.match(executionLogs[0], /^AUTHORIZATION_LEGACY_MIGRATION_PREVIEW /);
