@@ -735,10 +735,10 @@ function getShiftBuilderContractTimeRange_(assignmentContract) {
   const safeContract = assignmentContract || {};
   const caseRow = safeContract.case_row || {};
   const caseDateRow = safeContract.case_date_row || {};
-  const startTime = normalizeText(caseDateRow.work_start_time) ||
-    normalizeText(caseRow.work_start_time);
-  const endTime = normalizeText(caseDateRow.work_end_time) ||
-    normalizeText(caseRow.work_end_time);
+  const startTime = normalizeTimeString(caseDateRow.work_start_time) ||
+    normalizeTimeString(caseRow.work_start_time);
+  const endTime = normalizeTimeString(caseDateRow.work_end_time) ||
+    normalizeTimeString(caseRow.work_end_time);
 
   if (!startTime && !endTime) {
     return { start_time: "", end_time: "", ends_next_day: false };
@@ -929,8 +929,8 @@ function buildAssignedMembers_(assignments, usersById) {
       contract_type: normalizeText(assignment.contract_type),
       assignment_status: normalizeText(assignment.assignment_status),
       replacement_status: normalizeText(assignment.replacement_status),
-      start_time: normalizeText(assignment.start_time),
-      end_time: normalizeText(assignment.end_time),
+      start_time: normalizeTimeString(assignment.start_time),
+      end_time: normalizeTimeString(assignment.end_time),
       time_slot: normalizeText(assignment.time_slot || DEFAULT_TIME_SLOT),
       assignment_note: normalizeText(assignment.assignment_note)
     };
@@ -1017,8 +1017,8 @@ function buildShiftBuilderCaseFromOrderCase_(caseRow, caseDateRows, monthDates, 
       memo: "",
       required_lines: isDaysMode ? 1 : 0,
       people_per_line: isDaysMode ? 1 : 0,
-      start_time: normalizeText(caseRow.work_start_time),
-      end_time: normalizeText(caseRow.work_end_time),
+      start_time: normalizeTimeString(caseRow.work_start_time),
+      end_time: normalizeTimeString(caseRow.work_end_time),
       time_slot: DEFAULT_TIME_SLOT,
 
       input_mode: inputMode,
@@ -1055,8 +1055,8 @@ function buildShiftBuilderCaseFromOrderCase_(caseRow, caseDateRows, monthDates, 
       memo: normalizeText(dateRow.memo),
       required_lines: toNumber_(dateRow.required_lines) || caseRequiredLines || 0,
       people_per_line: toNumber_(dateRow.people_per_line) || casePeoplePerLine || 0,
-      start_time: normalizeText(dateRow.work_start_time) || normalizeText(caseRow.work_start_time),
-      end_time: normalizeText(dateRow.work_end_time) || normalizeText(caseRow.work_end_time),
+      start_time: normalizeTimeString(dateRow.work_start_time) || normalizeTimeString(caseRow.work_start_time),
+      end_time: normalizeTimeString(dateRow.work_end_time) || normalizeTimeString(caseRow.work_end_time),
       time_slot: DEFAULT_TIME_SLOT,
 
       input_mode: inputMode,
@@ -1113,8 +1113,8 @@ function buildShiftBuilderCaseFromOrderCase_(caseRow, caseDateRows, monthDates, 
     nearestStation: effectiveNearestStation,
     storeShortName: normalizeText(safeStoreRow.store_short_name),
     workArea: area,
-    startTime: normalizeText(caseRow.work_start_time),
-    endTime: normalizeText(caseRow.work_end_time),
+    startTime: normalizeTimeString(caseRow.work_start_time),
+    endTime: normalizeTimeString(caseRow.work_end_time),
     requiredSkill: normalizeText(caseRow.required_skill),
     cells: cells
   };

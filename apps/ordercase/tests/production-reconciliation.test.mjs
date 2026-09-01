@@ -100,6 +100,22 @@ test("住所列は既存列を保持して不足分だけ末尾へ追加する",
   assert.deepEqual(headers, ["case_id", "work_address", "work_nearest_station"]);
 });
 
+test("スプレッドシート由来の時刻はAPI向けのHH:mmへ正規化する", () => {
+  const context = createContext(repositorySource);
+  context.formatDate_ = () => "18:00";
+
+  assert.equal(
+    context.normalizeSheetValue_("work_start_time", "1899-12-30 10:00:00"),
+    "10:00"
+  );
+  assert.equal(
+    context.normalizeSheetValue_("work_end_time", new Date(1899, 11, 30, 18, 0)),
+    "18:00"
+  );
+  assert.equal(context.normalizeSheetValue_("meeting_time", 0.5), "12:00");
+  assert.equal(context.normalizeSheetValue_("work_start_time", "25:00"), "25:00");
+});
+
 test("時刻同期はdraftだけを更新し、確定済みと別案件を保護する", () => {
   const context = createContext(repositorySource);
   const rows = [

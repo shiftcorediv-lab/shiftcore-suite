@@ -107,11 +107,11 @@ test("Shiftは日別アサイン時刻を優先し、夜間勤務のICS終了日
 test("Orderの日別時刻はShiftのセルとAttendance予定へ同じ値で連携される", () => {
   assert.match(
     shiftRepositorySource,
-    /start_time:\s*normalizeText\(dateRow\.work_start_time\)\s*\|\|\s*normalizeText\(caseRow\.work_start_time\)/
+    /start_time:\s*normalizeTimeString\(dateRow\.work_start_time\)\s*\|\|\s*normalizeTimeString\(caseRow\.work_start_time\)/
   );
   assert.match(
     shiftRepositorySource,
-    /end_time:\s*normalizeText\(dateRow\.work_end_time\)\s*\|\|\s*normalizeText\(caseRow\.work_end_time\)/
+    /end_time:\s*normalizeTimeString\(dateRow\.work_end_time\)\s*\|\|\s*normalizeTimeString\(caseRow\.work_end_time\)/
   );
   assert.match(attendanceSource, /"予定開始": cell\.start_time \|\| cell\.startTime/);
   assert.match(attendanceSource, /"予定終了": cell\.end_time \|\| cell\.endTime/);
