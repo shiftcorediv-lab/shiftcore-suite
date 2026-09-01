@@ -12,12 +12,6 @@ function doGet(e) {
       });
     }
 
-    // ===== PMO系 GET ここから =====
-    if (action === "getPmoRoster") {
-      return jsonResponse_(getPmoRoster());
-    }
-    // ===== PMO系 GET ここまで =====
-
     return jsonResponse_({
       success: false,
       message: "Unknown GET action: " + action
@@ -70,6 +64,9 @@ function doPost(e) {
     }
     if (action === "attendanceApprovalContract") {
       return jsonResponse_(attendanceApprovalContract_(body));
+    }
+    if (action === "getPmoRosterSecure") {
+      return jsonResponse_(getPmoRosterSecure(body.service_secret));
     }
     // ===== oauth ここまで =====
 
