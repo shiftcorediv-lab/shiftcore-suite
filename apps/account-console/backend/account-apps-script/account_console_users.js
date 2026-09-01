@@ -326,6 +326,14 @@ function accountConsoleUpdateUser(body) {
     }
   });
 
+  if (
+    payload.family_name !== undefined ||
+    payload.given_name !== undefined ||
+    payload.name !== undefined
+  ) {
+    afterUser.name = getAccountConsoleFullName_(afterUser);
+  }
+
   if (payload.engagement_status === undefined && payload.workStatus !== undefined) {
     afterUser.engagement_status = convertWorkStatusToEngagementStatus_(payload.workStatus);
   }
@@ -880,17 +888,14 @@ function rowToAccountConsoleObject_(headers, row) {
 }
 
 function getAccountConsoleFullName_(payload) {
-  const name = normalizeText(payload.name);
+  const familyName = normalizeText(payload.family_name);
+  const givenName = normalizeText(payload.given_name);
 
-  if (name) {
-    return name;
+  if (familyName && givenName) {
+    return familyName + givenName;
   }
 
-  return [normalizeText(payload.family_name), normalizeText(payload.given_name)]
-    .filter(function(value) {
-      return value !== "";
-    })
-    .join("");
+  return normalizeText(payload.name);
 }
 
 function ensureAccountConsoleNameColumns_(options) {

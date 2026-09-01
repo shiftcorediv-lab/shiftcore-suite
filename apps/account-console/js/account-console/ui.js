@@ -49,6 +49,7 @@ import {
   logsList,
   statusBox
 } from "./dom.js?v=20260810-org-shadow-1";
+import { resolveAccountFullName } from "./name-policy.mjs?v=20260902-name-sync-1";
 
 
 // ===== 表示ラベル定義ここから =====
@@ -333,7 +334,9 @@ export function filterUsers(users, keyword) {
 
   return users.filter((user) => {
     const haystack = [
-      user.name,
+      resolveAccountFullName(user),
+      user.family_name,
+      user.given_name,
       user.display_name,
       user.employee_code,
       user.email,
@@ -393,7 +396,7 @@ export function renderUsers(users, selectedUserId, onSelectUser) {
       tr.classList.add("selected");
     }
 
-    tr.appendChild(makeTd(user.name));
+    tr.appendChild(makeTd(resolveAccountFullName(user)));
     tr.appendChild(makeTd(user.display_name));
     tr.appendChild(makeTd(user.employee_code));
     tr.appendChild(makeTd(user.email));
