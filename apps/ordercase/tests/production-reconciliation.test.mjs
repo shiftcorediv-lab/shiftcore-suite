@@ -11,6 +11,10 @@ const repositorySource = readFileSync(
   new URL("../backend/ordercase-apps-script/Repository_Sheets.js", import.meta.url),
   "utf8"
 );
+const fastDetailSource = readFileSync(
+  new URL("../backend/ordercase-apps-script/Service_CaseDetailPageFast.js", import.meta.url),
+  "utf8"
+);
 
 function createContext(source) {
   const context = vm.createContext({
@@ -114,6 +118,24 @@ test("スプレッドシート由来の時刻はAPI向けのHH:mmへ正規化す
   );
   assert.equal(context.normalizeSheetValue_("meeting_time", 0.5), "12:00");
   assert.equal(context.normalizeSheetValue_("work_start_time", "25:00"), "25:00");
+});
+
+test("案件詳細の高速読取も共通APIと同じHH:mmを返す", () => {
+  const context = createContext(repositorySource + "\n" + fastDetailSource);
+  context.formatDate_ = () => "18:00";
+
+  assert.equal(
+    context.formatFastCellValue_("work_start_time", "1899-12-30 10:00:00"),
+    "10:00"
+  );
+  assert.equal(
+    context.formatFastCellValue_("work_end_time", new Date(1899, 11, 30, 18, 0)),
+    "18:00"
+  );
+  assert.equal(
+    context.formatFastCellValue_("alternate_work_start_time", "1899-12-30 11:30:00"),
+    "11:30"
+  );
 });
 
 test("時刻同期はdraftだけを更新し、確定済みと別案件を保護する", () => {
