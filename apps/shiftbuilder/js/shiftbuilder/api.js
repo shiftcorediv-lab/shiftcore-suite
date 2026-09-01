@@ -92,10 +92,21 @@ function clearReadCache(idToken) {
 
 
 // ===== API共通POSTここから =====
+function getClientEnvironment() {
+  const environment = String(window.ShiftCoreEnvironment?.name || "").trim().toLowerCase();
+
+  if (environment !== "production" && environment !== "staging") {
+    throw new Error("ShiftCoreの接続環境を確認できません");
+  }
+
+  return environment;
+}
+
 async function postToShiftBuilderApi(action, body = {}) {
   const payload = {
     ...body,
-    action: action
+    action: action,
+    clientEnvironment: getClientEnvironment()
   };
 
   const response = await fetch(SHIFTBUILDER_API_URL, {

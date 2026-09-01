@@ -11,6 +11,8 @@ function doPost(e) {
       return createJsonResponse_(ng_("action が必要です", "MISSING_ACTION"));
     }
 
+    requireMatchingShiftBuilderMutationEnvironment_(body, action);
+
     let result;
 
     switch (action) {
@@ -66,6 +68,30 @@ function doGet(e) {
   }));
 }
 // ===== Web App entrypoint ここまで =====
+
+const SHIFTBUILDER_MUTATING_ACTIONS_ = Object.freeze({
+  shiftBuilderCreateAssignment: true,
+  shiftBuilderArchiveAssignment: true,
+  shiftBuilderReplaceAssignment: true,
+  shiftBuilderSendPersonnelIcs: true
+});
+
+function requireMatchingShiftBuilderMutationEnvironment_(body, action) {
+  if (!SHIFTBUILDER_MUTATING_ACTIONS_[action]) return;
+
+  const clientEnvironment = normalizeText(body && body.clientEnvironment).toLowerCase();
+  const runtimeEnvironment = shiftBuilderRuntimeEnvironment_();
+
+  if (!clientEnvironment) {
+    throw new Error("clientEnvironment が必要です");
+  }
+
+  if (clientEnvironment !== runtimeEnvironment) {
+    throw new Error(
+      "画面とShift APIの接続環境が一致しないため、更新を拒否しました"
+    );
+  }
+}
 
 
 // ===== 初期表示統合ここから =====
