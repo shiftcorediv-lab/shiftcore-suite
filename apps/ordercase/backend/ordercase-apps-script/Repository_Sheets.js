@@ -440,6 +440,10 @@ function normalizeSheetValue_(header, value) {
     return false;
   }
 
+  if (isTimeHeader_(header)) {
+    return normalizeSheetTimeValue_(value);
+  }
+
   // 日付型の整形
   if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
     if (isMonthHeader_(header)) {
@@ -462,6 +466,23 @@ function normalizeSheetValue_(header, value) {
   }
 
   return value;
+}
+
+function normalizeSheetTimeValue_(value) {
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
+    return formatDate_(value, 'HH:mm');
+  }
+
+  if (typeof value === 'number' && isFinite(value) && value >= 0 && value < 1) {
+    const totalMinutes = Math.round(value * 24 * 60) % (24 * 60);
+    return [Math.floor(totalMinutes / 60), totalMinutes % 60]
+      .map(function(part) { return String(part).padStart(2, '0'); })
+      .join(':');
+  }
+
+  const text = String(value || '').trim();
+  const match = text.match(/\b([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?\b/);
+  return match ? match[1] + ':' + match[2] : text;
 }
 /****************************************************
  * normalizeSheetValue_ ここまで

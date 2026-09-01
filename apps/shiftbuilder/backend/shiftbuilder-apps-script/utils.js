@@ -59,6 +59,36 @@ function normalizeDateString(value) {
   return text;
 }
 
+function normalizeTimeString(value) {
+  if (value === "" || value === null || value === undefined) {
+    return "";
+  }
+
+  if (Object.prototype.toString.call(value) === "[object Date]" && !isNaN(value.getTime())) {
+    if (typeof Utilities !== "undefined" && typeof Utilities.formatDate === "function") {
+      const timeZone = typeof Session !== "undefined" && typeof Session.getScriptTimeZone === "function"
+        ? Session.getScriptTimeZone()
+        : "Asia/Tokyo";
+      return Utilities.formatDate(value, timeZone, "HH:mm");
+    }
+
+    return [value.getHours(), value.getMinutes()]
+      .map(function(part) { return String(part).padStart(2, "0"); })
+      .join(":");
+  }
+
+  if (typeof value === "number" && isFinite(value) && value >= 0 && value < 1) {
+    const totalMinutes = Math.round(value * 24 * 60) % (24 * 60);
+    return [Math.floor(totalMinutes / 60), totalMinutes % 60]
+      .map(function(part) { return String(part).padStart(2, "0"); })
+      .join(":");
+  }
+
+  const text = normalizeText(value);
+  const match = text.match(/\b([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?\b/);
+  return match ? match[1] + ":" + match[2] : text;
+}
+
 function getNowIsoStringJst() {
   return Utilities.formatDate(new Date(), "Asia/Tokyo", "yyyy-MM-dd'T'HH:mm:ssXXX");
 }

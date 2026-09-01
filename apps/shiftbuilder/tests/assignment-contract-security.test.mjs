@@ -155,6 +155,17 @@ test("アサイン時刻はクライアント値ではなくOrderの日別契約
     }),
     /時刻が不正/
   );
+
+  const sheetTimeRange = context.getShiftBuilderContractTimeRange_({
+    case_row: {
+      work_start_time: "1899-12-30 10:00:00",
+      work_end_time: new Date(1899, 11, 30, 18, 0)
+    }
+  });
+  assert.deepEqual(
+    { ...sheetTimeRange },
+    { start_time: "10:00", end_time: "18:00", ends_next_day: false }
+  );
 });
 
 test("読取側も契約外のghost active rowを除外する", () => {
