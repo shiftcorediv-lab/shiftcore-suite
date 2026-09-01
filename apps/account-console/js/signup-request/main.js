@@ -11,24 +11,25 @@ import {
 import { setEmailBox, showMessage } from "./ui.js";
 import { goToLogin } from "./navigation.js";
 import { submitSignupRequest } from "./api.js";
+import { auth, onAuthStateChanged } from "../login/auth.js";
 
-function getLoggedInEmail() {
-  const raw = sessionStorage.getItem("shiftcore_signup_email");
-
-  if (!raw) {
-    return "";
-  }
-
-  return String(raw).trim().toLowerCase();
+function resolveAuthenticatedUser() {
+  if (auth.currentUser) return Promise.resolve(auth.currentUser);
+  return new Promise(resolve => {
+    let unsubscribe = () => {};
+    unsubscribe = onAuthStateChanged(auth, user => {
+      unsubscribe();
+      resolve(user || null);
+    });
+  });
 }
 
-function buildPayload(email) {
+function buildPayload() {
   const familyName = familyNameInput.value.trim();
   const givenName = givenNameInput.value.trim();
 
   return {
-    applicantEmail: email,
-    // 申請APIは従来どおり applicantName だけを受け取るため、入力は分けつつ送信時に連結する。
+    // 入力は分けつつ、既存API契約に合わせて送信時に氏名を連結する。
     applicantName: `${familyName}${givenName}`,
     applicantType: applicantTypeSelect.value,
     companyName: companyNameInput.value.trim(),
@@ -37,8 +38,8 @@ function buildPayload(email) {
   };
 }
 
-function validatePayload(payload) {
-  if (!payload.applicantEmail) {
+function validatePayload(payload, email) {
+  if (!email) {
     return "ログイン中メールアドレスを取得できていません";
   }
 
@@ -57,12 +58,21 @@ function validatePayload(payload) {
   return "";
 }
 
-const loggedInEmail = getLoggedInEmail();
-setEmailBox(loggedInEmail, loggedInEmail ? "success" : "error");
+let authenticatedUser = null;
+let loggedInEmail = "";
+
+resolveAuthenticatedUser().then(user => {
+  authenticatedUser = user;
+  loggedInEmail = String(user?.email || "").trim().toLowerCase();
+  setEmailBox(loggedInEmail, loggedInEmail ? "success" : "error");
+  submitBtn.disabled = !loggedInEmail;
+});
+
+submitBtn.disabled = true;
 
 submitBtn.addEventListener("click", async () => {
-  const payload = buildPayload(loggedInEmail);
-  const errorMessage = validatePayload(payload);
+  const payload = buildPayload();
+  const errorMessage = validatePayload(payload, loggedInEmail);
 
   if (errorMessage) {
     showMessage(errorMessage, "error");
@@ -73,7 +83,8 @@ submitBtn.addEventListener("click", async () => {
   showMessage("利用申請を送信中...");
 
   try {
-    const result = await submitSignupRequest(payload);
+    const idToken = await authenticatedUser.getIdToken();
+    const result = await submitSignupRequest(payload, idToken);
 
     if (!result.success) {
       showMessage(result.message || "利用申請に失敗しました", "error");

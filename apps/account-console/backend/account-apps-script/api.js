@@ -112,7 +112,27 @@ function doPost(e) {
 
     // ===== signup系 POST ここから =====
     if (action === "submitSignupRequest") {
-      return jsonResponse_(submitSignupRequest(body.payload || body));
+      const tokenResult = resolveFirebaseEmailByIdToken_(body.idToken);
+
+      if (!tokenResult.ok) {
+        return jsonResponse_({
+          success: false,
+          ok: false,
+          code: tokenResult.code || "AUTH_INVALID",
+          message: tokenResult.message || "ログイン情報を確認できません"
+        });
+      }
+
+      if (tokenResult.emailVerified !== true) {
+        return jsonResponse_({
+          success: false,
+          ok: false,
+          code: "EMAIL_NOT_VERIFIED",
+          message: "確認済みメールアドレスでログインしてください"
+        });
+      }
+
+      return jsonResponse_(submitSignupRequest(body.payload || body, tokenResult.email));
     }
 
     if (action === "getSignupRequestsSecure") {

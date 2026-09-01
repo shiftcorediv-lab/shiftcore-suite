@@ -30,7 +30,7 @@ test("通常作成・申請受付・承認は重複確認と採番を同じScrip
     accountUsersSource.indexOf("// ===== ユーザー新規作成ここまで =====")
   );
   const submitFunction = signupRequestSource.slice(
-    signupRequestSource.indexOf("function submitSignupRequest(payload)"),
+    signupRequestSource.indexOf("function submitSignupRequest(payload, authenticatedEmail)"),
     signupRequestSource.indexOf("// ===== 仮登録申請保存ここまで =====")
   );
   const approveFunction = signupAdminSource.slice(
@@ -71,6 +71,17 @@ test("申請保存後の通知失敗は申請失敗へ巻き戻さない", () =>
   };
   const context = vm.createContext({
     normalizeText,
+    SIGNUP_REQUEST_RATE_LIMIT: 5,
+    SIGNUP_REQUEST_RATE_LIMIT_SECONDS: 3600,
+    CacheService: {
+      getScriptCache: () => ({ get: () => null, put: () => {} })
+    },
+    Utilities: {
+      DigestAlgorithm: { SHA_256: "SHA_256" },
+      Charset: { UTF_8: "UTF_8" },
+      computeDigest: () => [1, 2, 3]
+    },
+    console,
     LockService: {
       getScriptLock: () => ({
         tryLock: () => true,
@@ -89,15 +100,17 @@ test("申請保存後の通知失敗は申請失敗へ巻き戻さない", () =>
 
   const result = context.submitSignupRequest({
     applicantEmail: "person@example.com",
-    applicantName: "申請者",
+    applicantName: "=HYPERLINK(\"https://example.invalid\")",
     applicantType: "internal",
     phone: "09000000000"
-  });
+  }, "person@example.com");
 
   assert.equal(result.success, true);
   assert.equal(result.notificationSent, false);
   assert.equal(result.requestId, "REQ-20260902-0001");
   assert.equal(savedRow[0], "REQ-20260902-0001");
+  assert.equal(savedRow[3], "'=HYPERLINK(\"https://example.invalid\")");
+  assert.equal(savedRow[9], false);
   assert.equal(released, true);
 });
 

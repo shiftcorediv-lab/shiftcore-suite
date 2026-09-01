@@ -275,6 +275,8 @@ const VALID_ENGAGEMENT_STATUSES = [
 
 // ===== 登録申請設定ここから =====
 const SIGNUP_REQUESTS_SHEET_NAME = "user_signup_requests";
+const SIGNUP_REQUEST_RATE_LIMIT = 5;
+const SIGNUP_REQUEST_RATE_LIMIT_SECONDS = 60 * 60;
 
 // 管理者通知先
 // まだ未定なら空配列のままでOK
