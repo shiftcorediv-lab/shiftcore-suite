@@ -3,47 +3,6 @@
  * OrderCase API通信共通処理
  ****************************************************/
 
-
-/****************************************************
- * buildApiUrlWithParams ここから
- ****************************************************/
-function buildApiUrlWithParams(action, params) {
-  const base = window.ORDERCASE_CONFIG.API_URL;
-
-  if (!base || !base.startsWith('https://')) {
-    throw new Error('API URLが不正です: ' + base);
-  }
-
-  const url = new URL(base);
-  url.searchParams.set('action', action);
-
-  Object.keys(params || {}).forEach(function(key) {
-    if (params[key] !== undefined && params[key] !== null && params[key] !== '') {
-      url.searchParams.set(key, params[key]);
-    }
-  });
-
-  return url.toString();
-}
-/****************************************************
- * buildApiUrlWithParams ここまで
- ****************************************************/
-
-
-/****************************************************
- * buildParamsWithAuth_ ここから
- ****************************************************/
-async function buildParamsWithAuth_(params) {
-  const idToken = await getOrderCaseIdToken();
-
-  return Object.assign({}, params || {}, {
-    idToken: idToken
-  });
-}
-/****************************************************
- * buildParamsWithAuth_ ここまで
- ****************************************************/
-
 /****************************************************
  * parseApiJsonResponse_ ここから
  * APIレスポンスをJSONとして解析する
@@ -60,16 +19,11 @@ async function parseApiJsonResponse_(res, context) {
     console.error('OrderCase API non-JSON response', {
       context: context || '',
       status: res.status,
-      statusText: res.statusText,
-      url: res.url,
-      responseText: text
+      statusText: res.statusText
     });
 
     throw new Error(
-      'APIの返答がJSONではありません。status=' +
-      res.status +
-      ' / ' +
-      text.slice(0, 220)
+      'APIの返答がJSONではありません。status=' + res.status
     );
   }
 
@@ -83,10 +37,25 @@ async function parseApiJsonResponse_(res, context) {
  * fetchApiJsonWithParams ここから
  ****************************************************/
 async function fetchApiJsonWithParams(action, params, options = {}) {
-  const paramsWithAuth = await buildParamsWithAuth_(params);
-  const url = buildApiUrlWithParams(action, paramsWithAuth);
+  const base = window.ORDERCASE_CONFIG.API_URL;
 
-  const res = await fetch(url, options);
+  if (!base || !base.startsWith('https://')) {
+    throw new Error('API URLが不正です: ' + base);
+  }
+
+  const idToken = await getOrderCaseIdToken();
+  const requestOptions = Object.assign({}, options, {
+    method: 'POST',
+    headers: Object.assign({}, options.headers || {}, {
+      'Content-Type': 'text/plain;charset=utf-8'
+    }),
+    body: JSON.stringify(Object.assign({}, params || {}, {
+      action: action,
+      idToken: idToken
+    }))
+  });
+
+  const res = await fetch(base, requestOptions);
 
   return parseApiJsonResponse_(res, action);
 }

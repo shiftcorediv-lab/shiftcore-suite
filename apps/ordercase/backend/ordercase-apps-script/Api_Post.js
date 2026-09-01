@@ -9,6 +9,10 @@ function handlePost_(e) {
     const action = body.action || '';
     const payload = body.payload || {};
 
+    if (isOrderCaseReadAction_(action)) {
+      return handleOrderCaseRead_(body);
+    }
+
     /****************************************************
      * createCase ここから
      ****************************************************/
@@ -79,8 +83,7 @@ function handlePost_(e) {
     return jsonResponse_({
       ok: false,
       code: 'SERVER_ERROR',
-      message: error && error.message ? error.message : String(error),
-      stack: error && error.stack ? error.stack : ''
+      message: error && error.message ? error.message : String(error)
     });
   }
 }

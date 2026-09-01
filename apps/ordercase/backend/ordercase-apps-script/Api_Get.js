@@ -9,21 +9,45 @@
  * GETリクエストの振り分け
  ****************************************************/
 function handleGet_(e) {
+  const params = e && e.parameter ? e.parameter : {};
+  const action = params.action || '';
+
+  if (action === 'ping' || action === '') {
+    return jsonResponse_({
+      ok: true,
+      service: 'OrderCase_API',
+      environment: orderCaseRuntimeEnvironment_(),
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  return jsonResponse_({
+    ok: false,
+    code: 'METHOD_NOT_ALLOWED',
+    message: '認証が必要な読取はPOSTを使用してください。'
+  });
+}
+
+function isOrderCaseReadAction_(action) {
+  return [
+    'bootstrap',
+    'getCaseTypes',
+    'getOrderCasePermission',
+    'listPageData',
+    'listCases',
+    'getCaseDetail',
+    'getCaseDetailPageData',
+    'getCaseChangeLogs',
+    'listStoresMaster'
+  ].indexOf(String(action || '')) !== -1;
+}
+
+function handleOrderCaseRead_(params) {
   try {
-    const params = e && e.parameter ? e.parameter : {};
     const action = params.action || '';
 
-    if (action === 'ping' || action === '') {
-      return jsonResponse_({
-        ok: true,
-        service: 'OrderCase_API',
-        environment: orderCaseRuntimeEnvironment_(),
-        timestamp: new Date().toISOString()
-      });
-    }
-
     if (action === 'bootstrap') {
-      const context = requireOrderCaseViewer_(getIdTokenFromParams_(params));
+      const context = requireOrderCaseViewer_(getIdTokenFromRequest_(params));
 
       return jsonResponse_({
         ok: true,
@@ -33,7 +57,7 @@ function handleGet_(e) {
     }
 
     if (action === 'getCaseTypes') {
-      const context = requireOrderCaseViewer_(getIdTokenFromParams_(params));
+      const context = requireOrderCaseViewer_(getIdTokenFromRequest_(params));
 
       return jsonResponse_({
         ok: true,
@@ -50,7 +74,7 @@ function handleGet_(e) {
      * OrderCaseの現在ユーザー権限を返す
      ****************************************************/
     if (action === 'getOrderCasePermission') {
-      const context = requireOrderCaseViewer_(getIdTokenFromParams_(params));
+      const context = requireOrderCaseViewer_(getIdTokenFromRequest_(params));
 
       return jsonResponse_({
         ok: true,
@@ -75,7 +99,7 @@ function handleGet_(e) {
 
 
     if (action === 'listPageData') {
-      const context = requireOrderCaseViewer_(getIdTokenFromParams_(params));
+      const context = requireOrderCaseViewer_(getIdTokenFromRequest_(params));
       const data = getListPageData_(params);
 
       return jsonResponse_({
@@ -87,7 +111,7 @@ function handleGet_(e) {
     }
 
     if (action === 'listCases') {
-      const context = requireOrderCaseViewer_(getIdTokenFromParams_(params));
+      const context = requireOrderCaseViewer_(getIdTokenFromRequest_(params));
       const data = listCases_(params);
 
       return jsonResponse_({
@@ -99,7 +123,7 @@ function handleGet_(e) {
     }
 
     if (action === 'getCaseDetail') {
-      const context = requireOrderCaseViewer_(getIdTokenFromParams_(params));
+      const context = requireOrderCaseViewer_(getIdTokenFromRequest_(params));
       const data = getCaseDetail_(params.case_id);
 
       return jsonResponse_({
@@ -117,7 +141,7 @@ function handleGet_(e) {
      * view_without_amount では金額情報と変更履歴を返さない
      ****************************************************/
     if (action === 'getCaseDetailPageData') {
-      const context = requireOrderCaseViewer_(getIdTokenFromParams_(params));
+      const context = requireOrderCaseViewer_(getIdTokenFromRequest_(params));
 
       const pageData = getCaseDetailPageDataFast_(params.case_id, params);
 
@@ -141,7 +165,7 @@ function handleGet_(e) {
      * 指定案件の変更履歴を返す
      ****************************************************/
     if (action === 'getCaseChangeLogs') {
-      const context = requireOrderCaseViewer_(getIdTokenFromParams_(params));
+      const context = requireOrderCaseViewer_(getIdTokenFromRequest_(params));
 
       return jsonResponse_({
         ok: true,
@@ -154,6 +178,17 @@ function handleGet_(e) {
      * getCaseChangeLogs ここまで
      ****************************************************/
 
+    if (action === 'listStoresMaster') {
+      const context = requireOrderCaseEditor_(getIdTokenFromBody_(params));
+
+      return jsonResponse_({
+        ok: true,
+        action: action,
+        permission: context.permission,
+        data: getStoresMasterForManagement_()
+      });
+    }
+
     return jsonResponse_({
       ok: false,
       code: 'UNKNOWN_ACTION',
@@ -165,11 +200,10 @@ function handleGet_(e) {
     return jsonResponse_({
       ok: false,
       code: 'SERVER_ERROR',
-      message: error.message,
-      stack: error.stack
+      message: error && error.message ? error.message : String(error)
     });
   }
 }
 /****************************************************
- * handleGet_ ここまで
+ * handleOrderCaseRead_ ここまで
  ****************************************************/

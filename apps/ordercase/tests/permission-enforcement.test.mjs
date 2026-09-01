@@ -115,3 +115,58 @@ test('本番店舗マスター更新ルートの実装関数をローカル正�
   assert.equal(typeof context.ensureStoreMasterLocationColumns_, 'function');
   assert.equal(typeof context.getStoresMasterForManagement_, 'function');
 });
+
+test('更新認可は15分キャッシュを使わずAccountの現行状態を確認する', () => {
+  const context = createContext();
+  let cacheReadCount = 0;
+  let accountFetchCount = 0;
+
+  context.ORDERCASE_MODULE_KEY = 'ordercase';
+  context.ORDERCASE_PERMISSION_ALL = 'all';
+  context.ORDERCASE_PERMISSION_EDIT = 'edit';
+  context.ORDERCASE_PERMISSION_VIEW = 'view';
+  context.ORDERCASE_PERMISSION_VIEW_WITHOUT_AMOUNT = 'view_without_amount';
+  context.SHIFTCORE_ACCOUNT_API_URL = 'https://example.invalid/account';
+  context.Utilities = {
+    DigestAlgorithm: { SHA_256: 'sha256' },
+    computeDigest: () => [1, 2, 3],
+    base64EncodeWebSafe: () => 'digest'
+  };
+  context.CacheService = {
+    getScriptCache() {
+      return {
+        get() {
+          cacheReadCount += 1;
+          return JSON.stringify({
+            status: 'active',
+            allowed_modules: ['ordercase'],
+            ordercase_permission: 'edit'
+          });
+        },
+        put() {}
+      };
+    }
+  };
+  context.UrlFetchApp = {
+    fetch() {
+      accountFetchCount += 1;
+      return {
+        getContentText: () => JSON.stringify({
+          ok: true,
+          user: {
+            status: 'stopped',
+            allowed_modules: ['ordercase'],
+            ordercase_permission: 'edit'
+          }
+        })
+      };
+    }
+  };
+
+  assert.throws(
+    () => context.requireOrderCaseEditor_('token'),
+    /停止中/
+  );
+  assert.equal(cacheReadCount, 0);
+  assert.equal(accountFetchCount, 1);
+});
