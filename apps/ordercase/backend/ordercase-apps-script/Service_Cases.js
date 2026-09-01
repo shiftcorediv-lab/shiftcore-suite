@@ -23,6 +23,7 @@ function createCase_(payload) {
     lock.waitLock(10000);
     ensureCaseRankColumn_();
     ensureCaseDateConditionColumns_();
+    ensureCaseLocationColumns_();
     ensureCaseCreateOperationColumns_();
 
     const sameConditionCount = normalizeSameConditionCount_(payload.same_condition_count);
@@ -161,6 +162,8 @@ function createSingleCase_(payload, options) {
     store_area: storeArea,
 
     work_location: workLocation,
+    work_address: payload.work_address || '',
+    work_nearest_station: payload.work_nearest_station || '',
     work_area: workArea,
     work_start_time: payload.work_start_time || '',
     work_end_time: payload.work_end_time || '',
@@ -285,6 +288,23 @@ function ensureCaseDateConditionColumns_() {
   requiredHeaders.forEach(function(header) {
     if (headers.indexOf(header) === -1) {
       sheet.getRange(1, nextColumn).setValue(header);
+      nextColumn += 1;
+    }
+  });
+}
+
+function ensureCaseLocationColumns_() {
+  const sheet = getSheetForUpdate_(SHEET_CASES);
+  const lastColumn = Math.max(sheet.getLastColumn(), 1);
+  const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0].map(function(value) {
+    return String(value || '').trim();
+  });
+  let nextColumn = lastColumn + 1;
+
+  ['work_address', 'work_nearest_station'].forEach(function(header) {
+    if (headers.indexOf(header) === -1) {
+      sheet.getRange(1, nextColumn).setValue(header);
+      headers.push(header);
       nextColumn += 1;
     }
   });
@@ -469,8 +489,11 @@ function normalizeSameConditionCount_(value) {
     throw new Error('同条件で作成する件数は数値で指定してください。');
   }
 
-  const count = Math.floor(rawValue);
+  if (!Number.isInteger(rawValue)) {
+    throw new Error('同条件で作成する件数は整数で指定してください。');
+  }
 
+  const count = rawValue;
   if (count < 1) {
     throw new Error('同条件で作成する件数は1以上で指定してください。');
   }
@@ -622,6 +645,9 @@ function normalizeAlternateWorkerCount_(payload, totalCount) {
     if (payload.alternate_amount === '' || payload.alternate_amount === null || payload.alternate_amount === undefined) {
       throw new Error('異なる時間帯の単価を入力してください。');
     }
+    if (!Number.isFinite(Number(payload.alternate_amount)) || Number(payload.alternate_amount) < 0) {
+      throw new Error('異なる時間帯の単価は0以上の数値で入力してください。');
+    }
   }
 
   return count;
@@ -643,6 +669,30 @@ function validateWorkTimeRange_(start, end, label) {
 
   // 終了が開始より早い場合は、終了を翌日として扱う共通契約。
   return end < start;
+}
+
+function validateAmountFields_(payload, allowLegacyTypes) {
+  const allowedAmountTypes = ['', 'per_person_day', 'per_case'];
+  if (allowLegacyTypes === true) {
+    allowedAmountTypes.push('per_day', 'per_line_day');
+  }
+  const amountType = String(payload.amount_type || '').trim();
+  if (allowedAmountTypes.indexOf(amountType) === -1) {
+    throw new Error('金額区分が不正です。');
+  }
+
+  ['amount', 'alternate_amount'].forEach(function(field) {
+    const value = payload[field];
+    if (value === '' || value === null || value === undefined) return;
+    const numberValue = Number(value);
+    if (!Number.isFinite(numberValue) || numberValue < 0) {
+      throw new Error('金額は0以上の数値で入力してください。');
+    }
+  });
+
+  if (payload.amount !== '' && payload.amount !== null && payload.amount !== undefined && !amountType) {
+    throw new Error('金額を入力する前に金額区分を選択してください。');
+  }
 }
 
 function validateCaseDateConditionOverrides_(payload, totalCount) {
@@ -676,6 +726,9 @@ function validateCaseDateConditionOverrides_(payload, totalCount) {
     }
     if (hasAmount && (dateItem.alternate_amount === '' || dateItem.alternate_amount === null || dateItem.alternate_amount === undefined)) {
       throw new Error(label + ' の異時間者単価を入力してください。');
+    }
+    if (hasAmount && (!Number.isFinite(Number(dateItem.alternate_amount)) || Number(dateItem.alternate_amount) < 0)) {
+      throw new Error(label + ' の異時間者単価は0以上の数値で入力してください。');
     }
   });
 }
@@ -716,6 +769,7 @@ function updateCase_(payload, options) {
   try {
     ensureCaseRankColumn_();
     ensureCaseDateConditionColumns_();
+    ensureCaseLocationColumns_();
     return updateCaseWithoutLock_(payload, options);
   } finally {
     lock.releaseLock();
@@ -744,6 +798,19 @@ function updateCaseWithoutLock_(payload, options) {
   const requiredLines = toNumber_(payload.required_lines, current.required_lines || 1);
   const peoplePerLine = toNumber_(payload.people_per_line, current.people_per_line || 1);
   const requiredPeople = requiredLines * peoplePerLine;
+
+  const currentRequiredLines = toNumber_(current.required_lines, 1);
+  const currentPeoplePerLine = toNumber_(current.people_per_line, 1);
+  const isLegacyMultiplePeopleCase = currentRequiredLines * currentPeoplePerLine > 1;
+  if (
+    (isLegacyMultiplePeopleCase && (
+      requiredLines !== currentRequiredLines ||
+      peoplePerLine !== currentPeoplePerLine
+    )) ||
+    (!isLegacyMultiplePeopleCase && (requiredLines !== 1 || peoplePerLine !== 1))
+  ) {
+    throw new Error('必要人数は編集できません。複数名は案件を人数分作成してください。');
+  }
 
   const syncCaseDatesRequiredPeople =
     payload.sync_case_dates_required_people === true ||
@@ -792,6 +859,8 @@ function updateCaseWithoutLock_(payload, options) {
     store_area: storeArea,
 
     work_location: workLocation,
+    work_address: payload.work_address || '',
+    work_nearest_station: payload.work_nearest_station || '',
     work_area: workArea,
     work_start_time: payload.work_start_time || '',
     work_end_time: payload.work_end_time || '',
@@ -846,6 +915,14 @@ function updateCaseWithoutLock_(payload, options) {
   }
 
   if (!changedFieldsText) {
+    const assignmentTimeSync = syncCaseAssignmentTimesAfterCaseUpdate_(
+      caseId,
+      updateRecord,
+      current.case_dates || [],
+      [],
+      updatedByEmail || updatedBy,
+      now
+    );
     const assignmentCleanup = shouldCleanupAssignments
       ? cleanupCaseAssignmentsAfterCaseDeactivation_(
           caseId,
@@ -866,6 +943,11 @@ function updateCaseWithoutLock_(payload, options) {
       archived_assignment_count: assignmentCleanup.archived_count,
       repaired_assignment_count: assignmentCleanup.repaired_count,
       remaining_active_assignment_count: assignmentCleanup.remaining_active_count,
+      assignment_time_sync_attempted: assignmentTimeSync.attempted,
+      assignment_time_sync_succeeded: assignmentTimeSync.succeeded,
+      assignment_time_sync_error: assignmentTimeSync.error,
+      updated_draft_assignment_time_count: assignmentTimeSync.updated_count,
+      protected_assignment_time_count: assignmentTimeSync.protected_count,
       message: assignmentCleanup.succeeded
         ? (
             assignmentCleanup.archived_count > 0
@@ -908,6 +990,27 @@ function updateCaseWithoutLock_(payload, options) {
     updatedCaseDatesCount = Math.max(updatedCaseDatesCount, caseDateConditionUpdates.length);
   }
 
+  const commonTimeChanged =
+    String(current.work_start_time || '') !== String(updateRecord.work_start_time || '') ||
+    String(current.work_end_time || '') !== String(updateRecord.work_end_time || '');
+  const dateTimeChanged = caseDateConditionUpdates.some(function(update) {
+    const currentDate = (current.case_dates || []).find(function(date) {
+      return String(date.case_date_id || '') === String(update.case_date_id || '');
+    }) || {};
+    return String(currentDate.work_start_time || '') !== String(update.work_start_time || '') ||
+      String(currentDate.work_end_time || '') !== String(update.work_end_time || '');
+  });
+  const assignmentTimeSync = (commonTimeChanged || dateTimeChanged)
+    ? syncCaseAssignmentTimesAfterCaseUpdate_(
+        caseId,
+        updateRecord,
+        current.case_dates || [],
+        caseDateConditionUpdates,
+        updatedByEmail || updatedBy,
+        now
+      )
+    : buildSkippedAssignmentTimeSyncResult_();
+
   const assignmentCleanup = shouldCleanupAssignments
     ? cleanupCaseAssignmentsAfterCaseDeactivation_(
         caseId,
@@ -933,8 +1036,68 @@ function updateCaseWithoutLock_(payload, options) {
     retry_required: assignmentCleanup.retry_required,
     archived_assignment_count: assignmentCleanup.archived_count,
     repaired_assignment_count: assignmentCleanup.repaired_count,
-    remaining_active_assignment_count: assignmentCleanup.remaining_active_count
+    remaining_active_assignment_count: assignmentCleanup.remaining_active_count,
+    assignment_time_sync_attempted: assignmentTimeSync.attempted,
+    assignment_time_sync_succeeded: assignmentTimeSync.succeeded,
+    assignment_time_sync_error: assignmentTimeSync.error,
+    updated_draft_assignment_time_count: assignmentTimeSync.updated_count,
+    protected_assignment_time_count: assignmentTimeSync.protected_count
   };
+}
+
+function buildSkippedAssignmentTimeSyncResult_() {
+  return {
+    attempted: false,
+    succeeded: true,
+    error: '',
+    updated_count: 0,
+    protected_count: 0
+  };
+}
+
+function syncCaseAssignmentTimesAfterCaseUpdate_(caseId, updateRecord, currentDates, updates, updatedBy, now) {
+  const updatesById = {};
+  (updates || []).forEach(function(update) {
+    updatesById[String(update.case_date_id || '')] = update;
+  });
+  const effectiveByDateId = {};
+  (currentDates || []).forEach(function(date) {
+    const caseDateId = String(date.case_date_id || '');
+    const next = updatesById[caseDateId] || date;
+    effectiveByDateId[caseDateId] = {
+      start_time: String(next.work_start_time || updateRecord.work_start_time || '').trim(),
+      end_time: String(next.work_end_time || updateRecord.work_end_time || '').trim()
+    };
+  });
+
+  try {
+    const result = syncDraftShiftAssignmentTimesByCaseId_(
+      caseId,
+      {
+        start_time: updateRecord.work_start_time,
+        end_time: updateRecord.work_end_time
+      },
+      effectiveByDateId,
+      updatedBy,
+      now
+    );
+    return {
+      attempted: true,
+      succeeded: true,
+      error: '',
+      updated_count: result.updated_count,
+      protected_count: result.protected_count
+    };
+  } catch (error) {
+    console.error('[OrderCase] assignment time sync failed: ' + caseId + ' / ' + error.message);
+    return {
+      attempted: true,
+      succeeded: false,
+      error: String(error && error.message ? error.message : error),
+      updated_count: null,
+      protected_count: null
+    };
+  }
 }
 /****************************************************
  * updateCase_ ここまで
@@ -1020,6 +1183,7 @@ function validateCreateCasePayload_(payload) {
   normalizeCreateOperationId_(payload.create_operation_id);
 
   normalizeCaseRank_(payload.case_rank);
+  validateAmountFields_(payload, false);
   validateWorkTimeRange_(
     String(payload.work_start_time || '').trim(),
     String(payload.work_end_time || '').trim(),
@@ -1028,10 +1192,6 @@ function validateCreateCasePayload_(payload) {
 
   if (!String(payload.shiftcore_display_name || '').trim()) {
     throw new Error('Another Portal表示用省略名称が必要です。');
-  }
-
-  if (payload.amount !== '' && payload.amount !== null && payload.amount !== undefined && !payload.amount_type) {
-    throw new Error('金額を入力する前に金額区分を選択してください。');
   }
 
   if (payload.input_mode !== 'dates' && payload.input_mode !== 'days') {
@@ -1079,6 +1239,7 @@ function validateUpdateCasePayload_(payload) {
   });
 
   normalizeCaseRank_(payload.case_rank);
+  validateAmountFields_(payload, true);
   validateWorkTimeRange_(
     String(payload.work_start_time || '').trim(),
     String(payload.work_end_time || '').trim(),
@@ -1087,10 +1248,6 @@ function validateUpdateCasePayload_(payload) {
 
   if (!String(payload.shiftcore_display_name || '').trim()) {
     throw new Error('Another Portal表示用省略名称が必要です。');
-  }
-
-  if (payload.amount !== '' && payload.amount !== null && payload.amount !== undefined && !payload.amount_type) {
-    throw new Error('金額を入力する前に金額区分を選択してください。');
   }
 
   if (payload.input_mode !== 'dates' && payload.input_mode !== 'days') {
@@ -1348,6 +1505,9 @@ function buildCaseDateConditionUpdates_(payload, currentDates) {
     const amount = date.unit_amount_override === null || date.unit_amount_override === undefined
       ? ''
       : String(date.unit_amount_override).trim();
+    if (amount && (!Number.isFinite(Number(amount)) || Number(amount) < 0)) {
+      throw new Error(String(date.work_date || '') + ' の日別単価は0以上の数値で入力してください。');
+    }
     if (amount && payload.amount_type !== 'per_person_day') {
       throw new Error(String(date.work_date || '') + ' の日別単価は「1コマ・1日あたり」の場合だけ設定できます。');
     }
