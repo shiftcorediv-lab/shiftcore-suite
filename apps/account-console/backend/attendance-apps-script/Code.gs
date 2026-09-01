@@ -450,7 +450,18 @@ function arrive_(user, payload, idToken) {
   const previousRecord = findRecord_(user.email, workDate, schedule.schedule_id);
   const previousArrival = previousReports.find(report => String(report["報告種別"]) === "入店");
   if (previousArrival && previousRecord && previousRecord["実開始"]) {
-    return { ok: true, duplicate: true, report: previousArrival, record: previousRecord, approvalRequired: hasPendingApproval_(previousRecord.record_id, "入店遅延報告"), requestId: findApprovalRequestId_(previousRecord.record_id, "入店遅延報告") };
+    let requestId = findApprovalRequestId_(previousRecord.record_id, "入店遅延報告");
+    if (String(previousRecord["状態"] || "") === "入店承認待ち" && !requestId) {
+      requestId = ensureStoredApprovalRequest_(user, idToken, {
+        recordId: previousRecord.record_id,
+        type: "入店遅延報告",
+        workDate: workDate,
+        actualStart: previousRecord["実開始"],
+        reasonType: payload.reasonType || "その他",
+        reason: payload.reason || "通信失敗後の入店承認申請復旧"
+      });
+    }
+    return { ok: true, duplicate: true, report: previousArrival, record: previousRecord, approvalRequired: hasPendingApproval_(previousRecord.record_id, "入店遅延報告"), requestId: requestId };
   }
   const timing = buildTimingStatus_(schedule, now);
   if (timing.arrivalApprovalRequired && !String(payload.reason || "").trim()) throw apiError_("REASON_REQUIRED", "予定開始以降の入店理由を入力してください。");
@@ -469,7 +480,7 @@ function arrive_(user, payload, idToken) {
     if (!record || !record["実開始"]) record = createClockInRecord_(user, schedule, payload, now, timing.arrivalApprovalRequired ? "入店承認待ち" : "稼働中");
     if (!existingArrival) appendObject_(SHEETS.fieldReports, { field_report_id: Utilities.getUuid(), "勤務日": workDate, "開発予定ID": schedule["開発予定ID"] || "", "報告種別": "入店", "報告者メール": user.email, "報告者氏名": user.name || "", "報告日時": now, schedule_id: schedule.schedule_id || "" });
     let requestId = "";
-    if (timing.arrivalApprovalRequired) requestId = createApprovalRequestIfMissing_(user, approval, { recordId: record.record_id, type: "入店遅延報告", workDate: workDate, actualStart: now, reasonType: payload.reasonType || "その他", reason: payload.reason || "予定開始以降の入店" });
+    if (timing.arrivalApprovalRequired) requestId = createApprovalRequestIfMissing_(user, approval, { recordId: record.record_id, type: "入店遅延報告", workDate: workDate, actualStart: record["実開始"] || now, reasonType: payload.reasonType || "その他", reason: payload.reason || "予定開始以降の入店" });
     return { ok: true, duplicate: Boolean(existingArrival && existingRecord && existingRecord["実開始"]), report: fieldReportsFor_(user, workDate, scheduleKey, schedule["開発予定ID"]).find(report => String(report["報告種別"]) === "入店") || null, record: findRecord_(user.email, workDate, schedule.schedule_id), approvalRequired: timing.arrivalApprovalRequired, requestId: requestId };
   } finally {
     lock.releaseLock();
@@ -529,7 +540,20 @@ function clockOut_(user, payload, idToken) {
   if (!recordBeforeLock || !recordBeforeLock["実開始"]) throw apiError_("NOT_STARTED", "入店記録がありません。");
   if (requestedScheduleId && String(recordBeforeLock.schedule_id || "") !== requestedScheduleId) throw apiError_("SCHEDULE_RECORD_MISMATCH", "選択した予定の入店記録を確認できません。");
   const workDate = dateKey_(recordBeforeLock["勤務日"]);
-  if (recordBeforeLock["実終了"]) return { ok: true, duplicate: true, record: recordBeforeLock, plans: findPlansForDate_(user, idToken, workDate), approvalRequired: hasPendingApproval_(recordBeforeLock.record_id, "日付またぎ終了報告"), requestId: findApprovalRequestId_(recordBeforeLock.record_id, "日付またぎ終了報告"), workReportRequired: workReportRequiredForRecord_(recordBeforeLock) };
+  if (recordBeforeLock["実終了"]) {
+    let requestId = findApprovalRequestId_(recordBeforeLock.record_id, "日付またぎ終了報告");
+    if (String(recordBeforeLock["状態"] || "") === "終了承認待ち" && !requestId) {
+      requestId = ensureStoredApprovalRequest_(user, idToken, {
+        recordId: recordBeforeLock.record_id,
+        type: "日付またぎ終了報告",
+        workDate: workDate,
+        actualEnd: recordBeforeLock["実終了"],
+        reasonType: payload.reasonType || "その他",
+        reason: payload.reason || "通信失敗後の終了承認申請復旧"
+      });
+    }
+    return { ok: true, duplicate: true, record: recordBeforeLock, plans: findPlansForDate_(user, idToken, workDate), approvalRequired: hasPendingApproval_(recordBeforeLock.record_id, "日付またぎ終了報告"), requestId: requestId, workReportRequired: workReportRequiredForRecord_(recordBeforeLock) };
+  }
   const schedule = findSchedule_(user, workDate, payload.scheduleId || "", idToken);
   const timing = schedule ? buildTimingStatus_(schedule, now) : { endApprovalRequired: dateKey_(now) > workDate, endWarning: false };
   if (timing.endApprovalRequired && !String(payload.reason || "").trim()) throw apiError_("REASON_REQUIRED", "0:00以降の終了理由を入力してください。");
@@ -540,10 +564,17 @@ function clockOut_(user, payload, idToken) {
     const record = selectClockOutRecord_(user.email, requestedScheduleId);
     if (!record || !record["実開始"]) throw apiError_("NOT_STARTED", "入店記録がありません。");
     if (requestedScheduleId && String(record.schedule_id || "") !== requestedScheduleId) throw apiError_("SCHEDULE_RECORD_MISMATCH", "選択した予定の入店記録を確認できません。");
-    if (record["実終了"]) return { ok: true, duplicate: true, record, plans: findPlansForDate_(user, idToken, workDate), approvalRequired: hasPendingApproval_(record.record_id, "日付またぎ終了報告"), workReportRequired: workReportRequiredForRecord_(record) };
+    if (record["実終了"]) {
+      let requestId = findApprovalRequestId_(record.record_id, "日付またぎ終了報告");
+      if (String(record["状態"] || "") === "終了承認待ち" && !requestId) {
+        if (!approval) throw apiError_("APPROVAL_REQUEST_RETRY_REQUIRED", "承認申請を再確認します。もう一度終了報告してください。");
+        requestId = createApprovalRequestIfMissing_(user, approval, { recordId: record.record_id, type: "日付またぎ終了報告", workDate: workDate, actualEnd: record["実終了"], reasonType: payload.reasonType || "その他", reason: payload.reason || "通信失敗後の終了承認申請復旧" });
+      }
+      return { ok: true, duplicate: true, record, plans: findPlansForDate_(user, idToken, workDate), approvalRequired: hasPendingApproval_(record.record_id, "日付またぎ終了報告"), requestId: requestId, workReportRequired: workReportRequiredForRecord_(record) };
+    }
     updateById_(SHEETS.records, "record_id", record.record_id, { "状態": timing.endApprovalRequired ? "終了承認待ち" : "終了済み", "実終了": now, "終了押下": now, "更新日時": now });
     let requestId = "";
-    if (timing.endApprovalRequired) requestId = createApprovalRequestIfMissing_(user, approval, { recordId: record.record_id, type: "日付またぎ終了報告", workDate: workDate, actualEnd: now, reasonType: payload.reasonType || "その他", reason: payload.reason || "0:00以降の終了報告" });
+    if (timing.endApprovalRequired) requestId = createApprovalRequestIfMissing_(user, approval, { recordId: record.record_id, type: "日付またぎ終了報告", workDate: workDate, actualEnd: record["実終了"] || now, reasonType: payload.reasonType || "その他", reason: payload.reason || "0:00以降の終了報告" });
     const completedRecord = findRecord_(user.email, workDate, record.schedule_id || "");
     return { ok: true, record: completedRecord, plans: findPlansForDate_(user, idToken, workDate), approvalRequired: timing.endApprovalRequired, requestId: requestId, workReportRequired: workReportRequiredForRecord_(completedRecord) };
   } finally {
@@ -559,6 +590,20 @@ function createApprovalRequestIfMissing_(user, approval, payload) {
   appendObject_(SHEETS.requests, { request_id: requestId, record_id: payload.recordId || "", "種別": payload.type, "申請者メール": user.email, "申請者氏名": user.name || "", "実勤務日": payload.workDate, "申請開始": payload.actualStart || "", "申請終了": payload.actualEnd || "", "理由区分": payload.reasonType || "その他", "理由詳細": payload.reason || "", "状態": "申請中", "申請日時": new Date(), applicant_internal_user_id: approval.applicant_internal_user_id, request_version: 1, approval_reviewer_internal_user_id: approval.approval_reviewer_internal_user_id, applicant_organization_version: approval.applicant_organization_version });
   invalidateAllDashboardReferenceCache_();
   return requestId;
+}
+
+function ensureStoredApprovalRequest_(user, idToken, payload) {
+  const existingRequestId = findApprovalRequestId_(payload.recordId, payload.type);
+  if (existingRequestId) return existingRequestId;
+
+  const approval = accountApprovalRequest_({ phase: "prepare", idToken: idToken });
+  const lock = LockService.getDocumentLock();
+  lock.waitLock(20000);
+  try {
+    return createApprovalRequestIfMissing_(user, approval, payload);
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function correctionRecordForUser_(user, recordId) {
