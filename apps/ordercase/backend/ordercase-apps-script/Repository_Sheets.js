@@ -510,7 +510,9 @@ function isTimeHeader_(header) {
   return [
     'work_start_time',
     'work_end_time',
-    'meeting_time'
+    'meeting_time',
+    'alternate_work_start_time',
+    'alternate_work_end_time'
   ].indexOf(header) !== -1;
 }
 

@@ -220,9 +220,13 @@ function rowToObjectFast_(headers, row) {
  * 高速取得版のセル値整形
  ****************************************************/
 function formatFastCellValue_(header, value) {
-  if (value instanceof Date) {
-    const key = String(header || '').trim();
+  const key = String(header || '').trim();
 
+  if (isTimeHeader_(key)) {
+    return normalizeSheetTimeValue_(value);
+  }
+
+  if (value instanceof Date) {
     if (
       key === 'target_month' ||
       key === 'work_month'
