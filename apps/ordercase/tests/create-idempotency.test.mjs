@@ -169,6 +169,7 @@ test('createCase_の再送はロック内で既存案件を返し、新しい行
   };
   context.ensureCaseRankColumn_ = () => {};
   context.ensureCaseDateConditionColumns_ = () => {};
+  context.ensureCaseLocationColumns_ = () => {};
   context.ensureCaseCreateOperationColumns_ = () => {};
   context.createSingleCase_ = () => {
     throw new Error('再送時に新規案件を作成してはいけません。');
