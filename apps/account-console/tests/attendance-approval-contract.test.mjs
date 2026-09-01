@@ -20,9 +20,10 @@ test("新規勤怠申請は内部ID・申請版・承認経路版を保存する
   assert.match(attendanceSource, /applicant_organization_version:\s*approval\.applicant_organization_version/);
 });
 
-test("新規勤怠申請は本番シート契約の実勤務日列へ対象日を保存する", () => {
+test("新規勤怠申請は本番シート契約の実勤務日列へ検証済み対象日を保存する", () => {
   assert.match(attendanceSource, /requests:\s*\[[^\]]*"実勤務日"/);
-  assert.match(attendanceSource, /"実勤務日":\s*payload\.workDate\s*\|\|\s*today_\(\)/);
+  assert.match(attendanceSource, /"実勤務日":\s*correction\.workDate/);
+  assert.doesNotMatch(attendanceSource, /"実勤務日":\s*payload\.workDate\s*\|\|\s*today_\(\)/);
   assert.doesNotMatch(attendanceSource, /"対象日":\s*payload\.workDate/);
 });
 

@@ -274,7 +274,7 @@ function renderDashboard(data) {
   $("workStatus").dataset.status = status;
   $("startBtn").disabled = false;
   $("startBtn").hidden = primaryState.hidden;
-  $("correctionBtn").hidden = !(record || (schedule && data.timing?.arrivalApprovalRequired));
+  $("correctionBtn").hidden = !record;
   $("deadlineNote").textContent = schedule ? "出発は予定開始1時間前、入店は15分前が目安です。" : "本日は稼働予定がありません。";
   renderTimingWarning(data, primaryState.name);
   renderUpcoming(data.upcoming || []);
@@ -387,7 +387,7 @@ async function openCorrection(type) {
   const reason = readReason();
   if (!actual || !reason) return showStatus("実際の時刻と理由を入力してください。", true);
   await runAction(async () => {
-    await attendanceRequest("submitCorrection", { type, recordId: dashboardData?.record?.record_id || "", workDate: dashboardData.today, actualStart: type === "開始修正" ? actual : "", actualEnd: type === "終了修正" ? actual : "", reasonType: $("reasonType")?.value || "その他", reason });
+    await attendanceRequest("submitCorrection", { type, recordId: dashboardData?.record?.record_id || "", actualStart: type === "開始修正" ? actual : "", actualEnd: type === "終了修正" ? actual : "", reasonType: $("reasonType")?.value || "その他", reason });
     showAlert("修正申請を送信しました。管理者の確認をお待ちください。", "success");
     await loadDashboard();
   });

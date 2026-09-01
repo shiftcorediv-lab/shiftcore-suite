@@ -561,18 +561,118 @@ function createApprovalRequestIfMissing_(user, approval, payload) {
   return requestId;
 }
 
+function correctionRecordForUser_(user, recordId) {
+  const record = rows_(SHEETS.records).find(function(candidate) {
+    return String(candidate.record_id || "") === String(recordId || "");
+  });
+  if (!record || normalizeEmail_(record.email) !== normalizeEmail_(user.email)) {
+    throw apiError_("CORRECTION_RECORD_FORBIDDEN", "本人の勤怠記録を確認できません。");
+  }
+  return record;
+}
+
+function correctionDateTime_(value) {
+  const text = String(value || "").trim();
+  const matched = text.match(/^(\d{4}-\d{2}-\d{2})T([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/);
+  if (!matched) throw apiError_("CORRECTION_TIME_INVALID", "訂正時刻を確認してください。");
+  const normalized = `${matched[1]}T${matched[2]}:${matched[3]}:${matched[4] || "00"}+09:00`;
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime()) || dateKey_(date) !== matched[1]) {
+    throw apiError_("CORRECTION_TIME_INVALID", "訂正時刻を確認してください。");
+  }
+  return date;
+}
+
+function normalizeCorrectionSubmission_(user, payload) {
+  const source = payload || {};
+  const type = String(source.type || "").trim();
+  if (!["開始修正", "終了修正"].includes(type)) {
+    throw apiError_("CORRECTION_TYPE_INVALID", "訂正種別を確認してください。");
+  }
+
+  const recordId = String(source.recordId || "").trim();
+  if (!recordId) {
+    throw apiError_("CORRECTION_RECORD_REQUIRED", "訂正対象の勤怠記録が必要です。");
+  }
+  const record = correctionRecordForUser_(user, recordId);
+
+  const workDate = dateKey_(record["勤務日"]);
+  const workDateStart = new Date(`${workDate}T00:00:00+09:00`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate) ||
+      Number.isNaN(workDateStart.getTime()) || dateKey_(workDateStart) !== workDate) {
+    throw apiError_("CORRECTION_WORK_DATE_INVALID", "訂正対象の勤務日を確認できません。");
+  }
+
+  const actualStart = type === "開始修正" ? correctionDateTime_(source.actualStart) : null;
+  const actualEnd = type === "終了修正" ? correctionDateTime_(source.actualEnd) : null;
+  if ((type === "開始修正" && String(source.actualEnd || "").trim()) ||
+      (type === "終了修正" && String(source.actualStart || "").trim())) {
+    throw apiError_("CORRECTION_TIME_CONFLICT", "訂正種別と対象時刻が一致しません。");
+  }
+
+  const proposed = actualStart || actualEnd;
+  const proposedDate = dateKey_(proposed);
+  const nextDate = Utilities.formatDate(
+    addDays_(workDateStart, 1),
+    TZ,
+    "yyyy-MM-dd"
+  );
+  const allowedDates = type === "開始修正" ? [workDate] : [workDate, nextDate];
+  if (!allowedDates.includes(proposedDate)) {
+    throw apiError_("CORRECTION_DATE_MISMATCH", "訂正時刻が対象勤務日と一致しません。");
+  }
+
+  const counterpart = type === "開始修正"
+    ? record["正式終了"] || record["実終了"]
+    : record["正式開始"] || record["実開始"];
+  const counterpartMillis = dateTimeMillis_(counterpart);
+  if (type === "終了修正" && !Number.isFinite(counterpartMillis)) {
+    throw apiError_("CORRECTION_RECORD_STATE_INVALID", "開始済みの勤怠記録を確認できません。");
+  }
+  if (Number.isFinite(counterpartMillis) &&
+      (type === "開始修正" ? proposed.getTime() >= counterpartMillis : proposed.getTime() <= counterpartMillis)) {
+    throw apiError_("CORRECTION_TIME_ORDER_INVALID", "開始と終了の前後関係を確認してください。");
+  }
+
+  const reason = String(source.reason || "").trim();
+  if (!reason || reason.length > 1000) {
+    throw apiError_("CORRECTION_REASON_REQUIRED", "訂正理由を1〜1000文字で入力してください。");
+  }
+  const reasonType = String(source.reasonType || "その他").trim() || "その他";
+  if (!["交通機関の遅延", "体調不良", "業務都合", "失念", "端末・通信障害", "家庭事情", "その他"].includes(reasonType)) {
+    throw apiError_("CORRECTION_REASON_TYPE_INVALID", "理由区分を確認してください。");
+  }
+
+  return {
+    recordId: String(record.record_id || ""),
+    type: type,
+    workDate: workDate,
+    actualStart: actualStart || "",
+    actualEnd: actualEnd || "",
+    reasonType: sheetText_(reasonType),
+    reason: sheetText_(reason)
+  };
+}
+
 function submitCorrection_(user, payload, idToken) {
+  const correction = normalizeCorrectionSubmission_(user, payload);
   const approval = accountApprovalRequest_({ phase: "prepare", idToken: idToken });
   const requestId = Utilities.getUuid();
   const lock = LockService.getDocumentLock();
   lock.waitLock(20000);
   try {
     ensureRequestContractHeaders_();
+    if (correction.recordId) {
+      const currentRecord = correctionRecordForUser_(user, correction.recordId);
+      if (dateKey_(currentRecord["勤務日"]) !== correction.workDate) {
+        throw apiError_("CORRECTION_RECORD_CHANGED", "勤怠記録が更新されています。再読込してください。");
+      }
+    }
     appendObject_(SHEETS.requests, {
-      request_id: requestId, record_id: payload.recordId || "", "種別": payload.type || "打刻修正",
-      "申請者メール": user.email, "申請者氏名": user.name || "", "実勤務日": payload.workDate || today_(),
-      "申請開始": payload.actualStart || "", "申請終了": payload.actualEnd || "", "理由区分": payload.reasonType || "その他",
-      "理由詳細": payload.reason || "", "状態": "申請中", "申請日時": new Date(),
+      request_id: requestId, record_id: correction.recordId, "種別": correction.type,
+      "申請者メール": normalizeEmail_(user.email), "申請者氏名": user.name || "", "実勤務日": correction.workDate,
+      "申請開始": correction.actualStart, "申請終了": correction.actualEnd, "理由区分": correction.reasonType,
+      "理由詳細": correction.reason, "状態": "申請中", "申請日時": new Date(),
       applicant_internal_user_id: approval.applicant_internal_user_id, request_version: 1,
       approval_reviewer_internal_user_id: approval.approval_reviewer_internal_user_id,
       applicant_organization_version: approval.applicant_organization_version
@@ -580,7 +680,7 @@ function submitCorrection_(user, payload, idToken) {
   } finally {
     lock.releaseLock();
   }
-  notifyManagers_(user, "修正申請", `${user.name || user.email}さんから${payload.type || "打刻修正"}の申請が届きました。`);
+  notifyManagers_(user, "修正申請", `${user.name || user.email}さんから${correction.type}の申請が届きました。`);
   return { ok: true, requestId };
 }
 
