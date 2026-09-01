@@ -2103,7 +2103,8 @@ function buildTimingStatus_(schedule, now) {
   const start = jstDateTime_(workDate, schedule && schedule["予定開始"]);
   const rawEnd = jstDateTime_(workDate, schedule && schedule["予定終了"]);
   if (!start || !rawEnd || Number.isNaN(start.getTime()) || Number.isNaN(rawEnd.getTime())) throw apiError_("SCHEDULE_TIME_REQUIRED", "予定開始・予定終了時刻を確認できません。");
-  const end = rawEnd.getTime() <= start.getTime() ? addDays_(rawEnd, 1) : rawEnd;
+  if (rawEnd.getTime() === start.getTime()) throw apiError_("SCHEDULE_TIME_INVALID", "予定開始・予定終了時刻を同じにはできません。");
+  const end = rawEnd.getTime() < start.getTime() ? addDays_(rawEnd, 1) : rawEnd;
   const current = now instanceof Date ? now : new Date(now);
   const departureLimit = new Date(start.getTime() - 60 * 60 * 1000);
   const arrivalLimit = new Date(start.getTime() - 15 * 60 * 1000);
@@ -2116,7 +2117,9 @@ function buildTimingStatus_(schedule, now) {
     arrivalWarning: current.getTime() > arrivalLimit.getTime(),
     arrivalApprovalRequired: current.getTime() >= start.getTime(),
     endWarning: current.getTime() > endWarningLimit.getTime(),
-    endApprovalRequired: dateKey_(current) > workDate
+    endApprovalRequired:
+      dateKey_(current) > workDate &&
+      current.getTime() > end.getTime()
   };
 }
 function safeTimingStatus_(schedule, now) { try { return buildTimingStatus_(schedule, now); } catch (error) { if (error.code === "SCHEDULE_TIME_REQUIRED") return null; throw error; } }

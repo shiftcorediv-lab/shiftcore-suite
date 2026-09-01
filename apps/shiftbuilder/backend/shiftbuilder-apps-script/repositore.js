@@ -731,6 +731,31 @@ function resolveShiftBuilderAssignmentContract_(params, orderCases, orderCaseDat
   };
 }
 
+function getShiftBuilderContractTimeRange_(assignmentContract) {
+  const safeContract = assignmentContract || {};
+  const caseRow = safeContract.case_row || {};
+  const caseDateRow = safeContract.case_date_row || {};
+  const startTime = normalizeText(caseDateRow.work_start_time) ||
+    normalizeText(caseRow.work_start_time);
+  const endTime = normalizeText(caseDateRow.work_end_time) ||
+    normalizeText(caseRow.work_end_time);
+
+  if (!startTime && !endTime) {
+    return { start_time: "", end_time: "", ends_next_day: false };
+  }
+
+  const timePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+  if (!timePattern.test(startTime) || !timePattern.test(endTime) || startTime === endTime) {
+    throw new Error("案件の稼働開始・終了時刻が不正です");
+  }
+
+  return {
+    start_time: startTime,
+    end_time: endTime,
+    ends_next_day: endTime < startTime
+  };
+}
+
 function filterShiftAssignmentsByAssignableOrderCases_(
   assignments,
   orderCases,

@@ -58,7 +58,7 @@ test("ダッシュボードの現状表示は先頭側へ配置し、表示域�
 test("ダッシュボードの日付は年月日を省略せず表示する", () => {
   assert.match(dashboardSource, /month: "numeric"/);
   assert.match(dashboardSource, /\$\{part\("year"\)\}年\$\{part\("month"\)\}月\$\{part\("day"\)\}日/);
-  assert.match(dashboardHtml, /main\.js\?v=20260902-correction-validation-1/);
+  assert.match(dashboardHtml, /main\.js\?v=20260902-overnight-1/);
 });
 
 test("最新勤怠の取得前は非稼働と断定せず稼働予定を読込中にする", () => {

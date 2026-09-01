@@ -138,6 +138,25 @@ test("日数指定案件はcase_date_idなし・案件対象月内・依頼日�
   );
 });
 
+test("アサイン時刻はクライアント値ではなくOrderの日別契約から確定する", () => {
+  const context = createContext();
+  const timeRange = context.getShiftBuilderContractTimeRange_({
+    case_row: { work_start_time: "09:00", work_end_time: "18:00" },
+    case_date_row: { work_start_time: "22:00", work_end_time: "01:00" }
+  });
+
+  assert.deepEqual(
+    { ...timeRange },
+    { start_time: "22:00", end_time: "01:00", ends_next_day: true }
+  );
+  assert.throws(
+    () => context.getShiftBuilderContractTimeRange_({
+      case_row: { work_start_time: "10:00", work_end_time: "10:00" }
+    }),
+    /時刻が不正/
+  );
+});
+
 test("読取側も契約外のghost active rowを除外する", () => {
   const context = createContext();
   const base = {
@@ -252,10 +271,14 @@ test("案件契約と枠数はappend前後に検証し、失敗時は作成行�
   const createEnd = serviceSource.indexOf("function getActiveShiftAssignments_(", createStart);
   const createSource = serviceSource.slice(createStart, createEnd);
   const contractIndex = createSource.indexOf("resolveShiftBuilderAssignmentContract_(params)");
+  const contractTimeIndex = createSource.indexOf("getShiftBuilderContractTimeRange_(assignmentContract)");
   const capacityIndex = createSource.indexOf("validateShiftBuilderAssignmentCapacity_(params");
   const appendIndex = createSource.indexOf("appendShiftAssignment_(");
 
   assert.ok(contractIndex >= 0 && contractIndex < appendIndex);
+  assert.ok(contractTimeIndex > contractIndex && contractTimeIndex < appendIndex);
+  assert.match(createSource, /params\.start_time = contractTimeRange\.start_time/);
+  assert.match(createSource, /params\.end_time = contractTimeRange\.end_time/);
   assert.ok(capacityIndex >= 0 && capacityIndex < appendIndex);
   assert.match(createSource, /capacity_ignore_assignment_id:\s*assignment\.assignment_id/);
   assert.match(createSource, /archiveShiftAssignment_\(assignment\.assignment_id/);

@@ -4,7 +4,7 @@ import {
   buildPersonnelExportFilename,
   buildPersonnelIcs,
   collectPersonnelAssignments
-} from "./export-utils.mjs?v=20260801-authfix-1";
+} from "./export-utils.mjs?v=20260902-overnight-1";
 import { escapeHtml } from "./utils.js?v=20260801-authfix-1";
 
 let activeMenu = null;

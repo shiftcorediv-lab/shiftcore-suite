@@ -469,6 +469,8 @@ input[type="time"] {
           <input id="workEndTime" type="time" value="18:00" required />
         </div>
 
+        <p class="hint">終了が開始より早い時刻の場合は、翌日の終了として扱います。登録時に確認が表示されます。</p>
+
         <div id="meetingTimeWrap">
           <label for="meetingTime">集合時間</label>
           <input id="meetingTime" type="time" />
@@ -1467,6 +1469,10 @@ input[type="time"] {
 
         const formPayload = buildPayload();
         validatePayload(formPayload);
+        if (!confirmOvernightWorkPayload(formPayload)) {
+          setMessage('案件登録をキャンセルしました', '');
+          return;
+        }
         const payload = createOperationTracker.attach(formPayload);
 
         const button = document.getElementById('submitButton');
@@ -1610,7 +1616,7 @@ input[type="time"] {
       if (!payload.store_name) throw new Error('連携店舗を入力してください。');
       if (!payload.store_area) throw new Error('連携店舗エリアを選択してください。');
       if (!payload.work_start_time || !payload.work_end_time) throw new Error('基本時間の開始・終了時刻を入力してください。');
-      if (payload.work_end_time <= payload.work_start_time) throw new Error('基本時間の終了時刻は開始時刻より後にしてください。');
+      if (payload.work_end_time === payload.work_start_time) throw new Error('基本時間の開始・終了時刻を同じにはできません。');
             if (!Number.isFinite(payload.same_condition_count) || payload.same_condition_count < 1) {
         throw new Error('同条件で作成する件数は1以上で入力してください。');
       }
@@ -1626,8 +1632,8 @@ input[type="time"] {
         if (!payload.alternate_work_start_time || !payload.alternate_work_end_time) {
           throw new Error('異なる時間帯の開始・終了時刻を入力してください。');
         }
-        if (payload.alternate_work_end_time <= payload.alternate_work_start_time) {
-          throw new Error('異なる時間帯の終了時刻は開始時刻より後にしてください。');
+        if (payload.alternate_work_end_time === payload.alternate_work_start_time) {
+          throw new Error('異なる時間帯の開始・終了時刻を同じにはできません。');
         }
         if (payload.alternate_amount_enabled && payload.amount_type !== 'per_person_day') {
           throw new Error('異なる時間帯の別単価は「1コマ・1日あたり」の場合だけ設定できます。');
@@ -1643,14 +1649,14 @@ input[type="time"] {
 
       payload.case_dates.forEach(dateItem => {
         if (!dateItem.has_condition_override) return;
-        if (!dateItem.work_start_time || !dateItem.work_end_time || dateItem.work_end_time <= dateItem.work_start_time) {
+        if (!dateItem.work_start_time || !dateItem.work_end_time || dateItem.work_end_time === dateItem.work_start_time) {
           throw new Error(`${dateItem.work_date} の基本時間を正しく入力してください。`);
         }
         if (dateItem.has_alternate_time_workers) {
           if (dateItem.alternate_worker_count < 1 || dateItem.alternate_worker_count >= payload.same_condition_count) {
             throw new Error(`${dateItem.work_date} の異時間者数は、1以上かつ必要人数未満にしてください。`);
           }
-          if (!dateItem.alternate_work_start_time || !dateItem.alternate_work_end_time || dateItem.alternate_work_end_time <= dateItem.alternate_work_start_time) {
+          if (!dateItem.alternate_work_start_time || !dateItem.alternate_work_end_time || dateItem.alternate_work_end_time === dateItem.alternate_work_start_time) {
             throw new Error(`${dateItem.work_date} の異時間者の時間を正しく入力してください。`);
           }
           if (dateItem.alternate_amount_enabled && payload.amount_type !== 'per_person_day') {
@@ -1665,6 +1671,46 @@ input[type="time"] {
       if (payload.input_mode === 'days' && !payload.requested_days) {
         throw new Error('日数指定の場合、希望日数を入力してください。');
       }
+    }
+
+    function confirmOvernightWorkPayload(payload) {
+      const overnightLabels = [];
+      const addIfOvernight = (label, start, end) => {
+        if (start && end && end < start) overnightLabels.push(label);
+      };
+
+      addIfOvernight('基本時間', payload.work_start_time, payload.work_end_time);
+
+      if (payload.has_alternate_time_workers) {
+        addIfOvernight(
+          '異なる時間帯',
+          payload.alternate_work_start_time,
+          payload.alternate_work_end_time
+        );
+      }
+
+      (payload.case_dates || []).forEach(dateItem => {
+        if (!dateItem.has_condition_override) return;
+        addIfOvernight(
+          `${dateItem.work_date} の基本時間`,
+          dateItem.work_start_time,
+          dateItem.work_end_time
+        );
+        if (dateItem.has_alternate_time_workers) {
+          addIfOvernight(
+            `${dateItem.work_date} の異なる時間帯`,
+            dateItem.alternate_work_start_time,
+            dateItem.alternate_work_end_time
+          );
+        }
+      });
+
+      if (overnightLabels.length === 0) return true;
+
+      return window.confirm(
+        overnightLabels.join('\n') +
+        '\n\n終了時刻は翌日として扱われます。この内容で登録しますか？'
+      );
     }
     /****************************************************
      * validatePayload ここまで

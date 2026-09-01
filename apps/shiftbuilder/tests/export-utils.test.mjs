@@ -57,3 +57,26 @@ test("ICSは時間予定と終日予定を生成する", () => {
   assert.match(ics, /DTEND;VALUE=DATE:20260803/);
   assert.match(ics, /UID:A-1@shiftcore/);
 });
+
+test("ICSは終了が開始より早い勤務を翌日終了として出力する", () => {
+  const person = {
+    internalUserId: "U-1",
+    displayName: "夜勤担当",
+    assignmentsByDate: {
+      "2026-08-01": [{
+        caseId: "CASE-1",
+        assignmentId: "A-1",
+        start_time: "22:00",
+        end_time: "01:00"
+      }]
+    }
+  };
+  const shiftData = {
+    cases: [{ caseId: "CASE-1", title: "夜間販売", start_time: "09:00", end_time: "18:00" }]
+  };
+
+  const ics = buildPersonnelIcs(person, shiftData, new Date("2026-07-01T00:00:00Z"));
+
+  assert.match(ics, /DTSTART;TZID=Asia\/Tokyo:20260801T220000/);
+  assert.match(ics, /DTEND;TZID=Asia\/Tokyo:20260802T010000/);
+});

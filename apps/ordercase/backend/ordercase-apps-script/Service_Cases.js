@@ -631,9 +631,18 @@ function validateWorkTimeRange_(start, end, label) {
   if (!start || !end) {
     throw new Error((label || '稼働時間') + 'の開始・終了時刻は必須です。');
   }
-  if (end <= start) {
-    throw new Error((label || '稼働時間') + 'の終了時刻は開始時刻より後にしてください。');
+
+  const timePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+  if (!timePattern.test(start) || !timePattern.test(end)) {
+    throw new Error((label || '稼働時間') + 'は HH:mm 形式で指定してください。');
   }
+
+  if (end === start) {
+    throw new Error((label || '稼働時間') + 'の開始・終了時刻を同じにはできません。');
+  }
+
+  // 終了が開始より早い場合は、終了を翌日として扱う共通契約。
+  return end < start;
 }
 
 function validateCaseDateConditionOverrides_(payload, totalCount) {

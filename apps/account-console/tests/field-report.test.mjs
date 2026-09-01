@@ -52,7 +52,25 @@ test("日付またぎ予定の終了予定日時を翌日として計算する",
   const context = timingContext();
   const result = context.buildTimingStatus_({ "勤務日": "2026-08-28", "予定開始": "22:00", "予定終了": "01:00" }, new Date("2026-08-29T01:00:00+09:00"));
   assert.equal(result.plannedEnd, "2026-08-28T16:00:00.000Z");
-  assert.equal(result.endApprovalRequired, true);
+  assert.equal(result.endApprovalRequired, false);
+  assert.equal(
+    context.buildTimingStatus_(
+      { "勤務日": "2026-08-28", "予定開始": "22:00", "予定終了": "01:00" },
+      new Date("2026-08-29T01:00:00.001+09:00")
+    ).endApprovalRequired,
+    true
+  );
+});
+
+test("開始・終了が同時刻の予定は24時間勤務と推測せず拒否する", () => {
+  const context = timingContext();
+  assert.throws(
+    () => context.buildTimingStatus_(
+      { "勤務日": "2026-08-28", "予定開始": "10:00", "予定終了": "10:00" },
+      new Date("2026-08-28T10:00:00+09:00")
+    ),
+    error => error.code === "SCHEDULE_TIME_INVALID"
+  );
 });
 
 test("入店前に出発を必須とし遅い入店と0時以降終了を直属承認へ接続する", () => {

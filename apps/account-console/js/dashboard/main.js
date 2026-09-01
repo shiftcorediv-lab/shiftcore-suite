@@ -259,7 +259,7 @@ function renderDashboard(data) {
   $("workLocation").textContent = schedule?.["稼働場所"] || record?.["予定場所"] || "非稼働";
   setActivity($("workLocation"), false);
   $("weatherLocation").textContent = schedule?.["稼働場所"] || record?.["予定場所"] || "非稼働";
-  $("plannedTime").textContent = schedule ? `${timeText(schedule["予定開始"])} – ${timeText(schedule["予定終了"])}` : "—";
+  $("plannedTime").textContent = schedule ? plannedTimeText(schedule) : "—";
   renderScheduleSelector(data.schedules || [], schedule);
   const fieldReports = data.fieldReports || [];
   const departure = fieldReports.find(report => report["報告種別"] === "出発");
@@ -329,7 +329,7 @@ function renderUnavailable(message = "勤怠情報を確認できませんでし
 }
 
 function renderUpcoming(items) {
-  $("upcomingList").innerHTML = items.length ? items.map(item => `<div class="schedule-item"><time>${escapeHtml(dateText(item["勤務日"]))}</time><div><strong>${escapeHtml(item["稼働場所"] || "場所未定")}</strong><span>${escapeHtml(`${timeText(item["予定開始"])} – ${timeText(item["予定終了"])}`)}</span></div></div>`).join("") : `<div class="empty-state">直近の稼働予定はありません。</div>`;
+  $("upcomingList").innerHTML = items.length ? items.map(item => `<div class="schedule-item"><time>${escapeHtml(dateText(item["勤務日"]))}</time><div><strong>${escapeHtml(item["稼働場所"] || "場所未定")}</strong><span>${escapeHtml(plannedTimeText(item))}</span></div></div>`).join("") : `<div class="empty-state">直近の稼働予定はありません。</div>`;
 }
 
 function renderScheduleSelector(schedules, selected) { const wrap = $("scheduleSelectWrap"); const select = $("scheduleSelect"); wrap.hidden = schedules.length < 2; select.innerHTML = schedules.map(item => `<option value="${escapeHtml(item.schedule_id || "")}" ${String(item.schedule_id || "") === String(selected?.schedule_id || "") ? "selected" : ""}>${escapeHtml(item["開発予定名"] || item["稼働場所"] || item.schedule_id || "予定")}</option>`).join(""); select.disabled = Boolean(dashboardData?.record?.["実開始"] && !dashboardData?.record?.["実終了"]); }
@@ -444,7 +444,7 @@ async function submitUnplanned() {
 
 async function submitCompletion() {
   const approvalRequired = Boolean(dashboardData.timing?.endApprovalRequired);
-  const body = `${approvalRequired ? reasonFields("0:00以降になった理由（直属承認が必要です）") : "<p>現在時刻で終了を記録し、実績報告へ進みます。</p>"}`;
+  const body = `${approvalRequired ? reasonFields("通常の終了期限を超過した理由（直属承認が必要です）") : "<p>現在時刻で終了を記録し、実績報告へ進みます。</p>"}`;
   if (!await openDialog("終了報告", body, "終了報告する")) return;
   const reason = readReason();
   if (approvalRequired && !reason) return showStatus("理由を入力してください。", true);
@@ -452,7 +452,7 @@ async function submitCompletion() {
 }
 
 function actionState(data) { const reports = data.fieldReports || []; const departure = reports.some(r => r["報告種別"] === "出発"); const arrival = reports.some(r => r["報告種別"] === "入店"); if (!data.schedule) return data.record?.["実開始"] && !data.record?.["実終了"] ? { name: "completion", label: "終了報告", hidden: false } : { name: "unplanned", label: "予定外稼働", hidden: Boolean(data.record?.["実終了"]) }; if (!departure) return { name: "departure", label: "出発", hidden: false }; if (!arrival || !data.record?.["実開始"]) return { name: "arrival", label: "入店", hidden: false }; if (!data.record?.["実終了"]) return { name: "completion", label: "終了報告", hidden: false }; return { name: "done", label: "終了報告済み", hidden: true }; }
-function renderTimingWarning(data, state) { const t = data.timing; if (!t) return showAlert("予定開始・終了時刻が未登録です。管理者へ確認してください。", "warning"); if (state === "departure" && t.departureWarning) return showAlert("出発リミットを過ぎています。安全に注意して出発してください。", "warning"); if (state === "arrival" && t.arrivalApprovalRequired) return showAlert("予定開始時刻以降の入店です。理由の報告と直属承認が必要です。", "warning"); if (state === "arrival" && t.arrivalWarning) return showAlert("入店リミットを過ぎています。", "warning"); if (state === "completion" && t.endApprovalRequired) return showAlert("0:00以降の終了報告です。理由の報告と直属承認が必要です。", "warning"); if (state === "completion" && t.endWarning) return showAlert("予定終了から1時間を超えています。終了報告を確認してください。", "warning"); showAlert("", ""); }
+function renderTimingWarning(data, state) { const t = data.timing; if (!t) return showAlert("予定開始・終了時刻が未登録です。管理者へ確認してください。", "warning"); if (state === "departure" && t.departureWarning) return showAlert("出発リミットを過ぎています。安全に注意して出発してください。", "warning"); if (state === "arrival" && t.arrivalApprovalRequired) return showAlert("予定開始時刻以降の入店です。理由の報告と直属承認が必要です。", "warning"); if (state === "arrival" && t.arrivalWarning) return showAlert("入店リミットを過ぎています。", "warning"); if (state === "completion" && t.endApprovalRequired) return showAlert("通常の終了期限を超過しています。理由の報告と直属承認が必要です。", "warning"); if (state === "completion" && t.endWarning) return showAlert("予定終了から1時間を超えています。終了報告を確認してください。", "warning"); showAlert("", ""); }
 
 function getLocation() {
   return new Promise(resolve => {
@@ -492,6 +492,7 @@ function showStatus(message, error = false, loading = false) { setActivity($("st
 function showAlert(message, type) { $("alertArea").innerHTML = `<div class="inline-alert ${type}">${escapeHtml(message)}</div>`; }
 function jstTime(iso) { return new Intl.DateTimeFormat("ja-JP", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Tokyo" }).format(new Date(iso)); }
 function timeText(value) { if (!value) return "—"; const d = new Date(value); return Number.isNaN(d.getTime()) ? String(value).slice(-5) : jstTime(d.toISOString()); }
+function plannedTimeText(schedule) { const start = timeText(schedule?.["予定開始"]); const end = timeText(schedule?.["予定終了"]); return `${start} – ${end}${start !== "—" && end < start ? "（翌日）" : ""}`; }
 function dateText(value) { const d = new Date(value); return Number.isNaN(d.getTime()) ? String(value) : new Intl.DateTimeFormat("ja-JP", { month: "short", day: "numeric", weekday: "short", timeZone: "Asia/Tokyo" }).format(d); }
 function dateTimeText(value) { if (!value) return ""; const d = new Date(value); return Number.isNaN(d.getTime()) ? String(value) : new Intl.DateTimeFormat("ja-JP", { dateStyle: "short", timeStyle: "short", timeZone: "Asia/Tokyo" }).format(d); }
 function greetingForJst(date) {

@@ -283,6 +283,9 @@ function buildCreateAssignmentParams_(body, operator) {
 
 function createShiftBuilderAssignment_(params, operator) {
   const assignmentContract = resolveShiftBuilderAssignmentContract_(params);
+  const contractTimeRange = getShiftBuilderContractTimeRange_(assignmentContract);
+  params.start_time = contractTimeRange.start_time;
+  params.end_time = contractTimeRange.end_time;
   const activeAssignments = getActiveShiftAssignments_();
   validateShiftBuilderAssignmentCapacity_(params, assignmentContract, activeAssignments);
   const requestedOff = validateRequestedOffAssignment_(
