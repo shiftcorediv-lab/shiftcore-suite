@@ -372,12 +372,12 @@ function dashboardRecordCacheKey_(user, sourceCache) {
 function dashboardReferenceGenerationKey_() { return `attendance-dashboard-reference-generation:${attendanceRuntimeEnvironment_()}`; }
 function dashboardCacheIdentity_(value) {
   const input = normalizeEmail_(value);
-  let hash = 2166136261;
-  for (let index = 0; index < input.length; index += 1) {
-    hash ^= input.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0).toString(36);
+  const digest = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    input,
+    Utilities.Charset.UTF_8
+  );
+  return Utilities.base64EncodeWebSafe(digest).replace(/=+$/, "");
 }
 function dashboardCacheEncode_(value) {
   if (Object.prototype.toString.call(value) === "[object Date]") return { __shiftcoreDate: value.getTime() };

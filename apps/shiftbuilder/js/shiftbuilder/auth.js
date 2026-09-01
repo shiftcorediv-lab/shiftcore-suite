@@ -6,6 +6,7 @@ import {
   getShiftCoreSession
 } from "../../../../shared/js/shiftcore-auth.js?v=20260801-authfix-1";
 import { signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { clearShiftCoreSessionState } from "../../../common/logout-session.js?v=20260902-session-1";
 
 export function getShiftBuilderAuth() {
   return getShiftCoreAuth();
@@ -27,7 +28,7 @@ export async function logoutShiftBuilder() {
   await signOut(getShiftBuilderAuth());
 
   try {
-    sessionStorage.removeItem("shiftcore_user");
+    clearShiftCoreSessionState();
   } catch (_) {
     // Storageが利用できない場合もFirebaseのログアウト結果を優先する。
   }

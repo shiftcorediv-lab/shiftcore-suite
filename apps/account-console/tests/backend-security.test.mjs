@@ -67,6 +67,10 @@ function createAttendanceContext(records, { provision = true } = {}) {
     SpreadsheetApp: { getActive: () => spreadsheet },
     Utilities: {
       getUuid: () => `UUID-${++uuid}`,
+      DigestAlgorithm: { SHA_256: "SHA_256" },
+      Charset: { UTF_8: "UTF_8" },
+      computeDigest: (_algorithm, value) => Array.from(String(value), character => character.charCodeAt(0)),
+      base64EncodeWebSafe: bytes => Buffer.from(bytes).toString("base64url"),
       formatDate: (date, _tz, format) => format === "yyyy-MM-dd" ? new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(date) : "2026/08/28 18:00"
     },
     LockService: {
@@ -420,6 +424,14 @@ test("勤怠ダッシュボードは本人の読取データを再利用し、�
   assert.equal(third._serverTiming.recordsCache, "miss");
   assert.equal(rowReads["稼働予定"], 2);
   assert.equal(rowReads["勤怠記録"], 2);
+});
+
+test("勤怠キャッシュの本人識別子は32bitハッシュではなくSHA-256を使用する", () => {
+  const { context } = createAttendanceContext([]);
+  const identity = context.dashboardCacheIdentity_("Member@example.com");
+  assert.equal(identity, Buffer.from("member@example.com").toString("base64url"));
+  assert.doesNotMatch(backendSource, /Math\.imul|>>>\s*0/);
+  assert.match(backendSource, /DigestAlgorithm\.SHA_256/);
 });
 
 test("読取専用認証だけ15分再利用し、打刻などの書込認証は毎回確認する", () => {

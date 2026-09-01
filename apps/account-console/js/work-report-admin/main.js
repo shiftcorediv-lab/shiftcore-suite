@@ -1,12 +1,14 @@
 import { auth, onAuthStateChanged } from "../dashboard/auth.js";
 import { attendanceRequest } from "../dashboard/attendance-api.js";
 import { setActivity } from "../common/activity.js?v=20260831-activity-1";
+import { createResponseGeneration } from "../../../common/response-generation.js?v=20260902-response-1";
 
 const $ = id => document.getElementById(id);
 let data = null;
 let returningReportId = "";
 let returningReportVersion = 0;
 let returningOperationId = "";
+const reportLoadGeneration = createResponseGeneration();
 
 setInitialDates();
 onAuthStateChanged(auth, user => user ? load() : location.replace("./index.html"));
@@ -26,12 +28,16 @@ $("cancelReturnBtn").addEventListener("click", () => $("returnDialog").close());
 $("returnForm").addEventListener("submit", submitReturn);
 
 async function load() {
+  const generation = reportLoadGeneration.begin();
   message("実績報告を読み込んでいます…", false, true);
   try {
-    data = await attendanceRequest("getWorkReportAdminData", filterPayload());
+    const result = await attendanceRequest("getWorkReportAdminData", filterPayload());
+    if (!reportLoadGeneration.isCurrent(generation)) return;
+    data = result;
     render();
     message("最新の実績報告を表示しています。");
   } catch (error) {
+    if (!reportLoadGeneration.isCurrent(generation)) return;
     message(error.message, true);
     if (error.code === "FORBIDDEN") setTimeout(() => location.replace("./dashboard.html"), 1200);
   }

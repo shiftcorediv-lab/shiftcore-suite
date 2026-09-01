@@ -29,10 +29,13 @@ import {
   fetchPmoMonthlyTable
 } from "./api.js?v=20260803-role-1";
 import { requireAuthenticatedSession } from "../common/auth-session.js";
+import { createResponseGeneration } from "../../../common/response-generation.js?v=20260902-response-1";
 
 const params = getQueryParams();
 
 let currentUser = null;
+const metaLoadGeneration = createResponseGeneration();
+const tableLoadGeneration = createResponseGeneration();
 let currentIdToken = "";
 let canManage = false;
 let currentMeta = null;
@@ -71,12 +74,15 @@ async function loadMeta(targetYearMonth = "") {
     return;
   }
 
+  const generation = metaLoadGeneration.begin();
+  tableLoadGeneration.invalidate();
   showLoading("管理情報を取得中...");
   await waitForNextPaint();
   showMessage("管理情報を取得中...");
 
   try {
     const result = await fetchPmoAdminMeta(targetYearMonth, currentIdToken);
+    if (!metaLoadGeneration.isCurrent(generation)) return;
 
     if (!result.success) {
       renderEmptyTable("管理情報の取得に失敗しました。");
@@ -123,11 +129,12 @@ async function loadMeta(targetYearMonth = "") {
       showMessage("管理情報を読み込みました", "success");
     }
   } catch (error) {
+    if (!metaLoadGeneration.isCurrent(generation)) return;
     console.error(error);
     renderEmptyTable("管理情報の取得に失敗しました。");
     showMessage("管理情報の取得に失敗しました", "error");
   } finally {
-    hideLoading();
+    if (metaLoadGeneration.isCurrent(generation)) hideLoading();
   }
 }
 
@@ -145,12 +152,14 @@ async function loadMonthlyTable(targetYearMonth = "") {
     return;
   }
 
+  const generation = tableLoadGeneration.begin();
   showLoading("一覧を読み込み中...");
   await waitForNextPaint();
   showMessage("一覧を更新中...");
 
   try {
     const result = await fetchPmoMonthlyTable(selectedYearMonth, currentIdToken);
+    if (!tableLoadGeneration.isCurrent(generation)) return;
 
     if (!result.success) {
       renderEmptyTable("一覧データの取得に失敗しました。");
@@ -165,11 +174,12 @@ async function loadMonthlyTable(targetYearMonth = "") {
 
     showMessage("一覧を更新しました", "success");
   } catch (error) {
+    if (!tableLoadGeneration.isCurrent(generation)) return;
     console.error(error);
     renderEmptyTable("一覧データの取得に失敗しました。");
     showMessage("一覧データの取得に失敗しました", "error");
   } finally {
-    hideLoading();
+    if (tableLoadGeneration.isCurrent(generation)) hideLoading();
   }
 }
 

@@ -24,6 +24,7 @@ import { canUseSignupAdmin, goToAccountPortal } from "./navigation.js?v=20260812
 import { fetchSignupRequests, approveSignupRequest, rejectSignupRequest } from "./api.js?v=20260806-permission-2";
 import { requireAuthenticatedSession } from "../common/auth-session.js?v=20260802-signup-auth-1";
 import { resolveCurrentUserWithGasByIdToken } from "../login/api.js?v=20260803-logintoken-1";
+import { createResponseGeneration } from "../../../common/response-generation.js?v=20260902-response-1";
 
 const params = getQueryParams();
 let currentUser = buildCurrentUserFromQuery(params);
@@ -31,6 +32,7 @@ let canUse = false;
 let canEditRequests = false;
 
 let selectedRequest = null;
+const requestLoadGeneration = createResponseGeneration();
 
 setupShiftCoreEntryBanner(params);
 setActionButtonsEnabled(false);
@@ -63,11 +65,13 @@ async function loadRequests() {
     return;
   }
 
+  const generation = requestLoadGeneration.begin();
   showMessage("申請一覧を取得中...");
 
   try {
     const idToken = await getFreshIdToken();
     const result = await fetchSignupRequests("pending_approval", idToken);
+    if (!requestLoadGeneration.isCurrent(generation)) return;
 
     if (!result.success) {
       showMessage(result.message || "申請一覧の取得に失敗しました", "error");
@@ -93,6 +97,7 @@ async function loadRequests() {
       "success"
     );
   } catch (error) {
+    if (!requestLoadGeneration.isCurrent(generation)) return;
     console.error(error);
     showMessage(error.message || "申請一覧の取得に失敗しました", "error");
   }

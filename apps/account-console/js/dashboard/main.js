@@ -6,6 +6,7 @@ import { attendanceRequest } from "./attendance-api.js?v=20260802-attendance-3";
 import { resolveCurrentUserWithGasByIdToken } from "../login/api.js?v=20260803-logintoken-1";
 import { LOCATION_CONSENT_VERSION } from "./config.js?v=20260831-departure-location-1";
 import { setActivity } from "../common/activity.js?v=20260831-activity-1";
+import { clearShiftCoreSessionState } from "../../../common/logout-session.js?v=20260902-session-1";
 
 const $ = id => document.getElementById(id);
 const storedUser = getStoredUser();
@@ -485,6 +486,7 @@ $("logoutBtn").addEventListener("click", logoutDashboard);
 
 async function logoutDashboard() {
   await signOut(auth);
+  clearShiftCoreSessionState();
   clearStoredUser();
   goToLogin();
 }

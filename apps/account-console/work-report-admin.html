@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <script src="../common/environment.js?v=20260830-staging-1"></script>
+  <script src="../common/environment.js?v=20260902-banner-height-1"></script>
   <title>Another Portal 実績報告管理</title>
   <link rel="stylesheet" href="./css/work-report-admin.css?v=20260901-csv-actions-1">
   <script src="../theme/shiftcore-theme.js"></script>
@@ -56,6 +56,6 @@
   <dialog id="detailDialog"><form method="dialog"><div class="dialog-title"><h2>実績報告詳細</h2><button value="cancel" aria-label="閉じる">×</button></div><div id="detailBody"></div></form></dialog>
   <dialog id="returnDialog"><form id="returnForm" method="dialog"><div class="dialog-title"><h2>実績報告を差し戻す</h2><button value="cancel" aria-label="閉じる">×</button></div><p>承認工程ではありません。本人へ修正を依頼し、現在の提出内容は履歴として保持します。</p><label>差戻し理由<textarea id="returnReason" maxlength="1000" required></textarea></label><div class="dialog-actions"><button value="cancel" type="button" id="cancelReturnBtn">キャンセル</button><button type="submit">差し戻す</button></div></form></dialog>
   <dialog id="itemDialog"><form id="itemForm" method="dialog"><div class="dialog-title"><h2>実績項目を追加</h2><button value="cancel" aria-label="閉じる">×</button></div><label>項目名<input id="newItemName" maxlength="100" required></label><label>種別<select id="newItemType"><option value="number">数値</option><option value="text">文章</option></select></label><label>カテゴリ名<input id="newCategoryName" maxlength="60" required></label><label>表示順<input id="newDisplayOrder" type="number" min="0" step="1" required></label><label class="check"><input id="newRequired" type="checkbox">必須</label><label class="check"><input id="newDashboardVisible" type="checkbox">本人ダッシュボードへ表示</label><label>成績表示名<input id="newDashboardName" maxlength="40"></label><label>成績表示順<input id="newDashboardOrder" type="number" min="0" step="1" value="0"></label><div class="dialog-actions"><button value="cancel" type="button" id="cancelItemBtn">キャンセル</button><button type="submit">追加する</button></div></form></dialog>
-  <script type="module" src="./js/work-report-admin/main.js?v=20260902-operation-version-1"></script>
+  <script type="module" src="./js/work-report-admin/main.js?v=20260902-response-generation-1"></script>
 </body>
 </html>

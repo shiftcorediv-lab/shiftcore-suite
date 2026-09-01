@@ -15,6 +15,6 @@ test("ログイン済みShift画面のアカウントメニューへログアウ
 
 test("ログアウト時はFirebase認証と保存ユーザーを破棄してログイン画面へ戻す", () => {
   assert.match(authSource, /await signOut\(getShiftBuilderAuth\(\)\)/);
-  assert.match(authSource, /sessionStorage\.removeItem\("shiftcore_user"\)/);
+  assert.match(authSource, /clearShiftCoreSessionState\(\)/);
   assert.match(authSource, /window\.location\.assign\(getLoginUrl\(\)\)/);
 });

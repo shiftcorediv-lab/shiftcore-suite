@@ -48,6 +48,7 @@ import {
   hideLoading,
   setLogsLoading
 } from "./ui.js?v=20260902-account-write-auth-1";
+import { createResponseGeneration } from "../../../common/response-generation.js?v=20260902-response-1";
 
 // ===== 状態ここから =====
 let session = null;
@@ -57,6 +58,9 @@ let selectedUser = null;
 let currentUser = null;
 let organizationCandidates = [];
 let canEditUsers = false;
+const userLoadGeneration = createResponseGeneration();
+const organizationLoadGeneration = createResponseGeneration();
+const logLoadGeneration = createResponseGeneration();
 // ===== 状態ここまで =====
 
 
@@ -135,10 +139,18 @@ async function init() {
 
 // ===== ユーザー一覧読み込みここから =====
 async function loadUsers(loadingMessage = "ユーザー名簿を取得中...") {
+  const generation = userLoadGeneration.begin();
   showLoading(loadingMessage);
   setStatus(loadingMessage);
 
-  const result = await listAccountUsers(idToken);
+  let result;
+  try {
+    result = await listAccountUsers(idToken);
+  } catch (error) {
+    if (!userLoadGeneration.isCurrent(generation)) return false;
+    throw error;
+  }
+  if (!userLoadGeneration.isCurrent(generation)) return false;
 
   if (!isOkResult(result)) {
     throw new Error(result.message || "ユーザー一覧の取得に失敗しました");
@@ -148,6 +160,7 @@ async function loadUsers(loadingMessage = "ユーザー名簿を取得中...") {
 
   renderCurrentUsers();
   setStatus("ユーザー名簿を取得しました");
+  return true;
 }
 
 function renderCurrentUsers() {
@@ -184,10 +197,19 @@ async function loadOrganizationForSelectedUser() {
   if (!selectedUser?.internal_user_id) {
     organizationCandidates = [];
     resetOrganizationAssignment();
-    return;
+    return true;
   }
 
-  const result = await getOrganizationAssignment(idToken, selectedUser.internal_user_id);
+  const selectedUserId = selectedUser.internal_user_id;
+  const generation = organizationLoadGeneration.begin();
+  let result;
+  try {
+    result = await getOrganizationAssignment(idToken, selectedUserId);
+  } catch (error) {
+    if (!organizationLoadGeneration.isCurrent(generation) || selectedUser?.internal_user_id !== selectedUserId) return false;
+    throw error;
+  }
+  if (!organizationLoadGeneration.isCurrent(generation) || selectedUser?.internal_user_id !== selectedUserId) return false;
   if (!isOkResult(result)) {
     throw new Error(result.message || result.code || "組織設定の取得に失敗しました");
   }
@@ -199,6 +221,7 @@ async function loadOrganizationForSelectedUser() {
     result.editable === true,
     result.self_bootstrap === true ? result.allowed_organization_levels : []
   );
+  return true;
 }
 
 async function saveOrganizationAssignment() {
@@ -242,10 +265,10 @@ async function saveOrganizationAssignment() {
     if (!isOkResult(result)) {
       throw new Error(result.message || result.code || "組織設定の保存に失敗しました");
     }
-    await loadUsers("組織設定の保存後に一覧を再取得中...");
+    if (!await loadUsers("組織設定の保存後に一覧を再取得中...")) return;
     selectedUser = findUserById(organization.target_internal_user_id) || selectedUser;
     if (selectedUser) fillUserForm(selectedUser);
-    await loadOrganizationForSelectedUser();
+    if (!await loadOrganizationForSelectedUser()) return;
     setStatus("組織設定を保存しました");
   } catch (error) {
     setStatus("組織設定の保存エラー\n\n" + error.message);
@@ -367,7 +390,7 @@ async function saveUser(event) {
     // 保存後の一覧再取得は保存処理とは分ける。
     // ここで失敗しても「保存そのもの」が失敗したとは限らないため、エラー文を分ける。
     try {
-      await loadUsers("保存後のアカウント一覧を再取得中...");
+      if (!await loadUsers("保存後のアカウント一覧を再取得中...")) return;
       selectedUser = findUserById(savedUserId) || result.user || selectedUser;
 
       if (selectedUser) {
@@ -383,7 +406,7 @@ async function saveUser(event) {
     }
 
     try {
-      await loadLogsForSelectedUser("保存後の変更履歴を取得中...");
+      if (!await loadLogsForSelectedUser("保存後の変更履歴を取得中...")) return;
     } catch (logError) {
       setStatus(
         (result.message || "保存しました") +
@@ -407,39 +430,48 @@ async function saveUser(event) {
 
 // ===== 履歴ここから =====
 async function loadLogs(loadingMessage = "変更履歴を取得中...") {
+  const generation = logLoadGeneration.begin();
   setLogsLoading(true, loadingMessage);
 
   try {
     const result = await getAccountLogs(idToken, "");
+    if (!logLoadGeneration.isCurrent(generation)) return false;
 
     if (!isOkResult(result)) {
       throw new Error(result.message || "変更履歴の取得に失敗しました");
     }
 
     renderLogs(Array.isArray(result.logs) ? result.logs : []);
+    return true;
+  } catch (error) {
+    if (!logLoadGeneration.isCurrent(generation)) return false;
+    throw error;
   } finally {
-    setLogsLoading(false);
+    if (logLoadGeneration.isCurrent(generation)) setLogsLoading(false);
   }
 }
 
 async function loadLogsForSelectedUser(loadingMessage = "変更履歴を取得中...") {
+  if (!selectedUser || !selectedUser.internal_user_id) return loadLogs(loadingMessage);
+  const selectedUserId = selectedUser.internal_user_id;
+  const generation = logLoadGeneration.begin();
   setLogsLoading(true, loadingMessage);
 
   try {
-    if (!selectedUser || !selectedUser.internal_user_id) {
-      await loadLogs(loadingMessage);
-      return;
-    }
-
-    const result = await getAccountLogs(idToken, selectedUser.internal_user_id);
+    const result = await getAccountLogs(idToken, selectedUserId);
+    if (!logLoadGeneration.isCurrent(generation) || selectedUser?.internal_user_id !== selectedUserId) return false;
 
     if (!isOkResult(result)) {
       throw new Error(result.message || "変更履歴の取得に失敗しました");
     }
 
     renderLogs(Array.isArray(result.logs) ? result.logs : []);
+    return true;
+  } catch (error) {
+    if (!logLoadGeneration.isCurrent(generation) || selectedUser?.internal_user_id !== selectedUserId) return false;
+    throw error;
   } finally {
-    setLogsLoading(false);
+    if (logLoadGeneration.isCurrent(generation)) setLogsLoading(false);
   }
 }
 // ===== 履歴ここまで =====
@@ -467,8 +499,8 @@ signupAdminBtn.addEventListener("click", () => {
 reloadBtn.addEventListener("click", async () => {
   try {
     showLoading("再読み込み中...");
-    await loadUsers("再読み込み中...");
-    await loadLogsForSelectedUser("変更履歴を再取得中...");
+    if (!await loadUsers("再読み込み中...")) return;
+    if (!await loadLogsForSelectedUser("変更履歴を再取得中...")) return;
     setStatus("再読み込みしました");
   } catch (error) {
     setStatus("再読み込みエラー\n\n" + error.message);
@@ -515,7 +547,7 @@ userForm.addEventListener("submit", saveUser);
 
 loadLogsBtn.addEventListener("click", async () => {
   try {
-    await loadLogsForSelectedUser("変更履歴を更新中...");
+    if (!await loadLogsForSelectedUser("変更履歴を更新中...")) return;
     setStatus("変更履歴を更新しました");
   } catch (error) {
     setStatus("履歴取得エラー\n\n" + error.message);

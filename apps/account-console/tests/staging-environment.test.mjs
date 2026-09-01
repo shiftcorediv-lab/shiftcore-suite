@@ -70,7 +70,7 @@ test("主要画面はアプリ設定より前に共通環境判定を読み込�
   ];
   for (const page of pages) {
     const source = await readFile(new URL(page, appsRoot), "utf8");
-    assert.match(source, /\.\.\/common\/environment\.js\?v=20260830-staging-1/, page);
+    assert.match(source, /\.\.\/common\/environment\.js\?v=20260902-banner-height-1/, page);
     const environmentIndex = source.indexOf("../common/environment.js");
     const configIndex = source.search(/(?:js\/config|js\/(?:login|dashboard|account-console|pmo-admin|signup-admin|signup-request)\/config)\.js/);
     if (configIndex >= 0) assert.ok(environmentIndex < configIndex, page);
