@@ -93,3 +93,13 @@ test("非本番GASはstaging明示と専用設定がなければ停止する", a
     assert.match(source, /必須設定がありません/);
   }
 });
+
+test("公開ステージング文書へ個人情報とGoogle管理IDを載せない", async () => {
+  const source = await readFile(new URL("STAGING_ENVIRONMENT.md", appsRoot), "utf8");
+
+  assert.doesNotMatch(source, /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  assert.doesNotMatch(source, /drive\.google\.com/i);
+  assert.doesNotMatch(source, /AKfy[A-Za-z0-9_-]+/);
+  assert.doesNotMatch(source, /`1[A-Za-z0-9_-]{30,}`/);
+  assert.match(source, /権限制限された非公開の運用台帳/);
+});
