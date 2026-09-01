@@ -147,7 +147,10 @@ approveBtn.addEventListener("click", async () => {
     renderRequestDetail(null);
     setActionButtonsEnabled(false);
     await loadRequests();
-    showMessage("承認しました", "success");
+    showMessage(
+      result.message || "承認しました",
+      result.notificationSent === false ? "error" : "success"
+    );
   } catch (error) {
     console.error(error);
     showMessage(error.message || "承認に失敗しました", "error");

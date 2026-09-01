@@ -128,22 +128,6 @@ function getSignupRequests(status) {
 // ===== 承認処理ここから =====
 function approveSignupRequest(requestId, approval, reviewedBy, operator) {
   try {
-    const request = getSignupRequestById_(requestId);
-
-    if (!request) {
-      return {
-        success: false,
-        message: "対象の申請が見つかりません"
-      };
-    }
-
-    if (normalizeText(request.request_status) !== "pending_approval") {
-      return {
-        success: false,
-        message: "承認対象ではない申請です"
-      };
-    }
-
     if (!normalizeText(approval.role)) {
       return { success: false, message: "role は必須です" };
     }
@@ -187,34 +171,139 @@ function approveSignupRequest(requestId, approval, reviewedBy, operator) {
       return { success: false, message: "work_status は必須です" };
     }
 
-    // approval.workStatus はクライアントから受け取るが、
-    // 現行仕様では常に "on" を設定している。仕様確定後に見直す。
+    const workStatus = normalizeText(approval.workStatus).toLowerCase();
+    if (["on", "off"].indexOf(workStatus) === -1) {
+      return { success: false, message: "work_status の値が不正です" };
+    }
+    approval.workStatus = workStatus;
 
-    if (existsUserByEmail_(request.applicant_email)) {
-      return {
-        success: false,
-        message: "このメールアドレスはすでに登録済みです"
-      };
+    const lock = LockService.getScriptLock();
+    if (!lock.tryLock(10000)) {
+      throw new Error("SIGNUP_REVIEW_LOCK_TIMEOUT");
     }
 
-    const internalUserId = appendUserMasterFromSignup_(request, approval, operator);
+    let approvedRequest;
+    let internalUserId;
+    let repaired = false;
 
-    const sheet = getSignupRequestsSheet();
-    const headerMap = getHeaderMap_(sheet);
-    const row = request.row;
-    const reviewedAt = getNowIsoStringJst();
+    try {
+      const request = getSignupRequestById_(requestId);
 
-    sheet.getRange(row, headerMap["request_status"]).setValue("approved");
-    sheet.getRange(row, headerMap["reviewed_at"]).setValue(reviewedAt);
-    sheet.getRange(row, headerMap["reviewed_by"]).setValue(normalizeText(reviewedBy));
-    sheet.getRange(row, headerMap["linked_internal_user_id"]).setValue(internalUserId);
+      if (!request) {
+        return {
+          success: false,
+          message: "対象の申請が見つかりません"
+        };
+      }
 
-    sendSignupApprovedMail_(request.applicant_email, request.applicant_name);
+      const requestStatus = normalizeText(request.request_status);
+      const linkedUserId = normalizeText(request.linked_internal_user_id);
+      const userCreatedForRequest = findUserBySignupRequestId_(request.request_id);
+
+      if (requestStatus === "approved" && linkedUserId) {
+        const linkedUser = getUsersData().find(function(user) {
+          return normalizeText(user.internal_user_id) === linkedUserId;
+        });
+
+        if (!linkedUser ||
+            normalizeText(linkedUser.email).toLowerCase() !==
+              normalizeText(request.applicant_email).toLowerCase()) {
+          return {
+            success: false,
+            message: "承認済み申請と紐づくユーザーが一致しません。管理者へ確認を依頼してください"
+          };
+        }
+
+        return {
+          success: true,
+          message: "この申請はすでに承認済みです",
+          internalUserId: linkedUserId,
+          idempotentReplay: true
+        };
+      }
+
+      if (requestStatus === "approved" && !userCreatedForRequest) {
+        return {
+          success: false,
+          message: "承認済み申請のユーザー作成履歴を確認できません。管理者へ確認を依頼してください"
+        };
+      }
+
+      if (requestStatus !== "pending_approval" && requestStatus !== "approved") {
+        return {
+          success: false,
+          message: "承認対象ではない申請です"
+        };
+      }
+
+      if (userCreatedForRequest) {
+        const mismatch = getSignupCreatedUserMismatch_(
+          userCreatedForRequest,
+          request,
+          approval
+        );
+        if (mismatch) {
+          return {
+            success: false,
+            message: "作成済みユーザーと承認内容が一致しません（" + mismatch + "）。管理者へ確認を依頼してください"
+          };
+        }
+
+        internalUserId = normalizeText(userCreatedForRequest.internal_user_id);
+        const recoveryAuthorizationEventId = beginDeveloperAccountAuthorizationEvent_(
+          operator,
+          "",
+          userCreatedForRequest.role,
+          internalUserId,
+          "登録申請承認の途中状態を復旧"
+        );
+        completeDeveloperAccountAuthorizationEvent_(
+          recoveryAuthorizationEventId,
+          operator,
+          "",
+          userCreatedForRequest.role,
+          internalUserId,
+          "登録申請承認の途中状態を復旧"
+        );
+        repaired = true;
+      } else {
+        if (existsUserByEmail_(request.applicant_email)) {
+          return {
+            success: false,
+            message: "このメールアドレスはすでに登録済みです"
+          };
+        }
+
+        internalUserId = appendUserMasterFromSignup_(request, approval, operator);
+      }
+
+      updateSignupRequestReviewState_(request, {
+        request_status: "approved",
+        reviewed_at: getNowIsoStringJst(),
+        reviewed_by: normalizeText(reviewedBy),
+        linked_internal_user_id: internalUserId
+      });
+      approvedRequest = request;
+    } finally {
+      lock.releaseLock();
+    }
+
+    let notificationSent = false;
+    try {
+      sendSignupApprovedMail_(approvedRequest.applicant_email, approvedRequest.applicant_name);
+      notificationSent = true;
+    } catch (notificationError) {
+      notificationSent = false;
+    }
 
     return {
       success: true,
-      message: "承認しました",
-      internalUserId: internalUserId
+      message: notificationSent
+        ? "承認しました"
+        : "承認しましたが、承認通知メールは送信できませんでした",
+      internalUserId: internalUserId,
+      repaired: repaired,
+      notificationSent: notificationSent
     };
 
   } catch (error) {
@@ -230,34 +319,50 @@ function approveSignupRequest(requestId, approval, reviewedBy, operator) {
 // ===== 却下処理ここから =====
 function rejectSignupRequest(requestId, reviewedBy) {
   try {
-    const request = getSignupRequestById_(requestId);
-
-    if (!request) {
-      return {
-        success: false,
-        message: "対象の申請が見つかりません"
-      };
+    const lock = LockService.getScriptLock();
+    if (!lock.tryLock(10000)) {
+      throw new Error("SIGNUP_REVIEW_LOCK_TIMEOUT");
     }
 
-    if (normalizeText(request.request_status) !== "pending_approval") {
+    try {
+      const request = getSignupRequestById_(requestId);
+
+      if (!request) {
+        return {
+          success: false,
+          message: "対象の申請が見つかりません"
+        };
+      }
+
+      if (normalizeText(request.request_status) === "rejected") {
+        return {
+          success: true,
+          message: "この申請はすでに却下済みです",
+          idempotentReplay: true
+        };
+      }
+
+      if (normalizeText(request.request_status) !== "pending_approval") {
+        return {
+          success: false,
+          message: "却下対象ではない申請です"
+        };
+      }
+
+      updateSignupRequestReviewState_(request, {
+        request_status: "rejected",
+        reviewed_at: getNowIsoStringJst(),
+        reviewed_by: normalizeText(reviewedBy),
+        linked_internal_user_id: ""
+      });
+
       return {
-        success: false,
-        message: "却下対象ではない申請です"
+        success: true,
+        message: "却下しました"
       };
+    } finally {
+      lock.releaseLock();
     }
-
-    const sheet = getSignupRequestsSheet();
-    const headerMap = getHeaderMap_(sheet);
-    const row = request.row;
-
-    sheet.getRange(row, headerMap["request_status"]).setValue("rejected");
-    sheet.getRange(row, headerMap["reviewed_at"]).setValue(getNowIsoStringJst());
-    sheet.getRange(row, headerMap["reviewed_by"]).setValue(normalizeText(reviewedBy));
-
-    return {
-      success: true,
-      message: "却下しました"
-    };
 
   } catch (error) {
     return {
@@ -267,3 +372,61 @@ function rejectSignupRequest(requestId, reviewedBy) {
   }
 }
 // ===== 却下処理ここまで =====
+
+function updateSignupRequestReviewState_(request, changes) {
+  const sheet = getSignupRequestsSheet();
+  const headerMap = getHeaderMap_(sheet);
+  const lastColumn = sheet.getLastColumn();
+  const rowValues = sheet.getRange(request.row, 1, 1, lastColumn).getValues()[0];
+  const requiredHeaders = [
+    "request_status",
+    "reviewed_at",
+    "reviewed_by",
+    "linked_internal_user_id"
+  ];
+
+  requiredHeaders.forEach(function(header) {
+    if (!headerMap[header]) {
+      throw new Error("登録申請シートの必須列がありません: " + header);
+    }
+    rowValues[headerMap[header] - 1] = changes[header];
+  });
+
+  sheet.getRange(request.row, 1, 1, lastColumn).setValues([rowValues]);
+}
+
+function getSignupCreatedUserMismatch_(user, request, approval) {
+  const comparisons = [
+    ["email", normalizeText(user.email).toLowerCase(), normalizeText(request.applicant_email).toLowerCase()],
+    ["role", normalizeText(user.role), normalizeText(approval.role)],
+    ["organization_id", normalizeText(user.organization_id), normalizeText(approval.organizationId)],
+    ["status", normalizeText(user.status), normalizeText(approval.status)],
+    [
+      "work_status",
+      normalizeText(user.workStatus || user.work_status).toLowerCase(),
+      normalizeText(approval.workStatus).toLowerCase()
+    ],
+    [
+      "allowed_modules",
+      normalizeSignupAllowedModulesForComparison_(user.allowed_modules),
+      normalizeSignupAllowedModulesForComparison_(approval.allowedModules)
+    ]
+  ];
+
+  for (let index = 0; index < comparisons.length; index++) {
+    if (comparisons[index][1] !== comparisons[index][2]) {
+      return comparisons[index][0];
+    }
+  }
+
+  return "";
+}
+
+function normalizeSignupAllowedModulesForComparison_(value) {
+  const values = Array.isArray(value) ? value : String(value || "").split(",");
+  return values
+    .map(function(item) { return normalizeText(item).toLowerCase(); })
+    .filter(function(item) { return item !== ""; })
+    .sort()
+    .join(",");
+}

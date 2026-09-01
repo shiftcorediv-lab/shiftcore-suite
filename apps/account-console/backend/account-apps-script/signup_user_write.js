@@ -72,7 +72,7 @@ function createNextEmployeeCode_() {
 
 // ===== users_master 追加ここから =====
 function appendUserMasterFromSignup_(requestData, approval, operator) {
-  const sheet = getUsersSheet();
+  const sheet = ensureUsersMasterSignupRequestColumn_();
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
   const internalUserId = createNextInternalUserId_();
   const employeeCode = createNextEmployeeCode_();
@@ -91,9 +91,14 @@ function appendUserMasterFromSignup_(requestData, approval, operator) {
           .filter(function(v) { return v !== ""; })
           .join(",")
       : normalizeText(approval.allowedModules).toLowerCase(),
-    workStatus: "on",
+    workStatus: normalizeText(approval.workStatus).toLowerCase(),
+    work_status: normalizeText(approval.workStatus).toLowerCase(),
+    engagement_status: normalizeText(approval.workStatus).toLowerCase() === "on"
+      ? "active"
+      : "inactive",
     phone: normalizeText(requestData.phone),
-    note: normalizeText(requestData.note)
+    note: normalizeText(requestData.note),
+    signup_request_id: normalizeText(requestData.request_id)
   };
 
   const row = headers.map(function(header) {
@@ -123,3 +128,26 @@ function appendUserMasterFromSignup_(requestData, approval, operator) {
   return internalUserId;
 }
 // ===== users_master 追加ここまで =====
+
+function ensureUsersMasterSignupRequestColumn_() {
+  const sheet = getUsersSheet();
+  const lastColumn = Math.max(sheet.getLastColumn(), 1);
+  const headers = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0].map(function(header) {
+    return normalizeText(header);
+  });
+
+  if (headers.indexOf("signup_request_id") === -1) {
+    sheet.getRange(1, lastColumn + 1).setValue("signup_request_id");
+  }
+
+  return sheet;
+}
+
+function findUserBySignupRequestId_(requestId) {
+  const normalizedRequestId = normalizeText(requestId);
+  if (!normalizedRequestId) return null;
+
+  return getUsersData().find(function(user) {
+    return normalizeText(user.signup_request_id) === normalizedRequestId;
+  }) || null;
+}

@@ -87,7 +87,13 @@ function accountConsoleCreateUser(body) {
   validateAccountConsoleUserPayload_(payload, true);
   assertDeveloperAccountMutationAllowed_(operator, "", payload.role, "");
 
-  const sheet = ensureAccountConsoleNameColumns_();
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) {
+    throw new Error("ACCOUNT_CONSOLE_LOCK_TIMEOUT");
+  }
+
+  try {
+  const sheet = ensureAccountConsoleNameColumns_({ lockAlreadyHeld: true });
   const values = sheet.getDataRange().getValues();
   const headers = values[0].map(function(header) {
     return normalizeText(header);
@@ -101,6 +107,19 @@ function accountConsoleCreateUser(body) {
       ok: false,
       code: "EMAIL_ALREADY_EXISTS",
       message: "このメールアドレスはすでに登録されています"
+    };
+  }
+
+  const employeeCode = normalizeText(payload.employee_code);
+  const employeeCodeIndex = headers.indexOf("employee_code");
+  if (employeeCode && employeeCodeIndex !== -1 && values.slice(1).some(function(row) {
+    return normalizeText(row[employeeCodeIndex]).toUpperCase() === employeeCode.toUpperCase();
+  })) {
+    return {
+      success: false,
+      ok: false,
+      code: "EMPLOYEE_CODE_ALREADY_EXISTS",
+      message: "このアカウントコードはすでに登録されています"
     };
   }
 
@@ -200,6 +219,9 @@ function accountConsoleCreateUser(body) {
     message: "ユーザーを作成しました",
     user: buildAccountConsoleUser_(newUser)
   };
+  } finally {
+    lock.releaseLock();
+  }
 }
 // ===== ユーザー新規作成ここまで =====
 
@@ -228,7 +250,7 @@ function accountConsoleUpdateUser(body) {
 
   try {
 
-  const sheet = ensureAccountConsoleNameColumns_();
+  const sheet = ensureAccountConsoleNameColumns_({ lockAlreadyHeld: true });
   const values = sheet.getDataRange().getValues();
   const headers = values[0].map(function(header) {
     return normalizeText(header);
@@ -871,34 +893,47 @@ function getAccountConsoleFullName_(payload) {
     .join("");
 }
 
-function ensureAccountConsoleNameColumns_() {
-  const sheet = getUsersSheet();
-  const lastColumn = sheet.getLastColumn();
-  const headers = lastColumn > 0
-    ? sheet.getRange(1, 1, 1, lastColumn).getValues()[0].map(function(header) {
-      return normalizeText(header);
-    })
-    : [];
-  const requiredHeaders = [
-    "family_name",
-    "given_name",
-    "person_type",
-    "affiliation_type",
-    "contract_type",
-    "grade_role",
-    "engagement_status"
-  ];
-  const missingHeaders = requiredHeaders.filter(function(header) {
-    return headers.indexOf(header) === -1;
-  });
+function ensureAccountConsoleNameColumns_(options) {
+  const safeOptions = options || {};
+  const lock = safeOptions.lockAlreadyHeld === true
+    ? null
+    : LockService.getScriptLock();
 
-  if (missingHeaders.length > 0) {
-    sheet.getRange(1, lastColumn + 1, 1, missingHeaders.length).setValues([missingHeaders]);
-    Logger.log("users_master に列を追加しました: " + missingHeaders.join(", "));
+  if (lock && !lock.tryLock(10000)) {
+    throw new Error("ACCOUNT_CONSOLE_SCHEMA_LOCK_TIMEOUT");
   }
 
-  backfillAccountConsoleAffiliationTypes_(sheet);
-  return sheet;
+  try {
+    const sheet = getUsersSheet();
+    const lastColumn = sheet.getLastColumn();
+    const headers = lastColumn > 0
+      ? sheet.getRange(1, 1, 1, lastColumn).getValues()[0].map(function(header) {
+        return normalizeText(header);
+      })
+      : [];
+    const requiredHeaders = [
+      "family_name",
+      "given_name",
+      "person_type",
+      "affiliation_type",
+      "contract_type",
+      "grade_role",
+      "engagement_status"
+    ];
+    const missingHeaders = requiredHeaders.filter(function(header) {
+      return headers.indexOf(header) === -1;
+    });
+
+    if (missingHeaders.length > 0) {
+      sheet.getRange(1, lastColumn + 1, 1, missingHeaders.length).setValues([missingHeaders]);
+      Logger.log("users_master に列を追加しました: " + missingHeaders.join(", "));
+    }
+
+    backfillAccountConsoleAffiliationTypes_(sheet);
+    return sheet;
+  } finally {
+    if (lock) lock.releaseLock();
+  }
 }
 
 function backfillAccountConsoleAffiliationTypes_(sheet) {

@@ -225,8 +225,6 @@ function notifySignupRequest_(requestData) {
 // ===== 仮登録申請保存ここから =====
 function submitSignupRequest(payload) {
   try {
-    ensureSignupRequestsHeader_();
-
     const validation = validateSignupPayload_(payload);
     if (!validation.success) {
       return validation;
@@ -238,67 +236,81 @@ function submitSignupRequest(payload) {
     const companyName = normalizeText(payload.companyName);
     const phone = normalizeText(payload.phone);
     const note = normalizeText(payload.note);
+    const lock = LockService.getScriptLock();
 
-    if (existsUserByEmail_(applicantEmail)) {
-      return {
-        success: false,
-        message: "このメールアドレスはすでに登録済みです"
-      };
+    if (!lock.tryLock(10000)) {
+      throw new Error("SIGNUP_REQUEST_LOCK_TIMEOUT");
     }
 
-    if (hasPendingSignupRequest_(applicantEmail)) {
-      return {
-        success: false,
-        message: "このメールアドレスでは承認待ちの申請がすでに存在します"
+    let rowData;
+
+    try {
+      ensureSignupRequestsHeader_();
+
+      if (existsUserByEmail_(applicantEmail)) {
+        return {
+          success: false,
+          message: "このメールアドレスはすでに登録済みです"
+        };
+      }
+
+      if (hasPendingSignupRequest_(applicantEmail)) {
+        return {
+          success: false,
+          message: "このメールアドレスでは承認待ちの申請がすでに存在します"
+        };
+      }
+
+      const sheet = getSignupRequestsSheet();
+      const requestId = createSignupRequestId_();
+      const submittedAt = getNowIsoStringJst();
+
+      rowData = {
+        request_id: requestId,
+        submitted_at: submittedAt,
+        applicant_email: applicantEmail,
+        applicant_name: applicantName,
+        applicant_type: applicantType,
+        company_name: companyName,
+        phone: phone,
+        note: note,
+        request_status: "pending_approval",
+        notification_sent: false,
+        notification_sent_at: "",
+        reviewed_at: "",
+        reviewed_by: "",
+        linked_internal_user_id: ""
       };
+
+      const headers = getSignupRequestHeaders_();
+      const row = headers.map(function(header) {
+        return rowData[header];
+      });
+
+      const targetRow = Math.max(sheet.getLastRow() + 1, 2);
+      sheet.getRange(targetRow, 1, 1, row.length).setValues([row]);
+    } finally {
+      lock.releaseLock();
     }
 
-    const sheet = getSignupRequestsSheet();
-    const requestId = createSignupRequestId_();
-    const submittedAt = getNowIsoStringJst();
+    let notificationSent = false;
 
-    const rowData = {
-      request_id: requestId,
-      submitted_at: submittedAt,
-      applicant_email: applicantEmail,
-      applicant_name: applicantName,
-      applicant_type: applicantType,
-      company_name: companyName,
-      phone: phone,
-      note: note,
-      request_status: "pending_approval",
-      notification_sent: false,
-      notification_sent_at: "",
-      reviewed_at: "",
-      reviewed_by: "",
-      linked_internal_user_id: ""
-    };
+    try {
+      const notifyResult = notifySignupRequest_(rowData);
+      notificationSent = notifyResult.success === true;
 
-    const headers = getSignupRequestHeaders_();
-    const row = headers.map(function(header) {
-      return rowData[header];
-    });
-
-    const targetRow = Math.max(sheet.getLastRow() + 1, 2);
-    sheet.getRange(targetRow, 1, 1, row.length).setValues([row]);
-
-    const notifyResult = notifySignupRequest_(rowData);
-
-    if (notifyResult.success) {
-      const headerMap = getHeaderMap_(sheet);
-      if (headerMap["notification_sent"]) {
-        sheet.getRange(targetRow, headerMap["notification_sent"]).setValue(true);
+      if (notificationSent) {
+        markSignupRequestNotificationSent_(rowData.request_id);
       }
-      if (headerMap["notification_sent_at"]) {
-        sheet.getRange(targetRow, headerMap["notification_sent_at"]).setValue(getNowIsoStringJst());
-      }
+    } catch (notificationError) {
+      notificationSent = false;
     }
 
     return {
       success: true,
       message: "利用申請を受け付けました",
-      requestId: requestId,
-      notificationSent: notifyResult.success
+      requestId: rowData.request_id,
+      notificationSent: notificationSent
     };
 
   } catch (error) {
@@ -309,3 +321,33 @@ function submitSignupRequest(payload) {
   }
 }
 // ===== 仮登録申請保存ここまで =====
+
+function markSignupRequestNotificationSent_(requestId) {
+  const lock = LockService.getScriptLock();
+
+  if (!lock.tryLock(10000)) {
+    return false;
+  }
+
+  try {
+    const request = getSignupRequestById_(requestId);
+    if (!request) return false;
+
+    const sheet = getSignupRequestsSheet();
+    const headerMap = getHeaderMap_(sheet);
+    const lastColumn = sheet.getLastColumn();
+    const rowValues = sheet.getRange(request.row, 1, 1, lastColumn).getValues()[0];
+
+    if (headerMap["notification_sent"]) {
+      rowValues[headerMap["notification_sent"] - 1] = true;
+    }
+    if (headerMap["notification_sent_at"]) {
+      rowValues[headerMap["notification_sent_at"] - 1] = getNowIsoStringJst();
+    }
+
+    sheet.getRange(request.row, 1, 1, lastColumn).setValues([rowValues]);
+    return true;
+  } finally {
+    lock.releaseLock();
+  }
+}
