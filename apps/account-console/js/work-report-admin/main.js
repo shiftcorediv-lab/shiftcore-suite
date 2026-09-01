@@ -5,6 +5,8 @@ import { setActivity } from "../common/activity.js?v=20260831-activity-1";
 const $ = id => document.getElementById(id);
 let data = null;
 let returningReportId = "";
+let returningReportVersion = 0;
+let returningOperationId = "";
 
 setInitialDates();
 onAuthStateChanged(auth, user => user ? load() : location.replace("./index.html"));
@@ -214,6 +216,8 @@ async function saveCaseMapping(planId) {
 
 function openReturn(reportId) {
   returningReportId = reportId;
+  returningReportVersion = Number((data?.submissions || []).find(item => item.reportId === reportId)?.revisionNumber) || 0;
+  returningOperationId = createOperationId();
   $("returnReason").value = "";
   $("returnDialog").showModal();
 }
@@ -222,7 +226,7 @@ async function submitReturn(event) {
   event.preventDefault();
   message("差戻しを保存しています…", false, true);
   try {
-    await attendanceRequest("returnWorkReport", { reportId: returningReportId, reason: $("returnReason").value.trim() });
+    await attendanceRequest("returnWorkReport", { reportId: returningReportId, reason: $("returnReason").value.trim(), operationId: returningOperationId, expectedVersion: returningReportVersion });
     $("returnDialog").close();
     message("実績報告を差し戻しました。本人の提出内容は履歴に残っています。");
     await load();
@@ -258,6 +262,7 @@ function summaryCard(label, value) { return `<article><small>${escapeHtml(label)
 function detailList(rows) { return `<dl class="detail-grid">${rows.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`).join("")}</dl>`; }
 function message(value, error = false, loading = false) { setActivity($("message"), loading, value); $("message").classList.toggle("error", error); }
 function escapeHtml(value) { const div = document.createElement("div"); div.textContent = String(value ?? ""); return div.innerHTML; }
+function createOperationId() { if (globalThis.crypto?.randomUUID) return crypto.randomUUID(); return `return-${Date.now()}-${Math.random().toString(36).slice(2)}`; }
 function escapeAttribute(value) { return escapeHtml(value).replace(/`/g, "&#96;"); }
 function cssEscape(value) { return globalThis.CSS?.escape ? CSS.escape(value) : String(value).replace(/[^A-Za-z0-9_-]/g, "\\$&"); }
 function compactValues(values, emptyLabel) { const items = Array.isArray(values) ? values : []; if (!items.length) return escapeHtml(emptyLabel); const shown = items.slice(0, 3).map(escapeHtml).join("<br>"); return shown + (items.length > 3 ? `<br><small>ほか${items.length - 3}件</small>` : ""); }

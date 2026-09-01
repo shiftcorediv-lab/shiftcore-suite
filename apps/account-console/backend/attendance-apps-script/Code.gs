@@ -61,11 +61,11 @@ const SHEETS = {
 
 const HEADERS = {
   reports: ["report_id", "record_id", "開発予定ID", "開発予定名", "報告者メール", "報告者氏名", "実績内容", "課題・申し送り", "報告日時"],
-  reportContract: ["勤務日", "店舗名", "schedule_id", "保存状態", "項目定義版", "template_id", "current_revision_id", "current_revision_number", "差戻し理由", "差戻し日時", "差戻し者メール"],
+  reportContract: ["勤務日", "店舗名", "schedule_id", "保存状態", "項目定義版", "template_id", "current_revision_id", "current_revision_number", "差戻し理由", "差戻し日時", "差戻し者メール", "return_operation_id"],
   reportTemplates: ["template_id", "テンプレート名", "有効", "作成日時", "更新日時"],
   reportCaseMappings: ["mapping_id", "開発予定ID", "開発予定名", "template_id", "有効", "有効開始日時", "有効終了日時", "作成日時", "更新日時"],
   reportRevisions: ["revision_id", "report_id", "record_id", "改訂番号", "状態", "編集者メール", "編集者氏名", "編集種別", "submission_token", "作成日時", "提出日時"],
-  reportRevisionReturnContract: ["差戻し理由", "差戻し日時", "差戻し者メール"],
+  reportRevisionReturnContract: ["差戻し理由", "差戻し日時", "差戻し者メール", "return_operation_id"],
   reportItems: ["item_id", "template_id", "項目名", "種別", "カテゴリID", "カテゴリ名", "表示順", "必須", "有効", "定義版", "ダッシュボード表示", "ダッシュボード名", "ダッシュボード順", "作成日時", "更新日時"],
   reportAnswers: ["answer_id", "report_id", "revision_id", "record_id", "item_id", "定義版", "項目名", "種別", "カテゴリID", "カテゴリ名", "表示順", "数値回答", "文章回答", "入力状態", "作成日時"],
   fieldReports: ["field_report_id", "勤務日", "開発予定ID", "報告種別", "報告者メール", "報告者氏名", "報告日時", "schedule_id"],
@@ -490,7 +490,7 @@ function arrive_(user, payload, idToken) {
 function createClockInRecord_(user, schedule, payload, now, status) {
   ensureRecordContractHeaders_();
   const recordId = Utilities.getUuid();
-  const location = saveLocation_(user, recordId, payload.location || {}, schedule && schedule["稼働場所"]);
+  const location = saveLocation_(user, recordId, validateClockInLocation_(payload.location), schedule && schedule["稼働場所"]);
   append_(SHEETS.records, [recordId, user.organization_id || "", user.employee_code || "", user.email, user.name || "", dateKey_(schedule["勤務日"]), schedule["予定開始"] || "", schedule["予定終了"] || "", schedule["稼働場所"] || "", schedule["開発予定ID"] || "", user.employment_type || user.contract_type || "", status, now, now, payload.reason || "", "", "", false, location.status, location.id || "", "", "", now, now]);
   updateById_(SHEETS.records, "record_id", recordId, { schedule_id: schedule.schedule_id || "" });
   return findRecord_(user.email, dateKey_(schedule["勤務日"]), schedule.schedule_id);
@@ -518,7 +518,7 @@ function clockIn_(user, payload, idToken) {
     if (!String(payload.reason || "").trim()) throw apiError_("REASON_REQUIRED", "予定外稼働の理由を入力してください。");
 
     const recordId = Utilities.getUuid();
-    const location = saveLocation_(user, recordId, payload.location || {}, payload.workLocation || "");
+    const location = saveLocation_(user, recordId, validateClockInLocation_(payload.location), payload.workLocation || "");
     const row = [
       recordId, user.organization_id || "", user.employee_code || "", user.email, user.name || "", today,
       "", "", payload.workLocation || "",
@@ -752,7 +752,7 @@ function getWorkReportForm_(user, payload) {
     returnReason: existing ? String(existing["差戻し理由"] || "") : "",
     revisions: existing ? workReportRevisionHistory_(existing, reportRevisions, reportAnswers) : [],
     resuming: Boolean(pendingRevision),
-    resumeSubmissionToken: pendingRevision ? String(pendingRevision.submission_token || "") : "",
+    resumeOperationId: pendingRevision ? String(pendingRevision.submission_token || "") : "",
     record: {
       recordId: String(record.record_id || ""),
       scheduleId: context.scheduleId,
@@ -774,7 +774,9 @@ function getWorkReportForm_(user, payload) {
 }
 
 function submitReport_(user, payload) {
-  if (!payload.recordId || !Array.isArray(payload.answers) || !String(payload.submissionToken || "").trim()) throw apiError_("REPORT_REQUIRED", "実績回答を確認できません。");
+  if (!payload.recordId || !Array.isArray(payload.answers)) throw apiError_("REPORT_REQUIRED", "実績回答を確認できません。");
+  const operationId = normalizeWorkReportOperationId_(payload.operationId);
+  const expectedVersion = normalizeWorkReportExpectedVersion_(payload.expectedVersion);
   assertReportableRecord_(user, payload.recordId);
   const lock = LockService.getDocumentLock();
   lock.waitLock(20000);
@@ -789,7 +791,7 @@ function submitReport_(user, payload) {
     const normalizedAnswers = normalizeWorkReportAnswers_(definitions, payload.answers);
     const definitionVersion = definitions.reduce((max, item) => Math.max(max, Number(item["定義版"]) || 1), 1);
     const reportId = report && report.report_id ? String(report.report_id) : Utilities.getUuid();
-    const submissionToken = sheetText_(String(payload.submissionToken).trim()).slice(0, 200);
+    const submissionToken = sheetText_(operationId);
     const previousRevisionNumber = report ? Number(report.current_revision_number) || 0 : 0;
     const reportRevisions = rows_(SHEETS.reportRevisions);
     const existingRevision = reportRevisions.find(revision => String(revision.submission_token || "") === submissionToken);
@@ -797,14 +799,18 @@ function submitReport_(user, payload) {
     if (!existingRevision && pendingRevision) throw apiError_("REPORT_SUBMISSION_IN_PROGRESS", "前回の実績報告が保存途中です。画面を再読込して続きから送信してください。");
     if (existingRevision) {
       if (String(existingRevision.report_id || "") !== reportId) throw apiError_("REPORT_SUBMISSION_TOKEN_INVALID", "送信情報が別の実績報告と重複しています。画面を再読込してください。");
+      if (Number(existingRevision["改訂番号"]) !== expectedVersion + 1) throw apiError_("REPORT_OPERATION_VERSION_MISMATCH", "送信情報と実績報告の版が一致しません。画面を再読込してください。");
       const storedRevisionAnswers = rows_(SHEETS.reportAnswers).filter(answer => String(answer.revision_id || "") === String(existingRevision.revision_id || ""));
       assertStoredWorkReportAnswersMatch_(storedRevisionAnswers, normalizedAnswers);
       if (String(existingRevision["状態"] || "") === "提出済み") {
+        if (report && workReportStatus_(report) === "差戻し中") throw apiError_("REPORT_RETURNED_RELOAD_REQUIRED", "この実績報告は差し戻されています。画面を再読込して修正してください。");
         const recoveredRevisionNumber = Number(existingRevision["改訂番号"]) || previousRevisionNumber;
+        if (previousRevisionNumber > recoveredRevisionNumber) throw apiError_("REPORT_VERSION_CONFLICT", "実績報告が更新されています。画面を再読込してください。");
         completeWorkReportHeader_(reportId, context, template.templateId, definitionVersion, String(existingRevision.revision_id || ""), recoveredRevisionNumber, user, record);
         return { ok: true, duplicate: true, reportId, revisionNumber: recoveredRevisionNumber };
       }
     }
+    if (expectedVersion !== previousRevisionNumber) throw apiError_("REPORT_VERSION_CONFLICT", "実績報告が更新されています。画面を再読込してください。");
     if (report && isSubmittedWorkReport_(report) && workReportAnswersEqual_(currentAnswers, normalizedAnswers)) {
       return { ok: true, duplicate: true, reportId, revisionNumber: previousRevisionNumber };
     }
@@ -897,7 +903,8 @@ function completeWorkReportHeader_(reportId, context, templateId, definitionVers
       current_revision_number: revisionNumber,
       "差戻し理由": "",
       "差戻し日時": "",
-      "差戻し者メール": ""
+      "差戻し者メール": "",
+      return_operation_id: ""
   });
 }
 
@@ -1133,31 +1140,52 @@ function returnWorkReport_(user, payload) {
   requireAdmin_(user);
   const reason = String(payload.reason || "").trim();
   if (!reason || reason.length > 1000) throw apiError_("REPORT_RETURN_REASON_REQUIRED", "差戻し理由を1〜1000文字で入力してください。");
+  const operationId = normalizeWorkReportOperationId_(payload.operationId);
+  const expectedVersion = normalizeWorkReportExpectedVersion_(payload.expectedVersion);
   const lock = LockService.getDocumentLock();
   lock.waitLock(20000);
   try {
     assertWorkReportSchema_();
     ensureReportRevisionReturnHeaders_();
     const report = rows_(SHEETS.reports).find(candidate => String(candidate.report_id || "") === String(payload.reportId || ""));
+    if (report && String(report.return_operation_id || "") === operationId) {
+      if ((Number(report.current_revision_number) || 0) !== expectedVersion || !workReportStoredTextEquals_(report["差戻し理由"], reason)) throw apiError_("REPORT_RETURN_RETRY_MISMATCH", "同じ差戻し操作の内容が一致しません。再読込してください。");
+      ensureWorkReportReturnNotification_(report, reason);
+      return { ok: true, duplicate: true, reportId: String(report.report_id || "") };
+    }
     if (!report || !isSubmittedWorkReport_(report)) throw apiError_("REPORT_RETURN_INVALID", "提出済みの実績報告を確認できません。");
+    if ((Number(report.current_revision_number) || 0) !== expectedVersion) throw apiError_("REPORT_VERSION_CONFLICT", "実績報告が更新されています。再読込してください。");
     if (pendingWorkReportRevision_(report)) throw apiError_("REPORT_SUBMISSION_IN_PROGRESS", "本人の実績報告が保存途中です。再送完了後に差し戻してください。");
     const returnedAt = new Date();
     updateById_(SHEETS.reports, "report_id", report.report_id, {
       "保存状態": "差戻し中",
       "差戻し理由": sheetText_(reason),
       "差戻し日時": returnedAt,
-      "差戻し者メール": user.email
+      "差戻し者メール": user.email,
+      return_operation_id: operationId
     });
     if (report.current_revision_id) updateById_(SHEETS.reportRevisions, "revision_id", report.current_revision_id, {
       "差戻し理由": sheetText_(reason),
       "差戻し日時": returnedAt,
-      "差戻し者メール": user.email
+      "差戻し者メール": user.email,
+      return_operation_id: operationId
     });
-    createNotification_(report["報告者メール"], report["報告者氏名"], "実績報告の差戻し", `実績報告が差し戻されました。理由: ${reason}`, report.report_id);
+    ensureWorkReportReturnNotification_(report, reason);
     return { ok: true, reportId: String(report.report_id || "") };
   } finally {
     lock.releaseLock();
   }
+}
+
+function ensureWorkReportReturnNotification_(report, reason) {
+  const exists = rows_(SHEETS.notifications).some(notification => String(notification["対象ID"] || "") === String(report.report_id || "") && String(notification["種別"] || "") === "実績報告の差戻し" && String(notification["本文"] || "") === `実績報告が差し戻されました。理由: ${reason}`);
+  if (!exists) createNotification_(report["報告者メール"], report["報告者氏名"], "実績報告の差戻し", `実績報告が差し戻されました。理由: ${reason}`, report.report_id);
+}
+
+function workReportStoredTextEquals_(stored, expected) {
+  const actual = String(stored || "");
+  const raw = String(expected || "");
+  return actual === raw || actual === String(sheetText_(raw));
 }
 
 function exportWorkReportsCsv_(user, payload) {
@@ -1231,6 +1259,8 @@ function scheduleMatchesReportRecord_(schedule, record) { const emailMatch = sch
 function findWorkReportByRecordId_(recordId) { return rows_(SHEETS.reports).find(report => String(report.record_id || "") === String(recordId || "")) || null; }
 function isSubmittedWorkReport_(report) { return Boolean(report) && workReportStatus_(report) === "提出済み"; }
 function workReportStatus_(report) { const status = String(report && report["保存状態"] || ""); if (status === "差戻し中") return "差戻し中"; if (["保存中", "保存失敗"].includes(status)) return "保存未完了"; return report ? "提出済み" : "未提出"; }
+function normalizeWorkReportOperationId_(value) { const id = String(value || "").trim(); if (!/^[A-Za-z0-9._:-]{16,200}$/.test(id)) throw apiError_("REPORT_OPERATION_ID_INVALID", "実績報告の送信識別子を確認できません。画面を再読込してください。"); return id; }
+function normalizeWorkReportExpectedVersion_(value) { if (typeof value !== "number" || !Number.isInteger(value) || value < 0) throw apiError_("REPORT_EXPECTED_VERSION_INVALID", "実績報告の版情報を確認できません。画面を再読込してください。"); return value; }
 function allWorkReportItems_() { return rows_(SHEETS.reportItems).sort(workReportItemSort_); }
 function activeWorkReportItems_(templateId) { return allWorkReportItems_().filter(item => booleanValue_(item["有効"]) && (!templateId || String(item.template_id || DEFAULT_WORK_REPORT_TEMPLATE_ID) === String(templateId))); }
 function workReportItemSort_(a, b) { return (Number(a["表示順"] || a.displayOrder) || 0) - (Number(b["表示順"] || b.displayOrder) || 0); }
@@ -1702,9 +1732,18 @@ function saveLocation_(user, recordId, location, plannedLocation) {
 }
 
 function validateDepartureLocation_(location) {
-  if (!location || typeof location !== "object") throw apiError_("DEPARTURE_LOCATION_REQUIRED", "出発位置情報を確認できません。画面を再読み込みしてください。");
+  return validateAttendanceLocation_(location, "DEPARTURE");
+}
+
+function validateClockInLocation_(location) {
+  return validateAttendanceLocation_(location, "CLOCK_IN");
+}
+
+function validateAttendanceLocation_(location, actionCode) {
+  const label = actionCode === "DEPARTURE" ? "出発" : "入店";
+  if (!location || typeof location !== "object") throw apiError_(actionCode + "_LOCATION_REQUIRED", label + "位置情報を確認できません。画面を再読み込みしてください。");
   const status = String(location.status || "");
-  if (!["取得済み", "取得失敗", "許可なし"].includes(status)) throw apiError_("DEPARTURE_LOCATION_INVALID", "出発位置情報の状態が不正です。");
+  if (!["取得済み", "取得失敗", "許可なし"].includes(status)) throw apiError_(actionCode + "_LOCATION_INVALID", label + "位置情報の状態が不正です。");
   const normalized = {
     status: status,
     consentVersion: String(location.consentVersion || ""),
@@ -1715,7 +1754,7 @@ function validateDepartureLocation_(location) {
   const longitude = Number(location.longitude);
   const accuracy = Number(location.accuracy);
   if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180 || !Number.isFinite(accuracy) || accuracy < 0) {
-    throw apiError_("DEPARTURE_LOCATION_INVALID", "出発位置情報の値が不正です。");
+    throw apiError_(actionCode + "_LOCATION_INVALID", label + "位置情報の値が不正です。");
   }
   normalized.latitude = latitude;
   normalized.longitude = longitude;

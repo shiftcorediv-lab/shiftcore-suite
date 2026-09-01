@@ -129,6 +129,7 @@ test("管理画面は未提出・集計・項目編集停止・用途別CSV出�
   assert.match(adminSource, /attendanceRequest\("saveWorkReportItem"/);
   assert.match(adminSource, /attendanceRequest\("saveWorkReportCaseMapping"/);
   assert.match(adminSource, /attendanceRequest\("returnWorkReport"/);
+  assert.match(adminSource, /operationId: returningOperationId, expectedVersion: returningReportVersion/);
   assert.match(adminSource, /attendanceRequest\("exportWorkReportsCsv"/);
   assert.match(backendSource, /csv: "\\uFEFF" \+ csv/);
   assert.match(adminCss, /@media\(max-width:900px\)/);
@@ -140,13 +141,13 @@ test("実績項目の保存応答が途切れても再取得した状態と照�
   assert.match(adminSource, /workReportItemMatches\(saved, payload\)/);
   assert.match(adminSource, /通信応答が途切れたため、保存結果を再確認しました/);
   assert.match(adminSource, /通信が途切れ、保存結果を確認できませんでした。更新して状態を確認してください/);
-  assert.match(adminHtml, /main\.js\?v=20260901-csv-actions-1/);
+  assert.match(adminHtml, /main\.js\?v=20260902-operation-version-1/);
 });
 
 test("個人ダッシュボードは勤怠を先に表示し、本人専用成績と予定同期を後から並行取得する", () => {
   assert.ok(dashboardHtml.includes("今月の成績"));
   assert.ok(dashboardHtml.includes("ログインしている本人の実績だけを表示します"));
-  assert.match(dashboardHtml, /dashboard\/main\.js\?v=20260902-overnight-1/);
+  assert.match(dashboardHtml, /dashboard\/main\.js\?v=20260902-multi-case-1/);
   assert.doesNotMatch(dashboardSource, /attendanceRequest\("getPortalBootstrap"/);
   assert.match(dashboardSource, /attendanceRequest\("getDashboardData"/);
   assert.match(dashboardSource, /attendanceRequest\("getMyWorkReportSummary"/);
@@ -188,7 +189,7 @@ test("本人は自分の提出履歴と版ごとの差戻し理由を確認で�
   assert.match(reportHtml, /id="revisionHistory"[^>]*hidden/);
   assert.match(reportHtml, /過去の版は確認専用です/);
   assert.match(reportHtml, /work-report-history\.css\?v=20260831-self-history-1/);
-  assert.match(reportHtml, /main\.js\?v=20260831-self-history-1/);
+  assert.match(reportHtml, /main\.js\?v=20260902-operation-version-1/);
   assert.match(reportSource, /renderRevisionHistory\(formData\)/);
   assert.match(reportSource, /この版への差戻し理由/);
   assert.match(reportSource, /history\.open = data\.status === "差戻し中"/);

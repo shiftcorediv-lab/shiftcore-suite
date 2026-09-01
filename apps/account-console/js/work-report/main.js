@@ -6,7 +6,7 @@ const context = JSON.parse(sessionStorage.getItem("shiftcore_report_context") ||
 const $ = id => document.getElementById(id);
 let formData = null;
 let loadingStarted = false;
-let submissionToken = createSubmissionToken();
+let operationId = createOperationId();
 let pendingAnswers = null;
 let submitting = false;
 
@@ -23,7 +23,7 @@ onAuthStateChanged(auth, user => {
 async function loadForm() {
   try {
     formData = await attendanceRequest("getWorkReportForm", { recordId: context.recordId });
-    if (formData.resumeSubmissionToken) submissionToken = formData.resumeSubmissionToken;
+    if (formData.resumeOperationId) operationId = formData.resumeOperationId;
     renderContext(formData.record);
     renderFields(formData.items || []);
     renderRevisionNotice(formData);
@@ -198,7 +198,7 @@ async function submitConfirmedReport() {
   setConfirmMessage("送信しています…", false, true);
   try {
     const answers = pendingAnswers;
-    const result = await attendanceRequest("submitReport", { recordId: formData.record.recordId, answers, submissionToken });
+    const result = await attendanceRequest("submitReport", { recordId: formData.record.recordId, answers, operationId, expectedVersion: formData.revisionNumber });
     sessionStorage.removeItem("shiftcore_report_context");
     $("reportConfirmDialog").close();
     renderCompletion(result);
@@ -237,7 +237,7 @@ function escapeHtml(value) {
 function escapeAttribute(value) {
   return String(value ?? "").replace(/[^A-Za-z0-9_-]/g, "_");
 }
-function createSubmissionToken() {
+function createOperationId() {
   if (globalThis.crypto?.randomUUID) return crypto.randomUUID();
   return `report-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }

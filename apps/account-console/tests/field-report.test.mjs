@@ -112,9 +112,20 @@ test("出発報告でも同意済み位置情報を取得しGAS側で検証保�
   assert.throws(() => context.validateDepartureLocation_(null), error => error.code === "DEPARTURE_LOCATION_REQUIRED");
 });
 
+test("入店と予定外稼働も位置情報状態・座標をサーバー側で検証する", () => {
+  assert.match(backendSource, /validateClockInLocation_\(payload\.location\)/);
+  const context = timingContext();
+  assert.equal(context.validateClockInLocation_({ status: "許可なし", consentVersion: "v2" }).status, "許可なし");
+  assert.equal(context.validateClockInLocation_({ status: "取得済み", latitude: 35, longitude: 135, accuracy: 10 }).latitude, 35);
+  assert.throws(() => context.validateClockInLocation_(null), error => error.code === "CLOCK_IN_LOCATION_REQUIRED");
+  assert.throws(() => context.validateClockInLocation_({ status: "取得済み", latitude: 35, longitude: 181, accuracy: 10 }), error => error.code === "CLOCK_IN_LOCATION_INVALID");
+});
+
 test("同日複数予定は選択したschedule_idを画面・現場報告・勤怠記録へ維持する", () => {
   assert.match(dashboardHtml, /id="scheduleSelect"/);
   assert.match(dashboardSource, /selectedScheduleId/);
+  assert.match(dashboardSource, /scheduleOptionText\(item\)/);
+  assert.match(dashboardSource, /plannedTimeText\(schedule\)/);
   assert.match(backendSource, /ensureRecordContractHeaders_/);
   assert.match(backendSource, /updateById_\(SHEETS\.records, "record_id", recordId, \{ schedule_id:/);
   assert.match(backendSource, /schedule_id: schedule\.schedule_id/);

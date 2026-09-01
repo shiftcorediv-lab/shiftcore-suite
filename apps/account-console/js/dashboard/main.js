@@ -332,7 +332,8 @@ function renderUpcoming(items) {
   $("upcomingList").innerHTML = items.length ? items.map(item => `<div class="schedule-item"><time>${escapeHtml(dateText(item["勤務日"]))}</time><div><strong>${escapeHtml(item["稼働場所"] || "場所未定")}</strong><span>${escapeHtml(plannedTimeText(item))}</span></div></div>`).join("") : `<div class="empty-state">直近の稼働予定はありません。</div>`;
 }
 
-function renderScheduleSelector(schedules, selected) { const wrap = $("scheduleSelectWrap"); const select = $("scheduleSelect"); wrap.hidden = schedules.length < 2; select.innerHTML = schedules.map(item => `<option value="${escapeHtml(item.schedule_id || "")}" ${String(item.schedule_id || "") === String(selected?.schedule_id || "") ? "selected" : ""}>${escapeHtml(item["開発予定名"] || item["稼働場所"] || item.schedule_id || "予定")}</option>`).join(""); select.disabled = Boolean(dashboardData?.record?.["実開始"] && !dashboardData?.record?.["実終了"]); }
+function renderScheduleSelector(schedules, selected) { const wrap = $("scheduleSelectWrap"); const select = $("scheduleSelect"); wrap.hidden = schedules.length < 2; select.innerHTML = schedules.map(item => `<option value="${escapeHtml(item.schedule_id || "")}" ${String(item.schedule_id || "") === String(selected?.schedule_id || "") ? "selected" : ""}>${escapeHtml(scheduleOptionText(item))}</option>`).join(""); select.disabled = Boolean(dashboardData?.record?.["実開始"] && !dashboardData?.record?.["実終了"]); }
+function scheduleOptionText(schedule) { return [schedule?.["開発予定名"] || "案件名未定", plannedTimeText(schedule), schedule?.["稼働場所"] || "場所未定"].join("｜"); }
 
 $("scheduleSelect").addEventListener("change", async event => { if (busy) return; selectedScheduleId = event.target.value; await loadDashboard(); });
 
