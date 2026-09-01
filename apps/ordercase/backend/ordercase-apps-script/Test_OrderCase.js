@@ -5,11 +5,14 @@
 
 function testCreateCase() {
   const payload = {
+    create_operation_id: Utilities.getUuid(),
     target_month: '2026-06',
     request_date: '2026-05-22',
     reply_deadline: '2026-05-31',
 
     case_type: 'event_sales',
+    case_rank: 'B',
+    shiftcore_display_name: 'テスト店舗',
     input_mode: 'dates',
 
     agency_name: 'テスト代理店',
@@ -126,14 +129,15 @@ function testBuildAlternateTimeWorkerPayload() {
 
 function testValidateWorkTimeRange() {
   validateWorkTimeRange_('10:00', '18:00', 'テスト時間');
+  validateWorkTimeRange_('22:00', '01:00', '日跨ぎテスト時間');
 
   let failed = false;
   try {
-    validateWorkTimeRange_('18:00', '10:00', 'テスト時間');
+    validateWorkTimeRange_('10:00', '10:00', 'テスト時間');
   } catch (error) {
     failed = true;
   }
-  if (!failed) throw new Error('終了時刻が開始時刻以前の入力を拒否できていません。');
+  if (!failed) throw new Error('開始・終了が同時刻の入力を拒否できていません。');
 }
 
 function testPerCaseAmountIsStoredOnce() {

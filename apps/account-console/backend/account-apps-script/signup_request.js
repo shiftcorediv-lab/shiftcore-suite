@@ -149,14 +149,19 @@ function hasPendingSignupRequest_(email) {
 
 
 // ===== 申請入力チェックここから =====
-function validateSignupPayload_(payload) {
-  const applicantEmail = normalizeText(payload.applicantEmail);
+function validateSignupPayload_(payload, authenticatedEmail) {
+  const applicantEmail = normalizeText(authenticatedEmail).toLowerCase();
+  const claimedEmail = normalizeText(payload.applicantEmail).toLowerCase();
   const applicantName = normalizeText(payload.applicantName);
   const applicantType = normalizeText(payload.applicantType);
   const phone = normalizeText(payload.phone);
 
   if (!applicantEmail) {
-    return { success: false, message: "メールアドレスを取得できていません" };
+    return { success: false, code: "AUTH_REQUIRED", message: "ログイン中メールアドレスを確認できていません" };
+  }
+
+  if (claimedEmail && claimedEmail !== applicantEmail) {
+    return { success: false, code: "SIGNUP_EMAIL_MISMATCH", message: "ログイン中メールアドレスと申請内容が一致しません" };
   }
 
   if (!applicantName) {
@@ -174,6 +179,50 @@ function validateSignupPayload_(payload) {
   return { success: true };
 }
 // ===== 申請入力チェックここまで =====
+
+
+// ===== 登録申請レート制限ここから =====
+function buildSignupRateLimitKey_(email) {
+  const digest = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    normalizeText(email).toLowerCase(),
+    Utilities.Charset.UTF_8
+  );
+  const hex = digest.map(function(value) {
+    return (value + 256).toString(16).slice(-2);
+  }).join("");
+  return "signup-request-rate:" + hex;
+}
+
+function consumeSignupRequestRateLimit_(email) {
+  try {
+    const cache = CacheService.getScriptCache();
+    const key = buildSignupRateLimitKey_(email);
+    const count = Number(cache.get(key) || 0);
+
+    if (count >= SIGNUP_REQUEST_RATE_LIMIT) {
+      return false;
+    }
+
+    cache.put(key, String(count + 1), SIGNUP_REQUEST_RATE_LIMIT_SECONDS);
+    return true;
+  } catch (error) {
+    // Cache障害時も既存のメール重複・承認待ち重複の防御は維持される。
+    console.error("Signup request rate limit unavailable", error);
+    return true;
+  }
+}
+// ===== 登録申請レート制限ここまで =====
+
+
+// ===== スプレッドシート数式注入防止ここから =====
+function escapeSignupSpreadsheetValue_(value) {
+  if (value == null) return "";
+  if (typeof value !== "string") return value;
+  const text = value;
+  return /^[=+\-@]/.test(text) ? "'" + text : text;
+}
+// ===== スプレッドシート数式注入防止ここまで =====
 
 
 // ===== 仮登録通知ここから =====
@@ -223,82 +272,102 @@ function notifySignupRequest_(requestData) {
 
 
 // ===== 仮登録申請保存ここから =====
-function submitSignupRequest(payload) {
+function submitSignupRequest(payload, authenticatedEmail) {
   try {
-    ensureSignupRequestsHeader_();
-
-    const validation = validateSignupPayload_(payload);
+    const validation = validateSignupPayload_(payload, authenticatedEmail);
     if (!validation.success) {
       return validation;
     }
 
-    const applicantEmail = normalizeText(payload.applicantEmail).toLowerCase();
+    const applicantEmail = normalizeText(authenticatedEmail).toLowerCase();
     const applicantName = normalizeText(payload.applicantName);
     const applicantType = normalizeText(payload.applicantType);
     const companyName = normalizeText(payload.companyName);
     const phone = normalizeText(payload.phone);
     const note = normalizeText(payload.note);
+    const lock = LockService.getScriptLock();
 
-    if (existsUserByEmail_(applicantEmail)) {
-      return {
-        success: false,
-        message: "このメールアドレスはすでに登録済みです"
-      };
+    if (!lock.tryLock(10000)) {
+      throw new Error("SIGNUP_REQUEST_LOCK_TIMEOUT");
     }
 
-    if (hasPendingSignupRequest_(applicantEmail)) {
-      return {
-        success: false,
-        message: "このメールアドレスでは承認待ちの申請がすでに存在します"
+    let rowData;
+
+    try {
+      ensureSignupRequestsHeader_();
+
+      if (!consumeSignupRequestRateLimit_(applicantEmail)) {
+        return {
+          success: false,
+          code: "SIGNUP_RATE_LIMITED",
+          message: "申請回数が上限に達しました。1時間ほど待ってから再度お試しください"
+        };
+      }
+
+      if (existsUserByEmail_(applicantEmail)) {
+        return {
+          success: false,
+          message: "このメールアドレスはすでに登録済みです"
+        };
+      }
+
+      if (hasPendingSignupRequest_(applicantEmail)) {
+        return {
+          success: false,
+          message: "このメールアドレスでは承認待ちの申請がすでに存在します"
+        };
+      }
+
+      const sheet = getSignupRequestsSheet();
+      const requestId = createSignupRequestId_();
+      const submittedAt = getNowIsoStringJst();
+
+      rowData = {
+        request_id: requestId,
+        submitted_at: submittedAt,
+        applicant_email: applicantEmail,
+        applicant_name: applicantName,
+        applicant_type: applicantType,
+        company_name: companyName,
+        phone: phone,
+        note: note,
+        request_status: "pending_approval",
+        notification_sent: false,
+        notification_sent_at: "",
+        reviewed_at: "",
+        reviewed_by: "",
+        linked_internal_user_id: ""
       };
+
+      const headers = getSignupRequestHeaders_();
+      const row = headers.map(function(header) {
+        return escapeSignupSpreadsheetValue_(rowData[header]);
+      });
+
+      const targetRow = Math.max(sheet.getLastRow() + 1, 2);
+      sheet.getRange(targetRow, 1, 1, row.length).setValues([row]);
+    } finally {
+      lock.releaseLock();
     }
 
-    const sheet = getSignupRequestsSheet();
-    const requestId = createSignupRequestId_();
-    const submittedAt = getNowIsoStringJst();
+    let notificationSent = false;
 
-    const rowData = {
-      request_id: requestId,
-      submitted_at: submittedAt,
-      applicant_email: applicantEmail,
-      applicant_name: applicantName,
-      applicant_type: applicantType,
-      company_name: companyName,
-      phone: phone,
-      note: note,
-      request_status: "pending_approval",
-      notification_sent: false,
-      notification_sent_at: "",
-      reviewed_at: "",
-      reviewed_by: "",
-      linked_internal_user_id: ""
-    };
+    try {
+      const notifyResult = notifySignupRequest_(rowData);
+      notificationSent = notifyResult.success === true;
 
-    const headers = getSignupRequestHeaders_();
-    const row = headers.map(function(header) {
-      return rowData[header];
-    });
-
-    const targetRow = Math.max(sheet.getLastRow() + 1, 2);
-    sheet.getRange(targetRow, 1, 1, row.length).setValues([row]);
-
-    const notifyResult = notifySignupRequest_(rowData);
-
-    if (notifyResult.success) {
-      const headerMap = getHeaderMap_(sheet);
-      if (headerMap["notification_sent"]) {
-        sheet.getRange(targetRow, headerMap["notification_sent"]).setValue(true);
+      if (notificationSent) {
+        markSignupRequestNotificationSent_(rowData.request_id);
       }
-      if (headerMap["notification_sent_at"]) {
-        sheet.getRange(targetRow, headerMap["notification_sent_at"]).setValue(getNowIsoStringJst());
-      }
+    } catch (notificationError) {
+      notificationSent = false;
     }
 
     return {
       success: true,
       message: "利用申請を受け付けました",
-      requestId: requestId,
-      notificationSent: notifyResult.success
+      requestId: rowData.request_id,
+      notificationSent: notificationSent
     };
 
   } catch (error) {
@@ -309,3 +378,33 @@ function submitSignupRequest(payload) {
   }
 }
 // ===== 仮登録申請保存ここまで =====
+
+function markSignupRequestNotificationSent_(requestId) {
+  const lock = LockService.getScriptLock();
+
+  if (!lock.tryLock(10000)) {
+    return false;
+  }
+
+  try {
+    const request = getSignupRequestById_(requestId);
+    if (!request) return false;
+
+    const sheet = getSignupRequestsSheet();
+    const headerMap = getHeaderMap_(sheet);
+    const lastColumn = sheet.getLastColumn();
+    const rowValues = sheet.getRange(request.row, 1, 1, lastColumn).getValues()[0];
+
+    if (headerMap["notification_sent"]) {
+      rowValues[headerMap["notification_sent"] - 1] = true;
+    }
+    if (headerMap["notification_sent_at"]) {
+      rowValues[headerMap["notification_sent_at"] - 1] = getNowIsoStringJst();
+    }
+
+    sheet.getRange(request.row, 1, 1, lastColumn).setValues([rowValues]);
+    return true;
+  } finally {
+    lock.releaseLock();
+  }
+}

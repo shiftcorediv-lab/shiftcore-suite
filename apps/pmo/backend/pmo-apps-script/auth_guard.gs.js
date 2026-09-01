@@ -52,6 +52,69 @@ function resolveShiftCoreCurrentUserByIdToken_(idToken) {
 
 
 // =========================
+// PMO本人確認ここから
+// =========================
+function requirePmoActiveUser_(idToken) {
+  const authResult = resolveShiftCoreCurrentUserByIdToken_(idToken);
+
+  if (!authResult.ok || !authResult.user) {
+    return {
+      success: false,
+      code: authResult.code || "AUTH_INVALID",
+      message: authResult.message || "ログインユーザーを確認できません"
+    };
+  }
+
+  const source = authResult.user;
+  const user = {
+    userId: normalizeText(source.internal_user_id || source.userId),
+    displayName: normalizeText(source.name || source.displayName),
+    employeeCode: normalizeText(source.employee_code || source.employeeCode).toUpperCase(),
+    role: normalizeText(source.role).toLowerCase(),
+    status: normalizeText(source.status).toLowerCase(),
+    workStatus: normalizeText(source.work_status || source.workStatus).toLowerCase()
+  };
+
+  if (user.status !== "active" || user.workStatus !== "on") {
+    return {
+      success: false,
+      code: "PMO_USER_INACTIVE",
+      message: "このアカウントは希望休の提出対象外です"
+    };
+  }
+
+  if (!user.userId || !user.displayName || !user.employeeCode) {
+    return {
+      success: false,
+      code: "PMO_USER_INVALID",
+      message: "本人情報を確認できません"
+    };
+  }
+
+  return {
+    success: true,
+    user: user
+  };
+}
+
+function getPmoCurrentUserSecure(idToken) {
+  const auth = requirePmoActiveUser_(idToken);
+
+  if (!auth.success) {
+    return auth;
+  }
+
+  return {
+    success: true,
+    user: auth.user
+  };
+}
+// =========================
+// PMO本人確認ここまで
+// =========================
+
+
+// =========================
 // PMO管理権限確認ここから
 // =========================
 function requirePmoAdminUser_(idToken) {

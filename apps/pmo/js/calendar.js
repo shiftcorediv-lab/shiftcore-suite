@@ -46,12 +46,13 @@ export function toggleDate(dateKey) {
 export function updateSubmitButtonState() {
   const hasUser = !!currentUser.userId && !!currentUser.displayName && !!currentUser.employeeCode;
   const hasSelection = noHolidayRequested || selectedDates.size > 0;
-  const canSubmit = hasUser && hasSelection && !isUserInactive();
+  const canInteract = hasUser && !isUserInactive();
+  const canSubmit = canInteract && hasSelection;
 
   submitBtn.disabled = !canSubmit;
-  noHolidayBtn.disabled = isUserInactive();
-  clearSelectionBtn.disabled = isUserInactive();
-  noteInput.disabled = isUserInactive();
+  noHolidayBtn.disabled = !canInteract;
+  clearSelectionBtn.disabled = !canInteract;
+  noteInput.disabled = !canInteract;
 }
 
 export function renderSelectedDates() {

@@ -11,10 +11,19 @@ test("ShiftBuilderの全候補者生成経路でdeveloperを除外する", () =>
   sources.forEach((source) => {
     assert.match(
       source,
-      /normalizeLowerText\(user\.role\)\s*!==\s*["']developer["']/,
-      "候補者生成時のdeveloper除外が必要"
+      /isShiftBuilderAssignableUser_\(user\)/,
+      "候補者生成時の共通適格性検証が必要"
     );
   });
+
+  const utils = readFileSync(
+    new URL("../backend/shiftbuilder-apps-script/utils.js", import.meta.url),
+    "utf8"
+  );
+  assert.match(
+    utils,
+    /function isShiftBuilderAssignableUser_[\s\S]*role\) === "developer"/
+  );
 });
 
 test("developerは候補者には出さずShiftBuilder操作権限は常に持つ", () => {
@@ -51,7 +60,7 @@ test("配置の書込み経路でもdeveloperを拒否する", () => {
   // リクエストで配置できてしまう。作成・入替の両方が通る関数で拒否する。
   assert.match(
     service,
-    /function buildCreateAssignmentParams_[\s\S]*normalizeLowerText\(targetUser\.role\) === "developer"/,
+    /function buildCreateAssignmentParams_[\s\S]*!isShiftBuilderAssignableUser_\(targetUser\)/,
     "配置書込み時のdeveloper拒否が必要"
   );
 

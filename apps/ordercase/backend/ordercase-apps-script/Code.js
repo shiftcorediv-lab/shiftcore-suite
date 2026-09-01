@@ -15,8 +15,7 @@ function doPost(e) {
       .createTextOutput(JSON.stringify({
         ok: false,
         code: 'DO_POST_UNCAUGHT_ERROR',
-        message: error && error.message ? error.message : String(error),
-        stack: error && error.stack ? error.stack : ''
+        message: error && error.message ? error.message : String(error)
       }, null, 2))
       .setMimeType(ContentService.MimeType.JSON);
   }

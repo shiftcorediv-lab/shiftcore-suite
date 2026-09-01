@@ -11,6 +11,15 @@ import {
   getInternalUserId
 } from "./record-normalizers.mjs?v=20260801-authfix-1";
 
+export function buildOrderCaseDetailsUrl(caseId, environment = globalThis.window?.ShiftCoreEnvironment) {
+  if (!environment || typeof environment.withEnvironment !== "function") {
+    throw new Error("ShiftCoreの環境判定を確認できません");
+  }
+
+  const relativeUrl = `../ordercase/case.html?case_id=${encodeURIComponent(String(caseId || ""))}`;
+  return environment.withEnvironment(relativeUrl);
+}
+
 export function getCellStatus(cell) {
   const required = Number(cell?.required || 0);
   const assignedCount = Array.isArray(cell?.assigned) ? cell.assigned.length : 0;
@@ -414,6 +423,7 @@ export function renderShiftTable(data, elements, handlers = {}) {
       const caseFulfillment = buildLiveCaseFulfillment(caseItem);
       const fulfillmentGauge = renderFulfillmentGauge(caseFulfillment);
       const isDaysModeCase = getCaseInputMode(caseItem) === "days";
+      const orderCaseDetailsUrl = buildOrderCaseDetailsUrl(caseItem.caseId);
       
       const dateCells = dates
         .map((dateItem) => {
@@ -496,7 +506,7 @@ export function renderShiftTable(data, elements, handlers = {}) {
             <div class="case-meta">${escapeHtml(caseItem.caseType || "種別未設定")} / ${escapeHtml(caseItem.client)} / ${escapeHtml(caseItem.area)}</div>
             <div class="case-fulfillment-row">
               ${fulfillmentBadge}
-              <a class="case-id" href="../ordercase/case.html?case_id=${encodeURIComponent(caseItem.caseId)}" target="_blank" rel="noopener" title="Orderの案件詳細を開く">${escapeHtml(caseItem.caseId)}</a>
+              <a class="case-id" href="${escapeHtml(orderCaseDetailsUrl)}" target="_blank" rel="noopener" title="Orderの案件詳細を開く">${escapeHtml(caseItem.caseId)}</a>
               ${fulfillmentGauge}
             </div>
           </td>

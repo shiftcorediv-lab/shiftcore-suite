@@ -90,10 +90,14 @@ export function collectPersonnelAssignments(person, shiftData) {
         location: firstValue(caseItem, [
           "work_location", "workLocation", "meeting_place", "meetingPlace", "venue", "address"
         ]),
-        startTime: firstValue(caseItem, [
+        startTime: firstValue(entry, [
+          "start_time", "startTime", "work_start_time", "workStartTime"
+        ]) || firstValue(caseItem, [
           "start_time", "startTime", "work_start_time", "workStartTime", "meeting_time", "meetingTime"
         ]),
-        endTime: firstValue(caseItem, [
+        endTime: firstValue(entry, [
+          "end_time", "endTime", "work_end_time", "workEndTime"
+        ]) || firstValue(caseItem, [
           "end_time", "endTime", "work_end_time", "workEndTime"
         ]),
         assignmentId: entry.assignmentId || ""
@@ -153,8 +157,11 @@ export function buildPersonnelIcs(person, shiftData, now = new Date()) {
     lines.push(`UID:${escapeIcsText(stableId)}@shiftcore`);
     lines.push(`DTSTAMP:${stamp}`);
     if (assignment.startTime && assignment.endTime) {
+      const endDate = assignment.endTime <= assignment.startTime
+        ? nextDate(assignment.date)
+        : assignment.date;
       lines.push(`DTSTART;TZID=Asia/Tokyo:${formatIcsDateTime(assignment.date, assignment.startTime)}`);
-      lines.push(`DTEND;TZID=Asia/Tokyo:${formatIcsDateTime(assignment.date, assignment.endTime)}`);
+      lines.push(`DTEND;TZID=Asia/Tokyo:${formatIcsDateTime(endDate, assignment.endTime)}`);
     } else {
       lines.push(`DTSTART;VALUE=DATE:${formatIcsDate(assignment.date)}`);
       lines.push(`DTEND;VALUE=DATE:${formatIcsDate(nextDate(assignment.date))}`);

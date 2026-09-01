@@ -1,6 +1,6 @@
 import { SIGNUP_REQUEST_API_URL } from "./config.js";
 
-export async function submitSignupRequest(payload) {
+export async function submitSignupRequest(payload, idToken) {
   const response = await fetch(SIGNUP_REQUEST_API_URL, {
     method: "POST",
     headers: {
@@ -8,6 +8,7 @@ export async function submitSignupRequest(payload) {
     },
     body: JSON.stringify({
       action: "submitSignupRequest",
+      idToken,
       payload
     })
   });

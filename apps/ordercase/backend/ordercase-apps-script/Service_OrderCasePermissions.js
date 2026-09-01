@@ -7,10 +7,12 @@
 /****************************************************
  * resolveOrderCaseUserByIdToken_ ここから
  * ShiftCore Account API に idToken を渡してログインユーザーを取得する
- * 5分間だけCacheServiceに保存して高速化する
+ * 読取操作だけ15分間CacheServiceに保存して高速化する。
+ * 更新操作は権限剥奪を即時反映するためキャッシュを迂回する。
  ****************************************************/
-function resolveOrderCaseUserByIdToken_(idToken) {
+function resolveOrderCaseUserByIdToken_(idToken, options) {
   const safeIdToken = String(idToken || '').trim();
+  const bypassCache = options && options.bypassCache === true;
 
   if (!safeIdToken) {
     throw new Error('idToken が必要です。');
@@ -24,7 +26,7 @@ function resolveOrderCaseUserByIdToken_(idToken) {
     )
   ).slice(0, 80);
 
-  const cachedText = cache.get(cacheKey);
+  const cachedText = bypassCache ? null : cache.get(cacheKey);
 
   if (cachedText) {
     try {
@@ -58,7 +60,9 @@ function resolveOrderCaseUserByIdToken_(idToken) {
     throw new Error(result && result.message ? result.message : 'ログインユーザーを確認できません。');
   }
 
-  cache.put(cacheKey, JSON.stringify(result.user), 900);
+  if (!bypassCache) {
+    cache.put(cacheKey, JSON.stringify(result.user), 900);
+  }
 
   return result.user;
 }
@@ -71,8 +75,8 @@ function resolveOrderCaseUserByIdToken_(idToken) {
  * requireOrderCaseUser_ ここから
  * OrderCase利用可能ユーザーか確認する
  ****************************************************/
-function requireOrderCaseUser_(idToken) {
-  const user = resolveOrderCaseUserByIdToken_(idToken);
+function requireOrderCaseUser_(idToken, options) {
+  const user = resolveOrderCaseUserByIdToken_(idToken, options);
   const developer = String(user.role || '').trim().toLowerCase() === 'developer';
 
   const modules = Array.isArray(user.allowed_modules)
@@ -129,7 +133,7 @@ function requireOrderCaseViewer_(idToken) {
  * 新規登録・編集用
  ****************************************************/
 function requireOrderCaseEditor_(idToken) {
-  const context = requireOrderCaseUser_(idToken);
+  const context = requireOrderCaseUser_(idToken, { bypassCache: true });
 
   if (!context.canEdit) {
     throw new Error('案件を登録・編集する権限がありません。');
@@ -204,14 +208,14 @@ function hasOrderCaseCapability_(authorization, capability) {
 
 
 /****************************************************
- * getIdTokenFromParams_ ここから
- * GETパラメータからidTokenを取得
+ * getIdTokenFromRequest_ ここから
+ * 認証付きPOST bodyからidTokenを取得
  ****************************************************/
-function getIdTokenFromParams_(params) {
-  return String(params && params.idToken ? params.idToken : '').trim();
+function getIdTokenFromRequest_(request) {
+  return String(request && request.idToken ? request.idToken : '').trim();
 }
 /****************************************************
- * getIdTokenFromParams_ ここまで
+ * getIdTokenFromRequest_ ここまで
  ****************************************************/
 
 
@@ -239,15 +243,41 @@ function getIdTokenFromBody_(body) {
  * 権限に応じて案件データを加工する
  ****************************************************/
 function applyOrderCaseVisibility_(data, context) {
+  const publicData = stripOrderCaseInternalFieldsDeep_(data);
+
   if (!context || context.canViewAmount) {
-    return data;
+    return publicData;
   }
 
-  return maskOrderCaseAmountFieldsDeep_(data);
+  return maskOrderCaseAmountFieldsDeep_(publicData);
 }
 /****************************************************
  * applyOrderCaseVisibility_ ここまで
  ****************************************************/
+
+function stripOrderCaseInternalFieldsDeep_(value) {
+  if (Array.isArray(value)) {
+    return value.map(function(item) {
+      return stripOrderCaseInternalFieldsDeep_(item);
+    });
+  }
+
+  if (value && typeof value === 'object') {
+    const copied = {};
+
+    Object.keys(value).forEach(function(key) {
+      if (ORDERCASE_INTERNAL_FIELDS.indexOf(key) !== -1) {
+        return;
+      }
+
+      copied[key] = stripOrderCaseInternalFieldsDeep_(value[key]);
+    });
+
+    return copied;
+  }
+
+  return value;
+}
 
 
 /****************************************************

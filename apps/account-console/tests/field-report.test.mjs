@@ -52,7 +52,25 @@ test("日付またぎ予定の終了予定日時を翌日として計算する",
   const context = timingContext();
   const result = context.buildTimingStatus_({ "勤務日": "2026-08-28", "予定開始": "22:00", "予定終了": "01:00" }, new Date("2026-08-29T01:00:00+09:00"));
   assert.equal(result.plannedEnd, "2026-08-28T16:00:00.000Z");
-  assert.equal(result.endApprovalRequired, true);
+  assert.equal(result.endApprovalRequired, false);
+  assert.equal(
+    context.buildTimingStatus_(
+      { "勤務日": "2026-08-28", "予定開始": "22:00", "予定終了": "01:00" },
+      new Date("2026-08-29T01:00:00.001+09:00")
+    ).endApprovalRequired,
+    true
+  );
+});
+
+test("開始・終了が同時刻の予定は24時間勤務と推測せず拒否する", () => {
+  const context = timingContext();
+  assert.throws(
+    () => context.buildTimingStatus_(
+      { "勤務日": "2026-08-28", "予定開始": "10:00", "予定終了": "10:00" },
+      new Date("2026-08-28T10:00:00+09:00")
+    ),
+    error => error.code === "SCHEDULE_TIME_INVALID"
+  );
 });
 
 test("入店前に出発を必須とし遅い入店と0時以降終了を直属承認へ接続する", () => {
@@ -94,9 +112,20 @@ test("出発報告でも同意済み位置情報を取得しGAS側で検証保�
   assert.throws(() => context.validateDepartureLocation_(null), error => error.code === "DEPARTURE_LOCATION_REQUIRED");
 });
 
+test("入店と予定外稼働も位置情報状態・座標をサーバー側で検証する", () => {
+  assert.match(backendSource, /validateClockInLocation_\(payload\.location\)/);
+  const context = timingContext();
+  assert.equal(context.validateClockInLocation_({ status: "許可なし", consentVersion: "v2" }).status, "許可なし");
+  assert.equal(context.validateClockInLocation_({ status: "取得済み", latitude: 35, longitude: 135, accuracy: 10 }).latitude, 35);
+  assert.throws(() => context.validateClockInLocation_(null), error => error.code === "CLOCK_IN_LOCATION_REQUIRED");
+  assert.throws(() => context.validateClockInLocation_({ status: "取得済み", latitude: 35, longitude: 181, accuracy: 10 }), error => error.code === "CLOCK_IN_LOCATION_INVALID");
+});
+
 test("同日複数予定は選択したschedule_idを画面・現場報告・勤怠記録へ維持する", () => {
   assert.match(dashboardHtml, /id="scheduleSelect"/);
   assert.match(dashboardSource, /selectedScheduleId/);
+  assert.match(dashboardSource, /scheduleOptionText\(item\)/);
+  assert.match(dashboardSource, /plannedTimeText\(schedule\)/);
   assert.match(backendSource, /ensureRecordContractHeaders_/);
   assert.match(backendSource, /updateById_\(SHEETS\.records, "record_id", recordId, \{ schedule_id:/);
   assert.match(backendSource, /schedule_id: schedule\.schedule_id/);

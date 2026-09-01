@@ -170,9 +170,9 @@ export function setStatus(message) {
   statusBox.textContent = message;
 }
 
-export function setOperator(user) {
+export function setOperator(user, canEditUsers = false) {
   operatorText.textContent = `${user.name || user.display_name || "-"} / ${user.email || "-"}`;
-  permissionBadge.textContent = "人員マスター 使用可";
+  permissionBadge.textContent = canEditUsers ? "人員マスター 編集可" : "人員マスター 閲覧のみ";
   permissionBadge.className = "badge ok";
 }
 

@@ -184,6 +184,23 @@
 .shiftcore-account-menu-trigger:focus-visible,
 .shiftcore-theme-option:focus-visible { outline: 3px solid #76a7ff; outline-offset: 2px; }
 
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 3px solid #2f6fed !important;
+  outline-offset: 3px !important;
+}
+
+:root[data-shiftcore-environment="staging"] .topbar {
+  top: var(--shiftcore-environment-banner-height, 40px);
+}
+
+:root[data-shiftcore-environment="staging"] .status-box {
+  top: calc(var(--shiftcore-environment-banner-height, 40px) + 84px);
+}
+
+:root[data-shiftcore-environment="staging"] .notification-panel {
+  top: calc(var(--shiftcore-environment-banner-height, 40px) + 66px);
+}
+
 :root[data-theme="dark"] body {
   background-color: var(--sc-theme-bg) !important;
   color: var(--sc-theme-text) !important;

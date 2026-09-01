@@ -63,7 +63,8 @@ function resolveFirebaseEmailByIdToken_(idToken) {
 
   return {
     ok: true,
-    email: email
+    email: email,
+    emailVerified: users[0]?.emailVerified === true
   };
 }
 // ===== IDトークンからメール解決ここまで =====

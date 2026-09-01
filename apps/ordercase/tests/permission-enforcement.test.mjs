@@ -115,3 +115,80 @@ test('本番店舗マスター更新ルートの実装関数をローカル正�
   assert.equal(typeof context.ensureStoreMasterLocationColumns_, 'function');
   assert.equal(typeof context.getStoresMasterForManagement_, 'function');
 });
+
+test('更新認可は15分キャッシュを使わずAccountの現行状態を確認する', () => {
+  const context = createContext();
+  let cacheReadCount = 0;
+  let accountFetchCount = 0;
+
+  context.ORDERCASE_MODULE_KEY = 'ordercase';
+  context.ORDERCASE_PERMISSION_ALL = 'all';
+  context.ORDERCASE_PERMISSION_EDIT = 'edit';
+  context.ORDERCASE_PERMISSION_VIEW = 'view';
+  context.ORDERCASE_PERMISSION_VIEW_WITHOUT_AMOUNT = 'view_without_amount';
+  context.SHIFTCORE_ACCOUNT_API_URL = 'https://example.invalid/account';
+  context.Utilities = {
+    DigestAlgorithm: { SHA_256: 'sha256' },
+    computeDigest: () => [1, 2, 3],
+    base64EncodeWebSafe: () => 'digest'
+  };
+  context.CacheService = {
+    getScriptCache() {
+      return {
+        get() {
+          cacheReadCount += 1;
+          return JSON.stringify({
+            status: 'active',
+            allowed_modules: ['ordercase'],
+            ordercase_permission: 'edit'
+          });
+        },
+        put() {}
+      };
+    }
+  };
+  context.UrlFetchApp = {
+    fetch() {
+      accountFetchCount += 1;
+      return {
+        getContentText: () => JSON.stringify({
+          ok: true,
+          user: {
+            status: 'stopped',
+            allowed_modules: ['ordercase'],
+            ordercase_permission: 'edit'
+          }
+        })
+      };
+    }
+  };
+
+  assert.throws(
+    () => context.requireOrderCaseEditor_('token'),
+    /停止中/
+  );
+  assert.equal(cacheReadCount, 0);
+  assert.equal(accountFetchCount, 1);
+});
+
+test('案件作成の操作IDとpayloadハッシュは読取APIへ公開しない', () => {
+  const context = createContext();
+  context.ORDERCASE_INTERNAL_FIELDS = ['create_operation_id', 'create_payload_hash'];
+  context.ORDERCASE_AMOUNT_FIELDS = ['amount'];
+
+  const visible = context.applyOrderCaseVisibility_({
+    case_id: 'CASE-1',
+    create_operation_id: 'operation-00000001',
+    create_payload_hash: 'private-hash',
+    amount: '1000',
+    nested: {
+      create_payload_hash: 'nested-private-hash'
+    }
+  }, { canViewAmount: true });
+
+  assert.equal(visible.case_id, 'CASE-1');
+  assert.equal(visible.amount, '1000');
+  assert.equal('create_operation_id' in visible, false);
+  assert.equal('create_payload_hash' in visible, false);
+  assert.equal('create_payload_hash' in visible.nested, false);
+});

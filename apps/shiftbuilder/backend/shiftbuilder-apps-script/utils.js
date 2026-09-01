@@ -147,6 +147,24 @@ function canEditShiftBuilder_(user) {
     SHIFTBUILDER_EDITABLE_PERMISSIONS.indexOf(normalizeText(user.shiftbuilder_permission)) !== -1;
 }
 
+function isShiftBuilderAssignableUser_(user) {
+  if (!user) return false;
+  if (normalizeLowerText(user.status) !== "active") return false;
+  if (normalizeLowerText(user.role) === "developer") return false;
+  if (!includesCsvValue(user.allowed_modules, SHIFTBUILDER_MODULE_KEY)) return false;
+  if (VALID_SHIFTBUILDER_PERMISSIONS.indexOf(normalizeText(user.shiftbuilder_permission)) === -1) {
+    return false;
+  }
+
+  const workStatus = normalizeLowerText(user.workStatus || user.work_status);
+  const engagementStatus = normalizeLowerText(user.engagement_status);
+
+  if (workStatus && workStatus !== "on") return false;
+  if (engagementStatus && engagementStatus !== "active") return false;
+
+  return workStatus === "on" || engagementStatus === "active";
+}
+
 function requireShiftBuilderUser_(user) {
   if (!user) {
     throw new Error("ログインユーザーを確認できません");

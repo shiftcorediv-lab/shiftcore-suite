@@ -67,6 +67,10 @@ function createAttendanceContext(records, { provision = true } = {}) {
     SpreadsheetApp: { getActive: () => spreadsheet },
     Utilities: {
       getUuid: () => `UUID-${++uuid}`,
+      DigestAlgorithm: { SHA_256: "SHA_256" },
+      Charset: { UTF_8: "UTF_8" },
+      computeDigest: (_algorithm, value) => Array.from(String(value), character => character.charCodeAt(0)),
+      base64EncodeWebSafe: bytes => Buffer.from(bytes).toString("base64url"),
       formatDate: (date, _tz, format) => format === "yyyy-MM-dd" ? new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(date) : "2026/08/28 18:00"
     },
     LockService: {
@@ -88,8 +92,12 @@ function validAnswers() {
   ];
 }
 
-function reportPayload(recordId, token = `TOKEN-${recordId}`) {
-  return { recordId, answers: validAnswers(), submissionToken: token };
+function operationId(token) {
+  return `${token}-operation-id-0001`;
+}
+
+function reportPayload(recordId, token = `TOKEN-${recordId}`, expectedVersion = 0) {
+  return { recordId, answers: validAnswers(), operationId: operationId(token), expectedVersion };
 }
 
 test("実績報告はログイン本人の終了済み勤怠だけ受け付ける", () => {
@@ -117,7 +125,7 @@ test("稼働終了前の実績報告を拒否する", () => {
 test("同じ勤怠記録の実績報告は再送しても二重登録しない", () => {
   const { context, sheets } = createAttendanceContext([{ record_id: "REC-1", email: "member@example.com" }]);
   context.submitReport_({ email: "member@example.com" }, reportPayload("REC-1", "FIRST"));
-  const duplicate = context.submitReport_({ email: "member@example.com" }, reportPayload("REC-1", "RELOAD"));
+  const duplicate = context.submitReport_({ email: "member@example.com" }, reportPayload("REC-1", "RELOAD", 1));
   assert.equal(duplicate.duplicate, true);
   assert.equal(sheets["実績報告"].values.length, 2);
   assert.equal(sheets["実績回答"].values.length, 40);
@@ -127,17 +135,16 @@ test("同じ再送トークンへ異なる回答を混ぜる操作を拒否す�
   const { context } = createAttendanceContext([{ record_id: "REC-TOKEN", email: "member@example.com" }]);
   context.submitReport_({ email: "member@example.com" }, reportPayload("REC-TOKEN", "FIXED-TOKEN"));
   const changedAnswers = validAnswers().map(answer => answer.itemId === "responseCount" ? { ...answer, value: 9 } : answer);
-  assert.throws(() => context.submitReport_({ email: "member@example.com" }, { recordId: "REC-TOKEN", answers: changedAnswers, submissionToken: "FIXED-TOKEN" }), error => error.code === "REPORT_SUBMISSION_RETRY_MISMATCH");
+  assert.throws(() => context.submitReport_({ email: "member@example.com" }, { recordId: "REC-TOKEN", answers: changedAnswers, operationId: operationId("FIXED-TOKEN"), expectedVersion: 0 }), error => error.code === "REPORT_SUBMISSION_RETRY_MISMATCH");
 });
 
-test("再送トークンを数式として保存せず、無害化後も同一送信を復旧できる", () => {
+test("送信operationIdは安全な形式だけを受け付け、同一操作を復旧できる", () => {
   const { context, sheets } = createAttendanceContext([{ record_id: "REC-TOKEN-SAFE", email: "member@example.com" }]);
-  const maliciousToken = `=${"A".repeat(199)}`;
-  context.submitReport_({ email: "member@example.com" }, reportPayload("REC-TOKEN-SAFE", maliciousToken));
+  assert.throws(() => context.submitReport_({ email: "member@example.com" }, { ...reportPayload("REC-TOKEN-SAFE"), operationId: "=1+1" }), error => error.code === "REPORT_OPERATION_ID_INVALID");
+  context.submitReport_({ email: "member@example.com" }, reportPayload("REC-TOKEN-SAFE", "SAFE-TOKEN"));
   const revisionHeaders = sheets["実績報告改訂"].values[0];
   const storedToken = sheets["実績報告改訂"].values[1][revisionHeaders.indexOf("submission_token")];
-  assert.equal(storedToken, (`'${maliciousToken}`).slice(0, 200));
-  assert.equal(storedToken.length, 200);
+  assert.equal(storedToken, operationId("SAFE-TOKEN"));
 
   const reportHeaders = sheets["実績報告"].values[0];
   sheets["実績報告"].values[1][reportHeaders.indexOf("保存状態")] = "保存中";
@@ -145,8 +152,8 @@ test("再送トークンを数式として保存せず、無害化後も同一�
   sheets["実績報告"].values[1][reportHeaders.indexOf("current_revision_number")] = 0;
   sheets["実績報告改訂"].values[1][revisionHeaders.indexOf("状態")] = "保存中";
   const restored = context.getWorkReportForm_({ email: "member@example.com" }, { recordId: "REC-TOKEN-SAFE" });
-  assert.equal(restored.resumeSubmissionToken, storedToken);
-  const recovered = context.submitReport_({ email: "member@example.com" }, reportPayload("REC-TOKEN-SAFE", restored.resumeSubmissionToken));
+  assert.equal(restored.resumeOperationId, storedToken);
+  const recovered = context.submitReport_({ email: "member@example.com" }, { ...reportPayload("REC-TOKEN-SAFE"), operationId: restored.resumeOperationId });
   assert.equal(recovered.ok, true);
   assert.equal(sheets["実績報告改訂"].values.length, 2);
 });
@@ -161,17 +168,17 @@ test("本人修正と差戻し後再提出は旧版回答を残して最新版�
   const { context, sheets } = createAttendanceContext([{ record_id: "REC-EDIT", email: "member@example.com" }]);
   context.submitReport_({ email: "member@example.com", name: "担当者" }, reportPayload("REC-EDIT", "EDIT-1"));
   const changedAnswers = validAnswers().map(answer => answer.itemId === "responseCount" ? { ...answer, value: 4 } : answer);
-  const edited = context.submitReport_({ email: "member@example.com", name: "担当者" }, { recordId: "REC-EDIT", answers: changedAnswers, submissionToken: "EDIT-2" });
+  const edited = context.submitReport_({ email: "member@example.com", name: "担当者" }, { recordId: "REC-EDIT", answers: changedAnswers, operationId: operationId("EDIT-2"), expectedVersion: 1 });
   assert.equal(edited.revisionNumber, 2);
   const reportHeaders = sheets["実績報告"].values[0];
   const reportId = sheets["実績報告"].values[1][reportHeaders.indexOf("report_id")];
-  context.returnWorkReport_({ email: "admin@example.com", role: "admin" }, { reportId, reason: "応対数を再確認してください" });
+  context.returnWorkReport_({ email: "admin@example.com", role: "admin" }, { reportId, reason: "応対数を再確認してください", operationId: operationId("RETURN-EDIT-2"), expectedVersion: 2 });
   const revisionHeaders = sheets["実績報告改訂"].values[0];
   const returnedRevision = sheets["実績報告改訂"].values[2];
   assert.equal(returnedRevision[revisionHeaders.indexOf("差戻し理由")], "応対数を再確認してください");
   assert.ok(returnedRevision[revisionHeaders.indexOf("差戻し日時")]);
   const resubmittedAnswers = changedAnswers.map(answer => answer.itemId === "responseCount" ? { ...answer, value: 5 } : answer);
-  const resubmitted = context.submitReport_({ email: "member@example.com", name: "担当者" }, { recordId: "REC-EDIT", answers: resubmittedAnswers, submissionToken: "EDIT-3" });
+  const resubmitted = context.submitReport_({ email: "member@example.com", name: "担当者" }, { recordId: "REC-EDIT", answers: resubmittedAnswers, operationId: operationId("EDIT-3"), expectedVersion: 2 });
   assert.equal(resubmitted.revisionNumber, 3);
   assert.equal(sheets["実績報告改訂"].values.length, 4);
   assert.deepEqual(sheets["実績報告改訂"].values.slice(1).map(row => row[revisionHeaders.indexOf("編集種別")]), ["初回提出", "本人修正", "差戻し後再提出"]);
@@ -198,6 +205,48 @@ test("本人修正と差戻し後再提出は旧版回答を残して最新版�
   assert.equal(legacyForm.revisions.find(revision => revision.revisionNumber === 2).returnReason, "応対数を再確認してください");
 });
 
+test("差戻し後の古い操作再送は差戻しを解除せず、再読込後の新操作だけ受け付ける", () => {
+  const { context, sheets } = createAttendanceContext([{ record_id: "REC-RETURN-SAFE", email: "member@example.com" }]);
+  const firstPayload = reportPayload("REC-RETURN-SAFE", "RETURN-SAFE-1");
+  const first = context.submitReport_({ email: "member@example.com", name: "担当者" }, firstPayload);
+  const returnPayload = { reportId: first.reportId, reason: "内容を再確認してください", operationId: operationId("RETURN-SAFE-REJECT"), expectedVersion: 1 };
+  context.returnWorkReport_({ email: "admin@example.com", role: "admin" }, returnPayload);
+  const duplicateReturn = context.returnWorkReport_({ email: "admin@example.com", role: "admin" }, returnPayload);
+  assert.equal(duplicateReturn.duplicate, true);
+  assert.equal(sheets["通知"].values.filter(row => row[sheets["通知"].values[0].indexOf("種別")] === "実績報告の差戻し").length, 1);
+
+  assert.throws(
+    () => context.submitReport_({ email: "member@example.com", name: "担当者" }, firstPayload),
+    error => error.code === "REPORT_RETURNED_RELOAD_REQUIRED"
+  );
+  const reportHeaders = sheets["実績報告"].values[0];
+  assert.equal(sheets["実績報告"].values[1][reportHeaders.indexOf("保存状態")], "差戻し中");
+
+  const correctedAnswers = validAnswers().map(answer => answer.itemId === "responseCount" ? { ...answer, value: 2 } : answer);
+  const corrected = context.submitReport_({ email: "member@example.com", name: "担当者" }, {
+    recordId: "REC-RETURN-SAFE",
+    answers: correctedAnswers,
+    operationId: operationId("RETURN-SAFE-2"),
+    expectedVersion: 1
+  });
+  assert.equal(corrected.revisionNumber, 2);
+});
+
+test("本人送信と管理者差戻しは古いexpectedVersionを拒否する", () => {
+  const { context } = createAttendanceContext([{ record_id: "REC-VERSION", email: "member@example.com" }]);
+  const first = context.submitReport_({ email: "member@example.com" }, reportPayload("REC-VERSION", "VERSION-1"));
+  const changedAnswers = validAnswers().map(answer => answer.itemId === "responseCount" ? { ...answer, value: 3 } : answer);
+  assert.throws(() => context.submitReport_({ email: "member@example.com" }, {
+    recordId: "REC-VERSION", answers: changedAnswers, operationId: operationId("VERSION-STALE"), expectedVersion: 0
+  }), error => error.code === "REPORT_VERSION_CONFLICT");
+  assert.throws(() => context.returnWorkReport_({ email: "admin@example.com", role: "admin" }, {
+    reportId: first.reportId, reason: "古い画面", operationId: operationId("RETURN-STALE"), expectedVersion: 0
+  }), error => error.code === "REPORT_VERSION_CONFLICT");
+  assert.throws(() => context.submitReport_({ email: "member@example.com" }, {
+    ...reportPayload("REC-VERSION", "VERSION-NULL"), expectedVersion: null
+  }), error => error.code === "REPORT_EXPECTED_VERSION_INVALID");
+});
+
 test("通信断相当の保存中報告は不足回答だけを補完して完了する", () => {
   const { context, sheets } = createAttendanceContext([{ record_id: "REC-RETRY", email: "member@example.com" }]);
   context.submitReport_({ email: "member@example.com" }, reportPayload("REC-RETRY", "RETRY-TOKEN"));
@@ -210,9 +259,9 @@ test("通信断相当の保存中報告は不足回答だけを補完して完�
   sheets["実績回答"].values.pop();
   const restored = context.getWorkReportForm_({ email: "member@example.com" }, { recordId: "REC-RETRY" });
   assert.equal(restored.resuming, true);
-  assert.equal(restored.resumeSubmissionToken, "RETRY-TOKEN");
+  assert.equal(restored.resumeOperationId, operationId("RETRY-TOKEN"));
   assert.throws(() => context.submitReport_({ email: "member@example.com" }, reportPayload("REC-RETRY", "NEW-TOKEN")), error => error.code === "REPORT_SUBMISSION_IN_PROGRESS");
-  const retry = context.submitReport_({ email: "member@example.com" }, reportPayload("REC-RETRY", restored.resumeSubmissionToken));
+  const retry = context.submitReport_({ email: "member@example.com" }, { ...reportPayload("REC-RETRY"), operationId: restored.resumeOperationId });
   assert.equal(retry.ok, true);
   assert.equal(sheets["実績報告"].values.length, 2);
   assert.equal(sheets["実績回答"].values.length, 40);
@@ -230,8 +279,8 @@ test("回答版の確定直後に通信が切れても同じ送信で報告ヘ�
   sheets["実績報告"].values[1][reportHeaders.indexOf("current_revision_number")] = 0;
   const restored = context.getWorkReportForm_({ email: "member@example.com" }, { recordId: "REC-FINALIZE" });
   assert.equal(restored.resuming, true);
-  assert.equal(restored.resumeSubmissionToken, "FINALIZE-TOKEN");
-  const recovered = context.submitReport_({ email: "member@example.com" }, reportPayload("REC-FINALIZE", restored.resumeSubmissionToken));
+  assert.equal(restored.resumeOperationId, operationId("FINALIZE-TOKEN"));
+  const recovered = context.submitReport_({ email: "member@example.com" }, { ...reportPayload("REC-FINALIZE"), operationId: restored.resumeOperationId });
   assert.equal(recovered.duplicate, true);
   assert.equal(sheets["実績報告"].values[1][reportHeaders.indexOf("保存状態")], "提出済み");
   assert.equal(sheets["実績報告"].values[1][reportHeaders.indexOf("current_revision_id")], revisionId);
@@ -250,8 +299,8 @@ test("個人成績APIはログイン本人の対象勤怠と回答だけを返�
   ]);
   const myAnswers = validAnswers().map(answer => answer.itemId === "responseCount" ? { ...answer, value: 3 } : answer);
   const otherAnswers = validAnswers().map(answer => answer.itemId === "responseCount" ? { ...answer, value: 99 } : answer);
-  context.submitReport_({ email: "member@example.com", name: "本人" }, { recordId: "REC-ME", answers: myAnswers, submissionToken: "MY-SUMMARY" });
-  context.submitReport_({ email: "other@example.com", name: "他人" }, { recordId: "REC-OTHER", answers: otherAnswers, submissionToken: "OTHER-SUMMARY" });
+  context.submitReport_({ email: "member@example.com", name: "本人" }, { recordId: "REC-ME", answers: myAnswers, operationId: operationId("MY-SUMMARY"), expectedVersion: 0 });
+  context.submitReport_({ email: "other@example.com", name: "他人" }, { recordId: "REC-OTHER", answers: otherAnswers, operationId: operationId("OTHER-SUMMARY"), expectedVersion: 0 });
   const summary = context.getMyWorkReportSummary_({ email: "member@example.com" }, { month: "2026-08" });
   assert.equal(summary.ownerEmail, "member@example.com");
   assert.equal(summary.counts.total, 1);
@@ -377,6 +426,14 @@ test("勤怠ダッシュボードは本人の読取データを再利用し、�
   assert.equal(rowReads["勤怠記録"], 2);
 });
 
+test("勤怠キャッシュの本人識別子は32bitハッシュではなくSHA-256を使用する", () => {
+  const { context } = createAttendanceContext([]);
+  const identity = context.dashboardCacheIdentity_("Member@example.com");
+  assert.equal(identity, Buffer.from("member@example.com").toString("base64url"));
+  assert.doesNotMatch(backendSource, /Math\.imul|>>>\s*0/);
+  assert.match(backendSource, /DigestAlgorithm\.SHA_256/);
+});
+
 test("読取専用認証だけ15分再利用し、打刻などの書込認証は毎回確認する", () => {
   const { context } = createAttendanceContext([]);
   const cacheValues = new Map();
@@ -452,9 +509,9 @@ test("CSVは通常出力で最新版だけ、履歴出力で修正前後を含�
   const { context } = createAttendanceContext([{ record_id: "REC-CSV", email: "member@example.com", workDate: "2026-08-28" }]);
   context.submitReport_({ email: "member@example.com", name: "本人" }, reportPayload("REC-CSV", "CSV-1"));
   const changedAnswers = validAnswers().map(answer => answer.itemId === "responseCount" ? { ...answer, value: 7 } : answer);
-  const changed = context.submitReport_({ email: "member@example.com", name: "本人" }, { recordId: "REC-CSV", answers: changedAnswers, submissionToken: "CSV-2" });
-  context.returnWorkReport_({ email: "admin@example.com", role: "admin" }, { reportId: changed.reportId, reason: "集計値を確認してください" });
-  context.submitReport_({ email: "member@example.com", name: "本人" }, { recordId: "REC-CSV", answers: changedAnswers, submissionToken: "CSV-3" });
+  const changed = context.submitReport_({ email: "member@example.com", name: "本人" }, { recordId: "REC-CSV", answers: changedAnswers, operationId: operationId("CSV-2"), expectedVersion: 1 });
+  context.returnWorkReport_({ email: "admin@example.com", role: "admin" }, { reportId: changed.reportId, reason: "集計値を確認してください", operationId: operationId("RETURN-CSV-2"), expectedVersion: 2 });
+  context.submitReport_({ email: "member@example.com", name: "本人" }, { recordId: "REC-CSV", answers: changedAnswers, operationId: operationId("CSV-3"), expectedVersion: 2 });
   const filters = { dateFrom: "2026-08-01", dateTo: "2026-08-31", groupBy: "day" };
   const current = context.exportWorkReportsCsv_({ email: "admin@example.com", role: "admin" }, filters);
   const history = context.exportWorkReportsCsv_({ email: "admin@example.com", role: "admin" }, { ...filters, includeHistory: true });

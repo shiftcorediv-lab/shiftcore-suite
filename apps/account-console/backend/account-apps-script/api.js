@@ -12,12 +12,6 @@ function doGet(e) {
       });
     }
 
-    // ===== PMO系 GET ここから =====
-    if (action === "getPmoRoster") {
-      return jsonResponse_(getPmoRoster());
-    }
-    // ===== PMO系 GET ここまで =====
-
     return jsonResponse_({
       success: false,
       message: "Unknown GET action: " + action
@@ -71,6 +65,9 @@ function doPost(e) {
     if (action === "attendanceApprovalContract") {
       return jsonResponse_(attendanceApprovalContract_(body));
     }
+    if (action === "getPmoRosterSecure") {
+      return jsonResponse_(getPmoRosterSecure(body.service_secret));
+    }
     // ===== oauth ここまで =====
 
 
@@ -115,18 +112,40 @@ function doPost(e) {
 
     // ===== signup系 POST ここから =====
     if (action === "submitSignupRequest") {
-      return jsonResponse_(submitSignupRequest(body.payload || body));
+      const tokenResult = resolveFirebaseEmailByIdToken_(body.idToken);
+
+      if (!tokenResult.ok) {
+        return jsonResponse_({
+          success: false,
+          ok: false,
+          code: tokenResult.code || "AUTH_INVALID",
+          message: tokenResult.message || "ログイン情報を確認できません"
+        });
+      }
+
+      if (tokenResult.emailVerified !== true) {
+        return jsonResponse_({
+          success: false,
+          ok: false,
+          code: "EMAIL_NOT_VERIFIED",
+          message: "確認済みメールアドレスでログインしてください"
+        });
+      }
+
+      return jsonResponse_(submitSignupRequest(body.payload || body, tokenResult.email));
     }
 
     if (action === "getSignupRequestsSecure") {
-      const operator = requireSignupAdminOperator_(body);
+      const operator = requireSignupRequestViewer_(body);
 
       if (!operator.success) {
         return jsonResponse_(operator);
       }
 
       const status = normalizeText(body.status);
-      return jsonResponse_(getSignupRequests(status));
+      const result = getSignupRequests(status);
+      result.canEditRequests = isSignupRequestEditor_(operator.user);
+      return jsonResponse_(result);
     }
 
     if (action === "approveSignupRequest") {

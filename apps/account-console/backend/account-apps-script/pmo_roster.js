@@ -1,18 +1,34 @@
 // ===== PMO roster 1件整形ここから =====
 function buildPmoRosterUser(user) {
   return {
-    userId: String(user.internal_user_id || "").trim(),
     displayName: String(user.name || "").trim(),
     employeeCode: String(user.employee_code || "").trim().toUpperCase(),
     role: String(user.role || "").trim(),
+    status: String(user.status || "").trim().toLowerCase(),
     workStatus: getNormalizedWorkStatus(user)
   };
 }
 // ===== PMO roster 1件整形ここまで =====
 
 
+// ===== PMO roster サービス認証ここから =====
+function requirePmoRosterService_(providedSecret) {
+  const expected = normalizeText(PropertiesService.getScriptProperties()
+    .getProperty(PMO_ROSTER_SERVICE_SECRET_PROPERTY));
+
+  if (!expected || normalizeText(providedSecret) !== expected) {
+    const error = new Error("SERVICE_AUTH_INVALID");
+    error.code = "SERVICE_AUTH_INVALID";
+    throw error;
+  }
+}
+// ===== PMO roster サービス認証ここまで =====
+
+
 // ===== PMO roster 取得ここから =====
-function getPmoRoster() {
+function getPmoRosterSecure(serviceSecret) {
+  requirePmoRosterService_(serviceSecret);
+
   try {
     const users = getUsersData();
 
@@ -23,7 +39,11 @@ function getPmoRoster() {
           return false;
         }
 
-        if (!user.userId || !user.displayName || !user.employeeCode) {
+        if (user.status !== "active") {
+          return false;
+        }
+
+        if (!user.displayName || !user.employeeCode) {
           return false;
         }
 
@@ -32,6 +52,12 @@ function getPmoRoster() {
         }
 
         return true;
+      })
+      .map(function(user) {
+        return {
+          displayName: user.displayName,
+          employeeCode: user.employeeCode
+        };
       });
 
     return {
@@ -42,7 +68,7 @@ function getPmoRoster() {
   } catch (error) {
     return {
       success: false,
-      message: "getPmoRoster でエラーが発生しました: " + String(error.message || error)
+      message: "名簿の取得に失敗しました"
     };
   }
 }

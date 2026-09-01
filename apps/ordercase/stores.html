@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><script src="../common/environment.js?v=20260830-staging-1"></script>
+<html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><script src="../common/environment.js?v=20260902-banner-height-1"></script>
 <title>Order 店舗マスター</title><link rel="stylesheet" href="./css/common.css">
 <script defer src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script><script defer src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
 <style>
@@ -11,7 +11,7 @@ main{max-width:980px}.toolbar{display:grid;grid-template-columns:1fr auto;gap:12
 <div id="editorBackdrop" class="dialog-backdrop hidden"><div class="dialog"><h2 id="editorTitle">店舗編集</h2><input id="editStoreId" type="hidden"><div class="grid two">
 <div><label>代理店名</label><input id="editAgencyName"></div><div><label>正式店舗名</label><input id="editStoreName"></div><div><label>店舗略称</label><input id="editStoreShortName"></div><div><label>エリア</label><input id="editStoreArea"></div><div><label>住所</label><input id="editAddress"></div><div><label>最寄り駅</label><input id="editNearestStation"></div></div>
 <div class="actions"><button id="archiveButton" type="button" class="danger">アーカイブ</button><button id="cancelButton" type="button" class="secondary">閉じる</button><button id="saveButton" type="button">保存</button></div></div></div>
-<script src="./js/config.js"></script><script src="./js/utils.js"></script><script src="./js/auth-session.js"></script><script src="./js/api.js"></script><script src="./js/navigation.js"></script>
+<script src="./js/config.js"></script><script src="./js/utils.js"></script><script src="./js/auth-session.js"></script><script src="./js/api.js?v=20260902-security-1"></script><script src="./js/navigation.js"></script>
 <script>
 const state={stores:[],editing:null};
 const searchInput=document.getElementById('searchInput'),showArchived=document.getElementById('showArchived'),storeList=document.getElementById('storeList'),messageBox=document.getElementById('messageBox'),editorBackdrop=document.getElementById('editorBackdrop'),editorTitle=document.getElementById('editorTitle'),editStoreId=document.getElementById('editStoreId'),editAgencyName=document.getElementById('editAgencyName'),editStoreName=document.getElementById('editStoreName'),editStoreShortName=document.getElementById('editStoreShortName'),editStoreArea=document.getElementById('editStoreArea'),editAddress=document.getElementById('editAddress'),editNearestStation=document.getElementById('editNearestStation'),archiveButton=document.getElementById('archiveButton'),cancelButton=document.getElementById('cancelButton'),saveButton=document.getElementById('saveButton');

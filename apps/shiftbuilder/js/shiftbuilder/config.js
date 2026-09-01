@@ -14,7 +14,9 @@ export const ACCOUNT_AUTHORIZATION_API_URL =
     "https://script.google.com/macros/s/AKfycbx83rAzXDfQPJUEu9tX4dpULH4QHYUoqfaTnfzzySkW3KjGVbcH4tnq9PKCCvfuEx6eRA/exec"
   );
 
-export const DASHBOARD_URL = "../account-console/dashboard.html";
+export const DASHBOARD_URL = window.ShiftCoreEnvironment.withEnvironment(
+  "../account-console/dashboard.html"
+);
 export const LOGIN_URL = window.ShiftCoreEnvironment.isStaging
   ? window.ShiftCoreEnvironment.withEnvironment("../account-console/")
   : APP_URLS.accountConsole;

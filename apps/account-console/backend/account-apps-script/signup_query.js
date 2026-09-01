@@ -49,7 +49,10 @@ function getSignupRequestById_(requestId) {
     company_name: values[(headerMap["company_name"] || 1) - 1] || "",
     phone: values[(headerMap["phone"] || 1) - 1] || "",
     note: values[(headerMap["note"] || 1) - 1] || "",
-    request_status: values[(headerMap["request_status"] || 1) - 1] || ""
+    request_status: values[(headerMap["request_status"] || 1) - 1] || "",
+    reviewed_at: values[(headerMap["reviewed_at"] || 1) - 1] || "",
+    reviewed_by: values[(headerMap["reviewed_by"] || 1) - 1] || "",
+    linked_internal_user_id: values[(headerMap["linked_internal_user_id"] || 1) - 1] || ""
   };
 }
 // ===== リクエスト取得ここまで =====

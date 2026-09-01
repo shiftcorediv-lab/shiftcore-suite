@@ -233,6 +233,32 @@ function submitShiftRequest(payload) {
 
 
 // =========================
+// 認証済み本人の希望休提出ここから
+// =========================
+function submitShiftRequestSecure(payload, idToken) {
+  const auth = requirePmoActiveUser_(idToken);
+
+  if (!auth.success) {
+    return auth;
+  }
+
+  const source = payload || {};
+  return submitShiftRequest({
+    userId: auth.user.userId,
+    displayName: auth.user.displayName,
+    employeeCode: auth.user.employeeCode,
+    targetYearMonth: source.targetYearMonth,
+    offDates: Array.isArray(source.offDates) ? source.offDates : [],
+    memo: source.memo,
+    submitType: source.submitType
+  });
+}
+// =========================
+// 認証済み本人の希望休提出ここまで
+// =========================
+
+
+// =========================
 // 最新提出インデックスここから
 // 期限切れのないScript Propertiesを使い、通常起動時の全行走査を避ける。
 // =========================
@@ -344,4 +370,21 @@ function getLatestShiftRequest(userId, targetYearMonth) {
 }
 // =========================
 // 最新提出取得ここまで
+// =========================
+
+
+// =========================
+// 認証済み本人の最新提出取得ここから
+// =========================
+function getLatestShiftRequestSecure(targetYearMonth, idToken) {
+  const auth = requirePmoActiveUser_(idToken);
+
+  if (!auth.success) {
+    return auth;
+  }
+
+  return getLatestShiftRequest(auth.user.userId, targetYearMonth);
+}
+// =========================
+// 認証済み本人の最新提出取得ここまで
 // =========================

@@ -255,11 +255,8 @@ function buildCreateAssignmentParams_(body, operator) {
     throw new Error("アサイン対象ユーザーが見つかりません: " + internalUserId);
   }
 
-  // developer は配置対象の人員ではない。候補一覧と配置済み表示から除外するだけでは
-  // internal_user_id を直接指定したリクエストで配置できてしまうため、書込み側でも拒否する。
-  // 作成と入替の両方がこの関数を通るので、ここが唯一の防御点になる。
-  if (normalizeLowerText(targetUser.role) === "developer") {
-    throw new Error("開発者アカウントはシフトへ配置できません: " + internalUserId);
+  if (!isShiftBuilderAssignableUser_(targetUser)) {
+    throw new Error("稼働対象外またはShift対象外のユーザーにはアサインできません: " + internalUserId);
   }
 
   return {
@@ -285,7 +282,12 @@ function buildCreateAssignmentParams_(body, operator) {
 }
 
 function createShiftBuilderAssignment_(params, operator) {
-  validateShiftBuilderAssignableOrderCase_(params.case_id);
+  const assignmentContract = resolveShiftBuilderAssignmentContract_(params);
+  const contractTimeRange = getShiftBuilderContractTimeRange_(assignmentContract);
+  params.start_time = contractTimeRange.start_time;
+  params.end_time = contractTimeRange.end_time;
+  const activeAssignments = getActiveShiftAssignments_();
+  validateShiftBuilderAssignmentCapacity_(params, assignmentContract, activeAssignments);
   const requestedOff = validateRequestedOffAssignment_(
     params.internal_user_id,
     params.target_month,
@@ -297,8 +299,8 @@ function createShiftBuilderAssignment_(params, operator) {
       .filter(Boolean)
       .join(" / ");
   }
-  validateNoDuplicateShiftAssignment_(params);
-  validateNoSameDayShiftAssignment_(params);
+  validateNoDuplicateShiftAssignment_(params, activeAssignments);
+  validateNoSameDayShiftAssignment_(params, activeAssignments);
 
   const shiftMonth = getOrCreateShiftMonth_(
     params.target_month,
@@ -332,7 +334,10 @@ function createShiftBuilderAssignment_(params, operator) {
 
   try {
     // 別projectのOrderCase取消と競合しても、作成後検査で孤児化を防ぐ。
-    validateShiftBuilderAssignableOrderCase_(params.case_id);
+    const refreshedContract = resolveShiftBuilderAssignmentContract_(params);
+    validateShiftBuilderAssignmentCapacity_(Object.assign({}, params, {
+      capacity_ignore_assignment_id: assignment.assignment_id
+    }), refreshedContract);
   } catch (error) {
     try {
       archiveShiftAssignment_(assignment.assignment_id, operator, {
@@ -372,13 +377,16 @@ function getActiveShiftAssignments_() {
   return filterShiftAssignmentsByAssignableOrderCases_(assignments);
 }
 
-function validateNoDuplicateShiftAssignment_(params) {
+function validateNoDuplicateShiftAssignment_(params, activeAssignments) {
   const caseId = normalizeText(params.case_id);
   const caseDateId = normalizeText(params.case_date_id);
   const workDate = normalizeDateString(params.work_date);
   const internalUserId = normalizeText(params.internal_user_id);
 
-  const duplicatedAssignments = getActiveShiftAssignments_()
+  const sourceAssignments = Array.isArray(activeAssignments)
+    ? activeAssignments
+    : getActiveShiftAssignments_();
+  const duplicatedAssignments = sourceAssignments
     .filter(function(assignment) {
       return normalizeText(assignment.case_id) === caseId;
     })
@@ -412,12 +420,15 @@ function validateNoDuplicateShiftAssignment_(params) {
   }
 }
 
-function validateNoSameDayShiftAssignment_(params) {
+function validateNoSameDayShiftAssignment_(params, activeAssignments) {
   const caseId = normalizeText(params.case_id);
   const workDate = normalizeDateString(params.work_date);
   const internalUserId = normalizeText(params.internal_user_id);
 
-  const sameDayAssignments = getActiveShiftAssignments_()
+  const sourceAssignments = Array.isArray(activeAssignments)
+    ? activeAssignments
+    : getActiveShiftAssignments_();
+  const sameDayAssignments = sourceAssignments
     .filter(function(assignment) {
       return normalizeDateString(assignment.work_date) === workDate;
     })
@@ -442,25 +453,50 @@ function validateNoSameDayShiftAssignment_(params) {
   }
 }
 
-function validateShiftBuilderAssignableOrderCase_(caseId) {
-  const normalizedCaseId = normalizeText(caseId);
+function validateShiftBuilderAssignmentCapacity_(params, contract, activeAssignments) {
+  const excludedAssignmentIds = {};
+  [params.replacing_assignment_id, params.capacity_ignore_assignment_id]
+    .map(function(value) { return normalizeText(value); })
+    .filter(Boolean)
+    .forEach(function(assignmentId) {
+      excludedAssignmentIds[assignmentId] = true;
+    });
+  const sourceAssignments = Array.isArray(activeAssignments)
+    ? activeAssignments
+    : getActiveShiftAssignments_();
+  const eligibleAssignments = sourceAssignments
+    .filter(function(assignment) {
+      return excludedAssignmentIds[normalizeText(assignment.assignment_id)] !== true;
+    })
+    .filter(function(assignment) {
+      return normalizeText(assignment.case_id) === normalizeText(params.case_id);
+    });
 
-  if (!normalizedCaseId) {
-    throw new Error("case_id が必要です");
+  if (contract.input_mode === "days") {
+    const sameDateCount = eligibleAssignments.filter(function(assignment) {
+      return normalizeDateString(assignment.work_date) === normalizeDateString(params.work_date);
+    }).length;
+
+    if (sameDateCount >= 1) {
+      throw new Error("日数指定案件は同じ日に2名以上アサインできません: " + params.work_date);
+    }
+
+    if (eligibleAssignments.length >= contract.required_total) {
+      throw new Error("日数指定案件の依頼日数を超えてアサインできません: " + params.case_id);
+    }
+
+    return;
   }
 
-  const targetCase = getOrderCaseRows_().find(function(caseRow) {
-    return normalizeText(caseRow.case_id) === normalizedCaseId;
-  });
+  const assignedCount = eligibleAssignments.filter(function(assignment) {
+    return normalizeText(assignment.case_date_id) === normalizeText(params.case_date_id) &&
+      normalizeDateString(assignment.work_date) === normalizeDateString(params.work_date);
+  }).length;
 
-  if (!targetCase) {
-    throw new Error("対象案件が見つかりません: " + normalizedCaseId);
-  }
-
-  if (!isOrderCaseVisibleInShiftBuilder_(targetCase)) {
+  if (assignedCount >= contract.required_total) {
     throw new Error(
-      "キャンセルまたはアーカイブ済みの案件にはアサインできません: " +
-      normalizedCaseId
+      "案件日の必要人数を超えてアサインできません: " +
+      params.case_id + " / " + params.work_date
     );
   }
 }
@@ -517,6 +553,7 @@ function shiftBuilderReplaceAssignment(body) {
     }
 
     const params = buildCreateAssignmentParams_(body, operator);
+    params.replacing_assignment_id = replaceAssignmentId;
 
     validateReplaceAssignmentTarget_(existingAssignment, params);
 
@@ -526,9 +563,6 @@ function shiftBuilderReplaceAssignment(body) {
       newAssignment = createShiftBuilderAssignment_(params, operator);
 
       archiveShiftAssignment_(replaceAssignmentId, operator);
-
-      // 新規作成後から旧アサイン解除までの間に案件が無効化されていないか再確認する。
-      validateShiftBuilderAssignableOrderCase_(params.case_id);
 
       return ok_({
         assignment: newAssignment,
@@ -642,18 +676,7 @@ function buildShiftBuilderAssignmentCandidates_(targetMonth, area) {
 
   return getUsersMasterRows_()
     .filter(function(user) {
-      return normalizeLowerText(user.status) === "active";
-    })
-    .filter(function(user) {
-      return normalizeLowerText(user.role) !== "developer";
-    })
-    .filter(function(user) {
-      return includesCsvValue(user.allowed_modules, SHIFTBUILDER_MODULE_KEY);
-    })
-    .filter(function(user) {
-      const engagementStatus = normalizeLowerText(user.engagement_status);
-
-      return !engagementStatus || engagementStatus === "active";
+      return isShiftBuilderAssignableUser_(user);
     })
     .map(function(user) {
       const displayName =

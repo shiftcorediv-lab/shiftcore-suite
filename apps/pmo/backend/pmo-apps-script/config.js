@@ -2,6 +2,7 @@
 // 設定ここから
 // =========================
 const PMO_PRODUCTION_SCRIPT_ID = "1klXVeB2YwOdJoB24ZRGfIbqFTYXFwgCkIAHeuTD35MDE7_XpSbq4nTAh";
+const PMO_ROSTER_SERVICE_SECRET_PROPERTY = "PMO_ROSTER_SERVICE_SECRET";
 
 function pmoRuntimeEnvironment_() {
   if (typeof ScriptApp === "undefined" || typeof PropertiesService === "undefined") return "unit-test";

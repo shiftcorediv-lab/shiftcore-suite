@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="../common/environment.js?v=20260830-staging-1"></script>
+  <script src="../common/environment.js?v=20260902-banner-height-1"></script>
   <title>Another Portal Login</title>
   <link rel="stylesheet" href="./css/index.css">
   <link rel="stylesheet" href="./css/line-browser-guard.css" />
@@ -11,14 +11,14 @@
   <link rel="stylesheet" href="../theme/shiftcore-theme.css">
 </head>
 <body>
-  <div class="container">
+  <main class="container">
     <h1>Another Portal</h1>
     <p>Googleアカウントでログインしてください。</p>
 
-    <button id="loginBtn">Googleでログイン</button>
+    <button id="loginBtn" type="button">Googleでログイン</button>
 
-    <div id="statusBox" class="status-box" data-shiftcore-loading="true" aria-busy="true">ログイン状態を確認中...</div>
-  </div>
+    <div id="statusBox" class="status-box" role="status" aria-live="polite" data-shiftcore-loading="true" aria-busy="true">ログイン状態を確認中...</div>
+  </main>
 
   <script type="module" src="./js/login/main.js?v=20260831-activity-1"></script>
 <script type="module">

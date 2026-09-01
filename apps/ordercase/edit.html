@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script src="../common/environment.js?v=20260830-staging-1"></script>
+  <script src="../common/environment.js?v=20260902-banner-height-1"></script>
   <title>Order 案件編集</title>
   <link rel="preconnect" href="https://www.gstatic.com" crossorigin />
   <link rel="preconnect" href="https://ordercaseapiproxyworker.shiftcore-div.workers.dev" />
@@ -457,6 +457,8 @@
           <input id="workEndTime" type="time" />
         </div>
 
+        <p class="hint">終了が開始より早い時刻の場合は、翌日の終了として扱います。保存時に確認が表示されます。</p>
+
         <div>
           <label for="meetingTime">集合時間</label>
           <input id="meetingTime" type="time" />
@@ -597,7 +599,7 @@
   <script src="./js/config.js"></script>
   <script src="./js/utils.js"></script>
   <script src="./js/auth-session.js"></script>
-  <script src="./js/api.js"></script>
+  <script src="./js/api.js?v=20260902-security-1"></script>
   <script src="./js/loading.js"></script>
   <script src="./js/navigation.js"></script>
 
@@ -1260,6 +1262,10 @@
 
         const payload = buildUpdatePayload();
         validateUpdatePayload(payload);
+        if (!confirmOvernightUpdatePayload(payload)) {
+          setMessage('案件保存をキャンセルしました', '');
+          return;
+        }
 
         const isAssignmentEjectStatus =
           payload.status === 'cancelled' ||
@@ -1514,6 +1520,8 @@ if (payload.change_type !== 'status_change' && !payload.change_memo) {
       if (!payload.agency_name) throw new Error('代理店名を入力してください。');
       if (!payload.store_name) throw new Error('連携店舗を入力してください。');
       if (!payload.store_area) throw new Error('連携店舗エリアを選択してください。');
+      if (!payload.work_start_time || !payload.work_end_time) throw new Error('基本時間の開始・終了時刻を入力してください。');
+      if (payload.work_start_time === payload.work_end_time) throw new Error('基本時間の開始・終了時刻を同じにはできません。');
 
       if (!['', 'per_person_day', 'per_case', 'per_day', 'per_line_day'].includes(payload.amount_type)) {
         throw new Error('金額区分が不正です。');
@@ -1529,7 +1537,7 @@ if (payload.change_type !== 'status_change' && !payload.change_memo) {
       payload.case_dates.forEach(date => {
         const hasStart = Boolean(date.work_start_time);
         const hasEnd = Boolean(date.work_end_time);
-        if (hasStart !== hasEnd || (hasStart && date.work_end_time <= date.work_start_time)) {
+        if (hasStart !== hasEnd || (hasStart && date.work_end_time === date.work_start_time)) {
           throw new Error(`${date.work_date} の開始・終了時刻を正しく入力してください。`);
         }
         if (date.unit_amount_override !== '' && payload.amount_type !== 'per_person_day') {
@@ -1542,6 +1550,27 @@ if (payload.change_type !== 'status_change' && !payload.change_memo) {
           throw new Error(`${date.work_date} の日別単価は0以上の数値で入力してください。`);
         }
       });
+    }
+
+    function confirmOvernightUpdatePayload(payload) {
+      const overnightLabels = [];
+
+      if (payload.work_start_time && payload.work_end_time < payload.work_start_time) {
+        overnightLabels.push('基本時間');
+      }
+
+      (payload.case_dates || []).forEach(date => {
+        if (date.work_start_time && date.work_end_time < date.work_start_time) {
+          overnightLabels.push(`${date.work_date} の日別時間`);
+        }
+      });
+
+      if (overnightLabels.length === 0) return true;
+
+      return window.confirm(
+        overnightLabels.join('\n') +
+        '\n\n終了時刻は翌日として扱われます。この内容で保存しますか？'
+      );
     }
     /****************************************************
      * validateUpdatePayload ここまで

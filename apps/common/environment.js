@@ -75,6 +75,18 @@
     button.addEventListener("click", returnToProduction);
     document.body.prepend(banner);
     document.documentElement.dataset.shiftcoreEnvironment = STAGING;
+    const updateBannerHeight = () => {
+      document.documentElement.style?.setProperty?.(
+        "--shiftcore-environment-banner-height",
+        `${Math.ceil(banner.getBoundingClientRect().height)}px`
+      );
+    };
+    updateBannerHeight();
+    if (typeof ResizeObserver === "function") {
+      new ResizeObserver(updateBannerHeight).observe(banner);
+    } else if (typeof global.addEventListener === "function") {
+      global.addEventListener("resize", updateBannerHeight);
+    }
   }
 
   if (document.readyState === "loading") {

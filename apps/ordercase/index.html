@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script src="../common/environment.js?v=20260830-staging-1"></script>
+  <script src="../common/environment.js?v=20260902-banner-height-1"></script>
   <title>Order 案件登録</title>
   <link rel="preconnect" href="https://www.gstatic.com" crossorigin />
   <link rel="preconnect" href="https://ordercaseapiproxyworker.shiftcore-div.workers.dev" />
@@ -469,6 +469,8 @@ input[type="time"] {
           <input id="workEndTime" type="time" value="18:00" required />
         </div>
 
+        <p class="hint">終了が開始より早い時刻の場合は、翌日の終了として扱います。登録時に確認が表示されます。</p>
+
         <div id="meetingTimeWrap">
           <label for="meetingTime">集合時間</label>
           <input id="meetingTime" type="time" />
@@ -649,7 +651,8 @@ input[type="time"] {
   <script src="./js/config.js"></script>
   <script src="./js/utils.js"></script>
   <script src="./js/auth-session.js"></script>
-  <script src="./js/api.js"></script>
+  <script src="./js/api.js?v=20260902-security-1"></script>
+  <script src="./js/create-operation-policy.js?v=20260902-idempotency-1"></script>
   <script src="./js/loading.js"></script>
   <script src="./js/navigation.js"></script>
 
@@ -662,6 +665,7 @@ input[type="time"] {
       selectedDates: [],
       storesMaster: []
     };
+    const createOperationTracker = window.OrderCaseCreateOperationPolicy.createTracker();
     /****************************************************
      * 状態 ここまで
      ****************************************************/
@@ -1456,11 +1460,20 @@ input[type="time"] {
      * submitCase ここから
      ****************************************************/
     async function submitCase() {
+      let registrationConfirmed = false;
+      let formResetCompleted = false;
+      let confirmedCaseId = '';
+
       try {
         clearMessage();
 
-        const payload = buildPayload();
-        validatePayload(payload);
+        const formPayload = buildPayload();
+        validatePayload(formPayload);
+        if (!confirmOvernightWorkPayload(formPayload)) {
+          setMessage('案件登録をキャンセルしました', '');
+          return;
+        }
+        const payload = createOperationTracker.attach(formPayload);
 
         const button = document.getElementById('submitButton');
         button.disabled = true;
@@ -1476,10 +1489,14 @@ input[type="time"] {
 
         const createdCaseId = json.data.case_id;
         const createdCount = Number(json.data.created_count || 1);
+        registrationConfirmed = true;
+        confirmedCaseId = createdCaseId;
+        createOperationTracker.complete(payload.create_operation_id);
 
         sessionStorage.setItem('ordercase_force_list_refresh', '1');
 
         clearFormAfterSubmit();
+        formResetCompleted = true;
 
         if (createdCount > 1) {
           setMessage(`登録完了：${createdCount}件作成しました。代表ID：${createdCaseId}　続けて登録できます。`, 'success');
@@ -1490,12 +1507,16 @@ input[type="time"] {
         scrollToPageTop();
 
       } catch (error) {
-        setMessage(error.message, 'error');
+        if (registrationConfirmed) {
+          setMessage(`登録自体は完了しています（案件ID：${confirmedCaseId}）。画面の初期化に失敗したため、再登録せず画面を再読み込みしてください。`, 'error');
+        } else {
+          setMessage(error.message, 'error');
+        }
 
       } finally {
         const button = document.getElementById('submitButton');
-        button.disabled = false;
-        button.textContent = '案件を登録する';
+        button.disabled = registrationConfirmed && !formResetCompleted;
+        button.textContent = button.disabled ? '登録済み・再読み込みしてください' : '案件を登録する';
         hideLoading();
       }
     }
@@ -1514,7 +1535,6 @@ input[type="time"] {
 
       return {
         target_month: document.getElementById('targetMonth').value,
-        request_date: todayString(),
         reply_deadline: document.getElementById('replyDeadline').value,
 
         case_type: document.getElementById('caseType').value,
@@ -1560,9 +1580,6 @@ input[type="time"] {
         internal_memo: document.getElementById('internalMemo').value.trim(),
         operation_memo: document.getElementById('operationMemo').value.trim(),
 
-        created_by: '画面登録',
-        created_by_email: '',
-
         case_dates: inputMode === 'dates'
           ? state.selectedDates.map(item => ({
               work_date: item.work_date,
@@ -1599,7 +1616,7 @@ input[type="time"] {
       if (!payload.store_name) throw new Error('連携店舗を入力してください。');
       if (!payload.store_area) throw new Error('連携店舗エリアを選択してください。');
       if (!payload.work_start_time || !payload.work_end_time) throw new Error('基本時間の開始・終了時刻を入力してください。');
-      if (payload.work_end_time <= payload.work_start_time) throw new Error('基本時間の終了時刻は開始時刻より後にしてください。');
+      if (payload.work_end_time === payload.work_start_time) throw new Error('基本時間の開始・終了時刻を同じにはできません。');
             if (!Number.isFinite(payload.same_condition_count) || payload.same_condition_count < 1) {
         throw new Error('同条件で作成する件数は1以上で入力してください。');
       }
@@ -1615,8 +1632,8 @@ input[type="time"] {
         if (!payload.alternate_work_start_time || !payload.alternate_work_end_time) {
           throw new Error('異なる時間帯の開始・終了時刻を入力してください。');
         }
-        if (payload.alternate_work_end_time <= payload.alternate_work_start_time) {
-          throw new Error('異なる時間帯の終了時刻は開始時刻より後にしてください。');
+        if (payload.alternate_work_end_time === payload.alternate_work_start_time) {
+          throw new Error('異なる時間帯の開始・終了時刻を同じにはできません。');
         }
         if (payload.alternate_amount_enabled && payload.amount_type !== 'per_person_day') {
           throw new Error('異なる時間帯の別単価は「1コマ・1日あたり」の場合だけ設定できます。');
@@ -1632,14 +1649,14 @@ input[type="time"] {
 
       payload.case_dates.forEach(dateItem => {
         if (!dateItem.has_condition_override) return;
-        if (!dateItem.work_start_time || !dateItem.work_end_time || dateItem.work_end_time <= dateItem.work_start_time) {
+        if (!dateItem.work_start_time || !dateItem.work_end_time || dateItem.work_end_time === dateItem.work_start_time) {
           throw new Error(`${dateItem.work_date} の基本時間を正しく入力してください。`);
         }
         if (dateItem.has_alternate_time_workers) {
           if (dateItem.alternate_worker_count < 1 || dateItem.alternate_worker_count >= payload.same_condition_count) {
             throw new Error(`${dateItem.work_date} の異時間者数は、1以上かつ必要人数未満にしてください。`);
           }
-          if (!dateItem.alternate_work_start_time || !dateItem.alternate_work_end_time || dateItem.alternate_work_end_time <= dateItem.alternate_work_start_time) {
+          if (!dateItem.alternate_work_start_time || !dateItem.alternate_work_end_time || dateItem.alternate_work_end_time === dateItem.alternate_work_start_time) {
             throw new Error(`${dateItem.work_date} の異時間者の時間を正しく入力してください。`);
           }
           if (dateItem.alternate_amount_enabled && payload.amount_type !== 'per_person_day') {
@@ -1654,6 +1671,46 @@ input[type="time"] {
       if (payload.input_mode === 'days' && !payload.requested_days) {
         throw new Error('日数指定の場合、希望日数を入力してください。');
       }
+    }
+
+    function confirmOvernightWorkPayload(payload) {
+      const overnightLabels = [];
+      const addIfOvernight = (label, start, end) => {
+        if (start && end && end < start) overnightLabels.push(label);
+      };
+
+      addIfOvernight('基本時間', payload.work_start_time, payload.work_end_time);
+
+      if (payload.has_alternate_time_workers) {
+        addIfOvernight(
+          '異なる時間帯',
+          payload.alternate_work_start_time,
+          payload.alternate_work_end_time
+        );
+      }
+
+      (payload.case_dates || []).forEach(dateItem => {
+        if (!dateItem.has_condition_override) return;
+        addIfOvernight(
+          `${dateItem.work_date} の基本時間`,
+          dateItem.work_start_time,
+          dateItem.work_end_time
+        );
+        if (dateItem.has_alternate_time_workers) {
+          addIfOvernight(
+            `${dateItem.work_date} の異なる時間帯`,
+            dateItem.alternate_work_start_time,
+            dateItem.alternate_work_end_time
+          );
+        }
+      });
+
+      if (overnightLabels.length === 0) return true;
+
+      return window.confirm(
+        overnightLabels.join('\n') +
+        '\n\n終了時刻は翌日として扱われます。この内容で登録しますか？'
+      );
     }
     /****************************************************
      * validatePayload ここまで

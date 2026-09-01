@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script src="../common/environment.js?v=20260830-staging-1"></script>
+  <script src="../common/environment.js?v=20260902-banner-height-1"></script>
   <title>Order 案件詳細</title>
   <link rel="preconnect" href="https://www.gstatic.com" crossorigin />
   <link rel="preconnect" href="https://ordercaseapiproxyworker.shiftcore-div.workers.dev" />
@@ -164,7 +164,7 @@
   <script src="./js/config.js"></script>
   <script src="./js/utils.js"></script>
   <script src="./js/auth-session.js"></script>
-  <script src="./js/api.js"></script>
+  <script src="./js/api.js?v=20260902-security-1"></script>
   <script src="./js/loading.js"></script>
   <script src="./js/navigation.js"></script>
 
@@ -434,7 +434,7 @@ applyPermissionView();
             ${fieldHtml('実稼働先住所', item.work_address)}
             ${fieldHtml('実稼働先最寄り駅', item.work_nearest_station)}
             ${fieldHtml('稼働開始時間', item.work_start_time)}
-            ${fieldHtml('稼働終了時間', item.work_end_time)}
+            ${fieldHtml('稼働終了時間', formatWorkEndTime(item.work_start_time, item.work_end_time))}
             ${fieldHtml('集合時間', item.meeting_time)}
             ${fieldHtml('集合場所', item.meeting_place)}
             ${fieldHtml('必要スキル', getSkillName(item.required_skill))}
@@ -610,6 +610,12 @@ applyPermissionView();
           <div class="value">${escapeHtml(displayValue(value))}</div>
         </div>
       `;
+    }
+
+    function formatWorkEndTime(startTime, endTime) {
+      const start = String(startTime || '').trim();
+      const end = String(endTime || '').trim();
+      return start && end && end < start ? `${end}（翌日）` : end;
     }
 
     function memoHtml(label, value) {

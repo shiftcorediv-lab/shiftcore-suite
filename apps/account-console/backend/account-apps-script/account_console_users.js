@@ -9,7 +9,8 @@ function accountConsoleGetCurrentUser(body) {
     success: true,
     ok: true,
     user: operator,
-    canUseAccountConsole: true
+    canUseAccountConsole: true,
+    canEditUsers: isAccountConsoleEditor_(operator)
   };
 }
 // ===== 現在ユーザー取得ここまで =====
@@ -37,7 +38,8 @@ function accountConsoleGetBootstrap(body) {
     user: operator,
     users: users,
     logs: logsResult.logs || [],
-    canUseAccountConsole: true
+    canUseAccountConsole: true,
+    canEditUsers: isAccountConsoleEditor_(operator)
   };
 }
 // ===== 初期表示データ取得ここまで =====
@@ -79,13 +81,19 @@ function shouldIncludeAccountConsoleUser_(operator, user) {
 
 // ===== ユーザー新規作成ここから =====
 function accountConsoleCreateUser(body) {
-  const operator = requireAccountConsoleOperator_(body);
+  const operator = requireAccountConsoleEditor_(body);
   const payload = body.payload || body.user || {};
 
   validateAccountConsoleUserPayload_(payload, true);
   assertDeveloperAccountMutationAllowed_(operator, "", payload.role, "");
 
-  const sheet = ensureAccountConsoleNameColumns_();
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) {
+    throw new Error("ACCOUNT_CONSOLE_LOCK_TIMEOUT");
+  }
+
+  try {
+  const sheet = ensureAccountConsoleNameColumns_({ lockAlreadyHeld: true });
   const values = sheet.getDataRange().getValues();
   const headers = values[0].map(function(header) {
     return normalizeText(header);
@@ -99,6 +107,19 @@ function accountConsoleCreateUser(body) {
       ok: false,
       code: "EMAIL_ALREADY_EXISTS",
       message: "このメールアドレスはすでに登録されています"
+    };
+  }
+
+  const employeeCode = normalizeText(payload.employee_code);
+  const employeeCodeIndex = headers.indexOf("employee_code");
+  if (employeeCode && employeeCodeIndex !== -1 && values.slice(1).some(function(row) {
+    return normalizeText(row[employeeCodeIndex]).toUpperCase() === employeeCode.toUpperCase();
+  })) {
+    return {
+      success: false,
+      ok: false,
+      code: "EMPLOYEE_CODE_ALREADY_EXISTS",
+      message: "このアカウントコードはすでに登録されています"
     };
   }
 
@@ -198,13 +219,16 @@ function accountConsoleCreateUser(body) {
     message: "ユーザーを作成しました",
     user: buildAccountConsoleUser_(newUser)
   };
+  } finally {
+    lock.releaseLock();
+  }
 }
 // ===== ユーザー新規作成ここまで =====
 
 
 // ===== ユーザー更新ここから =====
 function accountConsoleUpdateUser(body) {
-  const operator = requireAccountConsoleOperator_(body);
+  const operator = requireAccountConsoleEditor_(body);
   const payload = body.payload || body.user || {};
 
   const targetUserId = normalizeText(
@@ -226,7 +250,7 @@ function accountConsoleUpdateUser(body) {
 
   try {
 
-  const sheet = ensureAccountConsoleNameColumns_();
+  const sheet = ensureAccountConsoleNameColumns_({ lockAlreadyHeld: true });
   const values = sheet.getDataRange().getValues();
   const headers = values[0].map(function(header) {
     return normalizeText(header);
@@ -309,6 +333,13 @@ function accountConsoleUpdateUser(body) {
   if (normalizeText(afterUser.person_type) === "internal") {
     afterUser.organization_id = "internal";
   }
+
+  assertAccountConsoleSelfSensitiveFieldsUnchanged_(
+    operator,
+    beforeUser,
+    afterUser,
+    targetUserId
+  );
 
   assertDeveloperAccountMutationAllowed_(
     operator,
@@ -397,6 +428,49 @@ function accountConsoleUpdateUser(body) {
   }
 }
 // ===== ユーザー更新ここまで =====
+
+
+// ===== 自分自身の権限・状態変更禁止 ここから =====
+function accountConsoleSensitiveValue_(user, field) {
+  if (field === "workStatus") {
+    return normalizeText(user && (user.workStatus || user.work_status)).toLowerCase();
+  }
+  if (field === "allowed_modules") {
+    return normalizeAccountConsoleModules_(user && user.allowed_modules)
+      .split(",")
+      .filter(function(value) { return value !== ""; })
+      .sort()
+      .join(",");
+  }
+  return normalizeText(user && user[field]).toLowerCase();
+}
+
+function assertAccountConsoleSelfSensitiveFieldsUnchanged_(operator, beforeUser, afterUser, targetUserId) {
+  if (normalizeText(operator && operator.internal_user_id) !== normalizeText(targetUserId)) {
+    return true;
+  }
+
+  const protectedFields = [
+    "role",
+    "status",
+    "workStatus",
+    "engagement_status",
+    "allowed_modules",
+    "ordercase_permission",
+    "shiftbuilder_permission"
+  ];
+  const changed = protectedFields.some(function(field) {
+    return accountConsoleSensitiveValue_(beforeUser, field) !==
+      accountConsoleSensitiveValue_(afterUser, field);
+  });
+
+  if (changed) {
+    throw new Error("SELF_ACCOUNT_PERMISSION_CHANGE_FORBIDDEN");
+  }
+
+  return true;
+}
+// ===== 自分自身の権限・状態変更禁止 ここまで =====
 
 
 // ===== developer特権保護 ここから =====
@@ -526,6 +600,24 @@ function requireAccountConsoleOperator_(body) {
   return user;
 }
 // ===== Account Console 操作者確認ここまで =====
+
+
+// ===== Account Console 編集者確認ここから =====
+function isAccountConsoleEditor_(user) {
+  const role = normalizeText(user && user.role).toLowerCase();
+  return role === "admin" || role === "developer";
+}
+
+function requireAccountConsoleEditor_(body) {
+  const operator = requireAccountConsoleOperator_(body);
+
+  if (!isAccountConsoleEditor_(operator)) {
+    throw new Error("ACCOUNT_CONSOLE_WRITE_FORBIDDEN");
+  }
+
+  return operator;
+}
+// ===== Account Console 編集者確認ここまで =====
 
 
 // ===== Account Console用ユーザー整形ここから =====
@@ -801,34 +893,47 @@ function getAccountConsoleFullName_(payload) {
     .join("");
 }
 
-function ensureAccountConsoleNameColumns_() {
-  const sheet = getUsersSheet();
-  const lastColumn = sheet.getLastColumn();
-  const headers = lastColumn > 0
-    ? sheet.getRange(1, 1, 1, lastColumn).getValues()[0].map(function(header) {
-      return normalizeText(header);
-    })
-    : [];
-  const requiredHeaders = [
-    "family_name",
-    "given_name",
-    "person_type",
-    "affiliation_type",
-    "contract_type",
-    "grade_role",
-    "engagement_status"
-  ];
-  const missingHeaders = requiredHeaders.filter(function(header) {
-    return headers.indexOf(header) === -1;
-  });
+function ensureAccountConsoleNameColumns_(options) {
+  const safeOptions = options || {};
+  const lock = safeOptions.lockAlreadyHeld === true
+    ? null
+    : LockService.getScriptLock();
 
-  if (missingHeaders.length > 0) {
-    sheet.getRange(1, lastColumn + 1, 1, missingHeaders.length).setValues([missingHeaders]);
-    Logger.log("users_master に列を追加しました: " + missingHeaders.join(", "));
+  if (lock && !lock.tryLock(10000)) {
+    throw new Error("ACCOUNT_CONSOLE_SCHEMA_LOCK_TIMEOUT");
   }
 
-  backfillAccountConsoleAffiliationTypes_(sheet);
-  return sheet;
+  try {
+    const sheet = getUsersSheet();
+    const lastColumn = sheet.getLastColumn();
+    const headers = lastColumn > 0
+      ? sheet.getRange(1, 1, 1, lastColumn).getValues()[0].map(function(header) {
+        return normalizeText(header);
+      })
+      : [];
+    const requiredHeaders = [
+      "family_name",
+      "given_name",
+      "person_type",
+      "affiliation_type",
+      "contract_type",
+      "grade_role",
+      "engagement_status"
+    ];
+    const missingHeaders = requiredHeaders.filter(function(header) {
+      return headers.indexOf(header) === -1;
+    });
+
+    if (missingHeaders.length > 0) {
+      sheet.getRange(1, lastColumn + 1, 1, missingHeaders.length).setValues([missingHeaders]);
+      Logger.log("users_master に列を追加しました: " + missingHeaders.join(", "));
+    }
+
+    backfillAccountConsoleAffiliationTypes_(sheet);
+    return sheet;
+  } finally {
+    if (lock) lock.releaseLock();
+  }
 }
 
 function backfillAccountConsoleAffiliationTypes_(sheet) {

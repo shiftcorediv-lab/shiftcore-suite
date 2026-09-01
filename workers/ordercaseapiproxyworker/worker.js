@@ -26,6 +26,24 @@ export default {
       const url = new URL(request.url);
       const gasUrl = new URL(GAS_URL);
 
+      if (
+        url.searchParams.has("idToken") ||
+        url.searchParams.has("id_token") ||
+        url.searchParams.has("token")
+      ) {
+        return new Response(JSON.stringify({
+          ok: false,
+          code: "TOKEN_IN_URL_REJECTED",
+          message: "認証情報はPOST bodyで送信してください。"
+        }), {
+          status: 400,
+          headers: {
+            ...CORS_HEADERS,
+            "Content-Type": "application/json; charset=utf-8"
+          }
+        });
+      }
+
       // GitHub Pages側から来た ?action=bootstrap などをGASへ引き継ぐ
       gasUrl.search = url.search;
 
@@ -54,7 +72,7 @@ export default {
       return new Response(JSON.stringify({
         ok: false,
         code: "WORKER_ERROR",
-        message: error.message
+        message: "Order APIへ接続できませんでした。"
       }, null, 2), {
         status: 500,
         headers: {

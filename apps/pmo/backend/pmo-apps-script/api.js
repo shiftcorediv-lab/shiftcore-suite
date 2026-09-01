@@ -14,13 +14,6 @@ function doGet(e) {
       });
     }
 
-    if (action === "getLatestShiftRequest") {
-      const userId = normalizeText(getParam_(e, "userId"));
-      const targetYearMonth = normalizeText(getParam_(e, "targetYearMonth"));
-
-      return jsonResponse_(getLatestShiftRequest(userId, targetYearMonth));
-    }
-
     return jsonResponse_({
       success: false,
       message: "Unknown GET action: " + action
@@ -49,6 +42,14 @@ function doPost(e) {
     const body = parseJsonBody_(e);
     const action = normalizeText(body.action || getAction_(e));
 
+    if (action === "getPmoCurrentUserSecure") {
+      return jsonResponse_(getPmoCurrentUserSecure(body.idToken));
+    }
+
+    if (action === "getLatestShiftRequestSecure") {
+      return jsonResponse_(getLatestShiftRequestSecure(body.targetYearMonth, body.idToken));
+    }
+
     if (action === "getPmoAdminMetaSecure") {
       const targetYearMonth = normalizeText(body.targetYearMonth);
       const idToken = normalizeText(body.idToken);
@@ -70,8 +71,8 @@ function doPost(e) {
       return jsonResponse_(exportMonthlyExcelSecure(targetYearMonth, idToken));
     }
 
-    if (action === "submitShiftRequest") {
-      return jsonResponse_(submitShiftRequest(body.payload || body));
+    if (action === "submitShiftRequestSecure") {
+      return jsonResponse_(submitShiftRequestSecure(body.payload || {}, body.idToken));
     }
 
     return jsonResponse_({
@@ -81,6 +82,7 @@ function doPost(e) {
   } catch (error) {
     return jsonResponse_({
       success: false,
+      code: normalizeText(error.code || "SERVER_ERROR"),
       message: "POST処理中にエラーが発生しました: " + error.message
     });
   } finally {

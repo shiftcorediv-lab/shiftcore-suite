@@ -76,6 +76,10 @@ const ORDERCASE_AMOUNT_FIELDS = [
   'tax_type',
   'amount_memo'
 ];
+const ORDERCASE_INTERNAL_FIELDS = [
+  'create_operation_id',
+  'create_payload_hash'
+];
 /****************************************************
  * OrderCase 権限連携設定 ここまで
  ****************************************************/

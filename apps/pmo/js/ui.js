@@ -90,10 +90,10 @@ export function showCompleteScreen(payload) {
     ? "希望休なし"
     : (payload.offDates.length ? payload.offDates.join(", ") : "なし");
 
-  completeText.textContent = payload.displayName + " さんの希望休提出が完了しました。";
+  completeText.textContent = currentUser.displayName + " さんの希望休提出が完了しました。";
   completeDetail.textContent =
-    "【氏名】\n" + payload.displayName + "\n\n" +
-    "【社員コード】\n" + payload.employeeCode + "\n\n" +
+    "【氏名】\n" + currentUser.displayName + "\n\n" +
+    "【社員コード】\n" + currentUser.employeeCode + "\n\n" +
     "【対象年月】\n" + payload.targetYearMonth + "\n\n" +
     "【希望休】\n" + holidayText + "\n\n" +
     "【メモ】\n" + (payload.memo || "なし");

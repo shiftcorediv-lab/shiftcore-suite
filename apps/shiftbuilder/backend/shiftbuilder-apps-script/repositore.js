@@ -97,13 +97,7 @@ function getUsersMasterRows_() {
 function getActiveShiftBuilderUsers_() {
   return getUsersMasterRows_()
     .filter(function(user) {
-      return normalizeLowerText(user.status) === "active";
-    })
-    .filter(function(user) {
-      return includesCsvValue(user.allowed_modules, SHIFTBUILDER_MODULE_KEY);
-    })
-    .filter(function(user) {
-      return VALID_SHIFTBUILDER_PERMISSIONS.indexOf(normalizeText(user.shiftbuilder_permission)) !== -1;
+      return isShiftBuilderAssignableUser_(user);
     });
 }
 
@@ -634,12 +628,132 @@ function isOrderCaseVisibleInShiftBuilder_(caseRow) {
   return true;
 }
 
-function buildOrderCaseDateLookupKey_(caseId, caseDateId, workDate) {
-  return [
-    normalizeText(caseId),
-    normalizeText(caseDateId),
-    normalizeDateString(workDate)
-  ].join("::");
+function isValidShiftBuilderWorkDate_(value) {
+  const dateText = normalizeDateString(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateText)) return false;
+
+  const parts = dateText.split("-").map(Number);
+  const parsed = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+  return parsed.getUTCFullYear() === parts[0] &&
+    parsed.getUTCMonth() === parts[1] - 1 &&
+    parsed.getUTCDate() === parts[2];
+}
+
+function resolveShiftBuilderAssignmentContract_(params, orderCases, orderCaseDates) {
+  const caseId = normalizeText(params && params.case_id);
+  const caseDateId = normalizeText(params && params.case_date_id);
+  const workDate = normalizeDateString(params && params.work_date);
+  const targetMonth = normalizeMonthValue_(params && params.target_month);
+  const area = normalizeText(params && params.area);
+  const sourceCases = Array.isArray(orderCases) ? orderCases : getOrderCaseRows_();
+  const sourceCaseDates = Array.isArray(orderCaseDates)
+    ? orderCaseDates
+    : getOrderCaseDateRows_();
+  const targetCase = sourceCases.find(function(caseRow) {
+    return normalizeText(caseRow.case_id) === caseId;
+  });
+
+  if (!caseId || !targetCase) {
+    throw new Error("対象案件が見つかりません: " + caseId);
+  }
+
+  if (!isOrderCaseVisibleInShiftBuilder_(targetCase)) {
+    throw new Error("Shift対象外または無効な案件にはアサインできません: " + caseId);
+  }
+
+  const inputMode = normalizeText(targetCase.input_mode) || "dates";
+  if (inputMode !== "dates" && inputMode !== "days") {
+    throw new Error("案件のinput_modeが不正です: " + inputMode);
+  }
+
+  if (!isValidShiftBuilderWorkDate_(workDate)) {
+    throw new Error("work_dateが不正です: " + workDate);
+  }
+
+  if (!targetMonth || normalizeMonthFromDate_(workDate) !== targetMonth) {
+    throw new Error("target_monthとwork_dateが一致しません: " + targetMonth + " / " + workDate);
+  }
+
+  const caseArea = normalizeText(targetCase.work_area) ||
+    normalizeText(targetCase.store_area) ||
+    DEFAULT_AREA;
+  if (!area || area === "all" || area !== caseArea) {
+    throw new Error("案件エリアとアサイン先エリアが一致しません: " + caseArea + " / " + area);
+  }
+
+  if (inputMode === "days") {
+    if (caseDateId) {
+      throw new Error("日数指定案件にcase_date_idは指定できません: " + caseDateId);
+    }
+
+    if (normalizeMonthValue_(targetCase.target_month) !== targetMonth) {
+      throw new Error("日数指定案件の対象月が一致しません: " + targetMonth);
+    }
+
+    const requestedDays = toNumber_(targetCase.requested_days);
+    if (!(requestedDays > 0) || Math.floor(requestedDays) !== requestedDays) {
+      throw new Error("日数指定案件の依頼日数が設定されていません: " + caseId);
+    }
+
+    return {
+      case_row: targetCase,
+      case_date_row: null,
+      input_mode: inputMode,
+      required_total: requestedDays
+    };
+  }
+
+  if (!caseDateId) {
+    throw new Error("日付指定案件にはcase_date_idが必要です: " + caseId);
+  }
+
+  const targetCaseDate = sourceCaseDates.find(function(dateRow) {
+    return normalizeText(dateRow.case_id) === caseId &&
+      normalizeText(dateRow.case_date_id) === caseDateId &&
+      normalizeDateString(dateRow.work_date) === workDate;
+  });
+  if (!targetCaseDate) {
+    throw new Error("案件日とcase_date_idの組み合わせが不正です: " + caseId + " / " + workDate);
+  }
+
+  const requiredPeople = toNumber_(targetCaseDate.required_people) ||
+    toNumber_(targetCase.required_people) ||
+    0;
+  if (!(requiredPeople > 0) || Math.floor(requiredPeople) !== requiredPeople) {
+    throw new Error("案件日の必要人数が設定されていません: " + caseId + " / " + workDate);
+  }
+
+  return {
+    case_row: targetCase,
+    case_date_row: targetCaseDate,
+    input_mode: inputMode,
+    required_total: requiredPeople
+  };
+}
+
+function getShiftBuilderContractTimeRange_(assignmentContract) {
+  const safeContract = assignmentContract || {};
+  const caseRow = safeContract.case_row || {};
+  const caseDateRow = safeContract.case_date_row || {};
+  const startTime = normalizeText(caseDateRow.work_start_time) ||
+    normalizeText(caseRow.work_start_time);
+  const endTime = normalizeText(caseDateRow.work_end_time) ||
+    normalizeText(caseRow.work_end_time);
+
+  if (!startTime && !endTime) {
+    return { start_time: "", end_time: "", ends_next_day: false };
+  }
+
+  const timePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+  if (!timePattern.test(startTime) || !timePattern.test(endTime) || startTime === endTime) {
+    throw new Error("案件の稼働開始・終了時刻が不正です");
+  }
+
+  return {
+    start_time: startTime,
+    end_time: endTime,
+    ends_next_day: endTime < startTime
+  };
 }
 
 function filterShiftAssignmentsByAssignableOrderCases_(
@@ -654,57 +768,17 @@ function filterShiftAssignmentsByAssignableOrderCases_(
   const sourceCaseDates = Array.isArray(orderCaseDates)
     ? orderCaseDates
     : getOrderCaseDateRows_();
-  const casesById = {};
-  const caseDateKeys = {};
-
-  sourceCases.forEach(function(caseRow) {
-    const caseId = normalizeText(caseRow.case_id);
-
-    if (!caseId || !isOrderCaseVisibleInShiftBuilder_(caseRow)) {
-      return;
-    }
-
-    casesById[caseId] = caseRow;
-  });
-
-  sourceCaseDates.forEach(function(dateRow) {
-    const caseId = normalizeText(dateRow.case_id);
-    const caseDateId = normalizeText(dateRow.case_date_id);
-    const workDate = normalizeDateString(dateRow.work_date);
-
-    if (!caseId || !caseDateId || !workDate) {
-      return;
-    }
-
-    caseDateKeys[
-      buildOrderCaseDateLookupKey_(caseId, caseDateId, workDate)
-    ] = true;
-  });
-
   return sourceAssignments.filter(function(assignment) {
-    const caseId = normalizeText(assignment.case_id);
-    const workDate = normalizeDateString(assignment.work_date);
-    const caseRow = casesById[caseId];
-
-    if (!caseRow || !workDate) {
-      return false;
-    }
-
-    const inputMode = normalizeText(caseRow.input_mode) || "dates";
-
-    if (inputMode === "days") {
+    try {
+      resolveShiftBuilderAssignmentContract_(
+        assignment,
+        sourceCases,
+        sourceCaseDates
+      );
       return true;
-    }
-
-    const caseDateId = normalizeText(assignment.case_date_id);
-
-    if (!caseDateId) {
+    } catch (error) {
       return false;
     }
-
-    return caseDateKeys[
-      buildOrderCaseDateLookupKey_(caseId, caseDateId, workDate)
-    ] === true;
   });
 }
 

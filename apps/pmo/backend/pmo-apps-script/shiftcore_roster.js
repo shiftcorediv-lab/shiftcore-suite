@@ -51,18 +51,28 @@ function normalizeRoster(roster) {
 
 // =========================
 // ShiftCore roster 取得ここから
-// ShiftCore API: GET ?action=getPmoRoster
+// ShiftCore API: POST action=getPmoRosterSecure
 // =========================
 function fetchRosterFromShiftCore_() {
   if (!SETTINGS.SHIFTCORE_ROSTER_API_URL) {
     throw new Error("SHIFTCORE_ROSTER_API_URL が未設定です");
   }
 
-  const url = SETTINGS.SHIFTCORE_ROSTER_API_URL + "?action=getPmoRoster";
+  const serviceSecret = normalizeText(PropertiesService.getScriptProperties()
+    .getProperty(PMO_ROSTER_SERVICE_SECRET_PROPERTY));
 
-  const response = UrlFetchApp.fetch(url, {
-    method: "get",
-    muteHttpExceptions: true
+  if (!serviceSecret) {
+    throw new Error("PMO_ROSTER_SERVICE_SECRET が未設定です");
+  }
+
+  const response = UrlFetchApp.fetch(SETTINGS.SHIFTCORE_ROSTER_API_URL, {
+    method: "post",
+    contentType: "text/plain;charset=utf-8",
+    muteHttpExceptions: true,
+    payload: JSON.stringify({
+      action: "getPmoRosterSecure",
+      service_secret: serviceSecret
+    })
   });
 
   const responseText = response.getContentText();

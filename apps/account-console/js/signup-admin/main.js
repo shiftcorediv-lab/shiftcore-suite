@@ -16,22 +16,27 @@ import {
   renderRequestDetail,
   applyApprovalDefaults,
   setActionButtonsEnabled,
+  setApprovalFormEditable,
   getApprovalSummary,
   showMessage
-} from "./ui.js?v=20260803-role-1";
+} from "./ui.js?v=20260902-account-write-auth-1";
 import { canUseSignupAdmin, goToAccountPortal } from "./navigation.js?v=20260812-developer-1";
 import { fetchSignupRequests, approveSignupRequest, rejectSignupRequest } from "./api.js?v=20260806-permission-2";
 import { requireAuthenticatedSession } from "../common/auth-session.js?v=20260802-signup-auth-1";
 import { resolveCurrentUserWithGasByIdToken } from "../login/api.js?v=20260803-logintoken-1";
+import { createResponseGeneration } from "../../../common/response-generation.js?v=20260902-response-1";
 
 const params = getQueryParams();
 let currentUser = buildCurrentUserFromQuery(params);
 let canUse = false;
+let canEditRequests = false;
 
 let selectedRequest = null;
+const requestLoadGeneration = createResponseGeneration();
 
 setupShiftCoreEntryBanner(params);
 setActionButtonsEnabled(false);
+setApprovalFormEditable(false);
 
 async function getFreshIdToken() {
   const session = await requireAuthenticatedSession();
@@ -60,33 +65,49 @@ async function loadRequests() {
     return;
   }
 
+  const generation = requestLoadGeneration.begin();
   showMessage("申請一覧を取得中...");
 
   try {
     const idToken = await getFreshIdToken();
     const result = await fetchSignupRequests("pending_approval", idToken);
+    if (!requestLoadGeneration.isCurrent(generation)) return;
 
     if (!result.success) {
       showMessage(result.message || "申請一覧の取得に失敗しました", "error");
       return;
     }
 
+    canEditRequests = result.canEditRequests === true;
+    setApprovalFormEditable(canEditRequests);
+
     renderRequestList(result.requests || [], (request) => {
       selectedRequest = request;
       renderRequestDetail(request);
       applyApprovalDefaults(request);
-      setActionButtonsEnabled(true);
-      showMessage("申請詳細を表示しました", "success");
+      setActionButtonsEnabled(canEditRequests);
+      showMessage(
+        canEditRequests ? "申請詳細を表示しました" : "申請詳細を閲覧モードで表示しました",
+        "success"
+      );
     });
 
-    showMessage("申請一覧を読み込みました", "success");
+    showMessage(
+      canEditRequests ? "申請一覧を読み込みました" : "申請一覧を閲覧モードで読み込みました",
+      "success"
+    );
   } catch (error) {
+    if (!requestLoadGeneration.isCurrent(generation)) return;
     console.error(error);
     showMessage(error.message || "申請一覧の取得に失敗しました", "error");
   }
 }
 
 approveBtn.addEventListener("click", async () => {
+  if (!canEditRequests) {
+    showMessage("このアカウントは申請を閲覧できますが、承認はできません", "error");
+    return;
+  }
   if (!selectedRequest) {
     showMessage("承認対象の申請を選択してください", "error");
     return;
@@ -131,7 +152,10 @@ approveBtn.addEventListener("click", async () => {
     renderRequestDetail(null);
     setActionButtonsEnabled(false);
     await loadRequests();
-    showMessage("承認しました", "success");
+    showMessage(
+      result.message || "承認しました",
+      result.notificationSent === false ? "error" : "success"
+    );
   } catch (error) {
     console.error(error);
     showMessage(error.message || "承認に失敗しました", "error");
@@ -139,6 +163,10 @@ approveBtn.addEventListener("click", async () => {
 });
 
 rejectBtn.addEventListener("click", async () => {
+  if (!canEditRequests) {
+    showMessage("このアカウントは申請を閲覧できますが、却下はできません", "error");
+    return;
+  }
   if (!selectedRequest) {
     showMessage("却下対象の申請を選択してください", "error");
     return;

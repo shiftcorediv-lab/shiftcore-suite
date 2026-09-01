@@ -1193,7 +1193,9 @@ function buildAssignedAuthorizationModules_(assignments) {
 
 function buildLegacyAuthorizationModules_(user) {
   const modules = {};
-  const developer = normalizeText(user.role).toLowerCase() === "developer";
+  const role = normalizeText(user.role).toLowerCase();
+  const developer = role === "developer";
+  const accountConsoleEditor = role === "admin" || developer;
   const allowedModules = (Array.isArray(user.allowed_modules)
     ? user.allowed_modules.map(normalizeText).filter(Boolean)
     : parseAllowedModules(user.allowed_modules)
@@ -1208,14 +1210,17 @@ function buildLegacyAuthorizationModules_(user) {
   }
 
   if (allowedModules.indexOf("account_console") !== -1) {
-    modules.account_console = legacyAuthorizationModule_([
-      "account.view",
-      "account.profile.edit",
-      "account.permission.edit",
-      "account.status.edit",
-      "account.signup.review",
-      "audit.view"
-    ]);
+    const accountCapabilities = ["account.view"];
+    if (accountConsoleEditor) {
+      accountCapabilities.push(
+        "account.profile.edit",
+        "account.permission.edit",
+        "account.status.edit",
+        "account.signup.review",
+        "audit.view"
+      );
+    }
+    modules.account_console = legacyAuthorizationModule_(accountCapabilities);
   }
 
   if (allowedModules.indexOf("ordercase") !== -1) {
