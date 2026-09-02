@@ -25,6 +25,26 @@ test("主要モジュールに共通のAnother Portalロゴを表示する", () 
   }
 });
 
+test("主要モジュールのヘッダー外観と操作位置を共通化する", () => {
+  assert.match(themeCss, /\.portal-module-header\s*\{/);
+  assert.match(themeCss, /\.portal-module-header-main\s*\{/);
+  assert.match(memberHtml, /class="header portal-module-header"/);
+  assert.match(pmoHtml, /class="pmo-header portal-module-header"/);
+  assert.match(shiftHtml, /class="header portal-module-header"/);
+  assert.match(orderNavigation, /portal-module-header--stacked/);
+  assert.match(orderNavigation, /class="header-actions portal-module-actions"/);
+  assert.match(orderNavigation, /<div class="portal-module-header-main">[\s\S]*?<nav class="top-nav">/);
+  assert.match(orderNavigation, /headerActions\.appendChild\(accountMenu\)/);
+  assert.match(
+    themeCss,
+    /@media \(max-width: 720px\)[\s\S]*?\.portal-module-header-main\s*\{[\s\S]*?flex-direction:\s*column/,
+  );
+  assert.match(
+    themeCss,
+    /@media \(max-width: 520px\)[\s\S]*?\.portal-brand-copy\s*\{[\s\S]*?display:\s*none/,
+  );
+});
+
 test("ロゴは固定ホストではなく同一環境のダッシュボードへ戻る", () => {
   assert.match(memberHtml, /class="portal-brand" href="\.\/dashboard\.html"/);
 
