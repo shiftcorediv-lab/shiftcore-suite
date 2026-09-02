@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="../common/environment.js?v=20260902-banner-height-1"></script>
-  <title>Another Portal 人員マスター</title>
+  <title>Another Portal メンバー</title>
   <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://script.google.com">
   <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
@@ -21,14 +21,14 @@
           <span class="portal-brand-copy"><strong>Another Portal</strong><small>WORKFORCE PLATFORM</small></span>
         </a>
         <div class="portal-module-title">
-          <h1>人員マスター</h1>
+          <h1>メンバー</h1>
           <p class="subtitle">アカウント登録・申請・権限管理</p>
         </div>
       </div>
 
       <div class="header-actions">
         <button id="signupAdminBtn" class="secondary-button">申請管理</button>
-        <button id="dashboardBtn" class="secondary-button">Dashboardへ</button>
+        <button id="dashboardBtn" class="secondary-button">ダッシュボードへ</button>
       </div>
     </header>
 
@@ -92,8 +92,8 @@
                 <th>担当エリア</th>
                 <th>状態</th>
                 <th>利用機能</th>
-                <th>Order</th>
-                <th>Shift</th>
+                <th>オーダー</th>
+                <th>シフト</th>
               </tr>
             </thead>
             <tbody id="userTableBody"></tbody>
@@ -278,27 +278,27 @@
 
             <label class="check-row">
               <input type="checkbox" name="module" value="account_console">
-              人員マスター（アカウント登録・申請・権限管理）
+              メンバー（アカウント登録・申請・権限管理）
             </label>
 
             <label class="check-row">
               <input type="checkbox" name="module" value="pmo">
-              Pick My Off
+              オフ
             </label>
 
             <label class="check-row">
               <input type="checkbox" name="module" value="ordercase">
-              Order
+              オーダー
             </label>
 
             <label class="check-row">
               <input type="checkbox" name="module" value="shift">
-              Shift
+              シフト
             </label>
           </fieldset>
 
           <label>
-            Order権限
+            オーダー権限
             <select id="ordercasePermissionInput">
               <option value="">なし</option>
               <option value="all">全操作可能</option>
@@ -309,7 +309,7 @@
           </label>
 
           <label>
-            Shift権限
+            シフト権限
             <select id="shiftbuilderPermissionInput">
               <option value="">なし</option>
               <option value="all">全管理</option>
@@ -353,6 +353,6 @@
     <div id="statusBox" class="status-box">初期化中...</div>
   </div>
 
-  <script type="module" src="./js/account-console/main.js?v=20260902-name-sync-1"></script>
+  <script type="module" src="./js/account-console/main.js?v=20260903-display-labels-2"></script>
 </body>
 </html>

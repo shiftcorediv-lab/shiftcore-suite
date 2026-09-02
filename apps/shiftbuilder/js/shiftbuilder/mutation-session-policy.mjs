@@ -1,6 +1,6 @@
 export class MutationSessionRequiredError extends Error {
   constructor(session) {
-    super("ログイン状態を確認できませんでした。Dashboardから再ログインしてください。");
+    super("ログイン状態を確認できませんでした。ダッシュボードから再ログインしてください。");
     this.name = "MutationSessionRequiredError";
     this.code = "MUTATION_SESSION_REQUIRED";
     this.session = session || null;

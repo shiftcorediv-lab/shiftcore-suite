@@ -48,7 +48,7 @@ import {
   showLoading,
   hideLoading,
   setLogsLoading
-} from "./ui.js?v=20260902-name-sync-1";
+} from "./ui.js?v=20260903-display-labels-2";
 import { createResponseGeneration } from "../../../common/response-generation.js?v=20260902-response-1";
 
 // ===== 状態ここから =====
@@ -104,13 +104,13 @@ async function init() {
 
     idToken = session.idToken;
 
-    showLoading("人員マスターを読み込み中...");
-    setStatus("人員マスターを読み込み中...");
+    showLoading("メンバーを読み込み中...");
+    setStatus("メンバーを読み込み中...");
 
     const bootstrapResult = await getAccountConsoleBootstrap(idToken);
 
     if (!isOkResult(bootstrapResult)) {
-      setPermissionError(bootstrapResult.message || "人員マスターの利用権限がありません");
+      setPermissionError(bootstrapResult.message || "メンバーの利用権限がありません");
       setStatus(JSON.stringify(bootstrapResult, null, 2));
       hideLoading();
       return;
@@ -126,7 +126,7 @@ async function init() {
 
     clearUserForm();
     applyUserEditingMode();
-    setStatus(canEditUsers ? "人員マスターを読み込みました" : "人員マスターを閲覧モードで読み込みました");
+    setStatus(canEditUsers ? "メンバーを読み込みました" : "メンバーを閲覧モードで読み込みました");
 
   } catch (error) {
     setPermissionError(error.message);
@@ -285,7 +285,7 @@ async function saveUser(event) {
   event.preventDefault();
 
   if (!canEditUsers) {
-    setStatus("このアカウントは人員マスターを閲覧できますが、利用者の追加・更新はできません");
+    setStatus("このアカウントはメンバーを閲覧できますが、利用者の追加・更新はできません");
     return;
   }
 
@@ -313,10 +313,10 @@ async function saveUser(event) {
 
     const modules = String(user.allowed_modules || "").split(",").map(value => value.trim()).filter(Boolean);
     if (modules.includes("ordercase") && !user.ordercase_permission) {
-      throw new Error("Orderを許可する場合は、Order権限を選択してください");
+      throw new Error("オーダーを許可する場合は、オーダー権限を選択してください");
     }
     if (modules.includes("shift") && !user.shiftbuilder_permission) {
-      throw new Error("Shiftを許可する場合は、Shift権限を選択してください");
+      throw new Error("シフトを許可する場合は、シフト権限を選択してください");
     }
     if (!modules.includes("ordercase")) user.ordercase_permission = "";
     if (!modules.includes("shift")) user.shiftbuilder_permission = "";

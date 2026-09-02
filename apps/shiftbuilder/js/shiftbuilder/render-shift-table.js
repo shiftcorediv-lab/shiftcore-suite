@@ -506,7 +506,7 @@ export function renderShiftTable(data, elements, handlers = {}) {
             <div class="case-meta">${escapeHtml(caseItem.caseType || "種別未設定")} / ${escapeHtml(caseItem.client)} / ${escapeHtml(caseItem.area)}</div>
             <div class="case-fulfillment-row">
               ${fulfillmentBadge}
-              <a class="case-id" href="${escapeHtml(orderCaseDetailsUrl)}" target="_blank" rel="noopener" title="Orderの案件詳細を開く">${escapeHtml(caseItem.caseId)}</a>
+              <a class="case-id" href="${escapeHtml(orderCaseDetailsUrl)}" target="_blank" rel="noopener" title="オーダーの案件詳細を開く">${escapeHtml(caseItem.caseId)}</a>
               ${fulfillmentGauge}
             </div>
           </td>

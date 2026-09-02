@@ -19,7 +19,7 @@ import {
   setApprovalFormEditable,
   getApprovalSummary,
   showMessage
-} from "./ui.js?v=20260902-account-write-auth-1";
+} from "./ui.js?v=20260903-display-labels-2";
 import { canUseSignupAdmin, goToAccountPortal } from "./navigation.js?v=20260812-developer-1";
 import { fetchSignupRequests, approveSignupRequest, rejectSignupRequest } from "./api.js?v=20260806-permission-2";
 import { requireAuthenticatedSession } from "../common/auth-session.js?v=20260802-signup-auth-1";

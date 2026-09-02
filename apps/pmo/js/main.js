@@ -57,7 +57,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     const session = await requireAuthenticatedSession();
     if (!session.ok) {
       renderAccountInfo();
-      showMainMessage("ログインが必要です。Dashboardから開き直してください", "error");
+      showMainMessage("ログインが必要です。ダッシュボードから開き直してください", "error");
       return;
     }
 
@@ -127,7 +127,7 @@ submitBtn.addEventListener("click", async () => {
   try {
     const session = await requireAuthenticatedSession();
     if (!session.ok) {
-      showMainMessage("ログイン状態を確認できません。Dashboardから開き直してください", "error");
+      showMainMessage("ログイン状態を確認できません。ダッシュボードから開き直してください", "error");
       submitBtn.disabled = false;
       setActivity(submitBtn, false, "希望休を送信");
       updateSubmitButtonState();

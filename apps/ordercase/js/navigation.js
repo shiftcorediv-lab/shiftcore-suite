@@ -40,7 +40,7 @@ function renderOrderCaseHeader(activePage, subtitle) {
     { key: 'stores', label: '店舗マスター', href: './stores.html' },
     {
       key: 'dashboard',
-      label: 'Dashboardへ戻る',
+      label: 'ダッシュボードへ戻る',
       href: ORDERCASE_DASHBOARD_URL
     }
   ];
@@ -59,7 +59,7 @@ function renderOrderCaseHeader(activePage, subtitle) {
           <span class="portal-brand-copy"><strong>Another Portal</strong><small>WORKFORCE PLATFORM</small></span>
         </a>
         <div class="portal-module-title">
-          <h1>Order</h1>
+          <h1>オーダー</h1>
           <p>${escapeHtml(subtitle || '')}</p>
         </div>
       </div>

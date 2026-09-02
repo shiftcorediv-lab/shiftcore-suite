@@ -114,7 +114,7 @@ export function setupShiftCoreEntryBanner(params) {
   banner.style.fontSize = "14px";
   banner.style.lineHeight = "1.6";
   banner.innerHTML = `
-  <div><strong>Account Consoleから移動しました</strong></div>
+  <div><strong>メンバーから移動しました</strong></div>
 `;
   entryBannerArea.appendChild(banner);
 }

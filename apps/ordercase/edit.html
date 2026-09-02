@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="../common/environment.js?v=20260902-banner-height-1"></script>
-  <title>Order 案件編集</title>
+  <title>オーダー 案件編集</title>
   <link rel="preconnect" href="https://www.gstatic.com" crossorigin />
   <link rel="preconnect" href="https://ordercaseapiproxyworker.shiftcore-div.workers.dev" />
 
@@ -334,7 +334,7 @@
 <div class="grid two">
   <div>
     <label>編集者</label>
-    <p class="hint">保存時にログイン中の人員マスターアカウントを自動記録します。</p>
+    <p class="hint">保存時にログイン中のメンバーアカウントを自動記録します。</p>
   </div>
 
   <div>
@@ -389,7 +389,7 @@
         <div>
           <label for="shiftcoreDisplayName">Another Portal表示用省略名称</label>
           <input id="shiftcoreDisplayName" maxlength="24" placeholder="例：池袋8月1" />
-          <p class="hint">Shiftの人員×日付セルに表示します。正式な案件情報は変更しません。</p>
+          <p class="hint">シフトの人員×日付セルに表示します。正式な案件情報は変更しません。</p>
         </div>
 
         <div>
@@ -618,7 +618,7 @@
   <script src="./js/auth-session.js"></script>
   <script src="./js/api.js?v=20260902-security-1"></script>
   <script src="./js/loading.js"></script>
-  <script src="./js/navigation.js"></script>
+  <script src="./js/navigation.js?v=20260903-display-labels-1"></script>
 
   <script>
     /****************************************************
@@ -677,7 +677,7 @@
       const json = await fetchApiJsonWithParams('getOrderCasePermission', {});
 
       if (!json.ok) {
-        throw new Error(json.message || 'Order権限の確認に失敗しました');
+        throw new Error(json.message || 'オーダー権限の確認に失敗しました');
       }
 
       const permission = json.permission || json.data?.permission || '';
