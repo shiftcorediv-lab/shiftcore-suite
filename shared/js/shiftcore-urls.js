@@ -1,7 +1,16 @@
 // ===== ShiftCore shared URLs ここから =====
 
-export const SUITE_BASE_URL =
-  "https://shiftcorediv-lab.github.io/shiftcore-suite/";
+function resolveSuiteBaseUrl() {
+  const marker = "/apps/";
+  const pathname = window.location.pathname;
+  const markerIndex = pathname.indexOf(marker);
+  const basePath = markerIndex >= 0
+    ? pathname.slice(0, markerIndex + 1)
+    : "/";
+  return new URL(basePath, window.location.origin).toString();
+}
+
+export const SUITE_BASE_URL = resolveSuiteBaseUrl();
 
 export const APP_URLS = {
   accountConsole: SUITE_BASE_URL + "apps/account-console/",
@@ -22,5 +31,7 @@ export const APP_LABELS = {
 export function getAppUrl(appKey) {
   return APP_URLS[appKey] || SUITE_BASE_URL;
 }
+
+export { resolveSuiteBaseUrl };
 
 // ===== ShiftCore shared URLs ここまで =====
