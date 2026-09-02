@@ -82,9 +82,9 @@ test("登録申請は同一認証メールの受付試行を1時間5回までに
   assert.equal(context.consumeSignupRequestRateLimit_("other@example.com"), true);
 });
 
-test("登録申請のシート値は数式として評価されない", () => {
+test("登録申請のシート値は空白や改行で隠した数式も評価されない", () => {
   const context = createContext();
-  for (const value of ["=IMPORTXML()", "+1+1", "-1+1", "@SUM(A1:A2)"]) {
+  for (const value of ["=IMPORTXML()", "+1+1", "-1+1", "@SUM(A1:A2)", "  =IMPORTXML()", "\n+1+1"]) {
     assert.equal(context.escapeSignupSpreadsheetValue_(value), `'${value}`);
   }
   assert.equal(context.escapeSignupSpreadsheetValue_("山田太郎"), "山田太郎");

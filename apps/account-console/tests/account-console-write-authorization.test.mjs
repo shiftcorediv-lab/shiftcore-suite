@@ -15,6 +15,10 @@ const signupSource = readFileSync(
   new URL("../backend/account-apps-script/signup_admin.js", import.meta.url),
   "utf8"
 );
+const logsSource = readFileSync(
+  new URL("../backend/account-apps-script/account_console_logs.js", import.meta.url),
+  "utf8"
+);
 const frontendSource = readFileSync(new URL("../js/account-console/main.js", import.meta.url), "utf8");
 const signupFrontendSource = readFileSync(new URL("../js/signup-admin/main.js", import.meta.url), "utf8");
 const authorizationSource = readFileSync(
@@ -84,6 +88,40 @@ test("Account Consoleは閲覧権限と利用者編集権限をサーバー側�
       "audit.view"
     ]
   );
+});
+
+test("変更履歴はaudit.view相当のadminとdeveloperだけが取得できる", () => {
+  const context = vm.createContext({
+    normalizeText: (value) => String(value == null ? "" : value).trim()
+  });
+  vm.runInContext(logsSource, context);
+
+  assert.equal(context.isAccountConsoleAuditViewer_({ role: "member" }), false);
+  assert.equal(context.isAccountConsoleAuditViewer_({ role: "admin" }), true);
+  assert.equal(context.isAccountConsoleAuditViewer_({ role: "developer" }), true);
+
+  context.requireAccountConsoleOperator_ = () => ({ role: "member" });
+  assert.throws(
+    () => context.requireAccountConsoleAuditViewer_({ idToken: "valid" }),
+    /ACCOUNT_CONSOLE_AUDIT_VIEW_FORBIDDEN/
+  );
+
+  assert.match(usersSource, /canViewAuditLogs/);
+  assert.match(usersSource, /canViewAuditLogs\s*\?\s*listAccountConsoleLogs_/);
+  assert.match(frontendSource, /canViewAuditLogs/);
+});
+
+test("一覧と初期表示はスキーマ変更や補完処理を実行しない", () => {
+  const bootstrap = usersSource.slice(
+    usersSource.indexOf("function accountConsoleGetBootstrap(body)"),
+    usersSource.indexOf("// ===== 初期表示データ取得ここまで =====")
+  );
+  const list = usersSource.slice(
+    usersSource.indexOf("function accountConsoleListUsers(body)"),
+    usersSource.indexOf("// ===== ユーザー一覧取得ここまで =====")
+  );
+  assert.doesNotMatch(bootstrap, /ensureAccountConsoleNameColumns_/);
+  assert.doesNotMatch(list, /ensureAccountConsoleNameColumns_/);
 });
 
 test("adminとdeveloperでも自分自身の権限・状態・稼働権限を変更できない", () => {

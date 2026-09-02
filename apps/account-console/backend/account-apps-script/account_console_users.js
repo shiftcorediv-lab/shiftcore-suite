@@ -4,13 +4,15 @@
 // ===== 現在ユーザー取得ここから =====
 function accountConsoleGetCurrentUser(body) {
   const operator = requireAccountConsoleOperator_(body);
+  const canEditUsers = isAccountConsoleEditor_(operator);
 
   return {
     success: true,
     ok: true,
     user: operator,
     canUseAccountConsole: true,
-    canEditUsers: isAccountConsoleEditor_(operator)
+    canEditUsers: canEditUsers,
+    canViewAuditLogs: isAccountConsoleAuditViewer_(operator)
   };
 }
 // ===== 現在ユーザー取得ここまで =====
@@ -19,8 +21,8 @@ function accountConsoleGetCurrentUser(body) {
 // ===== 初期表示データ取得ここから =====
 function accountConsoleGetBootstrap(body) {
   const operator = requireAccountConsoleOperator_(body);
-
-  ensureAccountConsoleNameColumns_();
+  const canEditUsers = isAccountConsoleEditor_(operator);
+  const canViewAuditLogs = isAccountConsoleAuditViewer_(operator);
 
   const users = getUsersData()
     .map(function(user) {
@@ -30,7 +32,9 @@ function accountConsoleGetBootstrap(body) {
       return shouldIncludeAccountConsoleUser_(operator, user);
     });
 
-  const logsResult = accountConsoleGetLogs(body);
+  const logsResult = canViewAuditLogs
+    ? listAccountConsoleLogs_("")
+    : { success: true, ok: true, logs: [] };
 
   return {
     success: true,
@@ -39,7 +43,8 @@ function accountConsoleGetBootstrap(body) {
     users: users,
     logs: logsResult.logs || [],
     canUseAccountConsole: true,
-    canEditUsers: isAccountConsoleEditor_(operator)
+    canEditUsers: canEditUsers,
+    canViewAuditLogs: canViewAuditLogs
   };
 }
 // ===== 初期表示データ取得ここまで =====
@@ -50,8 +55,6 @@ function accountConsoleGetBootstrap(body) {
 // ===== ユーザー一覧取得ここから =====
 function accountConsoleListUsers(body) {
   const operator = requireAccountConsoleOperator_(body);
-
-  ensureAccountConsoleNameColumns_();
 
   const users = getUsersData()
     .map(function(user) {
@@ -101,7 +104,7 @@ function accountConsoleCreateUser(body) {
 
   const email = normalizeAccountConsoleEmail_(payload.email);
 
-  if (findUserByEmail(email)) {
+  if (accountConsoleValueExists_(values, headers, "email", email, "")) {
     return {
       success: false,
       ok: false,
@@ -190,7 +193,7 @@ function accountConsoleCreateUser(body) {
   );
 
   const row = headers.map(function(header) {
-    return newUser[header] || "";
+    return escapeAccountSpreadsheetValue_(newUser[header] || "");
   });
 
   sheet.appendRow(row);
@@ -374,11 +377,9 @@ function accountConsoleUpdateUser(body) {
   afterUser.updated_at = getNowIsoStringJst();
   afterUser.updated_by = operator.email;
 
-  // ===== メール重複チェックここから =====
+  // ===== 一意項目の重複チェックここから =====
   if (normalizeAccountConsoleEmail_(beforeUser.email) !== normalizeAccountConsoleEmail_(afterUser.email)) {
-    const existingUser = findUserByEmail(afterUser.email);
-
-    if (existingUser && normalizeText(existingUser.internal_user_id) !== targetUserId) {
+    if (accountConsoleValueExists_(values, headers, "email", afterUser.email, targetUserId)) {
       return {
         success: false,
         ok: false,
@@ -387,17 +388,27 @@ function accountConsoleUpdateUser(body) {
       };
     }
   }
-  // ===== メール重複チェックここまで =====
 
-  editableFields.concat(["updated_at", "updated_by"]).forEach(function(field) {
-    const columnIndex = headers.indexOf(field);
-    if (columnIndex === -1) {
-      return;
+  if (normalizeText(beforeUser.employee_code).toUpperCase() !== normalizeText(afterUser.employee_code).toUpperCase()) {
+    if (accountConsoleValueExists_(values, headers, "employee_code", afterUser.employee_code, targetUserId)) {
+      return {
+        success: false,
+        ok: false,
+        code: "EMPLOYEE_CODE_ALREADY_EXISTS",
+        message: "このアカウントコードはすでに登録されています"
+      };
     }
-    sheet.getRange(targetRowIndex, columnIndex + 1).setValue(
-      afterUser[field] == null ? "" : afterUser[field]
-    );
-  });
+  }
+  // ===== 一意項目の重複チェックここまで =====
+
+  writeAccountConsoleFieldsWithRollback_(
+    sheet,
+    targetRowIndex,
+    headers,
+    beforeUser,
+    afterUser,
+    editableFields.concat(["updated_at", "updated_by"])
+  );
 
   editableFields.forEach(function(field) {
     const beforeValue = normalizeText(beforeUser[field]);
@@ -875,6 +886,67 @@ function normalizeAccountConsoleModules_(value) {
       return item !== "";
     })
     .join(",");
+}
+
+function accountConsoleValueExists_(values, headers, field, value, excludedUserId) {
+  const fieldIndex = headers.indexOf(field);
+  const userIdIndex = headers.indexOf("internal_user_id");
+  const normalizedValue = field === "email"
+    ? normalizeAccountConsoleEmail_(value)
+    : normalizeText(value).toUpperCase();
+
+  if (fieldIndex === -1 || !normalizedValue) return false;
+
+  return values.slice(1).some(function(row) {
+    if (userIdIndex !== -1 && excludedUserId &&
+        normalizeText(row[userIdIndex]) === normalizeText(excludedUserId)) {
+      return false;
+    }
+    const rowValue = field === "email"
+      ? normalizeAccountConsoleEmail_(row[fieldIndex])
+      : normalizeText(row[fieldIndex]).toUpperCase();
+    return rowValue === normalizedValue;
+  });
+}
+
+function writeAccountConsoleFieldsWithRollback_(sheet, rowIndex, headers, beforeUser, afterUser, fields) {
+  const applied = [];
+
+  try {
+    fields.forEach(function(field) {
+      const columnIndex = headers.indexOf(field);
+      if (columnIndex === -1) return;
+
+      const beforeValue = beforeUser[field] == null ? "" : beforeUser[field];
+      const afterValue = afterUser[field] == null ? "" : afterUser[field];
+      sheet.getRange(rowIndex, columnIndex + 1).setValue(
+        escapeAccountSpreadsheetValue_(afterValue)
+      );
+      applied.push({ columnIndex: columnIndex, beforeValue: beforeValue });
+    });
+  } catch (writeError) {
+    const rollbackErrors = [];
+    applied.reverse().forEach(function(item) {
+      try {
+        sheet.getRange(rowIndex, item.columnIndex + 1).setValue(
+          escapeAccountSpreadsheetValue_(item.beforeValue)
+        );
+      } catch (rollbackError) {
+        rollbackErrors.push(normalizeText(rollbackError && (rollbackError.code || rollbackError.message)) || "ROLLBACK_FAILED");
+      }
+    });
+
+    if (rollbackErrors.length > 0) {
+      const recoveryError = new Error("ACCOUNT_CONSOLE_UPDATE_RECOVERY_REQUIRED");
+      recoveryError.code = "ACCOUNT_CONSOLE_UPDATE_RECOVERY_REQUIRED";
+      recoveryError.rollback_error_codes = rollbackErrors;
+      throw recoveryError;
+    }
+
+    const error = new Error("ACCOUNT_CONSOLE_UPDATE_FAILED");
+    error.code = "ACCOUNT_CONSOLE_UPDATE_FAILED";
+    throw error;
+  }
 }
 
 function rowToAccountConsoleObject_(headers, row) {

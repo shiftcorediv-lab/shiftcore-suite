@@ -82,3 +82,30 @@ test("保存系は不正応答でも自動再送しない", async () => {
   });
   assert.equal(callCount, 1);
 });
+
+test("保存系のタイムアウトは自動再送せず安全な文言で返す", async () => {
+  let callCount = 0;
+  globalThis.setTimeout = (callback) => {
+    callback();
+    return 0;
+  };
+  globalThis.fetch = async (_url, options) => {
+    callCount += 1;
+    if (options.signal.aborted) {
+      const error = new Error("aborted");
+      error.name = "AbortError";
+      throw error;
+    }
+    throw new Error("unexpected");
+  };
+
+  await assert.rejects(
+    createAccountUser("token", { name: "テスト" }),
+    (error) => {
+      assert.equal(error.code, "ACCOUNT_API_TIMEOUT");
+      assert.doesNotMatch(error.message, /AbortError|aborted/i);
+      return true;
+    }
+  );
+  assert.equal(callCount, 1);
+});

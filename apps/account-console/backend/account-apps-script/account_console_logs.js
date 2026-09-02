@@ -3,7 +3,7 @@
 
 // ===== 変更履歴取得ここから =====
 function accountConsoleGetLogs(body) {
-  requireAccountConsoleOperator_(body);
+  requireAccountConsoleAuditViewer_(body);
 
   const targetUserId = normalizeText(
     body.targetUserId ||
@@ -11,6 +11,10 @@ function accountConsoleGetLogs(body) {
     body.target_account_id
   );
 
+  return listAccountConsoleLogs_(targetUserId);
+}
+
+function listAccountConsoleLogs_(targetUserId) {
   const sheet = getAccountConsoleLogsSheet_();
   const values = sheet.getDataRange().getValues();
 
@@ -61,6 +65,24 @@ function accountConsoleGetLogs(body) {
 // ===== 変更履歴取得ここまで =====
 
 
+// ===== 変更履歴閲覧者確認ここから =====
+function isAccountConsoleAuditViewer_(user) {
+  const role = normalizeText(user && user.role).toLowerCase();
+  return role === "admin" || role === "developer";
+}
+
+function requireAccountConsoleAuditViewer_(body) {
+  const operator = requireAccountConsoleOperator_(body);
+  if (!isAccountConsoleAuditViewer_(operator)) {
+    const error = new Error("ACCOUNT_CONSOLE_AUDIT_VIEW_FORBIDDEN");
+    error.code = "ACCOUNT_CONSOLE_AUDIT_VIEW_FORBIDDEN";
+    throw error;
+  }
+  return operator;
+}
+// ===== 変更履歴閲覧者確認ここまで =====
+
+
 // ===== 変更履歴追加ここから =====
 function appendAccountConsoleLog_(params) {
   const sheet = getAccountConsoleLogsSheet_();
@@ -84,7 +106,7 @@ function appendAccountConsoleLog_(params) {
     });
 
   const row = headers.map(function(header) {
-    return log[header] == null ? "" : log[header];
+    return escapeAccountSpreadsheetValue_(log[header] == null ? "" : log[header]);
   });
 
   sheet.appendRow(row);

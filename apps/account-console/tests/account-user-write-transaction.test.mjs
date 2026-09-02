@@ -24,6 +24,12 @@ function normalizeText(value) {
   return String(value == null ? "" : value).trim();
 }
 
+function escapeAccountSpreadsheetValue(value) {
+  if (value == null) return "";
+  if (typeof value !== "string") return value;
+  return /^[\s\u0000-\u001f]*[=+\-@]/.test(value) ? `'${value}` : value;
+}
+
 test("通常作成・申請受付・承認は重複確認と採番を同じScriptLock内で行う", () => {
   const createFunction = accountUsersSource.slice(
     accountUsersSource.indexOf("function accountConsoleCreateUser(body)"),
@@ -48,8 +54,8 @@ test("通常作成・申請受付・承認は重複確認と採番を同じScrip
     assert.match(source, /finally\s*\{[\s\S]*lock\.releaseLock\(\)/);
   }
 
-  assert.ok(createFunction.indexOf("tryLock(10000)") < createFunction.indexOf("findUserByEmail(email)"));
-  assert.ok(createFunction.indexOf("findUserByEmail(email)") < createFunction.indexOf("generateInternalUserId_()"));
+  assert.ok(createFunction.indexOf("tryLock(10000)") < createFunction.indexOf("accountConsoleValueExists_"));
+  assert.ok(createFunction.indexOf("accountConsoleValueExists_") < createFunction.indexOf("generateInternalUserId_()"));
   assert.ok(submitFunction.indexOf("tryLock(10000)") < submitFunction.indexOf("hasPendingSignupRequest_"));
   assert.ok(submitFunction.indexOf("hasPendingSignupRequest_") < submitFunction.indexOf("createSignupRequestId_()"));
   assert.ok(approveFunction.indexOf("tryLock(10000)") < approveFunction.indexOf("getSignupRequestById_(requestId)"));
@@ -178,7 +184,10 @@ test("承認途中で作成済みのユーザーは申請IDから復旧し、再
 });
 
 test("途中復旧では保存済みユーザーと再試行時の承認内容の差異を拒否する", () => {
-  const context = vm.createContext({ normalizeText });
+  const context = vm.createContext({
+    normalizeText,
+    escapeAccountSpreadsheetValue_: escapeAccountSpreadsheetValue
+  });
   vm.runInContext(signupAdminSource, context);
 
   const mismatch = context.getSignupCreatedUserMismatch_({
@@ -218,7 +227,10 @@ test("申請承認は画面で選んだ稼働状態と申請IDをusers_masterへ
       return { setValues: values => { writtenRow = values[0]; } };
     }
   };
-  const context = vm.createContext({ normalizeText });
+  const context = vm.createContext({
+    normalizeText,
+    escapeAccountSpreadsheetValue_: escapeAccountSpreadsheetValue
+  });
   vm.runInContext(signupUserWriteSource, context);
   context.getUsersSheet = () => sheet;
   context.createNextInternalUserId_ = () => "U0001";

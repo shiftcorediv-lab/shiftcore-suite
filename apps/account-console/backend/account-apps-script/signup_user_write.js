@@ -103,7 +103,7 @@ function appendUserMasterFromSignup_(requestData, approval, operator) {
 
   const row = headers.map(function(header) {
     const key = String(header || "").trim();
-    return key in rowObject ? rowObject[key] : "";
+    return escapeAccountSpreadsheetValue_(key in rowObject ? rowObject[key] : "");
   });
 
   const developerAuthorizationEventId = beginDeveloperAccountAuthorizationEvent_(
