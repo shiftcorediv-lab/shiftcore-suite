@@ -11,19 +11,20 @@ import {
   completeScreen
 } from "./dom.js";
 import { currentUser } from "./state.js";
+import { setActivity } from "../../account-console/js/common/activity.js";
 
-export function showMessage(target, text, type = "") {
-  target.textContent = text;
+export function showMessage(target, text, type = "", loading = false) {
+  setActivity(target, loading, text);
   target.className = "message";
   if (type) target.classList.add(type);
 }
 
-export function showMainMessage(text, type = "") {
-  showMessage(messageBox, text, type);
+export function showMainMessage(text, type = "", loading = false) {
+  showMessage(messageBox, text, type, loading);
 }
 
 export function setInfoBox(target, text, type = "") {
-  target.textContent = text;
+  setActivity(target, false, text);
   target.className = "info-box";
   if (type) target.classList.add(type);
 }

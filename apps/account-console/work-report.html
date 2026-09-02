@@ -7,14 +7,15 @@
   <title>Another Portal 実績報告</title>
   <link rel="stylesheet" href="./css/work-report.css?v=20260831-self-history-1">
   <link rel="stylesheet" href="./css/work-report-history.css?v=20260831-self-history-1">
-  <script src="../theme/shiftcore-theme.js"></script>
-  <link rel="stylesheet" href="../theme/shiftcore-theme.css">
+  <script src="../theme/shiftcore-theme.js?v=20260903-responsive-layout-1"></script>
+  <link rel="stylesheet" href="../theme/shiftcore-theme.css?v=20260903-responsive-layout-1">
+  <link rel="stylesheet" href="../theme/portal-field-responsive.css?v=20260903-responsive-layout-1">
 </head>
-<body>
+<body data-portal-surface="field">
   <main>
-    <a href="./dashboard.html">← Dashboard</a>
+    <a href="./dashboard.html">← ダッシュボード</a>
     <section>
-      <small>DAILY REPORT</small>
+      <small>実績報告</small>
       <h1>実績報告</h1>
       <p>終了済みの勤怠記録と実績項目を確認して表示します。案件・店舗・勤務日は勤怠記録から確定します。</p>
       <div id="loadingState" class="loading-state" data-shiftcore-loading="true" aria-busy="true">実績項目を読み込んでいます…</div>
@@ -31,17 +32,17 @@
         <button id="submitBtn">実績報告を送信</button>
       </form>
       <div id="completionState" class="completion-state" hidden>
-        <small>WORK COMPLETE</small>
+        <small>業務完了</small>
         <h2 id="completionTitle"></h2>
         <p id="completionMessage"></p>
         <p id="completionDetail" class="completion-detail"></p>
-        <button id="dashboardBtn" type="button">Dashboardへ戻る</button>
+        <button id="dashboardBtn" type="button">ダッシュボードへ戻る</button>
       </div>
     </section>
   </main>
   <dialog id="reportConfirmDialog" class="confirm-dialog" aria-labelledby="confirmTitle">
     <div class="confirm-heading">
-      <small>FINAL CHECK</small>
+      <small>最終確認</small>
       <h2 id="confirmTitle">送信内容を確認</h2>
       <p>内容を確認してから確定してください。入力へ戻っても内容は消えません。</p>
     </div>

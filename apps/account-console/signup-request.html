@@ -7,7 +7,7 @@
   <title>利用申請</title>
   <link rel="stylesheet" href="./css/signup-request.css" />
   <link rel="stylesheet" href="./css/line-browser-guard.css" />
-  <script src="../theme/shiftcore-theme.js"></script>
+  <script src="../theme/shiftcore-theme.js?v=20260903-responsive-layout-1"></script>
   <link rel="stylesheet" href="../theme/shiftcore-theme.css">
 </head>
 <body>
@@ -15,11 +15,11 @@
     <div class="card">
       <h1>利用申請</h1>
       <div class="description">
-        Account Console の利用申請を行います。
+        メンバー機能の利用申請を行います。
       </div>
 
       <label>ログイン中メールアドレス</label>
-      <div class="info-box" id="emailBox">取得中...</div>
+      <div class="info-box" id="emailBox" data-shiftcore-loading="true" aria-busy="true">取得中...</div>
     </div>
 
     <div class="card">
@@ -64,7 +64,7 @@
     </div>
   </div>
 
-  <script type="module" src="./js/signup-request/main.js?v=20260902-auth-rate-1"></script>
+  <script type="module" src="./js/signup-request/main.js?v=20260903-loading-1"></script>
 <script type="module">
   import { initLineBrowserGuard } from "./js/common/line-browser-guard.js";
   initLineBrowserGuard({ pageLabel: "利用申請画面" });

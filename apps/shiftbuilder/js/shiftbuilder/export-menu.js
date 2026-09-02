@@ -174,7 +174,7 @@ function drawCalendar(canvas, person, shiftData) {
   }
   context.fillStyle = "#667085";
   context.font = '22px "Hiragino Sans", "Yu Gothic", sans-serif';
-  context.fillText("※時刻はICSまたはShiftで確認してください。", 48, height - 28);
+  context.fillText("※時刻はICSまたはシフトで確認してください。", 48, height - 28);
 }
 
 export function openPersonnelExportMenu({

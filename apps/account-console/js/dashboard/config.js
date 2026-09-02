@@ -16,18 +16,18 @@ export const ATTENDANCE_API_URL = window.ShiftCoreEnvironment.endpoint(
 export const LOCATION_CONSENT_VERSION = "2026-08-31-v2";
 
 export const MODULE_NAME_MAP = {
-  account: "人員マスター",
-  account_console: "人員マスター",
-  pmo: "Pick My Off",
-  ordercase: "Order",
-  order_case: "Order",
-  shift: "Shift",
-  shiftbuilder: "Shift"
+  account: "メンバー",
+  account_console: "メンバー",
+  pmo: "オフ",
+  ordercase: "オーダー",
+  order_case: "オーダー",
+  shift: "シフト",
+  shiftbuilder: "シフト"
 };
 
 export const MODULE_DESCRIPTION_MAP = {
-  account: "アカウント登録・申請・権限管理",
-  account_console: "アカウント登録・申請・権限管理",
+  account: "メンバー登録・申請・権限管理",
+  account_console: "メンバー登録・申請・権限管理",
   pmo: "希望休管理",
   ordercase: "案件管理",
   order_case: "案件管理",

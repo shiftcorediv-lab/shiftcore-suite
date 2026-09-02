@@ -14,7 +14,7 @@ import {
   updateSubmitButtonState,
   getTargetYearMonth
 } from "./calendar.js";
-import { showMessage, showMainMessage } from "./ui.js?v=20260802-xss-1";
+import { showMessage, showMainMessage } from "./ui.js?v=20260903-loading-1";
 
 export function buildSubmitPayload() {
   return {
@@ -68,7 +68,7 @@ export async function loadLatestRequest(idToken) {
     return;
   }
 
-  showMainMessage("提出済み内容を確認中...", "");
+  showMainMessage("提出済み内容を確認中...", "", true);
 
   try {
     const result = await apiPost("getLatestShiftRequestSecure", {

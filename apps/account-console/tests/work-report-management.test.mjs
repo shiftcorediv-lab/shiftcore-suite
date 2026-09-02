@@ -147,7 +147,7 @@ test("実績項目の保存応答が途切れても再取得した状態と照�
 test("個人ダッシュボードは勤怠を先に表示し、本人専用成績と予定同期を後から並行取得する", () => {
   assert.ok(dashboardHtml.includes("今月の成績"));
   assert.ok(dashboardHtml.includes("ログインしている本人の実績だけを表示します"));
-  assert.match(dashboardHtml, /dashboard\/main\.js\?v=20260902-multi-case-1/);
+  assert.match(dashboardHtml, /dashboard\/main\.js\?v=20260903-display-labels-2/);
   assert.doesNotMatch(dashboardSource, /attendanceRequest\("getPortalBootstrap"/);
   assert.match(dashboardSource, /attendanceRequest\("getDashboardData"/);
   assert.match(dashboardSource, /attendanceRequest\("getMyWorkReportSummary"/);

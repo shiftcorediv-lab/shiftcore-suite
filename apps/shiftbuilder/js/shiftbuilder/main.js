@@ -22,7 +22,7 @@ import { mockShiftData } from "./mock-data.js?v=20260801-authfix-1";
 import { escapeHtml } from "./utils.js?v=20260801-authfix-1";
 import { getPermissionLabel, canEdit } from "./permissions.js?v=20260801-authfix-1";
 import { renderSummary } from "./render-summary.js?v=20260801-authfix-1";
-import { renderShiftTable } from "./render-shift-table.js?v=20260902-env-guard-1";
+import { renderShiftTable } from "./render-shift-table.js?v=20260903-display-labels-1";
 import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20260801-authfix-1";
 import { renderPersonnelTable } from "./render-personnel-table.js?v=20260801-authfix-1";
 import { getConsecutiveWorkAlert } from "./consecutive-work-alert.js?v=20260801-authfix-1";
@@ -60,7 +60,7 @@ import {
   openCaseExportMenu,
   openPersonnelExportMenu,
   openPersonnelBulkMenu
-} from "./export-menu.js?v=20260801-authfix-1";
+} from "./export-menu.js?v=20260903-display-labels-1";
 import {
   buildPersonnelExportFilename,
   buildPersonnelIcs
@@ -74,7 +74,7 @@ import {
   assertMutationSession,
   isMutationSessionRequiredError,
   restoreAssignedSnapshot
-} from "./mutation-session-policy.mjs?v=20260801-authfix-1";
+} from "./mutation-session-policy.mjs?v=20260903-display-labels-1";
 
 let assignmentCandidates = [];
 let previousMonthShiftData = null;
@@ -359,7 +359,7 @@ function renderNoLogin(session) {
   }
 
   elements.operatorText.textContent = "未ログイン";
-  elements.permissionText.textContent = "Shiftを利用するにはログインが必要です";
+  elements.permissionText.textContent = "シフトを利用するにはログインが必要です";
   elements.permissionBadge.textContent = "未ログイン";
 
   elements.apiStatusText.textContent = "未実行";
@@ -368,7 +368,7 @@ function renderNoLogin(session) {
   elements.editPermissionText.textContent = "-";
 
   setStatus(
-    `未ログインです。Dashboardからログイン後、再度Shiftを開いてください。ログインURL: ${getLoginUrl()} / email: ${session.email || "-"} / uid: ${session.uid || "-"}`
+    `未ログインです。ダッシュボードからログイン後、再度シフトを開いてください。ログインURL: ${getLoginUrl()} / email: ${session.email || "-"} / uid: ${session.uid || "-"}`
   );
 }
 
@@ -394,7 +394,7 @@ function renderUser(currentUserResult) {
   const editable = canEdit(permission);
 
   elements.operatorText.textContent = displayName;
-  elements.permissionText.textContent = `Shift権限：${permissionLabel}`;
+  elements.permissionText.textContent = `シフト権限：${permissionLabel}`;
   elements.permissionBadge.textContent = permissionLabel;
 
   elements.userNameText.textContent = displayName;
@@ -403,8 +403,8 @@ function renderUser(currentUserResult) {
 
   setStatus(
     editable
-      ? "Shiftを利用できます。翌月シフトを自動表示します。"
-      : "Shiftを閲覧できます。編集権限はありません。"
+      ? "シフトを利用できます。翌月シフトを自動表示します。"
+      : "シフトを閲覧できます。編集権限はありません。"
   );
 }
 

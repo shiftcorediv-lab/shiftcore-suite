@@ -6,13 +6,13 @@
   <script src="../common/environment.js?v=20260902-banner-height-1"></script>
   <title>Another Portal 実績報告管理</title>
   <link rel="stylesheet" href="./css/work-report-admin.css?v=20260901-csv-actions-1">
-  <script src="../theme/shiftcore-theme.js"></script>
+  <script src="../theme/shiftcore-theme.js?v=20260903-responsive-layout-1"></script>
   <link rel="stylesheet" href="../theme/shiftcore-theme.css">
 </head>
 <body>
   <header>
-    <nav><a href="./dashboard.html">← Dashboard</a><a href="./attendance-admin.html">勤怠管理</a></nav>
-    <div><small>WORK REPORTS</small><h1>実績報告管理</h1></div>
+    <nav><a href="./dashboard.html">← ダッシュボード</a><a href="./attendance-admin.html">勤怠管理</a></nav>
+    <div><small>実績報告</small><h1>実績報告管理</h1></div>
     <button id="refreshBtn" type="button">更新</button>
   </header>
   <main>
@@ -30,23 +30,23 @@
     <section id="summary" class="summary"></section>
 
     <section class="panel">
-      <div class="panel-title"><div><small>SUBMISSIONS</small><h2>提出状況</h2></div></div>
+      <div class="panel-title"><div><small>提出</small><h2>提出状況</h2></div></div>
       <div class="table-wrap"><table><thead><tr><th>勤務日</th><th>氏名</th><th>店舗</th><th>案件</th><th>状態</th><th>版</th><th>報告日時</th><th></th></tr></thead><tbody id="submissionRows"></tbody></table></div>
     </section>
 
     <section class="panel">
-      <div class="panel-title"><div><small>AGGREGATION</small><h2>数値実績集計</h2></div></div>
+      <div class="panel-title"><div><small>集計</small><h2>数値実績集計</h2></div></div>
       <div class="table-wrap"><table><thead><tr><th>集計単位</th><th>報告数</th><th>カテゴリ</th><th>項目</th><th>合計</th></tr></thead><tbody id="aggregateRows"></tbody></table></div>
     </section>
 
     <section class="panel">
-      <div class="panel-title"><div><small>ITEM MASTER</small><h2>実績項目管理</h2></div><button id="showAddItemBtn" type="button">項目を追加</button></div>
+      <div class="panel-title"><div><small>項目設定</small><h2>実績項目管理</h2></div><button id="showAddItemBtn" type="button">項目を追加</button></div>
       <p class="hint">停止した項目は新しい入力画面から外れます。過去回答は回答時点の名称・型・カテゴリで保持されます。</p>
       <div class="table-wrap"><table class="item-table"><thead><tr><th>項目名</th><th>種別</th><th>カテゴリ</th><th>表示順</th><th>必須</th><th>有効</th><th>成績表示</th><th>成績名</th><th>成績順</th><th>版</th><th></th></tr></thead><tbody id="itemRows"></tbody></table></div>
     </section>
 
     <section class="panel">
-      <div class="panel-title"><div><small>TARGET CASES</small><h2>実績報告の対象案件</h2></div></div>
+      <div class="panel-title"><div><small>対象案件</small><h2>実績報告の対象案件</h2></div></div>
       <p class="hint">稼働予定から日付・人員・案件を表示します。一度対象にした案件は、同じ案件IDの全日程・全担当者へ自動適用されます。</p>
       <div class="table-wrap"><table><thead><tr><th>稼働日</th><th>人員名</th><th>案件名</th><th>報告形式</th><th>対象</th><th></th></tr></thead><tbody id="caseMappingRows"></tbody></table></div>
     </section>

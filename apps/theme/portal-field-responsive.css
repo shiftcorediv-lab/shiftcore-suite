@@ -1,0 +1,90 @@
+@media (max-width: 720px) {
+  :root[data-portal-layout="mobile"] body[data-portal-surface="field"] .topbar {
+    height: 64px;
+    padding: 0 12px;
+  }
+
+  :root[data-portal-layout="mobile"] body[data-portal-surface="field"] .brand > span:last-child {
+    display: none;
+  }
+
+  :root[data-portal-layout="mobile"] body[data-portal-surface="field"] .dashboard {
+    padding: 20px 12px 48px;
+  }
+
+  :root[data-portal-layout="mobile"] body[data-portal-surface="field"] .card {
+    padding: 18px;
+  }
+
+  :root[data-portal-layout="mobile"] body[data-portal-surface="field"] .work-details {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  :root[data-portal-layout="mobile"] body[data-portal-surface="field"] .work-details div + div {
+    border-top: 0;
+  }
+
+  :root[data-portal-layout="mobile"] body[data-portal-surface="field"] .work-details div:nth-child(even) {
+    border-left: 1px solid var(--line);
+  }
+
+  :root[data-portal-layout="mobile"] body[data-portal-surface="field"] .work-details div:nth-child(n + 3) {
+    border-top: 1px solid var(--line);
+  }
+
+  :root[data-portal-layout="mobile"] body[data-portal-surface="field"] .work-details div:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  :root[data-portal-layout="mobile"] body[data-portal-surface="field"] :is(
+    .primary-action,
+    .danger-action,
+    .outline-action,
+    .work-report-action-alert button,
+    .module-card button
+  ) {
+    min-height: 52px;
+    font-size: 16px;
+  }
+
+  :root[data-portal-layout="mobile"] body[data-portal-surface="field"] > main {
+    padding: 20px 10px 48px;
+  }
+
+  :root[data-portal-layout="mobile"] body[data-portal-surface="field"] > main > section {
+    padding: 20px 14px;
+  }
+
+  :root[data-portal-layout="mobile"] body[data-portal-surface="field"] > main :is(button, input, textarea, summary) {
+    min-height: 48px;
+  }
+
+  :root[data-portal-layout="mobile"] body[data-portal-surface="field"] > main button {
+    font-size: 16px;
+  }
+
+  :root[data-portal-layout="mobile"] body[data-portal-surface="field"] > .container {
+    padding: 10px;
+  }
+
+  :root[data-portal-layout="mobile"] body[data-portal-surface="field"] > .container .card {
+    padding: 16px 14px;
+  }
+
+  :root[data-portal-layout="mobile"] body[data-portal-surface="field"] :is(.weekday-row, .calendar-grid) {
+    gap: 3px;
+  }
+
+  :root[data-portal-layout="mobile"] body[data-portal-surface="field"] .day-cell {
+    border-radius: 7px;
+    font-size: 14px;
+  }
+
+  :root[data-portal-layout="mobile"] body[data-portal-surface="field"] :is(.submit-btn, .clear-btn) {
+    min-height: 48px;
+  }
+
+  :root[data-portal-input="touch"] body[data-portal-surface="field"] :is(input, textarea, select) {
+    font-size: 16px;
+  }
+}

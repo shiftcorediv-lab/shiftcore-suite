@@ -102,13 +102,13 @@ const CONTRACT_TYPE_LABELS = {
 };
 
 const MODULE_LABELS = {
-  account: "人員マスター（旧アカウント基盤）",
-  account_console: "人員マスター（アカウント登録・申請・権限管理）",
-  pmo: "Pick My Off",
-  ordercase: "Order",
+  account: "メンバー（旧アカウント基盤）",
+  account_console: "メンバー（アカウント登録・申請・権限管理）",
+  pmo: "オフ",
+  ordercase: "オーダー",
   manual: "取扱説明書（未公開・無効）",
-  shift: "Shift",
-  dashboard: "Dashboard"
+  shift: "シフト",
+  dashboard: "ダッシュボード"
 };
 
 const ORDERCASE_PERMISSION_LABELS = {
@@ -157,8 +157,8 @@ const FIELD_LABELS = {
   sort_order: "並び順",
   sortOrder: "並び順",
   allowed_modules: "利用可能機能",
-  ordercase_permission: "Order権限",
-  shiftbuilder_permission: "Shift権限",
+  ordercase_permission: "オーダー権限",
+  shiftbuilder_permission: "シフト権限",
   memo: "メモ",
   auth_provider: "認証プロバイダ",
   auth_uid: "認証UID"
@@ -173,7 +173,7 @@ export function setStatus(message) {
 
 export function setOperator(user, canEditUsers = false) {
   operatorText.textContent = `${user.name || user.display_name || "-"} / ${user.email || "-"}`;
-  permissionBadge.textContent = canEditUsers ? "人員マスター 編集可" : "人員マスター 閲覧のみ";
+  permissionBadge.textContent = canEditUsers ? "メンバー 編集可" : "メンバー 閲覧のみ";
   permissionBadge.className = "badge ok";
 }
 
@@ -200,7 +200,7 @@ export function renderCurrentUserPermission(user) {
   const workStatus = labelFromMap(user.work_status || user.workStatus, WORK_STATUS_LABELS, "-");
 
   currentUserPermissionText.textContent =
-    `アカウント種別：${role} / アカウント状態：${status} / 稼働対象状態：${workStatus} / 利用可能機能：${modules || "-"} / Order：${ordercasePermission} / Shift：${shiftbuilderPermission}`;
+    `アカウント種別：${role} / アカウント状態：${status} / 稼働対象状態：${workStatus} / 利用可能機能：${modules || "-"} / オーダー：${ordercasePermission} / シフト：${shiftbuilderPermission}`;
 }
 // ===== 状態表示ここまで =====
 
@@ -721,8 +721,8 @@ export function buildSaveConfirmMessage(user) {
     `契約区分：${contractType}`,
     `等級・役割：${gradeRole}`,
     `利用可能機能：${allowedModules}`,
-    `Order権限：${ordercasePermission}`,
-    `Shift権限：${shiftbuilderPermission}`,
+    `オーダー権限：${ordercasePermission}`,
+    `シフト権限：${shiftbuilderPermission}`,
     "",
     "保存してよろしいですか？"
   ].join("\n");

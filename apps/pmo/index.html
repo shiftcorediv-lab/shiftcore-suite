@@ -4,15 +4,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="../common/environment.js?v=20260902-banner-height-1"></script>
-  <title>Pick My Off</title>
+  <title>オフ</title>
   <link rel="preconnect" href="https://script.google.com" />
   <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin />
   <link rel="stylesheet" href="../../shared/css/pmo-header.css" />
   <link rel="stylesheet" href="./css/pmo.css" />
-  <script src="../theme/shiftcore-theme.js"></script>
-  <link rel="stylesheet" href="../theme/shiftcore-theme.css?v=20260903-module-header-1">
+  <script src="../theme/shiftcore-theme.js?v=20260903-responsive-layout-1"></script>
+  <link rel="stylesheet" href="../theme/shiftcore-theme.css?v=20260903-responsive-layout-1">
+  <link rel="stylesheet" href="../theme/portal-field-responsive.css?v=20260903-responsive-layout-1">
 </head>
-<body>
+<body data-portal-surface="field">
   <div id="lineWarningBanner" style="background:#ffebee;color:#c62828;text-align:center;padding:12px;font-size:14px;font-weight:bold;border-bottom:1px solid #ffcdd2;">
     ⚠ LINE内ブラウザでは正常に動作しない場合があります。<br>
     ブラウザメニューから「外部ブラウザで開く」を選択してください。
@@ -26,13 +27,13 @@
           <span class="portal-brand-copy"><strong>Another Portal</strong><small>WORKFORCE PLATFORM</small></span>
         </a>
         <div class="portal-module-title">
-          <h1 class="pmo-header-title">Pick My Off</h1>
+          <h1 class="pmo-header-title">オフ</h1>
           <p class="pmo-header-subtitle">希望休申請</p>
         </div>
       </div>
 
       <div class="pmo-header-actions">
-        <button class="pmo-dashboard-button" id="dashboardBtn" type="button">Dashboardへ戻る</button>
+        <button class="pmo-dashboard-button" id="dashboardBtn" type="button">ダッシュボードへ戻る</button>
       </div>
     </header>
 
@@ -46,11 +47,11 @@
       <div id="entryBannerArea"></div>
 
       <label>ログインユーザー</label>
-      <div class="info-box" id="userNameBox">取得中...</div>
+      <div class="info-box" id="userNameBox" data-shiftcore-loading="true" aria-busy="true">取得中...</div>
 
       <div class="mt-12">
         <label>社員コード</label>
-        <div class="info-box" id="employeeCodeBox">取得中...</div>
+        <div class="info-box" id="employeeCodeBox" data-shiftcore-loading="true" aria-busy="true">取得中...</div>
       </div>
 
       <div class="mt-12">
@@ -120,6 +121,6 @@
   </div>
   </div>
 
-  <script type="module" src="./js/main.js?v=20260902-pmo-auth-1"></script>
+  <script type="module" src="./js/main.js?v=20260903-display-labels-1"></script>
 </body>
 </html>
