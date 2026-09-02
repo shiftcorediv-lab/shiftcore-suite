@@ -11,7 +11,7 @@ import {
   getOrganizationAssignment,
   updateOrganizationAssignment,
   getAccountLogs
-} from "./api.js?v=20260903-invalid-response-1";
+} from "./api.js?v=20260903-account-audit-1";
 import {
   dashboardBtn,
   signupAdminBtn,
@@ -59,6 +59,7 @@ let selectedUser = null;
 let currentUser = null;
 let organizationCandidates = [];
 let canEditUsers = false;
+let canViewAuditLogs = false;
 const userLoadGeneration = createResponseGeneration();
 const organizationLoadGeneration = createResponseGeneration();
 const logLoadGeneration = createResponseGeneration();
@@ -85,6 +86,7 @@ function applyUserEditingMode() {
     control.disabled = !canEditUsers;
   });
   setSaveDisabled(false);
+  loadLogsBtn.disabled = !canViewAuditLogs;
 }
 // ===== 操作ボタン制御ここまで =====
 
@@ -118,11 +120,12 @@ async function init() {
 
     currentUser = bootstrapResult.user;
     canEditUsers = bootstrapResult.canEditUsers === true;
+    canViewAuditLogs = bootstrapResult.canViewAuditLogs === true;
     allUsers = Array.isArray(bootstrapResult.users) ? bootstrapResult.users : [];
     setOperator(currentUser, canEditUsers);
     renderCurrentUserPermission(currentUser);
     renderCurrentUsers();
-    renderLogs(Array.isArray(bootstrapResult.logs) ? bootstrapResult.logs : []);
+    renderLogs(canViewAuditLogs && Array.isArray(bootstrapResult.logs) ? bootstrapResult.logs : []);
 
     clearUserForm();
     applyUserEditingMode();
@@ -173,10 +176,14 @@ function renderCurrentUsers() {
     fillUserForm(user);
     renderCurrentUsers();
 
-    loadLogsForSelectedUser("選択中アカウントの変更履歴を取得中...")
-      .catch((error) => {
-        setStatus("履歴取得エラー\n\n" + error.message);
-      });
+    if (canViewAuditLogs) {
+      loadLogsForSelectedUser("選択中アカウントの変更履歴を取得中...")
+        .catch((error) => {
+          setStatus("履歴取得エラー\n\n" + error.message);
+        });
+    } else {
+      renderLogs([]);
+    }
 
     loadOrganizationForSelectedUser()
       .catch((error) => {
@@ -431,6 +438,10 @@ async function saveUser(event) {
 
 // ===== 履歴ここから =====
 async function loadLogs(loadingMessage = "変更履歴を取得中...") {
+  if (!canViewAuditLogs) {
+    renderLogs([]);
+    return true;
+  }
   const generation = logLoadGeneration.begin();
   setLogsLoading(true, loadingMessage);
 
@@ -453,6 +464,10 @@ async function loadLogs(loadingMessage = "変更履歴を取得中...") {
 }
 
 async function loadLogsForSelectedUser(loadingMessage = "変更履歴を取得中...") {
+  if (!canViewAuditLogs) {
+    renderLogs([]);
+    return true;
+  }
   if (!selectedUser || !selectedUser.internal_user_id) return loadLogs(loadingMessage);
   const selectedUserId = selectedUser.internal_user_id;
   const generation = logLoadGeneration.begin();
@@ -501,7 +516,7 @@ reloadBtn.addEventListener("click", async () => {
   try {
     showLoading("再読み込み中...");
     if (!await loadUsers("再読み込み中...")) return;
-    if (!await loadLogsForSelectedUser("変更履歴を再取得中...")) return;
+    if (canViewAuditLogs && !await loadLogsForSelectedUser("変更履歴を再取得中...")) return;
     setStatus("再読み込みしました");
   } catch (error) {
     setStatus("再読み込みエラー\n\n" + error.message);
@@ -547,6 +562,7 @@ saveOrganizationBtn.addEventListener("click", saveOrganizationAssignment);
 userForm.addEventListener("submit", saveUser);
 
 loadLogsBtn.addEventListener("click", async () => {
+  if (!canViewAuditLogs) return;
   try {
     if (!await loadLogsForSelectedUser("変更履歴を更新中...")) return;
     setStatus("変更履歴を更新しました");

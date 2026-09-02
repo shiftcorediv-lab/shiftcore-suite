@@ -220,7 +220,7 @@ function escapeSignupSpreadsheetValue_(value) {
   if (value == null) return "";
   if (typeof value !== "string") return value;
   const text = value;
-  return /^[=+\-@]/.test(text) ? "'" + text : text;
+  return /^[\s\u0000-\u001f]*[=+\-@]/.test(text) ? "'" + text : text;
 }
 // ===== スプレッドシート数式注入防止ここまで =====
 

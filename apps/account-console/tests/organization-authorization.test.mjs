@@ -532,7 +532,7 @@ test("自己ブートストラップ状態をUIへ公開し専用監査イベン
   assert.match(mainSource, /result\.self_bootstrap === true \? result\.allowed_organization_levels : \[\]/);
   assert.match(mainSource, /ui\.js\?v=20260903-display-labels-2/);
   assert.match(uiSource, /restrictOrganizationLevelOptions_\(allowedLevels\)/);
-  assert.match(htmlSource, /main\.js\?v=20260903-invalid-response-1/);
+  assert.match(htmlSource, /main\.js\?v=20260903-account-audit-1/);
 });
 
 test("開発者でも最後の役員を変更できない", () => {

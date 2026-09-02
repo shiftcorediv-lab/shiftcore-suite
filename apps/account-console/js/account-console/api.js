@@ -3,6 +3,7 @@ import { ACCOUNT_API_URL } from "./config.js?v=20260810-org-shadow-1";
 const INVALID_RESPONSE_MESSAGE =
   "メンバー情報を一時的に取得できませんでした。少し待ってから再読み込みしてください。";
 const READ_RETRY_DELAY_MS = 1000;
+const REQUEST_TIMEOUT_MS = 20000;
 
 function parseAccountApiResponse(text) {
   try {
@@ -29,19 +30,30 @@ async function postToAccountApi(action, body = {}, options = {}) {
   const retries = Number.isInteger(options.retries) ? Math.max(0, options.retries) : 0;
 
   for (let attempt = 0; ; attempt += 1) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
       const response = await fetch(ACCOUNT_API_URL, {
         method: "POST",
         headers: {
           "Content-Type": "text/plain;charset=utf-8"
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: controller.signal
       });
 
       return parseAccountApiResponse(await response.text());
     } catch (error) {
+      if (error?.name === "AbortError") {
+        const timeoutError = new Error(INVALID_RESPONSE_MESSAGE);
+        timeoutError.code = "ACCOUNT_API_TIMEOUT";
+        timeoutError.retryable = true;
+        error = timeoutError;
+      }
       if (error?.retryable !== true || attempt >= retries) throw error;
       await wait(READ_RETRY_DELAY_MS);
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 }
