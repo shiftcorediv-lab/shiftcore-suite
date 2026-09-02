@@ -24,6 +24,8 @@ function renderOrderCaseHeader(activePage, subtitle) {
     return;
   }
 
+  header.classList.add('portal-module-header', 'portal-module-header--stacked');
+
   const pages = [
     {
       key: 'index',
@@ -50,20 +52,30 @@ function renderOrderCaseHeader(activePage, subtitle) {
   }).join('');
 
   header.innerHTML = `
-    <div class="portal-module-heading portal-module-heading--center">
-      <a class="portal-brand" href="${ORDERCASE_DASHBOARD_URL}" aria-label="Another Portal ダッシュボードへ戻る">
-        <span class="portal-brand-mark" aria-hidden="true"><span></span><span></span></span>
-        <span class="portal-brand-copy"><strong>Another Portal</strong><small>WORKFORCE PLATFORM</small></span>
-      </a>
-      <div class="portal-module-title">
-        <h1>Order</h1>
-        <p>${escapeHtml(subtitle || '')}</p>
+    <div class="portal-module-header-main">
+      <div class="portal-module-heading">
+        <a class="portal-brand" href="${ORDERCASE_DASHBOARD_URL}" aria-label="Another Portal ダッシュボードへ戻る">
+          <span class="portal-brand-mark" aria-hidden="true"><span></span><span></span></span>
+          <span class="portal-brand-copy"><strong>Another Portal</strong><small>WORKFORCE PLATFORM</small></span>
+        </a>
+        <div class="portal-module-title">
+          <h1>Order</h1>
+          <p>${escapeHtml(subtitle || '')}</p>
+        </div>
       </div>
+      <nav class="top-nav">
+        ${links}
+      </nav>
+      <div class="header-actions portal-module-actions"></div>
     </div>
-    <nav class="top-nav">
-      ${links}
-    </nav>
   `;
+
+  const accountMenu = document.querySelector('.shiftcore-account-menu');
+  const headerActions = header.querySelector('.portal-module-actions');
+  if (accountMenu && headerActions) {
+    accountMenu.classList.add('is-inline');
+    headerActions.appendChild(accountMenu);
+  }
 }
 /****************************************************
  * renderOrderCaseHeader ここまで

@@ -133,6 +133,105 @@
   border-left: 1px solid var(--sc-theme-border);
 }
 
+.portal-module-header {
+  min-height: 72px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--sc-theme-border);
+  border-radius: 16px;
+  background: var(--sc-theme-surface);
+  box-shadow: 0 8px 24px var(--sc-theme-shadow);
+}
+
+.portal-module-header--stacked {
+  display: block;
+  width: min(1180px, calc(100% - 32px));
+  margin: 16px auto 18px;
+}
+
+.portal-module-header-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.portal-module-header :is(.header-actions, .pmo-header-actions, .portal-module-actions) {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-flow: row wrap;
+  gap: 8px;
+}
+
+.portal-module-header :is(
+  .secondary-button,
+  .pmo-dashboard-button,
+  .nav-link,
+  .shiftcore-account-menu-trigger
+) {
+  min-height: 40px;
+  padding: 9px 10px;
+  border: 1px solid #d9e4f5;
+  border-radius: 10px;
+  background: #edf3fd;
+  color: #1556b8;
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.portal-module-header :is(.primary-button, .nav-link.active) {
+  min-height: 40px;
+  padding: 9px 10px;
+  border: 1px solid #1556b8;
+  border-radius: 10px;
+  background: #1556b8;
+  color: #ffffff;
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.portal-module-header :is(
+  .secondary-button,
+  .pmo-dashboard-button,
+  .nav-link,
+  .shiftcore-account-menu-trigger
+):hover {
+  border-color: #9ab5df;
+  background: #e3edfc;
+}
+
+.portal-module-header .top-nav {
+  margin-top: 12px;
+}
+
+.portal-module-header-main > .top-nav {
+  flex: 1 1 auto;
+  justify-content: center;
+  margin-top: 0;
+}
+
+.portal-module-header .shiftcore-account-menu.is-inline {
+  flex: 0 0 auto;
+}
+
+:root[data-theme="dark"] .portal-module-header :is(
+  .secondary-button,
+  .pmo-dashboard-button,
+  .nav-link,
+  .shiftcore-account-menu-trigger
+) {
+  border-color: #465f85;
+  background: #203758;
+  color: #dbeafe;
+}
+
 @media (max-width: 520px) {
   .portal-brand-copy small {
     display: none;
@@ -144,6 +243,27 @@
 
   .portal-module-title {
     padding-left: 12px;
+  }
+
+  .portal-brand-copy {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .portal-module-header:not(.portal-module-header--stacked),
+  .portal-module-header-main {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .portal-module-header :is(.header-actions, .pmo-header-actions, .portal-module-actions) {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .portal-module-header .top-nav {
+    justify-content: flex-start;
   }
 }
 
