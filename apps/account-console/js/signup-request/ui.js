@@ -1,7 +1,8 @@
 import { emailBox, messageBox } from "./dom.js";
+import { setActivity } from "../common/activity.js";
 
 export function setEmailBox(email, type = "") {
-  emailBox.textContent = email || "メールアドレスを取得できませんでした";
+  setActivity(emailBox, false, email || "メールアドレスを取得できませんでした");
   emailBox.className = "info-box";
   if (type) {
     emailBox.classList.add(type);

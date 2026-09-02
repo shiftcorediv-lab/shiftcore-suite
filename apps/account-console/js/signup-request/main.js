@@ -8,10 +8,11 @@ import {
   submitBtn,
   backToLoginBtn
 } from "./dom.js";
-import { setEmailBox, showMessage } from "./ui.js";
+import { setEmailBox, showMessage } from "./ui.js?v=20260903-loading-1";
 import { goToLogin } from "./navigation.js";
 import { submitSignupRequest } from "./api.js";
 import { auth, onAuthStateChanged } from "../login/auth.js";
+import { setActivity } from "../common/activity.js";
 
 function resolveAuthenticatedUser() {
   if (auth.currentUser) return Promise.resolve(auth.currentUser);
@@ -80,6 +81,7 @@ submitBtn.addEventListener("click", async () => {
   }
 
   submitBtn.disabled = true;
+  setActivity(submitBtn, true, "利用申請を送信中...");
   showMessage("利用申請を送信中...");
 
   try {
@@ -88,10 +90,12 @@ submitBtn.addEventListener("click", async () => {
 
     if (!result.success) {
       showMessage(result.message || "利用申請に失敗しました", "error");
+      setActivity(submitBtn, false, "利用申請を送信");
       submitBtn.disabled = false;
       return;
     }
 
+    setActivity(submitBtn, false, "利用申請を送信");
     showMessage("利用申請を受け付けました", "success");
     familyNameInput.disabled = true;
     givenNameInput.disabled = true;
@@ -102,6 +106,7 @@ submitBtn.addEventListener("click", async () => {
   } catch (error) {
     console.error(error);
     showMessage("利用申請に失敗しました", "error");
+    setActivity(submitBtn, false, "利用申請を送信");
     submitBtn.disabled = false;
   }
 });

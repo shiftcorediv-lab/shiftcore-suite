@@ -15,6 +15,12 @@ const reportSource = read("../js/work-report/main.js");
 const reportAdminHtml = read("../work-report-admin.html");
 const reportAdminSource = read("../js/work-report-admin/main.js");
 const loginHtml = read("../index.html");
+const signupRequestHtml = read("../signup-request.html");
+const signupRequestSource = read("../js/signup-request/main.js");
+const pmoHtml = read("../../pmo/index.html");
+const pmoMainSource = read("../../pmo/js/main.js");
+const pmoRequestSource = read("../../pmo/js/request.js");
+const pmoUiSource = read("../../pmo/js/ui.js");
 const orderCss = read("../../ordercase/css/common.css");
 const shiftCss = read("../../shiftbuilder/css/shiftbuilder.css");
 
@@ -46,6 +52,20 @@ test("既存のOrderとShiftの全画面ローダーも維持する", () => {
   assert.match(orderCss, /animation:/);
   assert.match(shiftCss, /\.loading-spinner\s*\{/);
   assert.match(shiftCss, /animation:/);
+});
+
+test("希望休と利用申請も本人確認・読込・送信中を共通表示する", () => {
+  for (const html of [pmoHtml, signupRequestHtml]) {
+    assert.match(html, /data-shiftcore-loading="true"/);
+    assert.match(html, /aria-busy="true"/);
+  }
+  for (const source of [pmoMainSource, pmoUiSource, signupRequestSource]) {
+    assert.match(source, /setActivity/);
+  }
+  assert.match(pmoMainSource, /ログインユーザーを確認中\.\.\.", "", true/);
+  assert.match(pmoRequestSource, /提出済み内容を確認中\.\.\.", "", true/);
+  assert.match(pmoMainSource, /希望休を送信中\.\.\./);
+  assert.match(signupRequestSource, /利用申請を送信中\.\.\./);
 });
 
 test("ダッシュボードの現状表示は先頭側へ配置し、表示域内へ追従する", () => {

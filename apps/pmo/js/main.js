@@ -9,6 +9,7 @@ import {
 import { DASHBOARD_URL } from "./config.js";
 import { apiPost } from "./api.js";
 import { requireAuthenticatedSession } from "../../account-console/js/common/auth-session.js";
+import { setActivity } from "../../account-console/js/common/activity.js";
 import {
   currentUser,
   setCurrentUser,
@@ -23,7 +24,7 @@ import {
   backToFormView,
   isUserInactive,
   showMainMessage
-} from "./ui.js?v=20260802-xss-1";
+} from "./ui.js?v=20260903-loading-1";
 import {
   renderCalendar,
   renderSelectedDates,
@@ -35,7 +36,7 @@ import {
   loadLatestRequest,
   validateBeforeSubmit,
   submitRequest
-} from "./request.js?v=20260902-pmo-auth-1";
+} from "./request.js?v=20260903-loading-1";
 
 let currentIdToken = "";
 
@@ -50,7 +51,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   renderSelectedDates();
   updateSubmitButtonState();
 
-  showMainMessage("ログインユーザーを確認中...", "");
+  showMainMessage("ログインユーザーを確認中...", "", true);
 
   try {
     const session = await requireAuthenticatedSession();
@@ -121,14 +122,14 @@ submitBtn.addEventListener("click", async () => {
   if (!ok) return;
 
   submitBtn.disabled = true;
-  submitBtn.textContent = "送信中...";
+  setActivity(submitBtn, true, "希望休を送信中...");
 
   try {
     const session = await requireAuthenticatedSession();
     if (!session.ok) {
       showMainMessage("ログイン状態を確認できません。Dashboardから開き直してください", "error");
       submitBtn.disabled = false;
-      submitBtn.textContent = "希望休を送信";
+      setActivity(submitBtn, false, "希望休を送信");
       updateSubmitButtonState();
       return;
     }
@@ -137,7 +138,7 @@ submitBtn.addEventListener("click", async () => {
     console.error(error);
     showMainMessage("ログイン状態の更新に失敗しました。もう一度お試しください", "error");
     submitBtn.disabled = false;
-    submitBtn.textContent = "希望休を送信";
+    setActivity(submitBtn, false, "希望休を送信");
     updateSubmitButtonState();
     return;
   }
@@ -148,12 +149,12 @@ submitBtn.addEventListener("click", async () => {
     submitBtn,
     () => {
       submitBtn.disabled = false;
-      submitBtn.textContent = "希望休を送信";
+      setActivity(submitBtn, false, "希望休を送信");
       showCompleteScreen(payload);
     },
     () => {
       submitBtn.disabled = false;
-      submitBtn.textContent = "希望休を送信";
+      setActivity(submitBtn, false, "希望休を送信");
       updateSubmitButtonState();
     }
   );

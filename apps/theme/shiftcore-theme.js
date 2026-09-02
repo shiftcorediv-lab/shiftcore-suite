@@ -3,6 +3,21 @@
 
   const storageKey = "shiftcore-theme";
   const root = document.documentElement;
+  const mobileLayoutQuery = window.matchMedia("(max-width: 720px)");
+  const coarsePointerQuery = window.matchMedia("(pointer: coarse)");
+
+  function applyPresentationMode() {
+    root.dataset.portalLayout = mobileLayoutQuery.matches ? "mobile" : "desktop";
+    root.dataset.portalInput = coarsePointerQuery.matches ? "touch" : "pointer";
+  }
+
+  function watchPresentationMode(query) {
+    if (typeof query.addEventListener === "function") {
+      query.addEventListener("change", applyPresentationMode);
+      return;
+    }
+    query.addListener(applyPresentationMode);
+  }
 
   function storedTheme() {
     try {
@@ -132,6 +147,9 @@
     updateControls(root.dataset.theme);
   }
 
+  applyPresentationMode();
+  watchPresentationMode(mobileLayoutQuery);
+  watchPresentationMode(coarsePointerQuery);
   applyTheme(resolvedTheme(), false);
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", mountThemeMenu, { once: true });

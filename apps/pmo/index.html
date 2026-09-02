@@ -9,10 +9,11 @@
   <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin />
   <link rel="stylesheet" href="../../shared/css/pmo-header.css" />
   <link rel="stylesheet" href="./css/pmo.css" />
-  <script src="../theme/shiftcore-theme.js"></script>
-  <link rel="stylesheet" href="../theme/shiftcore-theme.css?v=20260903-module-header-1">
+  <script src="../theme/shiftcore-theme.js?v=20260903-responsive-layout-1"></script>
+  <link rel="stylesheet" href="../theme/shiftcore-theme.css?v=20260903-responsive-layout-1">
+  <link rel="stylesheet" href="../theme/portal-field-responsive.css?v=20260903-responsive-layout-1">
 </head>
-<body>
+<body data-portal-surface="field">
   <div id="lineWarningBanner" style="background:#ffebee;color:#c62828;text-align:center;padding:12px;font-size:14px;font-weight:bold;border-bottom:1px solid #ffcdd2;">
     ⚠ LINE内ブラウザでは正常に動作しない場合があります。<br>
     ブラウザメニューから「外部ブラウザで開く」を選択してください。
@@ -46,11 +47,11 @@
       <div id="entryBannerArea"></div>
 
       <label>ログインユーザー</label>
-      <div class="info-box" id="userNameBox">取得中...</div>
+      <div class="info-box" id="userNameBox" data-shiftcore-loading="true" aria-busy="true">取得中...</div>
 
       <div class="mt-12">
         <label>社員コード</label>
-        <div class="info-box" id="employeeCodeBox">取得中...</div>
+        <div class="info-box" id="employeeCodeBox" data-shiftcore-loading="true" aria-busy="true">取得中...</div>
       </div>
 
       <div class="mt-12">
@@ -120,6 +121,6 @@
   </div>
   </div>
 
-  <script type="module" src="./js/main.js?v=20260902-pmo-auth-1"></script>
+  <script type="module" src="./js/main.js?v=20260903-loading-1"></script>
 </body>
 </html>
