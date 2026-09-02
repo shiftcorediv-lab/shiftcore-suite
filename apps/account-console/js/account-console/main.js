@@ -11,7 +11,7 @@ import {
   getOrganizationAssignment,
   updateOrganizationAssignment,
   getAccountLogs
-} from "./api.js?v=20260810-org-shadow-1";
+} from "./api.js?v=20260903-invalid-response-1";
 import {
   dashboardBtn,
   signupAdminBtn,

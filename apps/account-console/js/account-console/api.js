@@ -1,26 +1,48 @@
 import { ACCOUNT_API_URL } from "./config.js?v=20260810-org-shadow-1";
 
+const INVALID_RESPONSE_MESSAGE =
+  "メンバー情報を一時的に取得できませんでした。少し待ってから再読み込みしてください。";
+const READ_RETRY_DELAY_MS = 1000;
+
+function parseAccountApiResponse(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    const error = new Error(INVALID_RESPONSE_MESSAGE);
+    error.code = "ACCOUNT_API_INVALID_RESPONSE";
+    error.retryable = true;
+    throw error;
+  }
+}
+
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
 // ===== API共通POSTここから =====
-async function postToAccountApi(action, body = {}) {
+async function postToAccountApi(action, body = {}, options = {}) {
   const payload = {
     ...body,
     action: action
   };
 
-  const response = await fetch(ACCOUNT_API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "text/plain;charset=utf-8"
-    },
-    body: JSON.stringify(payload)
-  });
+  const retries = Number.isInteger(options.retries) ? Math.max(0, options.retries) : 0;
 
-  const text = await response.text();
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      const response = await fetch(ACCOUNT_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8"
+        },
+        body: JSON.stringify(payload)
+      });
 
-  try {
-    return JSON.parse(text);
-  } catch (error) {
-    throw new Error("APIレスポンスのJSON解析に失敗しました\n\n" + text);
+      return parseAccountApiResponse(await response.text());
+    } catch (error) {
+      if (error?.retryable !== true || attempt >= retries) throw error;
+      await wait(READ_RETRY_DELAY_MS);
+    }
   }
 }
 // ===== API共通POSTここまで =====
@@ -39,7 +61,7 @@ export async function getCurrentAccountConsoleUser(idToken) {
 export async function getAccountConsoleBootstrap(idToken) {
   return postToAccountApi("accountConsoleGetBootstrap", {
     idToken: idToken
-  });
+  }, { retries: 1 });
 }
 // ===== 初期表示データ取得ここまで =====
 
