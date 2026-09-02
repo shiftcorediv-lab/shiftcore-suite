@@ -1,0 +1,31 @@
+{
+  "name": "another-portal-deployment",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-assets.mjs",
+    "types": "wrangler types --config wrangler.slot.jsonc --env-interface SlotEnv --include-runtime false --strict-vars false src/slot-env.d.ts && wrangler types --config wrangler.router.jsonc --env-interface RouterEnv --include-runtime false --strict-vars false src/router-env.d.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.ts",
+    "check:slot:blue": "wrangler deploy --config wrangler.slot.jsonc --env blue --dry-run --outdir .wrangler/dry-run/blue",
+    "check:slot:green": "wrangler deploy --config wrangler.slot.jsonc --env green --dry-run --outdir .wrangler/dry-run/green",
+    "check:router": "wrangler deploy --config wrangler.router.jsonc --dry-run --outdir .wrangler/dry-run/router",
+    "check": "npm run build && npm run types && npm run typecheck && npm test && npm run check:slot:blue && npm run check:slot:green && npm run check:router",
+    "route:blue": "node scripts/set-active-slot.mjs blue",
+    "route:green": "node scripts/set-active-slot.mjs green",
+    "deploy:slot:blue": "npm run build && wrangler deploy --config wrangler.slot.jsonc --env blue --strict",
+    "deploy:slot:green": "npm run build && wrangler deploy --config wrangler.slot.jsonc --env green --strict",
+    "deploy:router": "wrangler deploy --config wrangler.router.jsonc --strict"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260902.1",
+    "@types/node": "24.3.0",
+    "typescript": "5.9.3",
+    "wrangler": "4.128.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true,
+    "workerd@1.20260831.1": true
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "another-portal-router",
+  "main": "./src/router.ts",
+  "compatibility_date": "2026-09-02",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": true,
+  "vars": {
+    "ACTIVE_SLOT": "blue",
+    "PRODUCTION_HOST": "portal.another-inc.jp",
+    "PREVIEW_HOST": "preview.portal.another-inc.jp"
+  },
+  "services": [
+    {
+      "binding": "BLUE",
+      "service": "another-portal-slot-blue"
+    },
+    {
+      "binding": "GREEN",
+      "service": "another-portal-slot-green"
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
+}
