@@ -7,7 +7,7 @@
   "workers_dev": true,
   "preview_urls": true,
   "vars": {
-    "ACTIVE_SLOT": "blue"
+    "ACTIVE_SLOT": "green"
   },
   "services": [
     {
