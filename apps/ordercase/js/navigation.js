@@ -50,8 +50,16 @@ function renderOrderCaseHeader(activePage, subtitle) {
   }).join('');
 
   header.innerHTML = `
-    <h1>Order</h1>
-    <p>${escapeHtml(subtitle || '')}</p>
+    <div class="portal-module-heading portal-module-heading--center">
+      <a class="portal-brand" href="${ORDERCASE_DASHBOARD_URL}" aria-label="Another Portal ダッシュボードへ戻る">
+        <span class="portal-brand-mark" aria-hidden="true"><span></span><span></span></span>
+        <span class="portal-brand-copy"><strong>Another Portal</strong><small>WORKFORCE PLATFORM</small></span>
+      </a>
+      <div class="portal-module-title">
+        <h1>Order</h1>
+        <p>${escapeHtml(subtitle || '')}</p>
+      </div>
+    </div>
     <nav class="top-nav">
       ${links}
     </nav>
