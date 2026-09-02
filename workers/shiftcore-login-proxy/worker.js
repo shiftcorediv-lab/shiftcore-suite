@@ -3,17 +3,31 @@ const ALLOWED_ACTIONS = new Set([
   "resolveCurrentUserByIdToken"
 ]);
 
+const ALLOWED_ORIGINS = new Set([
+  "https://shiftcorediv-lab.github.io",
+  "https://another-portal-router.shiftcore-div.workers.dev"
+]);
+
+function buildCorsHeaders(request) {
+  const origin = request.headers.get("Origin");
+  const headers = {
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Content-Type": "application/json; charset=utf-8",
+    "Vary": "Origin"
+  };
+
+  if (origin && ALLOWED_ORIGINS.has(origin)) {
+    headers["Access-Control-Allow-Origin"] = origin;
+  }
+
+  return headers;
+}
+
 export default {
   async fetch(request) {
-    const allowedOrigin = "https://shiftcorediv-lab.github.io";
     const gasUrl = "https://script.google.com/macros/s/AKfycbx83rAzXDfQPJUEu9tX4dpULH4QHYUoqfaTnfzzySkW3KjGVbcH4tnq9PKCCvfuEx6eRA/exec";
-
-    const corsHeaders = {
-      "Access-Control-Allow-Origin": allowedOrigin,
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-      "Content-Type": "application/json; charset=utf-8"
-    };
+    const corsHeaders = buildCorsHeaders(request);
 
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: corsHeaders });
@@ -79,3 +93,5 @@ export default {
     }
   }
 };
+
+export { ALLOWED_ORIGINS, buildCorsHeaders };
