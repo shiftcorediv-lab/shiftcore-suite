@@ -4,7 +4,6 @@ import test from "node:test";
 import {
   dashboardRedirect,
   handleRouterRequest,
-  inactiveSlot,
   normalizeSlot,
   selectSlot,
 } from "../src/router.ts";
@@ -24,8 +23,6 @@ function fetcher(body: string): Fetcher {
 function env(activeSlot = "blue"): RouterEnv {
   return {
     ACTIVE_SLOT: activeSlot,
-    PRODUCTION_HOST: "portal.another-inc.jp",
-    PREVIEW_HOST: "preview.portal.another-inc.jp",
     BLUE: fetcher("blue"),
     GREEN: fetcher("green"),
   };
@@ -37,42 +34,49 @@ test("slot values fail closed", () => {
   assert.equal(normalizeSlot("other"), null);
 });
 
-test("preview always points to the inactive slot", () => {
-  assert.equal(inactiveSlot("blue"), "green");
-  assert.equal(selectSlot("portal.another-inc.jp", env("blue")), "blue");
-  assert.equal(selectSlot("preview.portal.another-inc.jp", env("blue")), "green");
-  assert.equal(selectSlot("preview.portal.another-inc.jp", env("green")), "blue");
+test("router selects only the configured active slot", () => {
+  assert.equal(selectSlot(env("blue")), "blue");
+  assert.equal(selectSlot(env("green")), "green");
 });
 
 test("root redirects to the account console and preserves the query", () => {
-  const response = dashboardRedirect(new Request("https://portal.another-inc.jp/?shiftcore_env=staging"));
+  const response = dashboardRedirect(
+    new Request(
+      "https://another-portal-router.shiftcore-div.workers.dev/?shiftcore_env=staging",
+    ),
+  );
   assert.equal(response?.status, 302);
   assert.equal(
     response?.headers.get("location"),
-    "https://portal.another-inc.jp/apps/account-console/?shiftcore_env=staging",
+    "https://another-portal-router.shiftcore-div.workers.dev/apps/account-console/?shiftcore_env=staging",
   );
 });
 
-test("production and preview requests use different slots", async () => {
-  const production = await handleRouterRequest(
-    new Request("https://portal.another-inc.jp/apps/account-console/dashboard.html"),
+test("requests use the active slot", async () => {
+  const blue = await handleRouterRequest(
+    new Request(
+      "https://another-portal-router.shiftcore-div.workers.dev/apps/account-console/dashboard.html",
+    ),
     env("blue"),
   );
-  const preview = await handleRouterRequest(
-    new Request("https://preview.portal.another-inc.jp/apps/account-console/dashboard.html"),
-    env("blue"),
+  const green = await handleRouterRequest(
+    new Request(
+      "https://another-portal-router.shiftcore-div.workers.dev/apps/account-console/dashboard.html",
+    ),
+    env("green"),
   );
 
-  assert.equal(await production?.text(), "blue:/apps/account-console/dashboard.html");
-  assert.equal(production?.headers.get("X-Another-Portal-Active-Slot"), "blue");
-  assert.equal(await preview?.text(), "green:/apps/account-console/dashboard.html");
-  assert.equal(preview?.headers.get("X-Another-Portal-Preview"), "inactive-slot");
-  assert.equal(preview?.headers.get("X-Robots-Tag"), "noindex, noarchive");
+  assert.equal(await blue?.text(), "blue:/apps/account-console/dashboard.html");
+  assert.equal(blue?.headers.get("X-Another-Portal-Active-Slot"), "blue");
+  assert.equal(await green?.text(), "green:/apps/account-console/dashboard.html");
+  assert.equal(green?.headers.get("X-Another-Portal-Active-Slot"), "green");
 });
 
 test("invalid active slot returns a maintenance response", async () => {
   const response = await handleRouterRequest(
-    new Request("https://portal.another-inc.jp/apps/account-console/"),
+    new Request(
+      "https://another-portal-router.shiftcore-div.workers.dev/apps/account-console/",
+    ),
     env("invalid"),
   );
   assert.equal(response?.status, 503);
@@ -81,7 +85,10 @@ test("invalid active slot returns a maintenance response", async () => {
 
 test("write methods are rejected by the static router", async () => {
   const response = await handleRouterRequest(
-    new Request("https://portal.another-inc.jp/apps/account-console/", { method: "POST" }),
+    new Request(
+      "https://another-portal-router.shiftcore-div.workers.dev/apps/account-console/",
+      { method: "POST" },
+    ),
     env(),
   );
   assert.equal(response?.status, 405);

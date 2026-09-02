@@ -2,12 +2,12 @@
 
 ## 文書の状態
 
-- 状態: ローカル実装・検証完了、外部設定未実施
-- 正式な利用者向けURL: `https://portal.another-inc.jp/`
+- 状態: 共通入口の構築・切替試験完了
+- 利用者向け共通入口: `https://another-portal-router.shiftcore-div.workers.dev/`
 - 対象: Another Portal の静的フロント公開
 - 対象外: 本番データ移行、GAS/API の二重化
 - 実装: 完了（Cloudflare Workers Static Assets、Service Bindingルーター、公開物生成、検証）
-- 外部設定・公開: Cloudflare管理者OAuth認証は完了。Worker公開、DNS・Firebase・本番入口は未変更
+- 外部設定・公開: Blue／Green／Router公開、共通入口のFirebase許可、ログインProxyのCORS対応まで完了。会社ドメインと会社Cloudflareアカウントは使用しない
 
 ## 目的
 
@@ -32,7 +32,7 @@
 利用者
   |
   v
-portal.another-inc.jp  （唯一の利用者向けURL）
+another-portal-router.shiftcore-div.workers.dev  （唯一の利用者向けURL）
   |
   v
 公開先ルーター        （ACTIVE_SLOT を参照）
@@ -46,10 +46,6 @@ Blue 公開枠                      Green 公開枠
                   v
        既存の本番API／本番データ
 
-preview.portal.another-inc.jp
-  |
-  v
-現在の待機枠（管理者確認専用）
 ```
 
 ### 構成要素
@@ -59,10 +55,9 @@ preview.portal.another-inc.jp
 | 共通入口 | 利用者が保存・共有する唯一のURL。接続先を変えてもURLを変えない |
 | 公開先ルーター | Blue／Greenのどちらへ接続するか決め、パスとクエリを維持して転送する |
 | Blue／Green公開枠 | 同じソースから作った静的ファイルを交互に配置する |
-| 管理者用プレビュー入口 | 待機枠を公開前に確認する。一般利用者には案内しない |
 | TEST環境 | 本番データと分離した書き込み確認用として現在の仕組みを残す |
 
-初期構成では Cloudflare Workers Static Assets に Blue／Greenの二つの静的公開枠を置き、Cloudflare Worker を共通入口のルーターにする。ルーターから各公開枠へは、公開URLではなくService Bindingで接続する。GitHub Pages は移行完了まで既存公開先として残し、安定確認後に扱いを決める。
+初期構成では Cloudflare Workers Static Assets に Blue／Greenの二つの静的公開枠を置き、Cloudflare Worker を共通入口のルーターにする。ルーターから各公開枠へは、公開URLではなくService Bindingで接続する。独自ドメインは使わない。GitHub Pages は移行完了まで既存公開先として残し、安定確認後に扱いを決める。
 
 ## 公開先の管理方法
 
@@ -79,9 +74,8 @@ preview.portal.another-inc.jp
 1. 利用者を Blue／Green の別ドメインへリダイレクトしない。
 2. ブラウザ上のオリジンは共通入口のまま維持する。
 3. Firebase Authentication の許可ドメインへ共通入口を追加する。
-4. 管理者プレビューでログインする場合のみ、プレビュー入口も許可対象として検討する。
-5. GitHub Pages の絶対URLは、共通入口または同一オリジンの相対URLへ段階的に置き換える。
-6. TEST環境のリンクでは `shiftcore_env=staging` を失わない。
+4. GitHub Pages の絶対URLは、共通入口または同一オリジンの相対URLへ段階的に置き換える。
+5. TEST環境のリンクでは `shiftcore_env=staging` を失わない。
 
 この方式により、公開切替による再ログインと `auth/unauthorized-domain` の発生を避けやすくする。
 
@@ -119,7 +113,7 @@ preview.portal.another-inc.jp
 2. 自動テスト、構文検査、主要画面の静的確認を通す。
 3. TEST環境で、ログイン、ダッシュボード、Order、Shift、勤怠、実績報告の主要導線を確認する。
 4. 同じコミットから作った公開物を、待機中のGreenへ配置する。
-5. 管理者用プレビュー入口で、アセット欠落、画面遷移、Firebaseログイン、API接続を確認する。
+5. 待機枠の自動テストと公開物検査を通す。実画面確認が必要な場合は、利用時間外に一時切替し、確認後すぐ元へ戻す。
 6. 本番APIに対する確認は、最初に読み取り操作だけで行う。本番書き込み確認が必要な場合は、対象と後始末を決めて別途承認を取る。
 7. 公開候補コミット、確認結果、復帰先がBlueであることを記録する。
 8. `ACTIVE_SLOT` をGreenへ切り替える。
@@ -175,15 +169,29 @@ preview.portal.another-inc.jp
 
 速度改善そのものはv2候補とする。ただし、タイムアウト、二重送信、保存結果不明を起こす遅さはv1の運用不具合として扱う。
 
+## 確認環境の検証実績
+
+2026-09-03に、コミット `7c12919` の静的公開物で次を確認した。
+
+- Blue／Greenの両枠へ201ファイルを配置
+- Routerのルートからログイン入口へ正常に転送
+- Firebase `shiftcore-div` で `shiftcore.div@gmail.com` のGoogleログインに成功
+- ダッシュボード、人員マスター、Pick My Off、Order、Shiftの表示に成功
+- BlueからGreenへ切替後、同一ログインでダッシュボードを表示
+- GreenからBlueへ巻き戻し後、リリース情報と識別ヘッダーがBlueへ復帰
+- ブラウザコンソールのエラーは主要画面で0件
+
+ダッシュボードの勤怠・成績データは13秒以上読み込み中となる場合があり、既存API側の速度課題としてv1運用監視へ残す。本番データへの書き込み試験は行っていない。
+
 ## 実装前の確認事項
 
-- [x] 利用する正式ドメイン名: `portal.another-inc.jp`
-- [ ] ドメインとCloudflare設定を管理できる担当者（現在のCloudflareアカウントに管理ドメインなし）
-- [ ] Firebase許可ドメイン変更の承認者
+- [x] 利用する共通入口: `another-portal-router.shiftcore-div.workers.dev`
+- [x] 会社ドメインを利用しない
+- [x] 共通入口のFirebase許可ドメイン追加
 - [ ] GitHubからCloudflareへ公開する認証方法（初回の管理者OAuthは完了、定常運用方式は未決定）
 - [x] Blue／Green公開枠の命名: `another-portal-slot-blue` / `another-portal-slot-green`
 - [ ] 公開切替の実行者と承認者
-- [ ] 本番書き込みを伴わないスモークテスト項目
+- [x] 本番書き込みを伴わないスモークテスト
 - [ ] 勤怠停止時の代替報告手段
 - [ ] API互換性の判定方法
 - [ ] GitHub Pagesをいつまで復帰先として残すか
@@ -195,23 +203,21 @@ preview.portal.another-inc.jp
 | URL・環境切替箇所の棚卸しと整理 | 0.5〜1日 |
 | リリース情報と静的公開物の整備 | 0.5日 |
 | Blue／Green公開枠とルーターの構築 | 1〜1.5日 |
-| Firebase・プレビュー入口・キャッシュ確認 | 0.5〜1日 |
+| Firebase・共通入口・キャッシュ確認 | 0.5〜1日 |
 | 公開／巻き戻し試験と運用手順の確定 | 0.5〜1日 |
 | 合計 | 3〜5日 |
 
-ドメイン取得、組織側の権限付与、Firebase設定変更の待ち時間は含まない。Cloudflareの料金・制限は実装開始時に公式情報で再確認する。
+Firebase設定変更の待ち時間は含まない。Cloudflareの料金・制限は実装開始時に公式情報で再確認する。
 
 ## 実装順序
 
-1. 正式ドメインと管理者を決める。
-2. ハードコードされた公開URLを整理する。
-3. リリース識別情報とスモークテストを追加する。
-4. Blue／Green公開枠を作成する。
-5. 管理者用プレビュー入口を設定する。
-6. 共通入口ルーターを構築する。
-7. TEST環境で切替と巻き戻しを試験する。
-8. Firebase許可ドメインを設定する。
-9. 本番移行日を決め、GitHub Pagesから共通入口へ切り替える。
-10. 安定確認後、GitHub Pagesの扱いを決める。
+1. ハードコードされた公開URLを整理する。
+2. リリース識別情報とスモークテストを追加する。
+3. Blue／Green公開枠を作成する。
+4. 共通入口ルーターを構築する。
+5. TEST環境で切替と巻き戻しを試験する。
+6. Firebase許可ドメインを設定する。
+7. 本番移行日を決め、GitHub Pagesから共通入口へ切り替える。
+8. 安定確認後、GitHub Pagesの扱いを決める。
 
-ローカル実装は完了済み。外部サービス設定、公開、DNS変更は、対象と影響を確認してから行う。
+ローカル実装と共通入口の公開は完了済み。公開切替は、対象と影響を確認してから行う。

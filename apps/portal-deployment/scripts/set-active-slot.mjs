@@ -9,15 +9,22 @@ if (targetSlot !== "blue" && targetSlot !== "green") {
 } else {
   const deploymentDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   const configPath = path.join(deploymentDir, "wrangler.router.jsonc");
-  const config = JSON.parse(await readFile(configPath, "utf8"));
-  const currentSlot = String(config.vars?.ACTIVE_SLOT || "");
+  const configSource = await readFile(configPath, "utf8");
+  const activeSlotPattern = /(\"ACTIVE_SLOT\"\s*:\s*\")(blue|green)(\")/;
+  const currentSlot = configSource.match(activeSlotPattern)?.[2] || "";
+
+  if (!currentSlot) {
+    throw new Error("ACTIVE_SLOT must exist and be either blue or green");
+  }
 
   if (currentSlot === targetSlot) {
     console.log(`ACTIVE_SLOT is already ${targetSlot}`);
   } else {
-    config.vars ??= {};
-    config.vars.ACTIVE_SLOT = targetSlot;
-    await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+    const updatedConfig = configSource.replace(
+      activeSlotPattern,
+      `$1${targetSlot}$3`,
+    );
+    await writeFile(configPath, updatedConfig, "utf8");
     console.log(`ACTIVE_SLOT: ${currentSlot || "unset"} -> ${targetSlot}`);
     console.log("Run npm run check:router, review the diff, then npm run deploy:router.");
   }

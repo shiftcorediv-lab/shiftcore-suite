@@ -38,11 +38,11 @@ test("suite URLs retain the GitHub Pages repository prefix", async () => {
 test("suite URLs use the stable portal origin without a repository prefix", async () => {
   const urls = await loadUrls(
     "/apps/account-console/dashboard.html",
-    "https://portal.another-inc.jp",
+    "https://another-portal-router.shiftcore-div.workers.dev",
   );
   assert.equal(
     urls.APP_URLS.shiftbuilder,
-    "https://portal.another-inc.jp/apps/shiftbuilder/",
+    "https://another-portal-router.shiftcore-div.workers.dev/apps/shiftbuilder/",
   );
 });
 

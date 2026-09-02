@@ -7,9 +7,7 @@
   "workers_dev": true,
   "preview_urls": true,
   "vars": {
-    "ACTIVE_SLOT": "blue",
-    "PRODUCTION_HOST": "portal.another-inc.jp",
-    "PREVIEW_HOST": "preview.portal.another-inc.jp"
+    "ACTIVE_SLOT": "blue"
   },
   "services": [
     {

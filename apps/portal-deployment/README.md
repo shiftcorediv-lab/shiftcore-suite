@@ -2,6 +2,10 @@
 
 Another Portal の静的フロントを Blue／Green の二つの非公開Workerへ配置し、共通入口のRouter WorkerからService Bindingで切り替えるための構成です。
 
+利用者向け共通入口: `https://another-portal-router.shiftcore-div.workers.dev/`
+
+2026-09-03時点ではBlueが稼働中です。独自ドメインや会社Cloudflareアカウントは使用しません。
+
 ## ローカル確認
 
 ```bash
@@ -31,4 +35,4 @@ GreenからBlueへ戻す場合は `npm run route:blue` を使用します。切�
 
 具体的な公開・巻き戻し条件は [`../BLUE_GREEN_DEPLOYMENT_DESIGN.md`](../BLUE_GREEN_DEPLOYMENT_DESIGN.md) を参照してください。
 
-Cloudflareへのログイン、Worker公開、Custom Domain設定、Firebase許可ドメイン変更は、対象アカウントと影響を確認してから個別に実施します。
+Cloudflareへのログイン、Worker公開、Firebase許可ドメイン変更は、対象アカウントと影響を確認してから個別に実施します。
