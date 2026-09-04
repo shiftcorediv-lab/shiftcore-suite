@@ -4,7 +4,7 @@ Another Portal の実運用画面とメンテナンス画面を二つの非公�
 
 利用者向け共通入口: `https://another-portal-router.shiftcore-div.workers.dev/`
 
-2026-09-04時点では、Blueが実運用、Greenがメンテナンス専用です。Greenを選ぶと、Another Portalの青／赤ブランドを使った「メンテナンス中」画面を返し、業務画面や静的ファイルは配信しません。独自ドメインや会社Cloudflareアカウントは使用しません。
+2026-09-04時点では、運用上 **Blueが実運用、Redがメンテナンス専用** です。Redは内部設定上のGreenを指します。Redを選ぶと、Another Portalの青／赤ブランドを使った「メンテナンス中」画面を返し、業務画面や静的ファイルは配信しません。独自ドメインや会社Cloudflareアカウントは使用しません。
 
 ## ローカル確認
 
@@ -22,10 +22,10 @@ npm run check
 3. Blueへ公開
 4. 共通入口で本番確認
 
-Greenは通常公開の待機枠として使いません。本番停止が必要なときだけ、次のように設定、検証、公開を分けてメンテナンス表示へ切り替えます。
+Red（内部名Green）は通常公開の待機枠として使いません。本番停止が必要なときだけ、次のように設定、検証、公開を分けてメンテナンス表示へ切り替えます。
 
 ```bash
-npm run route:green
+npm run route:red
 npm run check:router
 npm run deploy:router
 ```
