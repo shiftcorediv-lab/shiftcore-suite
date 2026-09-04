@@ -413,27 +413,37 @@ function withAllDashboardReferenceInvalidation_(action) {
 
 function submitFieldReport_(user, payload, idToken) {
   const reportType = String(payload.reportType || "");
-  if (reportType !== "出発") throw apiError_("FIELD_REPORT_TYPE_INVALID", "出発以外は専用の報告操作を使用してください。");
+  if (!["出発", "最寄り到着"].includes(reportType)) throw apiError_("FIELD_REPORT_TYPE_INVALID", "未対応の現場報告です。");
   const lock = LockService.getDocumentLock();
   lock.waitLock(20000);
   try {
     ensureFieldReportSheet_();
     ensureFieldReportContractHeaders_();
     const today = today_();
-    const schedule = findSchedule_(user, today, payload.scheduleId, idToken);
+    const schedule = reportType === "出発"
+      ? findSchedule_(user, today, payload.scheduleId, idToken)
+      : findScheduleById_(user, payload.scheduleId, idToken);
     if (!schedule) throw apiError_("FIELD_REPORT_SCHEDULE_REQUIRED", "本日の稼働予定を確認できません。");
+    const workDate = dateKey_(schedule["勤務日"]);
     const scheduleKey = scheduleReportKey_(schedule);
     if (!scheduleKey) throw apiError_("FIELD_REPORT_SCHEDULE_ID_REQUIRED", "稼働予定の識別子を確認できません。");
-    const reports = fieldReportsFor_(user, today, scheduleKey, schedule["開発予定ID"]);
+    const reports = fieldReportsFor_(user, workDate, scheduleKey, schedule["開発予定ID"]);
     const existing = reports.find(report => String(report["報告種別"]) === reportType);
     if (existing) return { ok: true, duplicate: true, report: existing };
+    if (reportType === "最寄り到着" && !reports.some(report => String(report["報告種別"]) === "出発")) {
+      throw apiError_("DEPARTURE_REPORT_REQUIRED", "先に出発報告を行ってください。");
+    }
+    if (reportType === "最寄り到着" && (reports.some(report => String(report["報告種別"]) === "入店") || findRecord_(user.email, workDate, schedule.schedule_id)?.["実開始"])) {
+      throw apiError_("CLOCK_IN_ALREADY_RECORDED", "入店済みのため、最寄り到着は追加できません。");
+    }
     const now = new Date();
     const fieldReportId = Utilities.getUuid();
-    const locationPayload = validateDepartureLocation_(payload.location);
-    const location = saveLocation_(user, fieldReportId, locationPayload, `出発: ${schedule["稼働場所"] || ""}`);
-    appendObject_(SHEETS.fieldReports, { field_report_id: fieldReportId, "勤務日": today, "開発予定ID": schedule["開発予定ID"] || "", "報告種別": reportType, "報告者メール": user.email, "報告者氏名": user.name || "", "報告日時": now, schedule_id: schedule.schedule_id || "" });
+    const location = reportType === "最寄り到着"
+      ? saveLocation_(user, fieldReportId, validateNearestArrivalLocation_(payload.location), `最寄り到着: ${schedule["稼働場所"] || ""}`)
+      : null;
+    appendObject_(SHEETS.fieldReports, { field_report_id: fieldReportId, "勤務日": workDate, "開発予定ID": schedule["開発予定ID"] || "", "報告種別": reportType, "報告者メール": user.email, "報告者氏名": user.name || "", "報告日時": now, schedule_id: schedule.schedule_id || "" });
     notifyManagers_(user, `${reportType}報告`, `${user.name || user.email}さんが${formatJst_(now)}に${reportType}を報告しました。`);
-    return { ok: true, report: fieldReportsFor_(user, today, scheduleKey, schedule["開発予定ID"]).find(report => String(report["報告種別"]) === reportType) || null, locationStatus: location.status };
+    return { ok: true, report: fieldReportsFor_(user, workDate, scheduleKey, schedule["開発予定ID"]).find(report => String(report["報告種別"]) === reportType) || null, locationStatus: location ? location.status : "対象外" };
   } finally {
     lock.releaseLock();
   }
@@ -473,6 +483,7 @@ function arrive_(user, payload, idToken) {
     ensureFieldReportContractHeaders_();
     const reports = fieldReportsFor_(user, workDate, scheduleKey, schedule["開発予定ID"]);
     if (!reports.some(report => String(report["報告種別"]) === "出発")) throw apiError_("DEPARTURE_REPORT_REQUIRED", "先に出発報告を行ってください。");
+    if (!reports.some(report => String(report["報告種別"]) === "最寄り到着")) throw apiError_("NEAREST_ARRIVAL_REPORT_REQUIRED", "先に最寄り到着を報告してください。");
     assertNoOtherActiveSchedule_(user.email, schedule.schedule_id);
     const existingRecord = findRecord_(user.email, workDate, schedule.schedule_id);
     const existingArrival = reports.find(report => String(report["報告種別"]) === "入店");
@@ -490,8 +501,7 @@ function arrive_(user, payload, idToken) {
 function createClockInRecord_(user, schedule, payload, now, status) {
   ensureRecordContractHeaders_();
   const recordId = Utilities.getUuid();
-  const location = saveLocation_(user, recordId, validateClockInLocation_(payload.location), schedule && schedule["稼働場所"]);
-  append_(SHEETS.records, [recordId, user.organization_id || "", user.employee_code || "", user.email, user.name || "", dateKey_(schedule["勤務日"]), schedule["予定開始"] || "", schedule["予定終了"] || "", schedule["稼働場所"] || "", schedule["開発予定ID"] || "", user.employment_type || user.contract_type || "", status, now, now, payload.reason || "", "", "", false, location.status, location.id || "", "", "", now, now]);
+  append_(SHEETS.records, [recordId, user.organization_id || "", user.employee_code || "", user.email, user.name || "", dateKey_(schedule["勤務日"]), schedule["予定開始"] || "", schedule["予定終了"] || "", schedule["稼働場所"] || "", schedule["開発予定ID"] || "", user.employment_type || user.contract_type || "", status, now, now, payload.reason || "", "", "", false, "最寄り到着で取得", "", "", "", now, now]);
   updateById_(SHEETS.records, "record_id", recordId, { schedule_id: schedule.schedule_id || "" });
   return findRecord_(user.email, dateKey_(schedule["勤務日"]), schedule.schedule_id);
 }
@@ -1501,10 +1511,10 @@ function getAdminDashboard_(user, idToken) {
   const people = schedules.map(schedule => {
     const record = findScheduleRecordIn_(records, schedule, schedules);
     const matchingReports = fieldReports.filter(r => fieldReportMatchesSchedule_(r, schedule, schedules));
-    const departureReport = matchingReports.find(r => String(r["報告種別"]) === "出発");
+    const nearestArrivalReport = matchingReports.find(r => String(r["報告種別"]) === "最寄り到着");
     const loc = record && locations.find(l => String(l.attendance_record_id) === String(record.record_id));
-    const departureLocation = departureReport && locations.find(l => String(l.attendance_record_id) === String(departureReport.field_report_id));
-    return { schedule, record: record || null, location: loc || null, departureLocation: departureLocation || null, fieldReports: matchingReports };
+    const nearestLocation = nearestArrivalReport && locations.find(l => String(l.attendance_record_id) === String(nearestArrivalReport.field_report_id));
+    return { schedule, record: record || null, location: loc || null, nearestLocation: nearestLocation || null, fieldReports: matchingReports };
   });
   records.filter(record => !schedules.some(s => recordMatchesSchedule_(record, s, schedules))).forEach(record => {
     const loc = locations.find(l => String(l.attendance_record_id) === String(record.record_id));
@@ -1731,8 +1741,8 @@ function saveLocation_(user, recordId, location, plannedLocation) {
   return { id, status };
 }
 
-function validateDepartureLocation_(location) {
-  return validateAttendanceLocation_(location, "DEPARTURE");
+function validateNearestArrivalLocation_(location) {
+  return validateAttendanceLocation_(location, "NEAREST_ARRIVAL");
 }
 
 function validateClockInLocation_(location) {
@@ -1740,7 +1750,7 @@ function validateClockInLocation_(location) {
 }
 
 function validateAttendanceLocation_(location, actionCode) {
-  const label = actionCode === "DEPARTURE" ? "出発" : "入店";
+  const label = actionCode === "NEAREST_ARRIVAL" ? "最寄り到着" : "予定外稼働";
   if (!location || typeof location !== "object") throw apiError_(actionCode + "_LOCATION_REQUIRED", label + "位置情報を確認できません。画面を再読み込みしてください。");
   const status = String(location.status || "");
   if (!["取得済み", "取得失敗", "許可なし"].includes(status)) throw apiError_(actionCode + "_LOCATION_INVALID", label + "位置情報の状態が不正です。");

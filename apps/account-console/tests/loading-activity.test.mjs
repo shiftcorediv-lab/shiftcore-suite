@@ -78,7 +78,7 @@ test("ダッシュボードの現状表示は先頭側へ配置し、表示域�
 test("ダッシュボードの日付は年月日を省略せず表示する", () => {
   assert.match(dashboardSource, /month: "numeric"/);
   assert.match(dashboardSource, /\$\{part\("year"\)\}年\$\{part\("month"\)\}月\$\{part\("day"\)\}日/);
-  assert.match(dashboardHtml, /main\.js\?v=20260904-shift-status-labels-1/);
+  assert.match(dashboardHtml, /main\.js\?v=20260904-attendance-flow-1/);
 });
 
 test("最新勤怠の取得前は非稼働と断定せず稼働予定を読込中にする", () => {
@@ -108,5 +108,5 @@ test("ダッシュボードの予定同期表示は利用者向けのシフト�
   assert.match(dashboardSource, /シフトの予定は最新です/);
   assert.match(dashboardSource, /シフトの最新予定を勤怠へ反映しました/);
   assert.match(dashboardSource, /シフト同期に失敗しました/);
-  assert.match(dashboardHtml, /main\.js\?v=20260904-shift-status-labels-1/);
+  assert.match(dashboardHtml, /main\.js\?v=20260904-attendance-flow-1/);
 });
