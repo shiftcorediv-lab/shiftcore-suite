@@ -22,7 +22,7 @@ import { mockShiftData } from "./mock-data.js?v=20260801-authfix-1";
 import { escapeHtml } from "./utils.js?v=20260801-authfix-1";
 import { getPermissionLabel, canEdit } from "./permissions.js?v=20260801-authfix-1";
 import { renderSummary } from "./render-summary.js?v=20260801-authfix-1";
-import { renderShiftTable } from "./render-shift-table.js?v=20260903-display-labels-1";
+import { renderShiftTable } from "./render-shift-table.js?v=20260905-cell-readability-1";
 import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20260801-authfix-1";
 import { renderPersonnelTable } from "./render-personnel-table.js?v=20260801-authfix-1";
 import { getConsecutiveWorkAlert } from "./consecutive-work-alert.js?v=20260801-authfix-1";
@@ -32,7 +32,7 @@ import {
   renderCellPreviewPopover,
   renderPersonnelCellPreviewPopover,
   renderCellActionPopover
-} from "./render-detail-panel.js?v=20260801-authfix-1";
+} from "./render-detail-panel.js?v=20260905-cell-readability-1";
 import {
   setCurrentSession,
   setCurrentUser,

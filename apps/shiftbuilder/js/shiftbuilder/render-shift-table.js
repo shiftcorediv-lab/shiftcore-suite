@@ -27,7 +27,7 @@ export function getCellStatus(cell) {
   if (required === 0 && assignedCount === 0) {
     return {
       key: SHIFT_CELL_STATUS.COMPLETED,
-      label: "—",
+      label: "対象外",
       note: ""
     };
   }
@@ -35,7 +35,7 @@ export function getCellStatus(cell) {
   if (assignedCount === 0) {
     return {
       key: SHIFT_CELL_STATUS.UNASSIGNED,
-      label: "未",
+      label: "未配置",
       note: ""
     };
   }
@@ -66,11 +66,22 @@ export function getCellStatus(cell) {
 function getCompactStatusLabel(statusLabel) {
   if (statusLabel === "対象外" || statusLabel === "—") return "—";
   if (statusLabel === "アサイン完了") return "";
-  if (statusLabel === "未アサイン") return "未";
+  if (statusLabel === "未アサイン" || statusLabel === "未配置") return "未配置";
   if (statusLabel === "不足") return "不足";
   if (statusLabel === "超過") return "超過";
 
   return statusLabel || "";
+}
+
+export function getCellCountLabel(assignedCount, required) {
+  const assigned = Number(assignedCount || 0);
+  const target = Number(required || 0);
+
+  if (assigned === 0 && target === 0) {
+    return "";
+  }
+
+  return `${assigned} / ${target}`;
 }
 
 function hasSavingAssignment(cell) {
@@ -433,6 +444,7 @@ export function renderShiftTable(data, elements, handlers = {}) {
           const compactStatusLabel = getCompactStatusLabel(status.label);
           const assignedCount = Array.isArray(cell.assigned) ? cell.assigned.length : 0;
           const required = Number(cell.required || 0);
+          const cellCountLabel = getCellCountLabel(assignedCount, required);
           const isSaving = hasSavingAssignment(cell);
           const dateColumnClass = getDateColumnClass(dateItem);
 
@@ -464,7 +476,7 @@ export function renderShiftTable(data, elements, handlers = {}) {
 
                 data-date="${escapeHtml(dateItem.date)}"
 
-                title="${escapeHtml(status.label)} ${assignedCount}/${required}"
+                title="${escapeHtml(cellCountLabel ? `${status.label} 配置${assignedCount}名 / 必要${required}名` : status.label)}"
 
               >
 
@@ -480,7 +492,9 @@ export function renderShiftTable(data, elements, handlers = {}) {
 
                     ? renderAssignedMemberNames(cell)
 
-                    : `<span class="shift-cell-count">${assignedCount}/${required}</span>`
+                    : cellCountLabel
+                      ? `<span class="shift-cell-count">${escapeHtml(cellCountLabel)}</span>`
+                      : ""
 
                 }
 
