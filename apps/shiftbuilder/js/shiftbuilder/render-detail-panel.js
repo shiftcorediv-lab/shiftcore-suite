@@ -1,7 +1,7 @@
 // ===== ShiftBuilder render-detail-panel.js ここから =====
 
 import { escapeHtml } from "./utils.js?v=20260801-authfix-1";
-import { getCellStatus } from "./render-shift-table.js?v=20260801-authfix-1";
+import { getCellStatus } from "./render-shift-table.js?v=20260905-cell-readability-1";
 import { CANDIDATE_GROUP_CLASSES } from "./constants.js?v=20260801-authfix-1";
 import {
   getAssignmentId,

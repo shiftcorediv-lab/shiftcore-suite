@@ -1061,34 +1061,36 @@ select {
 
 .shift-cell-count {
   margin-top: 0;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 900;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .shift-cell-note {
   display: none;
 }
 
-/* 未アサイン：対応が必要なセルとして少し目立たせる */
+/* 未配置：強い黄色を避けつつ、対応が必要なセルと分かるようにする */
 .shift-cell-unassigned {
-  background: #fff4bf;
-  outline: 1px solid rgba(217, 119, 6, 0.28);
+  background: #fff8f3;
+  outline: 1px solid rgba(194, 65, 12, 0.18);
   outline-offset: -1px;
 }
 
 .shift-cell-unassigned .shift-cell-status {
-  background: #facc15;
-  color: #5f3b00;
+  border: 1px solid rgba(194, 65, 12, 0.24);
+  background: #ffedd5;
+  color: #9a3412;
 }
 
 .shift-cell-unassigned .shift-cell-count {
-  color: #7a4a00;
+  color: #7c2d12;
 }
 
 .shift-cell-unassigned:hover {
-  outline: 2px solid rgba(217, 119, 6, 0.55);
-  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.22);
+  outline: 2px solid rgba(194, 65, 12, 0.38);
+  box-shadow: 0 0 0 2px rgba(251, 146, 60, 0.12);
 }
 
 /* 不足：最優先で気づくべきセル */
