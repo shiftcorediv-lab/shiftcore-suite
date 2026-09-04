@@ -41,6 +41,24 @@
       display: none !important;
     }
 
+    .section-toggle {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin: 0 0 14px;
+      padding: 11px 13px;
+      border: 1px solid #d9e2ec;
+      border-radius: 12px;
+      background: #f8fafc;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .section-toggle input {
+      width: auto;
+      margin: 0;
+    }
+
 /****************************************************
  * スマホ入力欄はみ出し防止 ここから
  ****************************************************/
@@ -521,18 +539,23 @@ input[type="time"] {
     <section id="workConditionSection">
       <h2>稼働条件</h2>
 
+      <label class="section-toggle" for="hasSeparateWorkLocation">
+        <input id="hasSeparateWorkLocation" type="checkbox" />
+        連携店舗と異なる場所で稼働する
+      </label>
+
       <div class="grid two">
-        <div id="workLocationWrap">
+        <div id="workLocationWrap" class="hidden">
           <label for="workLocation">実稼働場所・会場</label>
           <input id="workLocation" placeholder="例：イオンモール〇〇 1F催事スペース" />
         </div>
 
-        <div id="workAreaWrap">
+        <div id="workAreaWrap" class="hidden">
           <label for="workArea">実稼働エリア</label>
           <select id="workArea"></select>
         </div>
-        <div><label for="workAddress">実稼働先住所</label><input id="workAddress" placeholder="店舗と同じ場合は空欄" /></div>
-        <div><label for="workNearestStation">実稼働先最寄り駅</label><input id="workNearestStation" placeholder="店舗と同じ場合は空欄" /></div>
+        <div id="workAddressWrap" class="hidden"><label for="workAddress">実稼働先住所</label><input id="workAddress" /></div>
+        <div id="workNearestStationWrap" class="hidden"><label for="workNearestStation">実稼働先最寄り駅</label><input id="workNearestStation" /></div>
 
         <div id="workStartTimeWrap">
           <label for="workStartTime">稼働開始時間</label>
@@ -786,6 +809,7 @@ input[type="time"] {
       document.addEventListener('click', handleOutsideSuggestClick);
 
       document.getElementById('caseType').addEventListener('change', applyCaseTypeRule);
+      document.getElementById('hasSeparateWorkLocation').addEventListener('change', updateWorkLocationView);
       document.getElementById('inputMode').addEventListener('change', updateInputModeView);
       document.getElementById('targetMonth').addEventListener('change', renderCalendar);
       document.getElementById('clearDatesButton').addEventListener('click', clearSelectedDates);
@@ -1111,8 +1135,7 @@ input[type="time"] {
       document.getElementById('inputMode').value = rule.default_input_mode || 'dates';
       document.getElementById('peoplePerLine').value = rule.default_people_per_line || 1;
 
-      toggleWrap('workLocationWrap', rule.show_work_location);
-      toggleWrap('workAreaWrap', rule.show_work_area);
+      updateWorkLocationView();
       toggleWrap('workStartTimeWrap', rule.show_work_time);
       toggleWrap('workEndTimeWrap', rule.show_work_time);
       toggleWrap('meetingTimeWrap', rule.show_meeting_info);
@@ -1134,6 +1157,17 @@ input[type="time"] {
     /****************************************************
      * applyCaseTypeRule ここまで
      ****************************************************/
+
+
+    function updateWorkLocationView() {
+      const rule = getSelectedCaseTypeRule();
+      const usesSeparateLocation = document.getElementById('hasSeparateWorkLocation').checked;
+
+      toggleWrap('workLocationWrap', usesSeparateLocation && rule?.show_work_location);
+      toggleWrap('workAreaWrap', usesSeparateLocation && rule?.show_work_area);
+      toggleWrap('workAddressWrap', usesSeparateLocation);
+      toggleWrap('workNearestStationWrap', usesSeparateLocation);
+    }
 
 
     /****************************************************
@@ -1543,6 +1577,7 @@ input[type="time"] {
       const inputMode = document.getElementById('inputMode').value;
       const storeArea = document.getElementById('storeArea').value;
       const sameConditionCount = Number(document.getElementById('sameConditionCount').value || 1);
+      const usesSeparateLocation = document.getElementById('hasSeparateWorkLocation').checked;
 
       return {
         target_month: document.getElementById('targetMonth').value,
@@ -1560,10 +1595,12 @@ input[type="time"] {
         store_nearest_station: document.getElementById('storeNearestStation').value.trim(),
         store_area: storeArea,
 
-        work_location: document.getElementById('workLocation').value.trim() || document.getElementById('storeName').value.trim(),
-        work_address: document.getElementById('workAddress').value.trim(),
-        work_nearest_station: document.getElementById('workNearestStation').value.trim(),
-        work_area: document.getElementById('workArea').value || storeArea,
+        work_location: usesSeparateLocation
+          ? document.getElementById('workLocation').value.trim() || document.getElementById('storeName').value.trim()
+          : document.getElementById('storeName').value.trim(),
+        work_address: usesSeparateLocation ? document.getElementById('workAddress').value.trim() : '',
+        work_nearest_station: usesSeparateLocation ? document.getElementById('workNearestStation').value.trim() : '',
+        work_area: usesSeparateLocation ? document.getElementById('workArea').value || storeArea : storeArea,
         work_start_time: document.getElementById('workStartTime').value,
         work_end_time: document.getElementById('workEndTime').value,
         meeting_time: document.getElementById('meetingTime').value,
@@ -1746,6 +1783,7 @@ input[type="time"] {
       document.getElementById('workLocation').value = '';
       document.getElementById('workAddress').value = '';
       document.getElementById('workNearestStation').value = '';
+      document.getElementById('hasSeparateWorkLocation').checked = false;
       document.getElementById('workStartTime').value = '10:00';
       document.getElementById('workEndTime').value = '18:00';
       document.getElementById('meetingTime').value = '';
