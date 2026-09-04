@@ -86,7 +86,7 @@ async function loadDashboard() {
       writeDashboardCache(dashboardData);
     }
     if (scheduleSyncPending) showStatus("最新の稼働予定を確認しています…", false, true);
-    else if (syncStatus === "fresh-cache") showStatus("5分以内に同期済みの予定を表示しています");
+    else if (syncStatus === "fresh-cache") showStatus("シフトの予定は最新です");
     else if (syncStatus === "in-progress") showStatus("勤怠情報を表示しました。別の画面で最新予定を同期中です。", false, true);
     else showStatus("勤怠情報を表示しました。最新予定を確認中です。", false, true);
     // 打刻可能な状態を先に返し、重い成績集計と外部予定同期は表示後に並行する。
@@ -142,13 +142,13 @@ async function refreshDashboardInBackground(loadVersion, retryCount = 0) {
     renderDashboard(refreshed);
     writeDashboardCache(refreshed);
     rememberServerTiming("scheduleSync", refreshed.serverTiming);
-    if (syncStatus === "failed") showStatus("保存済み予定を表示中（SB同期失敗）", true);
+    if (syncStatus === "failed") showStatus("保存済みの予定を表示しています（シフト同期に失敗しました）", true);
     else if (syncStatus === "in-progress") showStatus("保存済み予定を表示中（別の画面で最新予定を同期中です）", false, true);
-    else if (syncStatus === "fresh-cache") showStatus("5分以内に同期済みの予定を表示しています");
-    else showStatus("SBの最新予定を反映しました");
+    else if (syncStatus === "fresh-cache") showStatus("シフトの予定は最新です");
+    else showStatus("シフトの最新予定を勤怠へ反映しました");
   } catch (error) {
     if (loadVersion !== dashboardLoadVersion) return;
-    showStatus(`保存済み予定を表示中（SB同期失敗: ${error.message}）`, true);
+    showStatus(`保存済みの予定を表示しています（シフト同期に失敗しました: ${error.message}）`, true);
   }
 }
 

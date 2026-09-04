@@ -1856,7 +1856,7 @@ function syncSchedules_(idToken, sourceLocal) {
         });
       });
     });
-    return { schedules: mergeSchedules_(local, derived), synced: true };
+    return { schedules: mergeSchedules_(local, derived, targetMonth), synced: true };
   } catch (error) {
     console.warn("ShiftBuilder schedule fetch failed", error);
     return { schedules: local, synced: false };
@@ -1898,9 +1898,9 @@ function markDashboardScheduleSyncFresh_(sourceCache, sourceKey) {
 }
 function clearDashboardScheduleSyncState_(cache, key) { if (!cache) return; try { cache.remove(key); } catch (error) {} }
 
-function mergeSchedules_(local, derived) {
-  const result = local.slice();
+function mergeSchedules_(local, derived, targetMonth) {
   const sheet = SpreadsheetApp.getActive().getSheetByName(SHEETS.schedules);
+  const result = pruneShiftBuilderSchedules_(local, derived, targetMonth, sheet);
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
   const syncedFields = ["organization_id", "employee_code", "email", "氏名", "勤務日", "予定開始", "予定終了", "稼働場所", "開発予定ID", "開発予定名"];
   derived.forEach(item => {
@@ -1919,12 +1919,64 @@ function mergeSchedules_(local, derived) {
     const existing = result[existingIndex];
     const changed = syncedFields.some(field => String(existing[field] || "") !== String(item[field] || ""));
     if (changed) {
-      const merged = Object.assign({}, existing, item, { "同期日時": new Date() });
+      const merged = Object.assign({}, existing, item, { "更新日時": new Date() });
       result[existingIndex] = merged;
       sheet.getRange(existingIndex + 2, 1, 1, headers.length).setValues([headers.map(header => merged[header] == null ? "" : merged[header])]);
     }
   });
   return result;
+}
+
+function pruneShiftBuilderSchedules_(local, derived, targetMonth, sheet) {
+  const month = String(targetMonth || "").trim();
+  if (!month || !sheet) return local.slice();
+
+  const derivedIds = {};
+  (derived || []).forEach(item => {
+    const scheduleId = String(item && item.schedule_id || "").trim();
+    if (scheduleId) derivedIds[scheduleId] = true;
+  });
+
+  const values = sheet.getDataRange().getValues();
+  if (!values.length) return local.slice();
+  const headers = values[0].map(String);
+  const scheduleIdIndex = headers.indexOf("schedule_id");
+  const workDateIndex = headers.indexOf("勤務日");
+  if (scheduleIdIndex < 0 || workDateIndex < 0) return local.slice();
+
+  const seenIds = {};
+  const removalCandidates = [];
+  values.slice(1).forEach((row, index) => {
+    const scheduleId = String(row[scheduleIdIndex] || "").trim();
+    if (!/^SA-/.test(scheduleId) || dateKey_(row[workDateIndex]).slice(0, 7) !== month) return;
+
+    if (seenIds[scheduleId]) {
+      removalCandidates.push({ rowNumber: index + 2, scheduleId: scheduleId, duplicate: true });
+      return;
+    }
+    seenIds[scheduleId] = true;
+    if (!derivedIds[scheduleId]) {
+      removalCandidates.push({ rowNumber: index + 2, scheduleId: scheduleId, duplicate: false });
+    }
+  });
+
+  if (!removalCandidates.length) return local.slice();
+
+  // 稼働や報告で使われた予定は、Shift側で解除されても過去記録との参照を残す。
+  const referencedIds = {};
+  [SHEETS.records, SHEETS.fieldReports, SHEETS.reports].forEach(sheetName => {
+    rows_(sheetName).forEach(item => {
+      const scheduleId = String(item && item.schedule_id || "").trim();
+      if (scheduleId) referencedIds[scheduleId] = true;
+    });
+  });
+
+  removalCandidates
+    .filter(candidate => candidate.duplicate || !referencedIds[candidate.scheduleId])
+    .sort((a, b) => b.rowNumber - a.rowNumber)
+    .forEach(candidate => sheet.deleteRow(candidate.rowNumber));
+
+  return rows_(SHEETS.schedules);
 }
 
 function matchesUser_(schedule, user) {
