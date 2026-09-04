@@ -13,6 +13,7 @@
     "check:router": "wrangler deploy --config wrangler.router.jsonc --dry-run --outdir .wrangler/dry-run/router",
     "check": "npm run build && npm run types && npm run typecheck && npm test && npm run check:slot:blue && npm run check:slot:green && npm run check:router",
     "route:blue": "node scripts/set-active-slot.mjs blue",
+    "route:red": "node scripts/set-active-slot.mjs green",
     "route:green": "node scripts/set-active-slot.mjs green",
     "deploy:slot:blue": "npm run build && wrangler deploy --config wrangler.slot.jsonc --env blue --strict",
     "deploy:slot:green": "npm run build && wrangler deploy --config wrangler.slot.jsonc --env green --strict",
