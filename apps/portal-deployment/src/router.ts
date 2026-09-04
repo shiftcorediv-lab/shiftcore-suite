@@ -86,7 +86,6 @@ const routerWorker = {
 } satisfies ExportedHandler<RouterEnv>;
 
 export {
-  ACTIVE_SLOT_HEADER,
   dashboardRedirect,
   handleRouterRequest,
   normalizeSlot,
