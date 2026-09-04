@@ -1,6 +1,7 @@
 type PortalSlot = "blue" | "green";
 
 const ACTIVE_SLOT_HEADER = "X-Another-Portal-Active-Slot";
+const FAILOVER_HEADER = "X-Another-Portal-Failover";
 
 function normalizeSlot(value: string): PortalSlot | null {
   return value === "blue" || value === "green" ? value : null;
@@ -21,15 +22,21 @@ function serviceForSlot(slot: PortalSlot, env: RouterEnv): Fetcher {
   return slot === "blue" ? env.BLUE : env.GREEN;
 }
 
+function standbySlot(slot: PortalSlot): PortalSlot {
+  return slot === "blue" ? "green" : "blue";
+}
+
 function withPortalHeaders(
   response: Response,
   slot: PortalSlot,
+  failedSlot: PortalSlot | null = null,
 ): Response {
   const headers = new Headers(response.headers);
   headers.set(ACTIVE_SLOT_HEADER, slot);
   headers.set("X-Content-Type-Options", "nosniff");
   headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   headers.set("X-Frame-Options", "DENY");
+  if (failedSlot) headers.set(FAILOVER_HEADER, `${failedSlot}-to-${slot}`);
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -68,15 +75,40 @@ async function handleRouterRequest(request: Request, env: RouterEnv): Promise<Re
 
   try {
     const response = await serviceForSlot(slot, env).fetch(request);
-    return withPortalHeaders(response, slot);
+    if (response.status < 500) return withPortalHeaders(response, slot);
+    console.error(JSON.stringify({
+      event: "portal_slot_unavailable_status",
+      slot,
+      status: response.status,
+    }));
+    await response.body?.cancel();
   } catch (error) {
     console.error(JSON.stringify({
       event: "portal_slot_fetch_failed",
       slot,
       message: error instanceof Error ? error.message : String(error),
     }));
-    return unavailableResponse();
   }
+
+  const fallback = standbySlot(slot);
+  try {
+    const response = await serviceForSlot(fallback, env).fetch(request);
+    if (response.status < 500) return withPortalHeaders(response, fallback, slot);
+    console.error(JSON.stringify({
+      event: "portal_fallback_unavailable_status",
+      slot: fallback,
+      status: response.status,
+    }));
+    await response.body?.cancel();
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: "portal_fallback_fetch_failed",
+      slot: fallback,
+      message: error instanceof Error ? error.message : String(error),
+    }));
+  }
+
+  return unavailableResponse();
 }
 
 const routerWorker = {
@@ -90,6 +122,7 @@ export {
   handleRouterRequest,
   normalizeSlot,
   selectSlot,
+  standbySlot,
   unavailableResponse,
   withPortalHeaders,
 };

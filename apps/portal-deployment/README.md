@@ -1,10 +1,10 @@
 # Another Portal deployment
 
-Another Portal の実運用画面とメンテナンス画面を二つの非公開Workerへ分け、共通入口のRouter WorkerからService Bindingで切り替えるための構成です。内部名称は既存運用との互換性のため `blue`／`green` のまま維持します。
+Another Portal の同じ実運用画面を二つの非公開Workerへ配置し、共通入口のRouter WorkerからService Bindingで切り替えるための構成です。内部名称は既存Cloudflare設定との互換性のため `blue`／`green` のまま維持します。
 
 利用者向け共通入口: `https://another-portal-router.shiftcore-div.workers.dev/`
 
-2026-09-04時点では、運用上 **Blueが実運用、Redがメンテナンス専用** です。Redは内部設定上のGreenを指します。Redを選ぶと、Another Portalの青／赤ブランドを使った「メンテナンス中」画面を返し、業務画面や静的ファイルは配信しません。独自ドメインや会社Cloudflareアカウントは使用しません。
+運用上の呼称は **Blue／Red** です。Redは内部設定上のGreenを指します。どちらも同じ機能を持つ実運用ポータルで、Blueは青基調、Redは赤基調で表示します。片方の保守中はもう片方へ事前に切り替えるため、利用者は共通入口のURLを変えずに利用を継続できます。選択中の枠が接続失敗または5xxになった場合は待機枠へ自動退避します。独自ドメインや会社Cloudflareアカウントは使用しません。
 
 ## ローカル確認
 
@@ -19,10 +19,12 @@ npm run check
 
 1. `npm run check`
 2. TEST環境で公開候補を確認
-3. Blueへ公開
-4. 共通入口で本番確認
+3. 利用中でない枠へ公開
+4. 待機枠を確認
+5. Routerを切り替え
+6. 共通入口で本番確認
 
-Red（内部名Green）は通常公開の待機枠として使いません。本番停止が必要なときだけ、次のように設定、検証、公開を分けてメンテナンス表示へ切り替えます。
+BlueからRedへ切り替える場合は、設定、検証、公開を分けます。RedからBlueへ戻す場合は `npm run route:blue` を使います。
 
 ```bash
 npm run route:red
@@ -30,7 +32,7 @@ npm run check:router
 npm run deploy:router
 ```
 
-メンテナンス終了後は `npm run route:blue` で実運用へ戻します。切替設定の差分を確認し、切替理由と確認結果をGit履歴へ残します。Blueのリリース不具合はGreenへ切り戻すのではなく、Blue Workerの安全な版へロールバックします。
+切替設定の差分を確認し、切替理由と確認結果をGit履歴へ残します。緊急停止画面はBlueとRedの両方が利用できない場合に限り、Routerの安全側の応答として使用します。
 
 具体的な公開・巻き戻し条件は [`../BLUE_GREEN_DEPLOYMENT_DESIGN.md`](../BLUE_GREEN_DEPLOYMENT_DESIGN.md) を参照してください。
 

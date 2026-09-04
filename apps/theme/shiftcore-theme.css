@@ -10,6 +10,121 @@
   --sc-theme-shadow: rgba(23, 32, 51, 0.12);
 }
 
+:root[data-portal-color="blue"] {
+  --sb-primary: #1556b8;
+  --sb-primary-text: #ffffff;
+  --sb-accent: #dbe8ff;
+}
+
+:root[data-portal-color="blue"] :is(
+  #loginBtn,
+  .primary-button,
+  .main-btn,
+  .submit-btn,
+  .open-btn,
+  .day-cell.selected
+) {
+  border-color: #1556b8;
+  background: linear-gradient(135deg, #1556b8, #0e3f8c);
+  color: #ffffff;
+}
+
+/*
+ * Blue / Red are deployment slots, not separate applications.
+ * The Red slot keeps every portal function available while making the selected
+ * slot visually identifiable. Cloudflare's internal slot name remains
+ * "green" for compatibility; the Worker exposes only the public color here.
+ */
+:root[data-portal-color="red"] {
+  --sc-theme-bg: #fff7f7;
+  --sc-theme-surface-soft: #fff1f2;
+  --sc-theme-border: #efd2d5;
+  --sc-theme-shadow: rgba(127, 29, 29, 0.13);
+  --bg: var(--sc-theme-bg);
+  --white: var(--sc-theme-surface);
+  --blue: #b4232c;
+  --blue-2: #7f1d1d;
+  --line: var(--sc-theme-border);
+  --shadow: 0 14px 40px var(--sc-theme-shadow);
+  --ac-bg: var(--sc-theme-bg);
+  --ac-surface: var(--sc-theme-surface);
+  --ac-border: var(--sc-theme-border);
+  --ac-shadow: 0 12px 32px var(--sc-theme-shadow);
+  --sb-bg: var(--sc-theme-bg);
+  --sb-surface: var(--sc-theme-surface);
+  --sb-surface-soft: var(--sc-theme-surface-soft);
+  --sb-border: var(--sc-theme-border);
+  --sb-border-strong: #dbaeb3;
+  --sb-primary: #b4232c;
+  --sb-primary-text: #ffffff;
+  --sb-accent: #f3b8bd;
+  --sb-shadow: 0 12px 32px var(--sc-theme-shadow);
+}
+
+:root[data-portal-color="red"] body {
+  background-color: var(--sc-theme-bg);
+}
+
+:root[data-portal-color="red"] :is(
+  #loginBtn,
+  .primary-button,
+  .main-btn,
+  .submit-btn,
+  .open-btn,
+  .day-cell.selected
+) {
+  border-color: #b4232c;
+  background: linear-gradient(135deg, #b4232c, #7f1d1d);
+  color: #ffffff;
+}
+
+:root[data-portal-color="red"] .portal-brand:hover .portal-brand-copy strong {
+  color: #b4232c;
+}
+
+:root[data-portal-color="red"] .portal-module-header :is(
+  .secondary-button,
+  .pmo-dashboard-button,
+  .nav-link,
+  .shiftcore-account-menu-trigger
+) {
+  border-color: #edc4c8;
+  background: #fff1f2;
+  color: #a52028;
+}
+
+:root[data-portal-color="red"] .portal-module-header :is(.primary-button, .nav-link.active) {
+  border-color: #b4232c;
+  background: #b4232c;
+  color: #ffffff;
+}
+
+:root[data-portal-color="red"] .portal-module-header :is(
+  .secondary-button,
+  .pmo-dashboard-button,
+  .nav-link,
+  .shiftcore-account-menu-trigger
+):hover {
+  border-color: #d88f96;
+  background: #ffe4e6;
+}
+
+:root[data-portal-color="red"] .shiftcore-account-icon {
+  background: #ffe4e6;
+  color: #b4232c;
+}
+
+:root[data-portal-color="red"] .shiftcore-theme-option.is-selected {
+  border-color: #c2414c;
+  background: #fff1f2;
+  color: #8f1d25;
+  box-shadow: inset 0 0 0 1px #c2414c;
+}
+
+:root[data-portal-color="red"] :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline-color: #d95762 !important;
+}
+
 :root[data-theme="dark"] {
   color-scheme: dark;
   --sc-theme-bg: #0b1220;
@@ -563,6 +678,25 @@
 :root[data-theme="dark"] .loading-text,
 :root[data-theme="dark"] .line-guard-title,
 :root[data-theme="dark"] .line-guard-text { color: var(--sc-theme-text) !important; }
+
+:root[data-portal-color="red"][data-theme="dark"] {
+  --blue: #ff8a94;
+  --blue-2: #d95762;
+  --sb-primary: #ff9ca4;
+  --sb-primary-text: #2a0d11;
+  --sb-accent: #6f2830;
+}
+
+:root[data-portal-color="red"][data-theme="dark"] .shiftcore-account-icon {
+  background: #5b252c;
+  color: #ffd6da;
+}
+
+:root[data-portal-color="red"][data-theme="dark"] .shiftcore-theme-option.is-selected {
+  border-color: #ff9ca4;
+  background: #5b252c;
+  color: #ffffff;
+}
 
 @media (max-width: 680px) {
   .shiftcore-account-menu { top: 8px; right: 8px; }

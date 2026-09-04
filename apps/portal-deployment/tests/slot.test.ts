@@ -1,12 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { handleSlotRequest, maintenanceResponse } from "../src/slot.ts";
+import { handleSlotRequest, portalColor } from "../src/slot.ts";
 
 function assets(body = "asset"): Fetcher {
   return {
     async fetch(): Promise<Response> {
-      return new Response(body, { headers: { ETag: "test" } });
+      return new Response(body, {
+        headers: {
+          "Content-Type": "text/plain",
+          ETag: "test",
+        },
+      });
     },
     connect(): never {
       throw new Error("connect is not used");
@@ -14,51 +19,44 @@ function assets(body = "asset"): Fetcher {
   } satisfies Fetcher;
 }
 
-test("blue slot serves assets and identifies the slot", async () => {
+test("blue slot serves the full portal with the blue presentation", async () => {
   const env: SlotEnv = { PORTAL_SLOT: "blue", ASSETS: assets() };
   const response = await handleSlotRequest(
     new Request("https://assets.local/apps/account-console/"),
     env,
   );
-  assert.equal(await response?.text(), "asset");
-  assert.equal(response?.headers.get("ETag"), "test");
-  assert.equal(response?.headers.get("X-Another-Portal-Slot"), "blue");
+  assert.equal(await response.text(), "asset");
+  assert.equal(response.headers.get("ETag"), "test");
+  assert.equal(response.headers.get("X-Another-Portal-Slot"), "blue");
+  assert.equal(response.headers.get("X-Another-Portal-Color"), "blue");
 });
 
-test("green slot serves the branded maintenance page without reading assets", async () => {
+test("green internal slot serves the full portal with the red presentation", async () => {
   let assetFetches = 0;
-  const unavailableAssets = {
+  const trackedAssets = {
     async fetch(): Promise<Response> {
       assetFetches += 1;
-      return new Response("must not be served");
+      return new Response("red portal", {
+        headers: { "Content-Type": "text/plain" },
+      });
     },
     connect(): never {
       throw new Error("connect is not used");
     },
   } satisfies Fetcher;
-  const env: SlotEnv = { PORTAL_SLOT: "green", ASSETS: unavailableAssets };
+  const env: SlotEnv = { PORTAL_SLOT: "green", ASSETS: trackedAssets };
   const response = await handleSlotRequest(
     new Request("https://assets.local/apps/ordercase/"),
     env,
   );
-  const html = await response.text();
-
-  assert.equal(response.status, 503);
-  assert.equal(response.headers.get("Cache-Control"), "no-store");
+  assert.equal(response.status, 200);
+  assert.equal(await response.text(), "red portal");
   assert.equal(response.headers.get("X-Another-Portal-Slot"), "green");
-  assert.equal(assetFetches, 0);
-  assert.match(html, /Another Portal/);
-  assert.match(html, /メンテナンス中/);
-  assert.match(html, /--blue:#1556b8/);
-  assert.match(html, /--red:#d93440/);
-  assert.doesNotMatch(html, /blue slot|green slot/i);
+  assert.equal(response.headers.get("X-Another-Portal-Color"), "red");
+  assert.equal(assetFetches, 1);
 });
 
-test("maintenance HEAD response has no body", async () => {
-  const response = maintenanceResponse(
-    new Request("https://assets.local/", { method: "HEAD" }),
-  );
-
-  assert.equal(response.status, 503);
-  assert.equal(await response.text(), "");
+test("public colors remain stable even though Red uses the internal green name", () => {
+  assert.equal(portalColor("blue"), "blue");
+  assert.equal(portalColor("green"), "red");
 });
