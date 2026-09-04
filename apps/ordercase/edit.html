@@ -53,6 +53,45 @@
       display: none !important;
     }
 
+    .collapsible-section > h2 {
+      margin-bottom: 0;
+    }
+
+    .collapsible-section:not(.is-collapsed) > h2 {
+      margin-bottom: 12px;
+    }
+
+    .section-collapse-button {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      width: 100%;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .section-collapse-button:focus-visible {
+      outline: 3px solid rgba(21, 86, 184, .25);
+      outline-offset: 5px;
+      border-radius: 6px;
+    }
+
+    .section-collapse-indicator {
+      color: #667085;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .collapsible-section.is-collapsed > :not(h2) {
+      display: none !important;
+    }
+
     .read-only-note {
       padding: 14px;
       border-radius: 12px;
@@ -357,8 +396,8 @@
   </div>
 </div>    </section>
 
-    <section>
-      <h2>基本情報</h2>
+    <section class="collapsible-section">
+      <h2><button class="section-collapse-button" type="button" data-section-collapse aria-expanded="true"><span>基本情報</span><span class="section-collapse-indicator" aria-hidden="true">閉じる</span></button></h2>
 
       <div class="grid two">
         <div>
@@ -418,8 +457,8 @@
       </div>
     </section>
 
-    <section>
-      <h2>代理店・連携店舗</h2>
+    <section class="collapsible-section">
+      <h2><button class="section-collapse-button" type="button" data-section-collapse aria-expanded="true"><span>代理店・連携店舗</span><span class="section-collapse-indicator" aria-hidden="true">閉じる</span></button></h2>
 
       <div class="grid two">
         <div class="suggest-wrap">
@@ -448,8 +487,8 @@
       </p>
     </section>
 
-    <section>
-      <h2>稼働条件</h2>
+    <section class="collapsible-section">
+      <h2><button class="section-collapse-button" type="button" data-section-collapse aria-expanded="true"><span>稼働条件</span><span class="section-collapse-indicator" aria-hidden="true">閉じる</span></button></h2>
 
       <div class="grid two">
         <div>
@@ -498,8 +537,8 @@
       </div>
     </section>
 
-    <section>
-      <h2>必要人数・必要枠</h2>
+    <section class="collapsible-section">
+      <h2><button class="section-collapse-button" type="button" data-section-collapse aria-expanded="true"><span>必要人数・必要枠</span><span class="section-collapse-indicator" aria-hidden="true">閉じる</span></button></h2>
 
       <div class="grid three">
         <div>
@@ -519,8 +558,8 @@
       </div>
     </section>
 
-    <section>
-      <h2>日付・日数</h2>
+    <section class="collapsible-section">
+      <h2><button class="section-collapse-button" type="button" data-section-collapse aria-expanded="true"><span>日付・日数</span><span class="section-collapse-indicator" aria-hidden="true">閉じる</span></button></h2>
 
       <div class="grid two">
         <div>
@@ -547,8 +586,8 @@
       </div>
     </section>
 
-    <section>
-      <h2>金額・メモ</h2>
+    <section class="collapsible-section">
+      <h2><button class="section-collapse-button" type="button" data-section-collapse aria-expanded="true"><span>金額・メモ</span><span class="section-collapse-indicator" aria-hidden="true">閉じる</span></button></h2>
 
       <div class="grid two">
         <div>
@@ -645,6 +684,7 @@
      ****************************************************/
     document.addEventListener('DOMContentLoaded', async () => {
       showLoading('画面を準備中...');
+      setupCollapsibleSections();
 
       try {
         renderOrderCaseHeader('', '案件編集');
@@ -667,6 +707,20 @@
     /****************************************************
      * 初期化 ここまで
      ****************************************************/
+
+
+    function setupCollapsibleSections() {
+      document.querySelectorAll('[data-section-collapse]').forEach(button => {
+        const section = button.closest('.collapsible-section');
+        const indicator = button.querySelector('.section-collapse-indicator');
+
+        button.addEventListener('click', () => {
+          const collapsed = section.classList.toggle('is-collapsed');
+          button.setAttribute('aria-expanded', String(!collapsed));
+          indicator.textContent = collapsed ? '開く' : '閉じる';
+        });
+      });
+    }
 
 
         /****************************************************
@@ -713,7 +767,7 @@
       }
 
       document.querySelectorAll('input, select, textarea, button').forEach(el => {
-        if (el.id === 'saveButton') {
+        if (el.id === 'saveButton' || el.matches('[data-section-collapse]')) {
           return;
         }
 
