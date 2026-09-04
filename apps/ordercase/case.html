@@ -39,7 +39,7 @@
     }
 
     .detail-head {
-      margin-bottom: 14px;
+      margin-bottom: 10px;
     }
 
     .case-id {
@@ -49,6 +49,55 @@
 
     .case-title {
       color: #555;
+    }
+
+    #detailRoot {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 12px;
+    }
+
+    #detailRoot .detail-card {
+      margin-bottom: 0;
+      padding: 16px;
+      border-radius: 14px;
+    }
+
+    #detailRoot .section-title {
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+    }
+
+    #detailRoot .grid {
+      gap: 8px;
+    }
+
+    #detailRoot .field,
+    #detailRoot .memo-box,
+    #detailRoot .date-item {
+      min-height: 0;
+      padding: 10px 12px;
+      border-radius: 10px;
+    }
+
+    #detailRoot .label {
+      margin-bottom: 3px;
+    }
+
+    #detailRoot .field.is-empty .value {
+      color: #98a2b3;
+      font-weight: 600;
+    }
+
+    @media (min-width: 900px) {
+      #detailRoot {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: start;
+      }
+
+      #detailRoot .detail-card.wide {
+        grid-column: 1 / -1;
+      }
     }
 
     .change-log-list {
@@ -396,7 +445,7 @@ applyPermissionView();
       ` : '';
       
       root.innerHTML = `
-        <section class="detail-card">
+        <section class="detail-card wide">
           <div class="detail-head">
             <div>
               <div class="case-id">${escapeHtml(item.case_id)}</div>
@@ -427,6 +476,16 @@ applyPermissionView();
         </section>
 
         <section class="detail-card">
+          <h2 class="section-title">必要数</h2>
+          <div class="grid three">
+            ${fieldHtml('必要枠数', item.required_lines)}
+            ${fieldHtml('1枠あたり人数', item.people_per_line)}
+            ${fieldHtml('必要人数', item.required_people)}
+            ${fieldHtml('請求コマ数', formatBillingUnits(billingUnits))}
+          </div>
+        </section>
+
+        <section class="detail-card wide">
           <h2 class="section-title">稼働条件</h2>
           <div class="grid two">
             ${fieldHtml('実稼働場所', item.work_location)}
@@ -441,17 +500,7 @@ applyPermissionView();
           </div>
         </section>
 
-        <section class="detail-card">
-          <h2 class="section-title">必要数</h2>
-          <div class="grid three">
-            ${fieldHtml('必要枠数', item.required_lines)}
-            ${fieldHtml('1枠あたり人数', item.people_per_line)}
-            ${fieldHtml('必要人数', item.required_people)}
-            ${fieldHtml('請求コマ数', formatBillingUnits(billingUnits))}
-          </div>
-        </section>
-
-        <section class="detail-card">
+        <section class="detail-card wide">
           <h2 class="section-title">日付明細</h2>
           ${renderCaseDates(item)}
         </section>
@@ -604,10 +653,13 @@ applyPermissionView();
      * HTML部品 ここから
      ****************************************************/
     function fieldHtml(label, value) {
+      const displayText = displayValue(value);
+      const emptyClass = displayText === '-' ? ' is-empty' : '';
+
       return `
-        <div class="field">
+        <div class="field${emptyClass}">
           <div class="label">${escapeHtml(label)}</div>
-          <div class="value">${escapeHtml(displayValue(value))}</div>
+          <div class="value">${escapeHtml(displayText)}</div>
         </div>
       `;
     }
