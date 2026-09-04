@@ -454,56 +454,6 @@ input[type="time"] {
       </p>
     </section>
 
-    <section id="workConditionSection">
-      <h2>稼働条件</h2>
-
-      <div class="grid two">
-        <div id="workLocationWrap">
-          <label for="workLocation">実稼働場所・会場</label>
-          <input id="workLocation" placeholder="例：イオンモール〇〇 1F催事スペース" />
-        </div>
-
-        <div id="workAreaWrap">
-          <label for="workArea">実稼働エリア</label>
-          <select id="workArea"></select>
-        </div>
-        <div><label for="workAddress">実稼働先住所</label><input id="workAddress" placeholder="店舗と同じ場合は空欄" /></div>
-        <div><label for="workNearestStation">実稼働先最寄り駅</label><input id="workNearestStation" placeholder="店舗と同じ場合は空欄" /></div>
-
-        <div id="workStartTimeWrap">
-          <label for="workStartTime">稼働開始時間</label>
-          <input id="workStartTime" type="time" value="10:00" required />
-        </div>
-
-        <div id="workEndTimeWrap">
-          <label for="workEndTime">稼働終了時間</label>
-          <input id="workEndTime" type="time" value="18:00" required />
-        </div>
-
-        <p class="hint">終了が開始より早い時刻の場合は、翌日の終了として扱います。登録時に確認が表示されます。</p>
-
-        <div id="meetingTimeWrap">
-          <label for="meetingTime">集合時間</label>
-          <input id="meetingTime" type="time" />
-        </div>
-
-        <div id="meetingPlaceWrap">
-          <label for="meetingPlace">集合場所</label>
-          <input id="meetingPlace" placeholder="例：正面入口前" />
-        </div>
-
-        <div id="requiredSkillWrap">
-          <label for="requiredSkill">必要スキル</label>
-          <select id="requiredSkill">
-            <option value="any">指定なし</option>
-            <option value="registration_only">登録のみ</option>
-            <option value="multi_complete">マルチ完結</option>
-            <option value="leader">リーダー候補</option>
-          </select>
-        </div>
-      </div>
-    </section>
-
     <section>
       <h2>必要人数・作成件数</h2>
 
@@ -564,6 +514,56 @@ input[type="time"] {
         <div>
           <label for="alternateAmount">異なる時間帯の単価</label>
           <input id="alternateAmount" type="number" min="0" disabled />
+        </div>
+      </div>
+    </section>
+
+    <section id="workConditionSection">
+      <h2>稼働条件</h2>
+
+      <div class="grid two">
+        <div id="workLocationWrap">
+          <label for="workLocation">実稼働場所・会場</label>
+          <input id="workLocation" placeholder="例：イオンモール〇〇 1F催事スペース" />
+        </div>
+
+        <div id="workAreaWrap">
+          <label for="workArea">実稼働エリア</label>
+          <select id="workArea"></select>
+        </div>
+        <div><label for="workAddress">実稼働先住所</label><input id="workAddress" placeholder="店舗と同じ場合は空欄" /></div>
+        <div><label for="workNearestStation">実稼働先最寄り駅</label><input id="workNearestStation" placeholder="店舗と同じ場合は空欄" /></div>
+
+        <div id="workStartTimeWrap">
+          <label for="workStartTime">稼働開始時間</label>
+          <input id="workStartTime" type="time" value="10:00" required />
+        </div>
+
+        <div id="workEndTimeWrap">
+          <label for="workEndTime">稼働終了時間</label>
+          <input id="workEndTime" type="time" value="18:00" required />
+        </div>
+
+        <p class="hint">終了が開始より早い時刻の場合は、翌日の終了として扱います。登録時に確認が表示されます。</p>
+
+        <div id="meetingTimeWrap">
+          <label for="meetingTime">集合時間</label>
+          <input id="meetingTime" type="time" />
+        </div>
+
+        <div id="meetingPlaceWrap">
+          <label for="meetingPlace">集合場所</label>
+          <input id="meetingPlace" placeholder="例：正面入口前" />
+        </div>
+
+        <div id="requiredSkillWrap">
+          <label for="requiredSkill">必要スキル</label>
+          <select id="requiredSkill">
+            <option value="any">指定なし</option>
+            <option value="registration_only">登録のみ</option>
+            <option value="multi_complete">マルチ完結</option>
+            <option value="leader">リーダー候補</option>
+          </select>
         </div>
       </div>
     </section>
