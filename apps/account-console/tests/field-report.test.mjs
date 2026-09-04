@@ -73,8 +73,9 @@ test("開始・終了が同時刻の予定は24時間勤務と推測せず拒否
   );
 });
 
-test("入店前に出発を必須とし遅い入店と0時以降終了を直属承認へ接続する", () => {
+test("入店前に出発と最寄り到着を必須とし遅い入店と0時以降終了を直属承認へ接続する", () => {
   assert.match(backendSource, /DEPARTURE_REPORT_REQUIRED/);
+  assert.match(backendSource, /NEAREST_ARRIVAL_REPORT_REQUIRED/);
   assert.match(backendSource, /arrivalApprovalRequired \? accountApprovalRequest_/);
   assert.match(backendSource, /endApprovalRequired \? accountApprovalRequest_/);
   assert.match(backendSource, /"入店承認待ち"/);
@@ -82,8 +83,9 @@ test("入店前に出発を必須とし遅い入店と0時以降終了を直属�
   assert.match(backendSource, /createApprovalRequestIfMissing_/);
 });
 
-test("利用者画面は1つの主操作が出発・入店・終了報告へ遷移する", () => {
+test("利用者画面は1つの主操作が出発・最寄り到着・入店・終了報告へ遷移する", () => {
   assert.match(dashboardSource, /name: "departure", label: "出発"/);
+  assert.match(dashboardSource, /name: "nearestArrival", label: "最寄り到着"/);
   assert.match(dashboardSource, /name: "arrival", label: "入店"/);
   assert.match(dashboardSource, /name: "completion", label: "終了報告"/);
   assert.match(dashboardSource, /attendanceRequest\("arrive"/);
@@ -93,32 +95,101 @@ test("利用者画面は1つの主操作が出発・入店・終了報告へ遷�
   assert.doesNotMatch(dashboardHtml, />稼働終了</);
 });
 
-test("出発報告でも同意済み位置情報を取得しGAS側で検証保存する", () => {
-  assert.match(dashboardSource, /const location = await readAttendanceLocation\(\)/);
-  assert.match(dashboardSource, /reportType: "出発", scheduleId: dashboardData\.schedule\.schedule_id \|\| "", location/);
+test("出発では位置情報を取らず最寄り到着だけを検証保存する", () => {
+  const departureFunction = dashboardSource.match(/async function submitDeparture\(\) \{[\s\S]*?\n\}/)?.[0] || "";
+  const nearestArrivalFunction = dashboardSource.match(/async function submitNearestArrival\(\) \{[\s\S]*?\n\}/)?.[0] || "";
+  assert.doesNotMatch(departureFunction, /readAttendanceLocation/);
+  assert.match(departureFunction, /reportType: "出発", scheduleId: dashboardData\.schedule\.schedule_id \|\| ""/);
+  assert.match(nearestArrivalFunction, /const location = await readAttendanceLocation\(\)/);
+  assert.match(nearestArrivalFunction, /reportType: "最寄り到着", scheduleId: dashboardData\.schedule\.schedule_id \|\| "", location/);
   assert.match(dashboardSource, /parsed\.version === LOCATION_CONSENT_VERSION/);
-  assert.match(dashboardHtml, /出発・入店・予定外稼働のボタンを押した時点の位置情報/);
-  assert.match(backendSource, /validateDepartureLocation_\(payload\.location\)/);
-  assert.match(backendSource, /saveLocation_\(user, fieldReportId, locationPayload/);
-  assert.match(backendSource, /departureLocation: departureLocation \|\| null/);
+  assert.match(dashboardHtml, /最寄り到着・予定外稼働のボタンを押した時点の位置情報/);
+  assert.match(dashboardHtml, /出発・入店では取得しません/);
+  assert.match(backendSource, /validateNearestArrivalLocation_\(payload\.location\)/);
+  assert.match(backendSource, /nearestLocation: nearestLocation \|\| null/);
+  assert.doesNotMatch(backendSource, /validateDepartureLocation_/);
 
   const context = timingContext();
-  assert.equal(context.validateDepartureLocation_({ status: "取得済み", latitude: 35, longitude: 135, accuracy: 10, consentVersion: "v2" }).status, "取得済み");
-  const zeroLocation = context.validateDepartureLocation_({ status: "取得済み", latitude: 0, longitude: 0, accuracy: 0 });
+  assert.equal(context.validateNearestArrivalLocation_({ status: "取得済み", latitude: 35, longitude: 135, accuracy: 10, consentVersion: "v2" }).status, "取得済み");
+  const zeroLocation = context.validateNearestArrivalLocation_({ status: "取得済み", latitude: 0, longitude: 0, accuracy: 0 });
   assert.equal(zeroLocation.latitude, 0);
   assert.equal(zeroLocation.longitude, 0);
   assert.equal(zeroLocation.accuracy, 0);
-  assert.throws(() => context.validateDepartureLocation_({ status: "取得済み", latitude: 91, longitude: 135, accuracy: 10 }), error => error.code === "DEPARTURE_LOCATION_INVALID");
-  assert.throws(() => context.validateDepartureLocation_(null), error => error.code === "DEPARTURE_LOCATION_REQUIRED");
+  assert.throws(() => context.validateNearestArrivalLocation_({ status: "取得済み", latitude: 91, longitude: 135, accuracy: 10 }), error => error.code === "NEAREST_ARRIVAL_LOCATION_INVALID");
+  assert.throws(() => context.validateNearestArrivalLocation_(null), error => error.code === "NEAREST_ARRIVAL_LOCATION_REQUIRED");
 });
 
-test("入店と予定外稼働も位置情報状態・座標をサーバー側で検証する", () => {
+test("通常入店は位置情報を再取得せず予定外稼働は従来どおり検証する", () => {
+  const arrivalFunction = dashboardSource.match(/async function submitArrival\(\) \{[\s\S]*?\n\}/)?.[0] || "";
+  const clockInRecordFunction = backendSource.match(/function createClockInRecord_\([\s\S]*?\n\}/)?.[0] || "";
+  assert.doesNotMatch(arrivalFunction, /readAttendanceLocation/);
+  assert.doesNotMatch(clockInRecordFunction, /saveLocation_|validateClockInLocation_/);
   assert.match(backendSource, /validateClockInLocation_\(payload\.location\)/);
   const context = timingContext();
   assert.equal(context.validateClockInLocation_({ status: "許可なし", consentVersion: "v2" }).status, "許可なし");
   assert.equal(context.validateClockInLocation_({ status: "取得済み", latitude: 35, longitude: 135, accuracy: 10 }).latitude, 35);
   assert.throws(() => context.validateClockInLocation_(null), error => error.code === "CLOCK_IN_LOCATION_REQUIRED");
   assert.throws(() => context.validateClockInLocation_({ status: "取得済み", latitude: 35, longitude: 181, accuracy: 10 }), error => error.code === "CLOCK_IN_LOCATION_INVALID");
+});
+
+test("出発保存は位置情報へ触れず、最寄り到着保存だけが位置情報を関連付ける", () => {
+  const context = timingContext();
+  const reports = [];
+  let savedLocation = null;
+  context.LockService = { getDocumentLock: () => ({ waitLock: () => {}, releaseLock: () => {} }) };
+  context.Utilities.getUuid = () => "FIELD-1";
+  context.today_ = () => "2026-08-28";
+  context.findSchedule_ = () => ({ "勤務日": "2026-08-28", "開発予定ID": "PLAN-1", "稼働場所": "店舗", schedule_id: "SCHEDULE-1" });
+  context.findScheduleById_ = context.findSchedule_;
+  context.ensureFieldReportSheet_ = () => {};
+  context.ensureFieldReportContractHeaders_ = () => {};
+  context.fieldReportsFor_ = () => reports;
+  context.findRecord_ = () => null;
+  context.appendObject_ = (_sheet, report) => reports.push(report);
+  context.notifyManagers_ = () => {};
+  context.saveLocation_ = (_user, reportId, location, plannedLocation) => {
+    savedLocation = { reportId, location, plannedLocation };
+    return { id: "LOCATION-1", status: location.status };
+  };
+
+  context.submitFieldReport_({ email: "member@example.com", name: "会員" }, { reportType: "出発", scheduleId: "SCHEDULE-1" }, "token");
+  assert.equal(savedLocation, null);
+  assert.equal(reports[0]["報告種別"], "出発");
+
+  context.submitFieldReport_({ email: "member@example.com", name: "会員" }, {
+    reportType: "最寄り到着",
+    scheduleId: "SCHEDULE-1",
+    location: { status: "取得済み", latitude: 35, longitude: 135, accuracy: 10 }
+  }, "token");
+  assert.equal(savedLocation.reportId, "FIELD-1");
+  assert.equal(savedLocation.location.status, "取得済み");
+  assert.match(savedLocation.plannedLocation, /^最寄り到着:/);
+  assert.equal(reports[1]["報告種別"], "最寄り到着");
+});
+
+test("新しい入店は最寄り到着を必須とし、旧入店済みデータはそのまま再表示できる", () => {
+  const context = timingContext();
+  const schedule = { "勤務日": "2026-08-28", "開発予定ID": "PLAN-1", schedule_id: "SCHEDULE-1" };
+  context.findScheduleById_ = () => schedule;
+  context.fieldReportsFor_ = () => [{ "報告種別": "出発" }];
+  context.findRecord_ = () => null;
+  context.buildTimingStatus_ = () => ({ arrivalApprovalRequired: false });
+  context.LockService = { getDocumentLock: () => ({ waitLock: () => {}, releaseLock: () => {} }) };
+  context.ensureFieldReportSheet_ = () => {};
+  context.ensureFieldReportContractHeaders_ = () => {};
+  assert.throws(
+    () => context.arrive_({ email: "member@example.com" }, { scheduleId: "SCHEDULE-1" }, "token"),
+    error => error.code === "NEAREST_ARRIVAL_REPORT_REQUIRED"
+  );
+
+  const previousRecord = { record_id: "RECORD-1", "実開始": "10:00", "状態": "稼働中" };
+  context.fieldReportsFor_ = () => [{ "報告種別": "出発" }, { "報告種別": "入店", field_report_id: "OLD-ARRIVAL" }];
+  context.findRecord_ = () => previousRecord;
+  context.findApprovalRequestId_ = () => "";
+  context.hasPendingApproval_ = () => false;
+  const result = context.arrive_({ email: "member@example.com" }, { scheduleId: "SCHEDULE-1" }, "token");
+  assert.equal(result.duplicate, true);
+  assert.equal(result.record.record_id, "RECORD-1");
 });
 
 test("同日複数予定は選択したschedule_idを画面・現場報告・勤怠記録へ維持する", () => {
