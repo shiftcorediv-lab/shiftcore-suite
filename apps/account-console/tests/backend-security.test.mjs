@@ -32,6 +32,7 @@ function createSheet(initialRows = []) {
     getDataRange: () => ({ getValues: () => values.map(row => row.slice()) }),
     getLastColumn: () => Math.max(1, ...values.map(row => row.length)),
     getLastRow: () => values.length,
+    deleteRow: row => values.splice(row - 1, 1),
     getRange: (row, column, rowCount = 1, columnCount = 1) => ({
       getValues: () => Array.from({ length: rowCount }, (_, rowOffset) => Array.from({ length: columnCount }, (_, columnOffset) => values[row - 1 + rowOffset]?.[column - 1 + columnOffset] ?? "")),
       setValue: value => { ensureCell(row - 1, column - 1); values[row - 1][column - 1] = value; },
@@ -503,6 +504,40 @@ test("背景予定同期の失敗は印を消して次回再試行できる", ()
   assert.equal(context.getDashboardSchedules_("token").sync.status, "failed");
   assert.equal(syncCalls, 2);
   assert.equal(cacheValues.size, 0);
+});
+
+test("ShiftBuilder同期は解除済み予定と重複を除去し、勤怠参照済み予定は残す", () => {
+  const { context, sheets } = createAttendanceContext([]);
+  const headers = ["schedule_id", "employee_code", "氏名", "勤務日", "予定開始", "予定終了", "稼働場所", "開発予定ID", "開発予定名", "更新日時"];
+  sheets["稼働予定"] = createSheet([
+    headers,
+    ["SA-LIVE", "U001", "担当者", "2026-09-05", "10:00", "18:00", "店舗A", "CASE-1", "案件1", ""],
+    ["SA-LIVE", "U001", "担当者", "2026-09-05", "10:00", "18:00", "店舗A", "CASE-1", "案件1", ""],
+    ["SA-REMOVED", "U001", "担当者", "2026-09-06", "10:00", "18:00", "店舗B", "CASE-2", "案件2", ""],
+    ["SA-PROTECTED", "U001", "担当者", "2026-09-07", "10:00", "18:00", "店舗C", "CASE-3", "案件3", ""],
+    ["MANUAL-1", "U001", "担当者", "2026-09-08", "10:00", "18:00", "店舗D", "CASE-4", "案件4", ""]
+  ]);
+  const recordHeaders = sheets["勤怠記録"].values[0];
+  sheets["勤怠記録"].values.push(recordHeaders.map(header => header === "record_id" ? "REC-1" : header === "schedule_id" ? "SA-PROTECTED" : ""));
+
+  const result = context.mergeSchedules_(context.rows_("稼働予定"), [{
+    schedule_id: "SA-LIVE",
+    employee_code: "U001",
+    "氏名": "担当者",
+    "勤務日": "2026-09-05",
+    "予定開始": "10:05",
+    "予定終了": "18:00",
+    "稼働場所": "店舗A",
+    "開発予定ID": "CASE-1",
+    "開発予定名": "案件1"
+  }], "2026-09");
+
+  const ids = sheets["稼働予定"].values.slice(1).map(row => row[0]);
+  assert.deepEqual(ids, ["SA-LIVE", "SA-PROTECTED", "MANUAL-1"]);
+  assert.equal(result.filter(item => item.schedule_id === "SA-LIVE").length, 1);
+  assert.equal(result.find(item => item.schedule_id === "SA-LIVE")["予定開始"], "10:05");
+  assert.ok(result.find(item => item.schedule_id === "SA-LIVE")["更新日時"]);
+  assert.ok(result.some(item => item.schedule_id === "SA-PROTECTED"));
 });
 
 test("CSVは通常出力で最新版だけ、履歴出力で修正前後を含める", () => {
