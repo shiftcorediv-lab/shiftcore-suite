@@ -107,6 +107,67 @@ test('認証付きGETをGASとWorkerの両方で拒否する', () => {
   assert.match(workerSource, /searchParams\.has\("idToken"\)/);
 });
 
+test('WorkerはApps Scriptの応答先だけを明示的にたどりPOST結果を返す', async () => {
+  const calls = [];
+  const runnableWorkerSource = workerSource.replace(
+    'export default',
+    'globalThis.orderCaseWorker ='
+  );
+  const context = vm.createContext({
+    URL,
+    Request,
+    Response,
+    JSON,
+    console,
+    fetch: async (url, options) => {
+      calls.push({ url: String(url), options });
+
+      if (calls.length === 1) {
+        return new Response(null, {
+          status: 302,
+          headers: {
+            Location: 'https://script.googleusercontent.com/macros/echo?user_content_key=result'
+          }
+        });
+      }
+
+      return new Response(JSON.stringify({
+        ok: false,
+        code: 'SERVER_ERROR',
+        message: 'idToken が必要です。'
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  });
+  vm.runInContext(runnableWorkerSource, context);
+
+  const requestBody = JSON.stringify({
+    action: 'getCaseDetail',
+    case_id: 'CASE-001',
+    idToken: 'SECRET_ID_TOKEN'
+  });
+  const response = await context.orderCaseWorker.fetch(new Request(
+    'https://ordercase.example/api',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: requestBody
+    }
+  ));
+
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].options.method, 'POST');
+  assert.equal(calls[0].options.body, requestBody);
+  assert.equal(calls[0].options.redirect, 'manual');
+  assert.equal(calls[1].url, 'https://script.googleusercontent.com/macros/echo?user_content_key=result');
+  assert.equal(calls[1].options.method, 'GET');
+  assert.equal(calls[1].options.redirect, 'follow');
+  assert.doesNotMatch(calls[1].url, /SECRET_ID_TOKEN|idToken/);
+  assert.equal((await response.json()).code, 'SERVER_ERROR');
+});
+
 test('POSTされた読取actionだけを読取処理へ渡す', () => {
   const calls = [];
   const context = vm.createContext({
