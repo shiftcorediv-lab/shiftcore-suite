@@ -11,6 +11,39 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type"
 };
 
+async function fetchGasResponse(gasUrl, init) {
+  let response = await fetch(gasUrl.toString(), {
+    ...init,
+    redirect: "manual"
+  });
+
+  if (response.status < 300 || response.status >= 400) {
+    return response;
+  }
+
+  const location = response.headers.get("Location");
+
+  if (!location) {
+    throw new Error("Apps Scriptの応答先がありません。");
+  }
+
+  const redirectUrl = new URL(location);
+
+  if (
+    redirectUrl.protocol !== "https:" ||
+    redirectUrl.hostname !== "script.googleusercontent.com"
+  ) {
+    throw new Error("Apps Scriptの応答先が不正です。");
+  }
+
+  response = await fetch(redirectUrl.toString(), {
+    method: "GET",
+    redirect: "follow"
+  });
+
+  return response;
+}
+
 export default {
   async fetch(request) {
     // OPTIONS ここから
@@ -58,7 +91,7 @@ export default {
         init.body = await request.text();
       }
 
-      const gasResponse = await fetch(gasUrl.toString(), init);
+      const gasResponse = await fetchGasResponse(gasUrl, init);
       const text = await gasResponse.text();
 
       return new Response(text, {
