@@ -22,17 +22,19 @@ import { mockShiftData } from "./mock-data.js?v=20260801-authfix-1";
 import { escapeHtml } from "./utils.js?v=20260801-authfix-1";
 import { getPermissionLabel, canEdit } from "./permissions.js?v=20260801-authfix-1";
 import { renderSummary } from "./render-summary.js?v=20260801-authfix-1";
-import { renderShiftTable } from "./render-shift-table.js?v=20260905-cell-readability-1";
-import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20260801-authfix-1";
-import { renderPersonnelTable } from "./render-personnel-table.js?v=20260801-authfix-1";
+import { renderShiftTable } from "./render-shift-table.js?v=20260905-identity-labels-1";
+import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20260905-identity-labels-1";
+import { renderPersonnelTable } from "./render-personnel-table.js?v=20260905-identity-labels-1";
 import { getConsecutiveWorkAlert } from "./consecutive-work-alert.js?v=20260801-authfix-1";
+import { getCaseIdentityLabel } from "./display-labels.mjs?v=20260905-identity-labels-1";
+import { getCaseMemberPreference } from "./assignment-preference-policy.mjs?v=20260905-preference-rules-1";
 import {
   renderSelectedCell,
   resetDetailPanel,
   renderCellPreviewPopover,
   renderPersonnelCellPreviewPopover,
   renderCellActionPopover
-} from "./render-detail-panel.js?v=20260905-cell-readability-1";
+} from "./render-detail-panel.js?v=20260905-identity-labels-1";
 import {
   setCurrentSession,
   setCurrentUser,
@@ -656,9 +658,10 @@ function normalizeAssignmentCandidatesForCell(candidates, selectedCell) {
           workDate: selectedCell?.dateItem?.date
         })
       : null;
+    const preference = getCaseMemberPreference(selectedCell?.caseItem, candidate);
 
-    let sortRank = 10;
-    let buttonLabel = "アサイン";
+    let sortRank = preference.isPreferred ? 0 : 10;
+    let buttonLabel = preference.isPreferred ? "推しをアサイン" : "アサイン";
     let disabled = false;
     let warningText = "";
 
@@ -679,11 +682,20 @@ function normalizeAssignmentCandidatesForCell(candidates, selectedCell) {
         : "同日別案件あり";
     }
 
+    if (preference.isNg) {
+      sortRank = 95;
+      buttonLabel = "NG配置不可";
+      disabled = true;
+      warningText = "この店舗のNGメンバーです";
+    }
+
     if (alreadyAssigned) {
-      sortRank = 90;
+      sortRank = 100;
       buttonLabel = "アサイン済み";
       disabled = true;
-      warningText = "";
+      warningText = preference.isNg
+        ? "この店舗のNGメンバーです。既存配置は自動解除しません"
+        : "";
     }
 
     if (!alreadyAssigned && (consecutiveWorkAlert || !isPreviousMonthDataAvailable)) {
@@ -710,7 +722,9 @@ function normalizeAssignmentCandidatesForCell(candidates, selectedCell) {
         buttonLabel,
         warningText,
         sortRank,
-        consecutiveWorkAlert
+        consecutiveWorkAlert,
+        isPreferred: preference.isPreferred,
+        isNg: preference.isNg
       }
     };
   }).sort((candidateA, candidateB) => {
@@ -1301,15 +1315,21 @@ function getPersonnelAssignmentOptions(internalUserId, workDate) {
       return [];
     }
 
+    const preference = getCaseMemberPreference(caseItem, candidate);
+    if (preference.isNg) {
+      return [];
+    }
+
     return [{
       caseId: caseItem.caseId,
       title: caseItem.title || caseItem.caseId || "案件名未設定",
       client: caseItem.client || "",
       area: caseItem.area || "",
       assignedCount,
-      required
+      required,
+      isPreferred: preference.isPreferred
     }];
-  });
+  }).sort((optionA, optionB) => Number(optionB.isPreferred) - Number(optionA.isPreferred));
 }
 
 function confirmRequestedOffAssignment(internalUserId, workDate) {
@@ -1508,7 +1528,7 @@ function openPersonnelAssignmentPopover(internalUserId, workDate, anchorElement)
             data-date="${escapeHtml(workDate)}"
             data-assignment-id="${escapeHtml(assignment.assignmentId)}"
           >
-            ${escapeHtml(assignment.title)} を解除
+            ${escapeHtml(getCaseIdentityLabel(assignment))} を解除
           </button>
         `).join("")}
       </div>
@@ -1523,7 +1543,7 @@ function openPersonnelAssignmentPopover(internalUserId, workDate, anchorElement)
           data-case-id="${escapeHtml(option.caseId)}"
           data-date="${escapeHtml(workDate)}"
         >
-          ${escapeHtml(option.title)}（${option.assignedCount}/${option.required}）
+          ${option.isPreferred ? "【推し】" : ""}${escapeHtml(getCaseIdentityLabel(option))}（${option.assignedCount}/${option.required}）
         </button>
       `).join("") : `<div class="empty-note">この人員を追加できる未充足案件はありません。</div>`}
     </div>
@@ -1858,7 +1878,7 @@ function renderCurrentShiftView(options = {}) {
     );
 
     if (elements.shiftTable) {
-      elements.shiftTable.style.minWidth = `${170 + personnelViewModel.dates.length * 40}px`;
+      elements.shiftTable.style.minWidth = `${170 + personnelViewModel.dates.length * 44}px`;
     }
 
     isRenderingShiftView = true;

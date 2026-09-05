@@ -1,8 +1,9 @@
 // ===== ShiftBuilder render-detail-panel.js ここから =====
 
 import { escapeHtml } from "./utils.js?v=20260801-authfix-1";
-import { getCellStatus } from "./render-shift-table.js?v=20260905-cell-readability-1";
+import { getCellStatus } from "./render-shift-table.js?v=20260905-identity-labels-1";
 import { CANDIDATE_GROUP_CLASSES } from "./constants.js?v=20260801-authfix-1";
+import { getCaseIdentityLabel } from "./display-labels.mjs?v=20260905-identity-labels-1";
 import {
   getAssignmentId,
   getInternalUserId
@@ -330,7 +331,7 @@ export function renderPersonnelCellPreviewPopover(context = {}) {
       ? "配置済み"
       : "未配置";
   const assignmentSummary = assignments
-    .map((assignment) => assignment.title || assignment.caseId || "案件名未設定")
+    .map((assignment) => getCaseIdentityLabel(assignment))
     .join(" / ");
   const attributes = [
     context.accountCode || "コード未設定",
@@ -656,15 +657,20 @@ function renderAssignmentCandidatesHtml(candidates, assignedMembers, actionMode 
           candidate.conflictReason ||
           "";
         const consecutiveAlertLevel = uiState.consecutiveWorkAlert?.level || "";
+        const preferenceBadge = uiState.isPreferred
+          ? '<span class="candidate-relation-badge is-preferred">推し</span>'
+          : uiState.isNg
+            ? '<span class="candidate-relation-badge is-ng">NG</span>'
+            : "";
 
         const candidateActions = actionMode === "replace"
           ? renderReplacementCandidateButtons(userId, alreadyAssigned, safeAssignedMembers, uiState)
           : renderAssignCandidateButton(userId, alreadyAssigned, uiState);
 
         return `
-          <div class="candidate-card ${alreadyAssigned ? "is-assigned" : ""} ${hasSameDayConflict ? "is-conflict" : ""} ${consecutiveAlertLevel ? `is-consecutive-${escapeHtml(consecutiveAlertLevel)}` : ""}">
+          <div class="candidate-card ${alreadyAssigned ? "is-assigned" : ""} ${hasSameDayConflict ? "is-conflict" : ""} ${uiState.isPreferred ? "is-preferred" : ""} ${uiState.isNg ? "is-ng" : ""} ${consecutiveAlertLevel ? `is-consecutive-${escapeHtml(consecutiveAlertLevel)}` : ""}">
             <div class="candidate-card-main">
-              <div class="candidate-name">${escapeHtml(displayName)}</div>
+              <div class="candidate-name">${escapeHtml(displayName)}${preferenceBadge}</div>
               <div class="candidate-meta">
                 ${escapeHtml(accountCode || "社員コードなし")} / ${escapeHtml(userId)}
               </div>

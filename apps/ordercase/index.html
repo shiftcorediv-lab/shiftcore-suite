@@ -700,6 +700,8 @@ input[type="time"] {
       storesMaster: []
     };
     const createOperationTracker = window.OrderCaseCreateOperationPolicy.createTracker();
+    const SHIFTBUILDER_DATA_REVISION_KEY =
+      'shiftcore-shiftbuilder-data-revision-v1';
     /****************************************************
      * 状態 ここまで
      ****************************************************/
@@ -1539,6 +1541,7 @@ input[type="time"] {
         createOperationTracker.complete(payload.create_operation_id);
 
         sessionStorage.setItem('ordercase_force_list_refresh', '1');
+        notifyShiftBuilderDataChanged();
 
         clearFormAfterSubmit();
         formResetCompleted = true;
@@ -1567,6 +1570,25 @@ input[type="time"] {
     }
     /****************************************************
      * submitCase ここまで
+     ****************************************************/
+
+
+    /****************************************************
+     * notifyShiftBuilderDataChanged ここから
+     * シフトと勤怠ダッシュボードへ案件更新を通知する
+     ****************************************************/
+    function notifyShiftBuilderDataChanged() {
+      try {
+        localStorage.setItem(
+          SHIFTBUILDER_DATA_REVISION_KEY,
+          `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        );
+      } catch (error) {
+        console.warn('シフト更新通知を保存できませんでした:', error);
+      }
+    }
+    /****************************************************
+     * notifyShiftBuilderDataChanged ここまで
      ****************************************************/
 
 

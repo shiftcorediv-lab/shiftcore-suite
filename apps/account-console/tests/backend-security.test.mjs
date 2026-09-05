@@ -481,6 +481,28 @@ test("背景予定同期は成功後5分の印だけを共有し、予定本体�
   assert.ok(Array.from(cacheValues.values()).every(value => !value.includes("SYNC-1") && !value.includes("LOCAL")));
 });
 
+test("案件更新後の強制同期は5分キャッシュが残っていても最新予定を取得する", () => {
+  const { context } = createAttendanceContext([]);
+  const cacheValues = new Map();
+  context.CacheService = { getScriptCache: () => ({
+    get: key => cacheValues.get(key) || null,
+    put: (key, value) => cacheValues.set(key, value),
+    remove: key => cacheValues.delete(key)
+  }) };
+  context.rows_ = () => [{ schedule_id: "LOCAL" }];
+  let syncCalls = 0;
+  context.syncSchedules_ = () => ({ schedules: [{ schedule_id: `SYNC-${++syncCalls}` }], synced: true });
+
+  context.markDashboardScheduleSyncFresh_();
+  const forced = context.getDashboardSchedules_("token", { forceRefresh: true, sourceRevision: "REV-1" });
+  const repeated = context.getDashboardSchedules_("token", { forceRefresh: true, sourceRevision: "REV-1" });
+
+  assert.equal(forced.sync.status, "refreshed");
+  assert.equal(forced.schedules[0].schedule_id, "SYNC-1");
+  assert.equal(repeated.sync.status, "fresh-cache");
+  assert.equal(syncCalls, 1);
+});
+
 test("予定同期キャッシュがなければ初期応答は外部同期を実行せずstaleを返す", () => {
   const { context } = createAttendanceContext([]);
   let syncCalls = 0;

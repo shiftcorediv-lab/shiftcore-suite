@@ -10,6 +10,7 @@ import {
   getAssignmentId,
   getInternalUserId
 } from "./record-normalizers.mjs?v=20260801-authfix-1";
+import { getCompactMemberLabel } from "./display-labels.mjs?v=20260905-identity-labels-1";
 
 export function buildOrderCaseDetailsUrl(caseId, environment = globalThis.window?.ShiftCoreEnvironment) {
   if (!environment || typeof environment.withEnvironment !== "function") {
@@ -120,7 +121,7 @@ function getAssignedMemberNames(cell) {
       ).trim();
 
       return {
-        label: familyName || fallbackName,
+        label: getCompactMemberLabel(member, getInternalUserId(member)),
         fullName: fullName || fallbackName
       };
     })

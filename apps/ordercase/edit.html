@@ -1419,9 +1419,7 @@
         state.caseDetail = Object.assign({}, state.caseDetail, payload);
         sessionStorage.setItem('ordercase_force_list_refresh', '1');
 
-        if (isAssignmentEjectStatus || updatedAssignmentTimeCount > 0) {
-          notifyShiftBuilderDataChanged();
-        }
+        notifyShiftBuilderDataChanged();
 
         if (isAssignmentEjectStatus && !assignmentCleanupSucceeded) {
           const cleanupError = String(
@@ -1486,7 +1484,7 @@
 
     /****************************************************
      * notifyShiftBuilderDataChanged ここから
-     * 別タブのShiftBuilderにも案件状態変更を通知する
+     * シフトと勤怠ダッシュボードへ案件更新を通知する
      ****************************************************/
     function notifyShiftBuilderDataChanged() {
       try {
@@ -1495,7 +1493,7 @@
           `${Date.now()}-${Math.random().toString(36).slice(2)}`
         );
       } catch (error) {
-        console.warn('ShiftBuilder更新通知を保存できませんでした:', error);
+        console.warn('シフト更新通知を保存できませんでした:', error);
       }
     }
     /****************************************************
