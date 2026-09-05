@@ -13,6 +13,7 @@ const reportLoadGeneration = createResponseGeneration();
 setInitialDates();
 onAuthStateChanged(auth, user => user ? load() : location.replace("./index.html"));
 $("refreshBtn").addEventListener("click", load);
+$("setupBtn").addEventListener("click", setupWorkReportData);
 $("applyBtn").addEventListener("click", load);
 $("csvBtn").addEventListener("click", () => downloadCsv(false));
 $("historyCsvBtn").addEventListener("click", () => downloadCsv(true));
@@ -34,13 +35,35 @@ async function load() {
     const result = await attendanceRequest("getWorkReportAdminData", filterPayload());
     if (!reportLoadGeneration.isCurrent(generation)) return;
     data = result;
+    $("setupBtn").hidden = true;
     render();
     message("最新の実績報告を表示しています。");
   } catch (error) {
     if (!reportLoadGeneration.isCurrent(generation)) return;
     message(error.message, true);
+    $("setupBtn").hidden = !needsSchemaSetup(error);
     if (error.code === "FORBIDDEN") setTimeout(() => location.replace("./dashboard.html"), 1200);
   }
+}
+
+async function setupWorkReportData() {
+  $("setupBtn").disabled = true;
+  message("実績報告の初期設定を実行しています…", false, true);
+  try {
+    await attendanceRequest("setupWorkReportData");
+    $("setupBtn").hidden = true;
+    message("実績報告の初期設定が完了しました。既存データは保持されています。");
+    await load();
+  } catch (error) {
+    message(error.message, true);
+  } finally {
+    $("setupBtn").disabled = false;
+  }
+}
+
+function needsSchemaSetup(error) {
+  return ["SHEET_SCHEMA_MISMATCH", "SHEET_NOT_FOUND"].includes(error?.code)
+    || /実績報告の初期設定/.test(String(error?.message || ""));
 }
 
 function filterPayload() {

@@ -16,6 +16,8 @@ import {
   downloadCsvBtn
 } from "./dom.js";
 
+const ROLE_LABELS = { member: "メンバー", admin: "管理者", developer: "開発管理者", partner_individual: "アライアンス個人", partner_company_admin: "アライアンス法人 管理者" };
+
 export function setInfoBox(target, text, type = "") {
   target.textContent = text;
   target.className = "info-box";
@@ -41,13 +43,13 @@ export function renderAccountInfo(currentUser) {
 
   setInfoBox(
     employeeCodeBox,
-    currentUser.employeeCode || "社員コードを取得できませんでした",
+    currentUser.employeeCode || "アカウントコードを取得できませんでした",
     currentUser.employeeCode ? "success" : "error"
   );
 
   setInfoBox(
     roleBox,
-    currentUser.role || "未設定",
+    ROLE_LABELS[String(currentUser.role || "").toLowerCase()] || "未設定",
     currentUser.role ? "success" : "error"
   );
 

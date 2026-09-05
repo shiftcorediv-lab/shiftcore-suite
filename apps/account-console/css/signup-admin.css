@@ -13,6 +13,28 @@ body {
   padding: 16px;
 }
 
+.signup-header {
+  display: flex;
+  justify-content: space-between;
+}
+
+.signup-header h1 {
+  margin: 0;
+  text-align: left;
+  font-size: 23px;
+}
+
+.signup-subtitle {
+  margin: 4px 0 0;
+  color: #667085;
+  font-size: 13px;
+}
+
+.signup-header .back-btn {
+  width: auto;
+  padding: 10px 14px;
+}
+
 .card {
   background: #fff;
   border-radius: 16px;
@@ -219,6 +241,12 @@ input:disabled {
   .card {
     padding: 16px;
     border-radius: 14px;
+  }
+}
+
+@media (max-width: 720px) {
+  .signup-header h1 {
+    font-size: 20px;
   }
 }
 

@@ -1,11 +1,14 @@
 import {
   userNameBox,
   employeeCodeBox,
+  roleBox,
   developerMetaArea,
   messageBox,
   goManageBtn,
   manageHint
 } from "./dom.js";
+
+const ROLE_LABELS = { member: "メンバー", admin: "管理者", developer: "開発管理者", partner_individual: "アライアンス個人", partner_company_admin: "アライアンス法人 管理者" };
 
 export function setInfoBox(target, text, type = "") {
   target.textContent = text;
@@ -28,48 +31,21 @@ export function renderAccountInfo(currentUser) {
 
   setInfoBox(
     employeeCodeBox,
-    currentUser.employeeCode || "社員コードを取得できませんでした",
+    currentUser.employeeCode || "アカウントコードを取得できませんでした",
     currentUser.employeeCode ? "success" : "error"
   );
 
   setInfoBox(
     roleBox,
-    currentUser.role || "未設定",
+    ROLE_LABELS[String(currentUser.role || "").toLowerCase()] || "未設定",
     currentUser.role ? "success" : "error"
   );
 }
 export function renderDeveloperMeta(params, currentUser) {
-  const role = String(currentUser?.role || "").trim().toLowerCase();
-
-  if (role !== "developer") {
-    developerMetaArea.style.display = "none";
-    developerMetaArea.textContent = "";
-    return;
-  }
-
-  const moduleName = params?.module || "unknown";
-  const workStatus = currentUser?.workStatus || "未設定";
-
-  developerMetaArea.style.display = "block";
+  void params;
+  void currentUser;
+  developerMetaArea.style.display = "none";
   developerMetaArea.textContent = "";
-
-  const inner = document.createElement("div");
-  inner.className = "developer-meta-inner";
-
-  const moduleSpan = document.createElement("span");
-  moduleSpan.textContent = "Another Portal > " + moduleName;
-
-  const roleSpan = document.createElement("span");
-  roleSpan.textContent = "role: " + role;
-
-  const workStatusSpan = document.createElement("span");
-  workStatusSpan.textContent = "workStatus: " + workStatus;
-
-  inner.appendChild(moduleSpan);
-  inner.appendChild(roleSpan);
-  inner.appendChild(workStatusSpan);
-
-  developerMetaArea.appendChild(inner);
 }
 
 export function updateManageButtonState(canManage) {

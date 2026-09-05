@@ -13,10 +13,13 @@
 </head>
 <body>
   <div class="container">
-    <header class="pmo-header">
-      <div>
-        <h1 class="pmo-header-title">オフ</h1>
-        <p class="pmo-header-subtitle">希望休管理</p>
+    <header class="pmo-header portal-module-header">
+      <div class="portal-module-heading">
+        <a class="portal-brand" href="./dashboard.html" aria-label="Another Portal ダッシュボードへ戻る">
+          <span class="portal-brand-mark" aria-hidden="true"><span></span><span></span></span>
+          <span class="portal-brand-copy"><strong>Another Portal</strong><small>WORKFORCE PLATFORM</small></span>
+        </a>
+        <div class="portal-module-title"><h1 class="pmo-header-title">オフ</h1><p class="pmo-header-subtitle">希望休管理</p></div>
       </div>
 
       <div class="pmo-header-actions">
@@ -34,12 +37,12 @@
         </div>
 
         <div class="info-compact-item">
-          <label>社員コード</label>
+          <label>アカウントコード</label>
           <div class="info-box" id="employeeCodeBox">取得中...</div>
         </div>
 
         <div class="info-compact-item">
-          <label>ロール</label>
+          <label>アカウント種別</label>
           <div class="info-box" id="roleBox">取得中...</div>
         </div>
       </div>
@@ -86,7 +89,7 @@
     </div>
 
     <div class="card" id="developerToolsCard" style="display: none;">
-      <h2>developer専用</h2>
+      <h2>開発管理者向け</h2>
       <div class="hint">原本確認やスプレッドシート直接確認が必要な場合のみ使用します。</div>
 
       <div class="button-stack">
@@ -97,6 +100,6 @@
 
   </div>
 
-  <script type="module" src="./js/pmo-admin/main.js?v=20260902-response-generation-1"></script>
+  <script type="module" src="./js/pmo-admin/main.js?v=20260906-display-labels-1"></script>
 </body>
 </html>

@@ -8,6 +8,9 @@ import {
   portalHint
 } from "./dom.js";
 
+const ROLE_LABELS = { member: "メンバー", admin: "管理者", developer: "開発管理者", partner_individual: "アライアンス個人", partner_company_admin: "アライアンス法人 管理者" };
+const WORK_STATUS_LABELS = { on: "稼働対象", off: "稼働対象外", active: "稼働対象", inactive: "稼働対象外" };
+
 export function setInfoBox(target, text, type = "") {
   target.textContent = text;
   target.className = "info-box";
@@ -29,7 +32,7 @@ export function renderAccountInfo(currentUser) {
 
   setInfoBox(
     employeeCodeBox,
-    currentUser.employeeCode || "社員コードを取得できませんでした",
+    currentUser.employeeCode || "アカウントコードを取得できませんでした",
     currentUser.employeeCode ? "success" : "error"
   );
 
@@ -37,11 +40,11 @@ export function renderAccountInfo(currentUser) {
 
   const roleBadge = document.createElement("span");
   roleBadge.className = "badge";
-  roleBadge.textContent = "role: " + (currentUser.role || "未設定");
+  roleBadge.textContent = "アカウント種別：" + (ROLE_LABELS[String(currentUser.role || "").toLowerCase()] || "未設定");
 
   const workStatusBadge = document.createElement("span");
   workStatusBadge.className = "badge";
-  workStatusBadge.textContent = "workStatus: " + (currentUser.workStatus || "未設定");
+  workStatusBadge.textContent = "稼働対象状態：" + (WORK_STATUS_LABELS[String(currentUser.workStatus || "").toLowerCase()] || "未設定");
 
   accountMetaArea.appendChild(roleBadge);
   accountMetaArea.appendChild(workStatusBadge);
@@ -64,7 +67,7 @@ export function setupShiftCoreEntryBanner(params) {
   titleLine.appendChild(titleStrong);
 
   const moduleLine = document.createElement("div");
-  moduleLine.textContent = "module: " + (params.module || "unknown");
+  moduleLine.textContent = "メンバー管理を表示しています。";
 
   banner.appendChild(titleLine);
   banner.appendChild(moduleLine);

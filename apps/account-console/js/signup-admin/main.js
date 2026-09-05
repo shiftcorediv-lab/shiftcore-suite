@@ -5,7 +5,6 @@ import {
   rejectBtn,
   roleSelect,
   organizationIdInput,
-  allowedModulesInput,
   statusSelect,
   workStatusSelect,
 } from "./dom.js?v=20260802-signup-auth-1";
@@ -17,9 +16,10 @@ import {
   applyApprovalDefaults,
   setActionButtonsEnabled,
   setApprovalFormEditable,
+  getSelectedAllowedModules,
   getApprovalSummary,
   showMessage
-} from "./ui.js?v=20260903-display-labels-2";
+} from "./ui.js?v=20260906-display-labels-3";
 import { canUseSignupAdmin, goToAccountPortal } from "./navigation.js?v=20260812-developer-1";
 import { fetchSignupRequests, approveSignupRequest, rejectSignupRequest } from "./api.js?v=20260806-permission-2";
 import { requireAuthenticatedSession } from "../common/auth-session.js?v=20260802-signup-auth-1";
@@ -113,7 +113,8 @@ approveBtn.addEventListener("click", async () => {
     return;
   }
 
-  if (!roleSelect.value || !organizationIdInput.value.trim() || !allowedModulesInput.value.trim() || !statusSelect.value || !workStatusSelect.value) {
+  const allowedModules = getSelectedAllowedModules();
+  if (!roleSelect.value || !organizationIdInput.value.trim() || !allowedModules.length || !statusSelect.value || !workStatusSelect.value) {
     showMessage("承認に必要な項目を入力してください", "error");
     return;
   }
@@ -135,8 +136,10 @@ approveBtn.addEventListener("click", async () => {
       selectedRequest.request_id,
       {
         role: roleSelect.value,
-        organizationId: organizationIdInput.value.trim(),
-        allowedModules: allowedModulesInput.value.trim().split(",").map(v => v.trim()).filter(Boolean),
+        organizationId: roleSelect.value === "member" && organizationIdInput.value.trim() === "Another"
+          ? "internal"
+          : organizationIdInput.value.trim(),
+        allowedModules,
         status: statusSelect.value,
         workStatus: workStatusSelect.value,
       },

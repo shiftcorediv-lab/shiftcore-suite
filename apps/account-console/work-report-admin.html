@@ -5,15 +5,24 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <script src="../common/environment.js?v=20260902-banner-height-1"></script>
   <title>Another Portal 実績報告管理</title>
-  <link rel="stylesheet" href="./css/work-report-admin.css?v=20260901-csv-actions-1">
+  <link rel="stylesheet" href="./css/work-report-admin.css?v=20260906-unified-header-1">
   <script src="../theme/shiftcore-theme.js?v=20260903-responsive-layout-1"></script>
   <link rel="stylesheet" href="../theme/shiftcore-theme.css">
 </head>
 <body>
-  <header>
-    <nav><a href="./dashboard.html">← ダッシュボード</a><a href="./attendance-admin.html">勤怠管理</a></nav>
-    <div><small>実績報告</small><h1>実績報告管理</h1></div>
-    <button id="refreshBtn" type="button">更新</button>
+  <header class="admin-header portal-module-header">
+    <div class="portal-module-heading">
+      <a class="portal-brand" href="./dashboard.html" aria-label="Another Portal ダッシュボードへ戻る">
+        <span class="portal-brand-mark" aria-hidden="true"><span></span><span></span></span>
+        <span class="portal-brand-copy"><strong>Another Portal</strong><small>WORKFORCE PLATFORM</small></span>
+      </a>
+      <div class="portal-module-title"><h1>実績報告管理</h1><p class="admin-subtitle">提出状況・集計・項目設定</p></div>
+    </div>
+    <div class="header-actions">
+      <a class="nav-link" href="./attendance-admin.html">勤怠管理</a>
+      <button id="setupBtn" class="secondary" type="button" hidden>初期設定を実行</button>
+      <button id="refreshBtn" class="primary-button" type="button">更新</button>
+    </div>
   </header>
   <main>
     <section class="filter-panel">
@@ -56,6 +65,6 @@
   <dialog id="detailDialog"><form method="dialog"><div class="dialog-title"><h2>実績報告詳細</h2><button value="cancel" aria-label="閉じる">×</button></div><div id="detailBody"></div></form></dialog>
   <dialog id="returnDialog"><form id="returnForm" method="dialog"><div class="dialog-title"><h2>実績報告を差し戻す</h2><button value="cancel" aria-label="閉じる">×</button></div><p>承認工程ではありません。本人へ修正を依頼し、現在の提出内容は履歴として保持します。</p><label>差戻し理由<textarea id="returnReason" maxlength="1000" required></textarea></label><div class="dialog-actions"><button value="cancel" type="button" id="cancelReturnBtn">キャンセル</button><button type="submit">差し戻す</button></div></form></dialog>
   <dialog id="itemDialog"><form id="itemForm" method="dialog"><div class="dialog-title"><h2>実績項目を追加</h2><button value="cancel" aria-label="閉じる">×</button></div><label>項目名<input id="newItemName" maxlength="100" required></label><label>種別<select id="newItemType"><option value="number">数値</option><option value="text">文章</option></select></label><label>カテゴリ名<input id="newCategoryName" maxlength="60" required></label><label>表示順<input id="newDisplayOrder" type="number" min="0" step="1" required></label><label class="check"><input id="newRequired" type="checkbox">必須</label><label class="check"><input id="newDashboardVisible" type="checkbox">本人ダッシュボードへ表示</label><label>成績表示名<input id="newDashboardName" maxlength="40"></label><label>成績表示順<input id="newDashboardOrder" type="number" min="0" step="1" value="0"></label><div class="dialog-actions"><button value="cancel" type="button" id="cancelItemBtn">キャンセル</button><button type="submit">追加する</button></div></form></dialog>
-  <script type="module" src="./js/work-report-admin/main.js?v=20260902-response-generation-1"></script>
+  <script type="module" src="./js/work-report-admin/main.js?v=20260906-schema-setup-1"></script>
 </body>
 </html>

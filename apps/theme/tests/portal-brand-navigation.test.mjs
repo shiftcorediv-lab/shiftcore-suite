@@ -4,12 +4,18 @@ import test from "node:test";
 
 const read = relativePath => readFile(new URL(relativePath, import.meta.url), "utf8");
 
-const [themeCss, memberHtml, pmoHtml, shiftHtml, orderNavigation] = await Promise.all([
+const [themeCss, memberHtml, pmoHtml, shiftHtml, orderNavigation, attendanceAdminHtml, workReportAdminHtml, pmoPortalHtml, pmoAdminHtml, accountPortalHtml, signupAdminHtml] = await Promise.all([
   read("../shiftcore-theme.css"),
   read("../../account-console/account-console.html"),
   read("../../pmo/index.html"),
   read("../../shiftbuilder/index.html"),
   read("../../ordercase/js/navigation.js"),
+  read("../../account-console/attendance-admin.html"),
+  read("../../account-console/work-report-admin.html"),
+  read("../../account-console/pmo-portal.html"),
+  read("../../account-console/pmo-admin.html"),
+  read("../../account-console/account-portal.html"),
+  read("../../account-console/signup-admin.html"),
 ]);
 
 test("主要モジュールに共通のAnother Portalロゴを表示する", () => {
@@ -17,7 +23,7 @@ test("主要モジュールに共通のAnother Portalロゴを表示する", () 
   assert.match(themeCss, /\.portal-brand-mark\s*\{/);
   assert.match(themeCss, /\.portal-module-heading\s*\{/);
 
-  for (const source of [memberHtml, pmoHtml, shiftHtml, orderNavigation]) {
+  for (const source of [memberHtml, pmoHtml, shiftHtml, orderNavigation, attendanceAdminHtml, workReportAdminHtml, pmoPortalHtml, pmoAdminHtml, accountPortalHtml, signupAdminHtml]) {
     assert.match(source, /class="portal-brand/);
     assert.match(source, /class="portal-module-heading/);
     assert.match(source, /Another Portal ダッシュボードへ戻る/);
@@ -33,6 +39,9 @@ test("主要モジュールのヘッダー外観と操作位置を共通化す�
   assert.match(shiftHtml, /class="header portal-module-header"/);
   assert.match(orderNavigation, /portal-module-header--stacked/);
   assert.match(orderNavigation, /class="header-actions portal-module-actions"/);
+  for (const source of [attendanceAdminHtml, workReportAdminHtml, pmoPortalHtml, pmoAdminHtml, accountPortalHtml, signupAdminHtml]) {
+    assert.match(source, /portal-module-header/);
+  }
   assert.match(orderNavigation, /<div class="portal-module-header-main">[\s\S]*?<nav class="top-nav">/);
   assert.match(orderNavigation, /headerActions\.appendChild\(accountMenu\)/);
   assert.match(
@@ -47,6 +56,10 @@ test("主要モジュールのヘッダー外観と操作位置を共通化す�
 
 test("ロゴは固定ホストではなく同一環境のダッシュボードへ戻る", () => {
   assert.match(memberHtml, /class="portal-brand" href="\.\/dashboard\.html"/);
+
+  for (const source of [attendanceAdminHtml, workReportAdminHtml, pmoPortalHtml, pmoAdminHtml, accountPortalHtml, signupAdminHtml]) {
+    assert.match(source, /class="portal-brand" href="\.\/dashboard\.html"/);
+  }
 
   for (const source of [pmoHtml, shiftHtml]) {
     assert.match(

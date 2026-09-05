@@ -4,18 +4,26 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="../common/environment.js?v=20260902-banner-height-1"></script>
-  <title>Account Portal</title>
+  <title>Another Portal メンバー</title>
   <link rel="stylesheet" href="./css/account-portal.css" />
   <script src="../theme/shiftcore-theme.js?v=20260903-responsive-layout-1"></script>
   <link rel="stylesheet" href="../theme/shiftcore-theme.css">
 </head>
 <body>
   <div class="container">
-    <div class="card">
-      <h1>アカウント基盤</h1>
-      <div class="description">
-        アカウント関連の管理機能を選択してください。
+    <header class="pmo-header portal-module-header">
+      <div class="portal-module-heading">
+        <a class="portal-brand" href="./dashboard.html" aria-label="Another Portal ダッシュボードへ戻る">
+          <span class="portal-brand-mark" aria-hidden="true"><span></span><span></span></span>
+          <span class="portal-brand-copy"><strong>Another Portal</strong><small>WORKFORCE PLATFORM</small></span>
+        </a>
+        <div class="portal-module-title"><h1>メンバー</h1><p class="portal-subtitle">登録申請管理</p></div>
       </div>
+      <div class="pmo-header-actions"><button class="back-btn" id="backToDashboardBtn" type="button">ダッシュボードへ戻る</button></div>
+    </header>
+    <div class="card">
+      <h2>メンバー管理</h2>
+      <div class="description">メンバー登録に関する管理機能を選択してください。</div>
 
       <div id="entryBannerArea"></div>
 
@@ -23,7 +31,7 @@
       <div class="info-box" id="userNameBox">取得中...</div>
 
       <div class="mt-12">
-        <label>社員コード</label>
+        <label>アカウントコード</label>
         <div class="info-box" id="employeeCodeBox">取得中...</div>
       </div>
 
@@ -43,12 +51,9 @@
       <div class="hint" id="portalHint">管理対象ロールのみ利用できます。</div>
     </div>
 
-    <div class="card">
-      <button class="back-btn" id="backToDashboardBtn" type="button">ダッシュボードへ戻る</button>
-      <div class="message" id="messageBox"></div>
-    </div>
+    <div class="message" id="messageBox"></div>
   </div>
 
-  <script type="module" src="./js/account-portal/main.js?v=20260803-role-1"></script>
+  <script type="module" src="./js/account-portal/main.js?v=20260906-display-labels-1"></script>
 </body>
 </html>

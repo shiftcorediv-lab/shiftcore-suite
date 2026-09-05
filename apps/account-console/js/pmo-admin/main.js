@@ -16,7 +16,7 @@ import {
   renderEmptyTable,
   renderMonthlyTable,
   showMessage
-} from "./ui.js";
+} from "./ui.js?v=20260906-display-labels-1";
 import {
   canManagePmo,
   goToDashboard,
