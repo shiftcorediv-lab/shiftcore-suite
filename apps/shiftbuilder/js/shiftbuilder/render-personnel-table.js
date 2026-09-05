@@ -1,6 +1,10 @@
 // ===== ShiftBuilder render-personnel-table.js ここから =====
 
 import { escapeHtml } from "./utils.js?v=20260801-authfix-1";
+import {
+  getCaseIdentityLabel,
+  getCompactCaseId
+} from "./display-labels.mjs?v=20260905-identity-labels-1";
 
 function getDateColumnClass(dateItem) {
   const weekday = String(dateItem?.weekday || "").trim().toLowerCase();
@@ -96,10 +100,12 @@ function renderPersonnelDateCell(person, dateItem, assignments, consecutiveWorkA
   }
 
   const isConflict = assignments.length > 1;
-  const caseNames = assignments.map((assignment) => assignment.caseTitle);
+  const caseNames = assignments.map((assignment) => getCaseIdentityLabel(assignment));
   const caseDisplayNames = assignments.map(
     (assignment) => assignment.caseDisplayTitle || assignment.caseTitle
   );
+  const primaryCaseId = assignments[0]?.caseId || "";
+  const compactCaseId = getCompactCaseId(primaryCaseId);
   const title = [
     isRequestedOff ? "希望休とアサインが重複しています" : "",
     isConflict ? `同日重複：${caseNames.join(" / ")}` : caseNames[0],
@@ -127,7 +133,10 @@ function renderPersonnelDateCell(person, dateItem, assignments, consecutiveWorkA
     >
       <span class="personnel-shift-statuses" aria-hidden="true">${isRequestedOff ? '<span class="personnel-shift-status" title="希望休と重複">休</span>' : ""}${statusBadges}</span>
       <span class="personnel-shift-label-row">
-        <span class="personnel-shift-case">${escapeHtml(caseDisplayNames[0])}</span>
+        <span class="personnel-shift-case-copy">
+          <span class="personnel-shift-case">${escapeHtml(caseDisplayNames[0])}</span>
+          ${compactCaseId ? `<span class="personnel-shift-case-id" title="${escapeHtml(primaryCaseId)}">${escapeHtml(compactCaseId)}</span>` : ""}
+        </span>
         ${assignments.length > 1 ? `<span class="personnel-shift-more">+${assignments.length - 1}</span>` : ""}
       </span>
     </button>

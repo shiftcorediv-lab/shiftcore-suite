@@ -639,7 +639,40 @@ function isValidShiftBuilderWorkDate_(value) {
     parsed.getUTCDate() === parts[2];
 }
 
-function resolveShiftBuilderAssignmentContract_(params, orderCases, orderCaseDates) {
+function parseStoreMemberRuleIds_(value) {
+  const source = Array.isArray(value) ? value : String(value || "").split(/[\s,、]+/);
+  const seen = {};
+  return source.map(function(item) {
+    return normalizeLowerText(item);
+  }).filter(function(item) {
+    if (!item || seen[item]) return false;
+    seen[item] = true;
+    return true;
+  });
+}
+
+function getStoreMemberRule_(caseRow, stores) {
+  const storeId = normalizeText(caseRow && caseRow.store_id);
+  const targetStore = (stores || []).find(function(store) {
+    return normalizeText(store.store_id) === storeId;
+  }) || {};
+
+  return {
+    preferred_member_ids: parseStoreMemberRuleIds_(targetStore.preferred_member_ids),
+    ng_member_ids: parseStoreMemberRuleIds_(targetStore.ng_member_ids)
+  };
+}
+
+function memberMatchesStoreRule_(params, memberIds) {
+  const identifiers = [params && params.internal_user_id, params && params.account_code]
+    .map(function(value) { return normalizeLowerText(value); })
+    .filter(Boolean);
+  return identifiers.some(function(identifier) {
+    return memberIds.indexOf(identifier) !== -1;
+  });
+}
+
+function resolveShiftBuilderAssignmentContract_(params, orderCases, orderCaseDates, orderCaseStores, options) {
   const caseId = normalizeText(params && params.case_id);
   const caseDateId = normalizeText(params && params.case_date_id);
   const workDate = normalizeDateString(params && params.work_date);
@@ -656,6 +689,13 @@ function resolveShiftBuilderAssignmentContract_(params, orderCases, orderCaseDat
   if (!caseId || !targetCase) {
     throw new Error("対象案件が見つかりません: " + caseId);
   }
+
+  const enforceMemberRules = !options || options.enforceMemberRules !== false;
+  const sourceStores = Array.isArray(orderCaseStores)
+    ? orderCaseStores
+    : enforceMemberRules && normalizeText(targetCase.store_id)
+      ? getOrderCaseStoreRows_()
+      : [];
 
   if (!isOrderCaseVisibleInShiftBuilder_(targetCase)) {
     throw new Error("Shift対象外または無効な案件にはアサインできません: " + caseId);
@@ -681,6 +721,11 @@ function resolveShiftBuilderAssignmentContract_(params, orderCases, orderCaseDat
     throw new Error("案件エリアとアサイン先エリアが一致しません: " + caseArea + " / " + area);
   }
 
+  const memberRule = getStoreMemberRule_(targetCase, sourceStores);
+  if (enforceMemberRules && memberMatchesStoreRule_(params, memberRule.ng_member_ids)) {
+    throw new Error("この店舗のNGメンバーはアサインできません: " + normalizeText(params.internal_user_id));
+  }
+
   if (inputMode === "days") {
     if (caseDateId) {
       throw new Error("日数指定案件にcase_date_idは指定できません: " + caseDateId);
@@ -699,7 +744,8 @@ function resolveShiftBuilderAssignmentContract_(params, orderCases, orderCaseDat
       case_row: targetCase,
       case_date_row: null,
       input_mode: inputMode,
-      required_total: requestedDays
+      required_total: requestedDays,
+      member_rule: memberRule
     };
   }
 
@@ -727,7 +773,8 @@ function resolveShiftBuilderAssignmentContract_(params, orderCases, orderCaseDat
     case_row: targetCase,
     case_date_row: targetCaseDate,
     input_mode: inputMode,
-    required_total: requiredPeople
+    required_total: requiredPeople,
+    member_rule: memberRule
   };
 }
 
@@ -773,7 +820,9 @@ function filterShiftAssignmentsByAssignableOrderCases_(
       resolveShiftBuilderAssignmentContract_(
         assignment,
         sourceCases,
-        sourceCaseDates
+        sourceCaseDates,
+        undefined,
+        { enforceMemberRules: false }
       );
       return true;
     } catch (error) {
@@ -978,6 +1027,10 @@ function buildShiftBuilderCaseFromOrderCase_(caseRow, caseDateRows, monthDates, 
     normalizeText(caseRow.case_type) ||
     caseId;
   const safeStoreRow = storeRow || {};
+  const storeMemberRule = {
+    preferred_member_ids: parseStoreMemberRuleIds_(safeStoreRow.preferred_member_ids),
+    ng_member_ids: parseStoreMemberRuleIds_(safeStoreRow.ng_member_ids)
+  };
   const effectiveAddress = normalizeText(caseRow.work_address) || normalizeText(safeStoreRow.address);
   const effectiveNearestStation = normalizeText(caseRow.work_nearest_station) || normalizeText(safeStoreRow.nearest_station);
 
@@ -1090,6 +1143,10 @@ function buildShiftBuilderCaseFromOrderCase_(caseRow, caseDateRows, monthDates, 
     requested_days: requestedDays,
     requiredPeople: caseRequiredPeople,
     required_people: caseRequiredPeople,
+    preferredMemberIds: storeMemberRule.preferred_member_ids,
+    preferred_member_ids: storeMemberRule.preferred_member_ids,
+    ngMemberIds: storeMemberRule.ng_member_ids,
+    ng_member_ids: storeMemberRule.ng_member_ids,
 
     fulfillmentStatus: fulfillment.status,
     fulfillment_status: fulfillment.status,

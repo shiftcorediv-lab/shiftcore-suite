@@ -13,6 +13,8 @@ const storedUser = getStoredUser();
 // TEST環境と本番は同一originのため、端末キャッシュも環境単位で分離する。
 const dashboardEnvironment = window.ShiftCoreEnvironment?.name || "production";
 const dashboardCacheKey = `shiftcore_attendance_dashboard:${dashboardEnvironment}:${storedUser?.email || storedUser?.employee_code || "anonymous"}`;
+const SHIFTBUILDER_DATA_REVISION_KEY = "shiftcore-shiftbuilder-data-revision-v1";
+const dashboardScheduleRevisionKey = `shiftcore_attendance_schedule_revision:${dashboardEnvironment}:${storedUser?.email || storedUser?.employee_code || "anonymous"}`;
 let dashboardData = null;
 let busy = false;
 let selectedScheduleId = "";
@@ -52,6 +54,16 @@ onAuthStateChanged(auth, async user => {
   void refreshModuleAccess(user);
 });
 
+window.addEventListener("storage", event => {
+  if (
+    event.key === SHIFTBUILDER_DATA_REVISION_KEY &&
+    event.newValue !== event.oldValue &&
+    auth.currentUser
+  ) {
+    void loadDashboard();
+  }
+});
+
 async function refreshModuleAccess(firebaseUser) {
   try {
     const idToken = await firebaseUser.getIdToken();
@@ -68,6 +80,8 @@ async function refreshModuleAccess(firebaseUser) {
 
 async function loadDashboard() {
   const loadVersion = ++dashboardLoadVersion;
+  const shiftDataRevision = readShiftBuilderDataRevision();
+  const forceScheduleRefresh = needsShiftScheduleRefresh(shiftDataRevision);
   renderDashboardLoading({
     preserveSchedule: Boolean(dashboardData?.schedule || dashboardData?.record)
   });
@@ -91,8 +105,11 @@ async function loadDashboard() {
     else showStatus("勤怠情報を表示しました。最新予定を確認中です。", false, true);
     // 打刻可能な状態を先に返し、重い成績集計と外部予定同期は表示後に並行する。
     const secondaryLoads = [loadMyWorkReportSummary(loadVersion)];
-    if (!["fresh-cache", "in-progress"].includes(syncStatus) || scheduleSyncPending) {
-      secondaryLoads.push(refreshDashboardInBackground(loadVersion));
+    if (!["fresh-cache", "in-progress"].includes(syncStatus) || scheduleSyncPending || forceScheduleRefresh) {
+      secondaryLoads.push(refreshDashboardInBackground(loadVersion, 0, {
+        forceScheduleRefresh,
+        shiftDataRevision
+      }));
     }
     void Promise.allSettled(secondaryLoads);
   } catch (error) {
@@ -114,15 +131,22 @@ async function loadMyWorkReportSummary(loadVersion) {
   }
 }
 
-async function refreshDashboardInBackground(loadVersion, retryCount = 0) {
+async function refreshDashboardInBackground(loadVersion, retryCount = 0, options = {}) {
   try {
-    const refreshed = await attendanceRequest("refreshDashboardData", { scheduleId: selectedScheduleId });
+    const refreshed = await attendanceRequest("refreshDashboardData", {
+      scheduleId: selectedScheduleId,
+      forceScheduleRefresh: options.forceScheduleRefresh === true,
+      shiftDataRevision: options.shiftDataRevision || ""
+    });
     if (loadVersion !== dashboardLoadVersion) return;
     dashboardData = refreshed;
     const syncStatus = refreshed.scheduleSync?.status;
 
-    if (isScheduleSyncPending(refreshed)) {
-      renderDashboardLoading();
+    const forcedSyncPending = Boolean(options.shiftDataRevision) && syncStatus === "in-progress";
+    if (isScheduleSyncPending(refreshed) || forcedSyncPending) {
+      renderDashboardLoading({
+        preserveSchedule: Boolean(refreshed.schedule || refreshed.record || dashboardData?.schedule || dashboardData?.record)
+      });
       if (retryCount >= MAX_SCHEDULE_SYNC_RETRIES) {
         showStatus("最新予定の同期に時間がかかっています。しばらくして再読み込みしてください。", true);
         return;
@@ -130,7 +154,10 @@ async function refreshDashboardInBackground(loadVersion, retryCount = 0) {
       showStatus("別の画面で進行中の最新予定同期を待っています…", false, true);
       await waitFor(SCHEDULE_SYNC_RETRY_DELAY_MS);
       if (loadVersion !== dashboardLoadVersion) return;
-      return refreshDashboardInBackground(loadVersion, retryCount + 1);
+      return refreshDashboardInBackground(loadVersion, retryCount + 1, {
+        ...options,
+        forceScheduleRefresh: false
+      });
     }
 
     if (syncStatus === "failed" && !refreshed.schedule && !refreshed.record) {
@@ -141,6 +168,9 @@ async function refreshDashboardInBackground(loadVersion, retryCount = 0) {
 
     renderDashboard(refreshed);
     writeDashboardCache(refreshed);
+    if (options.shiftDataRevision && ["refreshed", "fresh-cache"].includes(syncStatus)) {
+      markShiftScheduleRevisionSynced(options.shiftDataRevision);
+    }
     rememberServerTiming("scheduleSync", refreshed.serverTiming);
     if (syncStatus === "failed") showStatus("保存済みの予定を表示しています（シフト同期に失敗しました）", true);
     else if (syncStatus === "in-progress") showStatus("保存済み予定を表示中（別の画面で最新予定を同期中です）", false, true);
@@ -159,6 +189,31 @@ function isScheduleSyncPending(data) {
 
 function waitFor(milliseconds) {
   return new Promise(resolve => setTimeout(resolve, milliseconds));
+}
+
+function readShiftBuilderDataRevision() {
+  try {
+    return localStorage.getItem(SHIFTBUILDER_DATA_REVISION_KEY) || "";
+  } catch (_) {
+    return "";
+  }
+}
+
+function needsShiftScheduleRefresh(revision) {
+  if (!revision) return false;
+  try {
+    return localStorage.getItem(dashboardScheduleRevisionKey) !== revision;
+  } catch (_) {
+    return false;
+  }
+}
+
+function markShiftScheduleRevisionSynced(revision) {
+  try {
+    localStorage.setItem(dashboardScheduleRevisionKey, revision);
+  } catch (_) {
+    // 同期済み印を保存できなくても予定表示は継続する。
+  }
 }
 
 function rememberServerTiming(name, timing) {

@@ -150,7 +150,10 @@ function doPost(e) {
     }
     if (action === "refreshDashboardData") {
       const startedAt = Date.now();
-      const scheduleResult = getDashboardSchedules_(body.idToken);
+      const scheduleResult = getDashboardSchedules_(body.idToken, {
+        forceRefresh: payload.forceScheduleRefresh === true,
+        sourceRevision: String(payload.shiftDataRevision || '').trim()
+      });
       const scheduleCompletedAt = Date.now();
       const dashboard = getDashboardData_(user, scheduleResult.schedules, payload.scheduleId);
       const completedAt = Date.now();
@@ -1800,21 +1803,29 @@ function getSchedules_(idToken) {
   return result.schedules;
 }
 
-function getDashboardSchedules_(idToken) {
+function getDashboardSchedules_(idToken, options) {
   const local = rows_(SHEETS.schedules);
   const cache = dashboardScheduleSyncCache_();
   const key = dashboardScheduleSyncCacheKey_();
-  const cached = readDashboardScheduleSyncState_(cache, key);
+  const forceRefresh = options && options.forceRefresh === true;
+  const sourceRevision = String(options && options.sourceRevision || "").trim();
+  const existingState = readDashboardScheduleSyncState_(cache, key);
+  const cached = forceRefresh && (!sourceRevision || existingState && existingState.sourceRevision !== sourceRevision)
+    ? null
+    : existingState;
   if (cached) return { schedules: local, sync: { status: cached.status === "syncing" ? "in-progress" : "fresh-cache", syncedAt: cached.syncedAt || "" } };
 
-  if (cache && !claimDashboardScheduleSync_(cache, key)) {
+  if (cache && !claimDashboardScheduleSync_(cache, key, {
+    forceRefresh: forceRefresh,
+    sourceRevision: sourceRevision
+  })) {
     const claimed = readDashboardScheduleSyncState_(cache, key);
     return { schedules: local, sync: { status: claimed && claimed.status === "fresh" ? "fresh-cache" : "in-progress", syncedAt: claimed && claimed.syncedAt || "" } };
   }
 
   const result = syncSchedules_(idToken, local);
   if (result.synced) {
-    markDashboardScheduleSyncFresh_(cache, key);
+    markDashboardScheduleSyncFresh_(cache, key, sourceRevision);
     return { schedules: result.schedules, sync: { status: "refreshed", syncedAt: nowIso_() } };
   }
   clearDashboardScheduleSyncState_(cache, key);
@@ -1881,7 +1892,7 @@ function readDashboardScheduleSyncState_(cache, key) {
   if (!cache) return null;
   try { const value = cache.get(key); return value ? JSON.parse(value) : null; } catch (error) { return null; }
 }
-function claimDashboardScheduleSync_(cache, key) {
+function claimDashboardScheduleSync_(cache, key, options) {
   if (!cache) return true;
   let lock = null;
   let acquired = false;
@@ -1889,8 +1900,14 @@ function claimDashboardScheduleSync_(cache, key) {
     lock = LockService.getScriptLock();
     acquired = lock.tryLock(1000);
     if (!acquired) return false;
-    if (readDashboardScheduleSyncState_(cache, key)) return false;
-    cache.put(key, JSON.stringify({ status: "syncing" }), DASHBOARD_SCHEDULE_SYNC_IN_PROGRESS_SECONDS);
+    const current = readDashboardScheduleSyncState_(cache, key);
+    const forceRefresh = options && options.forceRefresh === true;
+    const sourceRevision = String(options && options.sourceRevision || "").trim();
+    if (current) {
+      if (!forceRefresh || current.status === "syncing") return false;
+      if (sourceRevision && current.sourceRevision === sourceRevision) return false;
+    }
+    cache.put(key, JSON.stringify({ status: "syncing", sourceRevision: sourceRevision }), DASHBOARD_SCHEDULE_SYNC_IN_PROGRESS_SECONDS);
     return true;
   } catch (error) {
     return true;
@@ -1898,11 +1915,11 @@ function claimDashboardScheduleSync_(cache, key) {
     if (lock && acquired) lock.releaseLock();
   }
 }
-function markDashboardScheduleSyncFresh_(sourceCache, sourceKey) {
+function markDashboardScheduleSyncFresh_(sourceCache, sourceKey, sourceRevision) {
   const cache = sourceCache || dashboardScheduleSyncCache_();
   if (!cache) return;
   try {
-    cache.put(sourceKey || dashboardScheduleSyncCacheKey_(), JSON.stringify({ status: "fresh", syncedAt: nowIso_() }), DASHBOARD_SCHEDULE_SYNC_TTL_SECONDS);
+    cache.put(sourceKey || dashboardScheduleSyncCacheKey_(), JSON.stringify({ status: "fresh", syncedAt: nowIso_(), sourceRevision: String(sourceRevision || "").trim() }), DASHBOARD_SCHEDULE_SYNC_TTL_SECONDS);
     invalidateAllDashboardReferenceCache_();
   } catch (error) {}
 }

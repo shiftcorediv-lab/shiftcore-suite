@@ -90,6 +90,60 @@ test("日付指定案件は案件日・月・エリア・必要人数が一致�
   );
 });
 
+test("店舗NGは画面を迂回したアサインも拒否し推し情報は契約へ保持する", () => {
+  const context = createContext();
+  const targetCase = { ...datesCase, store_id: "ST-001" };
+  const stores = [{
+    store_id: "ST-001",
+    preferred_member_ids: "AN0001,U-PREFERRED",
+    ng_member_ids: "AN0099,U-NG"
+  }];
+  const baseParams = {
+    case_id: "CASE-DATES",
+    case_date_id: "CD-001",
+    work_date: "2026-09-10",
+    target_month: "2026-09",
+    area: "福岡",
+    internal_user_id: "U-PREFERRED",
+    account_code: "AN0001"
+  };
+
+  const contract = context.resolveShiftBuilderAssignmentContract_(
+    baseParams,
+    [targetCase],
+    [caseDate],
+    stores
+  );
+  assert.deepEqual(
+    Array.from(contract.member_rule.preferred_member_ids),
+    ["an0001", "u-preferred"]
+  );
+  assert.throws(
+    () => context.resolveShiftBuilderAssignmentContract_(
+      { ...baseParams, internal_user_id: "U-NG", account_code: "AN0099" },
+      [targetCase],
+      [caseDate],
+      stores
+    ),
+    /NGメンバーはアサインできません/
+  );
+
+  const existingAssignments = context.filterShiftAssignmentsByAssignableOrderCases_(
+    [{
+      ...baseParams,
+      assignment_id: "SA-EXISTING-NG",
+      internal_user_id: "U-NG",
+      account_code: "AN0099"
+    }],
+    [targetCase],
+    [caseDate]
+  );
+  assert.deepEqual(
+    existingAssignments.map(assignment => assignment.assignment_id),
+    ["SA-EXISTING-NG"]
+  );
+});
+
 test("日数指定案件はcase_date_idなし・案件対象月内・依頼日数ありに限定する", () => {
   const context = createContext();
   const daysCase = {

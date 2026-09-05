@@ -38,6 +38,8 @@ function ensureStoreMaster_(payload, caseId) {
     store_short_name: String(payload.store_short_name || '').trim(),
     address: String(payload.store_address || '').trim(),
     nearest_station: String(payload.store_nearest_station || '').trim(),
+    preferred_member_ids: '',
+    ng_member_ids: '',
 
     status: 'active',
     provisional: 'TRUE',
@@ -106,7 +108,7 @@ function ensureStoreMasterLocationColumns_() {
     return String(value || '').trim();
   });
   let nextColumn = lastColumn + 1;
-  ['store_short_name', 'address', 'nearest_station'].forEach(function(header) {
+  ['store_short_name', 'address', 'nearest_station', 'preferred_member_ids', 'ng_member_ids'].forEach(function(header) {
     if (headers.indexOf(header) === -1) {
       sheet.getRange(1, nextColumn).setValue(header);
       nextColumn += 1;
@@ -144,10 +146,44 @@ function normalizeStoreStatus_(value) {
   throw new Error('店舗状態は「有効」または「アーカイブ」を指定してください。');
 }
 
+function normalizeStoreMemberIds_(value) {
+  const source = Array.isArray(value) ? value : String(value || '').split(/[\s,、]+/);
+  const seen = {};
+  const normalized = [];
+
+  source.forEach(function(item) {
+    const memberId = String(item || '').trim();
+    const key = memberId.toLowerCase();
+    if (!memberId || seen[key]) return;
+    if (memberId.length > 100 || !/^[A-Za-z0-9@._+-]+$/.test(memberId)) {
+      throw new Error('推し・NGにはメンバー内部IDまたはアカウントコードを指定してください。');
+    }
+    seen[key] = true;
+    normalized.push(memberId);
+  });
+
+  if (normalized.length > 100) {
+    throw new Error('推し・NGは各100名まで指定できます。');
+  }
+
+  return normalized.join(',');
+}
+
 function updateStoreMaster_(payload) {
   ensureStoreMasterLocationColumns_();
   const storeId = String(payload.store_id || '').trim();
   if (!storeId) throw new Error('店舗IDが必要です。');
+  const preferredMemberIds = normalizeStoreMemberIds_(payload.preferred_member_ids);
+  const ngMemberIds = normalizeStoreMemberIds_(payload.ng_member_ids);
+  const ngMemberIdKeys = ngMemberIds.split(',').map(function(value) {
+    return value.toLowerCase();
+  }).filter(Boolean);
+  const duplicatedMemberId = preferredMemberIds.split(',').find(function(value) {
+    return ngMemberIdKeys.indexOf(value.toLowerCase()) !== -1;
+  });
+  if (duplicatedMemberId) {
+    throw new Error('同じメンバーを推しとNGの両方には登録できません: ' + duplicatedMemberId);
+  }
   const sheet = getSheetForUpdate_(SHEET_STORES_MASTER);
   const values = sheet.getDataRange().getValues();
   const headers = values[0].map(function(value) { return String(value || '').trim(); });
@@ -164,6 +200,8 @@ function updateStoreMaster_(payload) {
     store_area: String(payload.store_area || '').trim(),
     address: String(payload.address || '').trim(),
     nearest_station: String(payload.nearest_station || '').trim(),
+    preferred_member_ids: preferredMemberIds,
+    ng_member_ids: ngMemberIds,
     status: normalizeStoreStatus_(payload.status),
     updated_at: new Date()
   };
