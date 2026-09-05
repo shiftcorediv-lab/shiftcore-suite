@@ -70,6 +70,7 @@ const SHIFT_AUDIT_LOGS_SHEET_NAME = "shift_audit_logs";
 // ===== OrderCase sheets ここから =====
 const ORDERCASE_CASES_SHEET_NAME = "cases";
 const ORDERCASE_CASE_DATES_SHEET_NAME = "case_dates";
+const ORDERCASE_AGENCIES_MASTER_SHEET_NAME = "agencies_master";
 const ORDERCASE_STORES_MASTER_SHEET_NAME = "stores_master";
 // ===== OrderCase sheets ここまで =====
 

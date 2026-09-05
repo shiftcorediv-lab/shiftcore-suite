@@ -11,6 +11,7 @@
 function getBootstrapData_() {
   return {
     case_types: getActiveCaseTypes_(),
+    agencies_master: getActiveAgenciesMaster_(),
     stores_master: getActiveStoresMaster_(),
     settings: getSettingsMap_()
   };

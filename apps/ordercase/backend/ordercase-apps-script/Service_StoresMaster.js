@@ -11,11 +11,13 @@
  ****************************************************/
 function ensureStoreMaster_(payload, caseId) {
   ensureStoreMasterLocationColumns_();
-  const agencyName = String(payload.agency_name || '').trim();
+  const agency = ensureAgencyMaster_(payload, caseId);
+  const agencyId = String(agency.agency_id || '').trim();
+  const agencyName = String(agency.agency_name || payload.agency_name || '').trim();
   const storeName = String(payload.store_name || '').trim();
   const storeArea = String(payload.store_area || '').trim();
 
-  const existing = findStoreMasterByNames_(agencyName, storeName);
+  const existing = findStoreMasterByNames_(agencyId, agencyName, storeName);
 
   if (existing) {
     if (String(existing.status || 'active') === 'archived') {
@@ -26,7 +28,6 @@ function ensureStoreMaster_(payload, caseId) {
 
   const now = new Date();
 
-  const agencyId = payload.agency_id || generateAgencyId_();
   const storeId = payload.store_id || generateStoreId_();
 
   const record = {
@@ -40,6 +41,8 @@ function ensureStoreMaster_(payload, caseId) {
     nearest_station: String(payload.store_nearest_station || '').trim(),
     preferred_member_ids: '',
     ng_member_ids: '',
+    preferred_note: '',
+    ng_note: '',
 
     status: 'active',
     provisional: 'TRUE',
@@ -64,17 +67,22 @@ function ensureStoreMaster_(payload, caseId) {
  * 代理店名・店舗名で既存マスターを探す
  * 表記ブレ防止のため、完全一致ではなく正規化一致で照合する
  ****************************************************/
-function findStoreMasterByNames_(agencyName, storeName) {
+function findStoreMasterByNames_(agencyId, agencyName, storeName) {
   const rows = getSheetObjects_(SHEET_STORES_MASTER);
 
+  const normalizedAgencyId = String(agencyId || '').trim();
   const normalizedAgencyName = normalizeMasterName_(agencyName);
   const normalizedStoreName = normalizeMasterName_(storeName);
 
   const found = rows.find(function(row) {
+    const rowAgencyId = String(row.agency_id || '').trim();
     const rowAgencyName = normalizeMasterName_(row.agency_name);
     const rowStoreName = normalizeMasterName_(row.store_name);
+    const agencyMatches = normalizedAgencyId
+      ? rowAgencyId === normalizedAgencyId || (!rowAgencyId && rowAgencyName === normalizedAgencyName)
+      : rowAgencyName === normalizedAgencyName;
 
-    return rowAgencyName === normalizedAgencyName &&
+    return agencyMatches &&
            rowStoreName === normalizedStoreName;
   });
 
@@ -108,7 +116,7 @@ function ensureStoreMasterLocationColumns_() {
     return String(value || '').trim();
   });
   let nextColumn = lastColumn + 1;
-  ['store_short_name', 'address', 'nearest_station', 'preferred_member_ids', 'ng_member_ids'].forEach(function(header) {
+  ['store_short_name', 'address', 'nearest_station', 'preferred_member_ids', 'ng_member_ids', 'preferred_note', 'ng_note'].forEach(function(header) {
     if (headers.indexOf(header) === -1) {
       sheet.getRange(1, nextColumn).setValue(header);
       nextColumn += 1;
@@ -156,23 +164,34 @@ function normalizeStoreMemberIds_(value) {
     const key = memberId.toLowerCase();
     if (!memberId || seen[key]) return;
     if (memberId.length > 100 || !/^[A-Za-z0-9@._+-]+$/.test(memberId)) {
-      throw new Error('推し・NGにはメンバー内部IDまたはアカウントコードを指定してください。');
+      throw new Error('指名・NGにはメンバー内部IDまたはアカウントコードを指定してください。');
     }
     seen[key] = true;
     normalized.push(memberId);
   });
 
   if (normalized.length > 100) {
-    throw new Error('推し・NGは各100名まで指定できます。');
+    throw new Error('指名・NGは各100名まで指定できます。');
   }
 
   return normalized.join(',');
 }
 
 function updateStoreMaster_(payload) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    return updateStoreMasterWithoutLock_(payload);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function updateStoreMasterWithoutLock_(payload) {
   ensureStoreMasterLocationColumns_();
   const storeId = String(payload.store_id || '').trim();
   if (!storeId) throw new Error('店舗IDが必要です。');
+  const agency = ensureAgencyMaster_(payload, '');
   const preferredMemberIds = normalizeStoreMemberIds_(payload.preferred_member_ids);
   const ngMemberIds = normalizeStoreMemberIds_(payload.ng_member_ids);
   const ngMemberIdKeys = ngMemberIds.split(',').map(function(value) {
@@ -182,7 +201,7 @@ function updateStoreMaster_(payload) {
     return ngMemberIdKeys.indexOf(value.toLowerCase()) !== -1;
   });
   if (duplicatedMemberId) {
-    throw new Error('同じメンバーを推しとNGの両方には登録できません: ' + duplicatedMemberId);
+    throw new Error('同じメンバーを指名とNGの両方には登録できません: ' + duplicatedMemberId);
   }
   const sheet = getSheetForUpdate_(SHEET_STORES_MASTER);
   const values = sheet.getDataRange().getValues();
@@ -194,7 +213,8 @@ function updateStoreMaster_(payload) {
   }
   if (targetIndex < 1) throw new Error('店舗が見つかりません: ' + storeId);
   const record = {
-    agency_name: String(payload.agency_name || '').trim(),
+    agency_id: String(agency.agency_id || '').trim(),
+    agency_name: String(agency.agency_name || '').trim(),
     store_name: String(payload.store_name || '').trim(),
     store_short_name: String(payload.store_short_name || '').trim(),
     store_area: String(payload.store_area || '').trim(),
@@ -202,10 +222,12 @@ function updateStoreMaster_(payload) {
     nearest_station: String(payload.nearest_station || '').trim(),
     preferred_member_ids: preferredMemberIds,
     ng_member_ids: ngMemberIds,
+    preferred_note: String(payload.preferred_note || '').trim(),
+    ng_note: String(payload.ng_note || '').trim(),
     status: normalizeStoreStatus_(payload.status),
     updated_at: new Date()
   };
-  if (!record.agency_name || !record.store_name) throw new Error('代理店名と店舗名は必須です。');
+  if (!record.agency_id || !record.agency_name || !record.store_name) throw new Error('代理店と店舗名は必須です。');
   headers.forEach(function(header, index) {
     if (Object.prototype.hasOwnProperty.call(record, header)) values[targetIndex][index] = record[header];
   });
@@ -214,23 +236,6 @@ function updateStoreMaster_(payload) {
 }
 /****************************************************
  * getActiveStoresMaster_ ここまで
- ****************************************************/
-
-
-/****************************************************
- * generateAgencyId_ ここから
- * 代理店IDを発行する
- ****************************************************/
-function generateAgencyId_() {
-  const rows = getSheetObjects_(SHEET_STORES_MASTER);
-  const count = rows.filter(function(row) {
-    return row.agency_id;
-  }).length;
-
-  return 'AG-' + String(count + 1).padStart(4, '0');
-}
-/****************************************************
- * generateAgencyId_ ここまで
  ****************************************************/
 
 

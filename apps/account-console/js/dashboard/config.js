@@ -29,8 +29,8 @@ export const MODULE_DESCRIPTION_MAP = {
   account: "メンバー登録・申請・権限管理",
   account_console: "メンバー登録・申請・権限管理",
   pmo: "希望休管理",
-  ordercase: "案件管理",
-  order_case: "案件管理",
+  ordercase: "案件・代理店・店舗管理",
+  order_case: "案件・代理店・店舗管理",
   shift: "シフト・稼働予定管理",
   shiftbuilder: "シフト・稼働予定管理"
 };

@@ -657,11 +657,10 @@ function renderAssignmentCandidatesHtml(candidates, assignedMembers, actionMode 
           candidate.conflictReason ||
           "";
         const consecutiveAlertLevel = uiState.consecutiveWorkAlert?.level || "";
-        const preferenceBadge = uiState.isPreferred
-          ? '<span class="candidate-relation-badge is-preferred">推し</span>'
-          : uiState.isNg
-            ? '<span class="candidate-relation-badge is-ng">NG</span>'
-            : "";
+        const preferenceBadge = (uiState.preferenceBadges || []).map((label) => {
+          const ngClass = String(label).includes("NG") ? " is-ng" : " is-preferred";
+          return `<span class="candidate-relation-badge${ngClass}">${escapeHtml(label)}</span>`;
+        }).join("");
 
         const candidateActions = actionMode === "replace"
           ? renderReplacementCandidateButtons(userId, alreadyAssigned, safeAssignedMembers, uiState)

@@ -7,29 +7,25 @@ import { getCaseMemberPreference } from "../js/shiftbuilder/assignment-preferenc
 const mainSource = readFileSync(new URL("../js/shiftbuilder/main.js", import.meta.url), "utf8");
 const detailSource = readFileSync(new URL("../js/shiftbuilder/render-detail-panel.js", import.meta.url), "utf8");
 
-test("店舗ルールは内部IDとアカウントコードの両方で一致する", () => {
+test("代理店・店舗ルールは設定元を分け、店舗設定を優先する", () => {
   const caseItem = {
-    preferred_member_ids: ["u-preferred"],
-    ng_member_ids: ["an0099"]
+    agency_preferred_member_ids: ["u-preferred", "u-store-ng"],
+    agency_ng_member_ids: ["an0099", "u-store-preferred"],
+    store_preferred_member_ids: ["u-store-preferred"],
+    store_ng_member_ids: ["u-store-ng"]
   };
-  assert.deepEqual(getCaseMemberPreference(caseItem, { internal_user_id: "U-PREFERRED" }), {
-    isPreferred: true,
-    isNg: false
-  });
-  assert.deepEqual(getCaseMemberPreference(caseItem, { account_code: "AN0099" }), {
-    isPreferred: false,
-    isNg: true
-  });
-  assert.deepEqual(getCaseMemberPreference({ preferred_member_ids: ["U-1"], ng_member_ids: ["U-1"] }, { internal_user_id: "U-1" }), {
-    isPreferred: false,
-    isNg: true
-  });
+  assert.equal(getCaseMemberPreference(caseItem, { internal_user_id: "U-PREFERRED" }).effectiveType, "agency-preferred");
+  assert.equal(getCaseMemberPreference(caseItem, { account_code: "AN0099" }).effectiveType, "agency-ng");
+  assert.equal(getCaseMemberPreference(caseItem, { internal_user_id: "U-STORE-PREFERRED" }).effectiveType, "store-preferred");
+  assert.equal(getCaseMemberPreference(caseItem, { internal_user_id: "U-STORE-NG" }).effectiveType, "store-ng");
+  assert.deepEqual(getCaseMemberPreference(caseItem, { internal_user_id: "U-STORE-PREFERRED" }).badgeLabels, ["店舗指名", "代理店NG"]);
 });
 
-test("候補画面は推しを優先しNGを操作不可として表示する", () => {
-  assert.match(mainSource, /buttonLabel = preference\.isPreferred \? "推しをアサイン"/);
-  assert.match(mainSource, /buttonLabel = "NG配置不可"/);
-  assert.match(mainSource, /if \(preference\.isNg\) \{\s*return \[\];/);
-  assert.match(detailSource, /candidate-relation-badge is-preferred/);
-  assert.match(detailSource, /candidate-relation-badge is-ng/);
+test("候補画面は指名を優先しNGも確認後に配置できる", () => {
+  assert.match(mainSource, /buttonLabel = preference\.isPreferred \? "指名をアサイン"/);
+  assert.match(mainSource, /buttonLabel = "確認してアサイン"/);
+  assert.doesNotMatch(mainSource, /NG配置不可/);
+  assert.match(mainSource, /confirmNgPreferenceAssignment/);
+  assert.match(detailSource, /candidate-relation-badge/);
+  assert.match(detailSource, /preferenceBadges/);
 });

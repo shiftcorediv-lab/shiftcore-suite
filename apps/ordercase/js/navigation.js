@@ -37,6 +37,7 @@ function renderOrderCaseHeader(activePage, subtitle) {
       label: '案件一覧',
       href: './cases.html'
     },
+    { key: 'agencies', label: '代理店マスター', href: './agencies.html' },
     { key: 'stores', label: '店舗マスター', href: './stores.html' },
     {
       key: 'dashboard',

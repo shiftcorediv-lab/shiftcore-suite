@@ -27,9 +27,9 @@ test("配置対象セルは配置数と必要数を空白付きで表示する",
 });
 
 test("表示変更したCSSとJavaScriptは新しい版番号で読み込む", () => {
-  assert.match(indexSource, /shiftbuilder\.css\?v=20260905-preference-rules-1/);
-  assert.match(indexSource, /main\.js\?v=20260905-preference-rules-1/);
+  assert.match(indexSource, /shiftbuilder\.css\?v=20260905-agency-rules-1/);
+  assert.match(indexSource, /main\.js\?v=20260905-agency-rules-1/);
   assert.match(mainSource, /render-shift-table\.js\?v=20260905-identity-labels-1/);
-  assert.match(mainSource, /render-detail-panel\.js\?v=20260905-identity-labels-1/);
+  assert.match(mainSource, /render-detail-panel\.js\?v=20260905-agency-rules-1/);
   assert.match(detailSource, /render-shift-table\.js\?v=20260905-identity-labels-1/);
 });

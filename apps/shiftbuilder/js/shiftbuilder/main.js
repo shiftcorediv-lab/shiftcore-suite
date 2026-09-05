@@ -27,14 +27,14 @@ import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20
 import { renderPersonnelTable } from "./render-personnel-table.js?v=20260905-identity-labels-1";
 import { getConsecutiveWorkAlert } from "./consecutive-work-alert.js?v=20260801-authfix-1";
 import { getCaseIdentityLabel } from "./display-labels.mjs?v=20260905-identity-labels-1";
-import { getCaseMemberPreference } from "./assignment-preference-policy.mjs?v=20260905-preference-rules-1";
+import { getCaseMemberPreference } from "./assignment-preference-policy.mjs?v=20260905-agency-rules-1";
 import {
   renderSelectedCell,
   resetDetailPanel,
   renderCellPreviewPopover,
   renderPersonnelCellPreviewPopover,
   renderCellActionPopover
-} from "./render-detail-panel.js?v=20260905-identity-labels-1";
+} from "./render-detail-panel.js?v=20260905-agency-rules-1";
 import {
   setCurrentSession,
   setCurrentUser,
@@ -660,8 +660,15 @@ function normalizeAssignmentCandidatesForCell(candidates, selectedCell) {
       : null;
     const preference = getCaseMemberPreference(selectedCell?.caseItem, candidate);
 
-    let sortRank = preference.isPreferred ? 0 : 10;
-    let buttonLabel = preference.isPreferred ? "推しをアサイン" : "アサイン";
+    const preferenceRank = {
+      "store-preferred": 0,
+      "agency-preferred": 2,
+      normal: 10,
+      "agency-ng": 60,
+      "store-ng": 70
+    };
+    let sortRank = preferenceRank[preference.effectiveType] ?? 10;
+    let buttonLabel = preference.isPreferred ? "指名をアサイン" : "アサイン";
     let disabled = false;
     let warningText = "";
 
@@ -683,10 +690,11 @@ function normalizeAssignmentCandidatesForCell(candidates, selectedCell) {
     }
 
     if (preference.isNg) {
-      sortRank = 95;
-      buttonLabel = "NG配置不可";
-      disabled = true;
-      warningText = "この店舗のNGメンバーです";
+      buttonLabel = "確認してアサイン";
+      disabled = false;
+      warningText = preference.effectiveType === "store-ng"
+        ? `店舗NG（非推奨）${selectedCell?.caseItem?.store_ng_note ? `：${selectedCell.caseItem.store_ng_note}` : ""}`
+        : `代理店NG（非推奨）${selectedCell?.caseItem?.agency_ng_note ? `：${selectedCell.caseItem.agency_ng_note}` : ""}`;
     }
 
     if (alreadyAssigned) {
@@ -694,7 +702,7 @@ function normalizeAssignmentCandidatesForCell(candidates, selectedCell) {
       buttonLabel = "アサイン済み";
       disabled = true;
       warningText = preference.isNg
-        ? "この店舗のNGメンバーです。既存配置は自動解除しません"
+        ? `${warningText}。既存配置は自動解除しません`
         : "";
     }
 
@@ -724,7 +732,9 @@ function normalizeAssignmentCandidatesForCell(candidates, selectedCell) {
         sortRank,
         consecutiveWorkAlert,
         isPreferred: preference.isPreferred,
-        isNg: preference.isNg
+        isNg: preference.isNg,
+        preferenceType: preference.effectiveType,
+        preferenceBadges: preference.badgeLabels
       }
     };
   }).sort((candidateA, candidateB) => {
@@ -1316,9 +1326,6 @@ function getPersonnelAssignmentOptions(internalUserId, workDate) {
     }
 
     const preference = getCaseMemberPreference(caseItem, candidate);
-    if (preference.isNg) {
-      return [];
-    }
 
     return [{
       caseId: caseItem.caseId,
@@ -1327,9 +1334,15 @@ function getPersonnelAssignmentOptions(internalUserId, workDate) {
       area: caseItem.area || "",
       assignedCount,
       required,
-      isPreferred: preference.isPreferred
+      isPreferred: preference.isPreferred,
+      isNg: preference.isNg,
+      preferenceType: preference.effectiveType,
+      preferenceBadges: preference.badgeLabels
     }];
-  }).sort((optionA, optionB) => Number(optionB.isPreferred) - Number(optionA.isPreferred));
+  }).sort((optionA, optionB) => {
+    const ranks={"store-preferred":0,"agency-preferred":2,normal:10,"agency-ng":60,"store-ng":70};
+    return (ranks[optionA.preferenceType]??10)-(ranks[optionB.preferenceType]??10);
+  });
 }
 
 function confirmRequestedOffAssignment(internalUserId, workDate) {
@@ -1342,6 +1355,16 @@ function confirmRequestedOffAssignment(internalUserId, workDate) {
   return window.confirm(
     `この日は希望休です。${memo}\n\n本人へ相談し、アサインの了承を得ていますか？`
   ) ? true : null;
+}
+
+function confirmNgPreferenceAssignment(internalUserId, caseItem) {
+  const candidate = findCandidateByInternalUserId(internalUserId);
+  const preference = getCaseMemberPreference(caseItem, candidate);
+  if (!preference.isNg) return true;
+  const isStore = preference.effectiveType === "store-ng";
+  const label = isStore ? "店舗NG" : "代理店NG";
+  const note = isStore ? caseItem?.store_ng_note : caseItem?.agency_ng_note;
+  return window.confirm(`${label}（非推奨）に設定されています。${note ? `\n理由：${note}` : ""}\n\n事情を確認したうえで配置しますか？`);
 }
 
 function getPersonnelCellAssignments(internalUserId, workDate) {
@@ -1543,7 +1566,7 @@ function openPersonnelAssignmentPopover(internalUserId, workDate, anchorElement)
           data-case-id="${escapeHtml(option.caseId)}"
           data-date="${escapeHtml(workDate)}"
         >
-          ${option.isPreferred ? "【推し】" : ""}${escapeHtml(getCaseIdentityLabel(option))}（${option.assignedCount}/${option.required}）
+          ${(option.preferenceBadges||[]).map(label=>`【${escapeHtml(label)}】`).join("")}${escapeHtml(getCaseIdentityLabel(option))}（${option.assignedCount}/${option.required}）
         </button>
       `).join("") : `<div class="empty-note">この人員を追加できる未充足案件はありません。</div>`}
     </div>
@@ -2548,6 +2571,12 @@ async function createAssignmentFromSelectedCell(internalUserId) {
     return;
   }
 
+  if (!confirmNgPreferenceAssignment(targetInternalUserId, caseItem)) {
+    setStatus("NG設定を確認し、アサインを中止しました。");
+    refreshActiveActionPopover();
+    return;
+  }
+
   const caseId = caseItem.caseId;
   const workDate = dateItem.date;
   const previousAssigned = Array.isArray(cell.assigned)
@@ -2731,6 +2760,12 @@ async function replaceAssignmentFromSelectedCell(internalUserId, replaceAssignme
 
   if (requestedOffConfirmed === null) {
     setStatus("希望休への入れ替えを中止しました。");
+    refreshActiveActionPopover();
+    return;
+  }
+
+  if (!confirmNgPreferenceAssignment(targetInternalUserId, caseItem)) {
+    setStatus("NG設定を確認し、入れ替えを中止しました。");
     refreshActiveActionPopover();
     return;
   }

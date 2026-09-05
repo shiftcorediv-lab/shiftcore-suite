@@ -463,6 +463,7 @@
       <div class="grid two">
         <div class="suggest-wrap">
           <label for="agencyName">代理店名</label>
+          <input id="agencyId" type="hidden" />
           <input id="agencyName" autocomplete="off" />
           <div class="suggest-dropdown" id="agencySuggest"></div>
         </div>
@@ -657,7 +658,7 @@
   <script src="./js/auth-session.js"></script>
   <script src="./js/api.js?v=20260902-security-1"></script>
   <script src="./js/loading.js"></script>
-  <script src="./js/navigation.js?v=20260903-display-labels-1"></script>
+  <script src="./js/navigation.js?v=20260905-agency-master-1"></script>
 
   <script>
     /****************************************************
@@ -668,6 +669,7 @@
       caseDates: [],
       caseTypes: [],
       settings: {},
+      agenciesMaster: [],
       storesMaster: [],
       permission: ''
     };
@@ -892,6 +894,7 @@
 
         state.caseTypes = bootstrapJson.data.case_types || [];
         state.settings = bootstrapJson.data.settings || {};
+        state.agenciesMaster = bootstrapJson.data.agencies_master || [];
         state.storesMaster = bootstrapJson.data.stores_master || [];
 
         renderCaseTypeOptions();
@@ -972,6 +975,8 @@
      * 候補表示：代理店 ここから
      ****************************************************/
     function handleAgencyInput() {
+      const exact = findExactAgency(document.getElementById('agencyName').value);
+      document.getElementById('agencyId').value = exact ? exact.agency_id || '' : '';
       renderAgencySuggestions();
       renderStoreSuggestions();
       updateSaveSummary();
@@ -1001,7 +1006,7 @@
 
       box.innerHTML = agencies.map(row => {
         return `
-          <button type="button" class="suggest-option" data-agency-name="${escapeHtml(row.agency_name)}">
+          <button type="button" class="suggest-option" data-agency-id="${escapeHtml(row.agency_id || '')}" data-agency-name="${escapeHtml(row.agency_name)}">
             <span class="suggest-main">${escapeHtml(row.agency_name)}</span>
             <span class="suggest-sub">登録済み代理店</span>
           </button>
@@ -1010,14 +1015,15 @@
 
       box.querySelectorAll('.suggest-option').forEach(button => {
         button.addEventListener('click', () => {
-          selectAgencySuggestion(button.dataset.agencyName);
+          selectAgencySuggestion(button.dataset.agencyId, button.dataset.agencyName);
         });
       });
 
       box.classList.add('show');
     }
 
-    function selectAgencySuggestion(agencyName) {
+    function selectAgencySuggestion(agencyId, agencyName) {
+      document.getElementById('agencyId').value = agencyId || '';
       document.getElementById('agencyName').value = agencyName;
 
       hideSuggest('agencySuggest');
@@ -1050,14 +1056,16 @@
 
       const storeKeyword = document.getElementById('storeName').value.trim();
       const agencyName = document.getElementById('agencyName').value.trim();
-
-      const matchedAgencyName = findExactAgencyName(agencyName);
+      const agencyId = document.getElementById('agencyId').value.trim();
+      const matchedAgency = findExactAgency(agencyName);
 
       let stores = state.storesMaster.slice();
 
-      if (matchedAgencyName) {
+      if (agencyId || matchedAgency) {
         stores = stores.filter(row => {
-          return normalizeText(row.agency_name) === normalizeText(matchedAgencyName);
+          return agencyId
+            ? String(row.agency_id || '') === agencyId
+            : normalizeText(row.agency_name) === normalizeText(matchedAgency.agency_name);
         });
       }
 
@@ -1072,7 +1080,7 @@
         .slice(0, 12);
 
       if (stores.length === 0) {
-        const message = matchedAgencyName
+        const message = agencyId || matchedAgency
           ? 'この代理店に紐づく店舗候補はありません。手入力できます。'
           : '一致する店舗候補はありません。手入力できます。';
 
@@ -1107,6 +1115,7 @@
       document.getElementById('storeNearestStation').value = row.nearest_station || '';
 
       if (row.agency_name) {
+        document.getElementById('agencyId').value = row.agency_id || '';
         document.getElementById('agencyName').value = row.agency_name;
       }
 
@@ -1131,6 +1140,9 @@
      * 候補共通 ここから
      ****************************************************/
     function getUniqueAgencies() {
+      if (state.agenciesMaster.length) {
+        return state.agenciesMaster.slice().sort((a, b) => String(a.agency_name).localeCompare(String(b.agency_name), 'ja'));
+      }
       const map = {};
 
       state.storesMaster.forEach(row => {
@@ -1141,6 +1153,7 @@
 
         if (!map[key]) {
           map[key] = {
+            agency_id: row.agency_id || '',
             agency_name: name
           };
         }
@@ -1151,8 +1164,8 @@
       });
     }
 
-    function findExactAgencyName(value) {
-      if (!value) return '';
+    function findExactAgency(value) {
+      if (!value) return null;
 
       const target = normalizeText(value);
 
@@ -1160,7 +1173,7 @@
         return normalizeText(row.agency_name) === target;
       });
 
-      return found ? found.agency_name : '';
+      return found || null;
     }
 
     function normalizeText(value) {
@@ -1203,6 +1216,7 @@
       setValue('replyDeadline', item.reply_deadline);
 
       setValue('agencyName', item.agency_name);
+      setValue('agencyId', item.agency_id);
       setValue('storeName', item.store_name);
       setValue('storeArea', item.store_area);
       const masterStore = state.storesMaster.find(row => row.store_id === item.store_id) || {};
@@ -1524,6 +1538,7 @@
         input_mode: document.getElementById('inputMode').value,
         reply_deadline: document.getElementById('replyDeadline').value,
 
+        agency_id: document.getElementById('agencyId').value.trim(),
         agency_name: document.getElementById('agencyName').value.trim(),
         store_name: document.getElementById('storeName').value.trim(),
         store_area: document.getElementById('storeArea').value,

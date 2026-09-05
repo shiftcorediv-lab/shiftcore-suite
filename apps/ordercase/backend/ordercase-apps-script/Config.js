@@ -42,6 +42,7 @@ const SHIFTBUILDER_SPREADSHEET_ID = orderCaseRequiredConfig_('SHIFTBUILDER_SPREA
 const SHEET_CASES = 'cases';
 const SHEET_CASE_DATES = 'case_dates';
 const SHEET_CASE_TYPES = 'case_types';
+const SHEET_AGENCIES_MASTER = 'agencies_master';
 const SHEET_STORES_MASTER = 'stores_master';
 const SHEET_SETTINGS = 'settings';
 const SHEET_CASE_CHANGE_LOGS = 'case_change_logs';

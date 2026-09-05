@@ -90,9 +90,15 @@ test("日付指定案件は案件日・月・エリア・必要人数が一致�
   );
 });
 
-test("店舗NGは画面を迂回したアサインも拒否し推し情報は契約へ保持する", () => {
+test("代理店・店舗の指名とNGは設定元を分けて契約へ保持し、NGも配置可能にする", () => {
   const context = createContext();
-  const targetCase = { ...datesCase, store_id: "ST-001" };
+  const targetCase = { ...datesCase, agency_id: "AG-001", store_id: "ST-001" };
+  const agencies = [{
+    agency_id: "AG-001",
+    preferred_member_ids: "AN0001,U-AGENCY-PREFERRED",
+    ng_member_ids: "AN0088,U-AGENCY-NG",
+    ng_note: "代理店都合"
+  }];
   const stores = [{
     store_id: "ST-001",
     preferred_member_ids: "AN0001,U-PREFERRED",
@@ -112,21 +118,24 @@ test("店舗NGは画面を迂回したアサインも拒否し推し情報は契
     baseParams,
     [targetCase],
     [caseDate],
-    stores
+    stores,
+    { orderCaseAgencies: agencies }
   );
   assert.deepEqual(
-    Array.from(contract.member_rule.preferred_member_ids),
+    Array.from(contract.member_rule.store_preferred_member_ids),
     ["an0001", "u-preferred"]
   );
-  assert.throws(
-    () => context.resolveShiftBuilderAssignmentContract_(
-      { ...baseParams, internal_user_id: "U-NG", account_code: "AN0099" },
-      [targetCase],
-      [caseDate],
-      stores
-    ),
-    /NGメンバーはアサインできません/
+  assert.deepEqual(
+    Array.from(contract.member_rule.agency_ng_member_ids),
+    ["an0088", "u-agency-ng"]
   );
+  assert.doesNotThrow(() => context.resolveShiftBuilderAssignmentContract_(
+    { ...baseParams, internal_user_id: "U-NG", account_code: "AN0099" },
+    [targetCase],
+    [caseDate],
+    stores,
+    { orderCaseAgencies: agencies }
+  ));
 
   const existingAssignments = context.filterShiftAssignmentsByAssignableOrderCases_(
     [{
