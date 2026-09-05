@@ -53,6 +53,16 @@ const WORK_STATUS_LABELS = {
   unavailable: "稼働対象外"
 };
 
+const MODULE_LABELS = {
+  account: "メンバー",
+  account_console: "メンバー",
+  pmo: "オフ",
+  ordercase: "オーダー",
+  shift: "シフト",
+  shiftbuilder: "シフト",
+  partner_hub: "連携先管理"
+};
+
 function normalizeKey(value) {
   return String(value || "").trim();
 }
@@ -168,8 +178,8 @@ export function applyApprovalDefaults(request) {
 
   if (type === "employee" || type === "member" || type === "internal") {
     roleSelect.value = "member";
-    organizationIdInput.value = "internal";
-    allowedModulesInput.value = "pmo";
+    organizationIdInput.value = "Another";
+    setAllowedModules(["pmo"]);
     statusSelect.value = "active";
     workStatusSelect.value = "on";
     return;
@@ -178,7 +188,7 @@ export function applyApprovalDefaults(request) {
   if (type === "partner_individual" || type === "alliance_individual") {
     roleSelect.value = "partner_individual";
     organizationIdInput.value = companyName;
-    allowedModulesInput.value = "pmo";
+    setAllowedModules(["pmo"]);
     statusSelect.value = "active";
     workStatusSelect.value = "on";
     return;
@@ -187,7 +197,7 @@ export function applyApprovalDefaults(request) {
   if (type === "partner_company_admin" || type === "alliance_company_admin") {
     roleSelect.value = "partner_company_admin";
     organizationIdInput.value = companyName;
-    allowedModulesInput.value = "partner_hub";
+    setAllowedModules(["partner_hub"]);
     statusSelect.value = "active";
     workStatusSelect.value = "on";
     return;
@@ -195,19 +205,31 @@ export function applyApprovalDefaults(request) {
 
   roleSelect.value = "";
   organizationIdInput.value = "";
-  allowedModulesInput.value = "";
+  setAllowedModules([]);
   statusSelect.value = "active";
   workStatusSelect.value = "on";
 }
 
 export function getApprovalSummary() {
+  const modules = getSelectedAllowedModules();
   return [
     `アカウント種別：${labelFromMap(roleSelect.value, ACCOUNT_TYPE_LABELS)}`,
-    `所属ID / 所属名：${organizationIdInput.value.trim() || "未入力"}`,
-    `利用可能機能：${allowedModulesInput.value.trim() || "未入力"}`,
+    `所属：${organizationIdInput.value.trim() || "未入力"}`,
+    `利用可能機能：${modules.map(value => MODULE_LABELS[value] || value).join("、") || "未入力"}`,
     `アカウント状態：${labelFromMap(statusSelect.value, STATUS_LABELS)}`,
     `稼働対象状態：${labelFromMap(workStatusSelect.value, WORK_STATUS_LABELS)}`
   ].join("\n");
+}
+
+export function getSelectedAllowedModules() {
+  return Array.from(allowedModulesInput.selectedOptions || [], option => option.value).filter(Boolean);
+}
+
+function setAllowedModules(values) {
+  const selected = new Set(values);
+  Array.from(allowedModulesInput.options || []).forEach(option => {
+    option.selected = selected.has(option.value);
+  });
 }
 
 export function setActionButtonsEnabled(enabled) {

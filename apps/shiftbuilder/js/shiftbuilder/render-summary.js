@@ -85,7 +85,7 @@ export function calculateSummary(data) {
         Math.round((totals.assignedTotal / totals.requiredTotal) * 100),
         100
       )
-    : 100;
+    : null;
 
   return {
     ...totals,
@@ -99,7 +99,9 @@ export function renderSummary(data, elements) {
   elements.requiredTotalText.textContent = `${summary.requiredTotal}`;
   elements.assignedTotalText.textContent = `${summary.assignedTotal}`;
   elements.shortageTotalText.textContent = `${summary.shortageTotal}`;
-  elements.completionRateText.textContent = `${summary.completionRate}%`;
+  elements.completionRateText.textContent = summary.completionRate == null
+    ? "—"
+    : `${summary.completionRate}%`;
 }
 
 // ===== ShiftBuilder render-summary.js ここまで =====

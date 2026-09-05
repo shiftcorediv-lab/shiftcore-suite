@@ -1,6 +1,6 @@
 import { getQueryParams, buildCurrentUserFromQuery } from "./query.js";
 import { goApplyBtn, goManageBtn, backToDashboardBtn } from "./dom.js";
-import { renderAccountInfo, renderDeveloperMeta, updateManageButtonState, showMessage } from "./ui.js?v=20260802-xss-1";
+import { renderAccountInfo, renderDeveloperMeta, updateManageButtonState, showMessage } from "./ui.js?v=20260906-display-labels-1";
 import { buildPmoApplyUrl, buildPmoAdminUrl, canManagePmo, goToDashboard } from "./navigation.js?v=20260803-role-1";
 
 const params = getQueryParams();

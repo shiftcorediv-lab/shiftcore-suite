@@ -13,6 +13,28 @@ body {
   padding: 16px;
 }
 
+.portal-module-header {
+  display: flex;
+  justify-content: space-between;
+}
+
+.portal-module-header h1 {
+  margin: 0;
+  text-align: left;
+  font-size: 23px;
+}
+
+.portal-subtitle {
+  margin: 4px 0 0;
+  color: #667085;
+  font-size: 13px;
+}
+
+.portal-module-header .back-btn {
+  width: auto;
+  padding: 10px 14px;
+}
+
 .card {
   background: #fff;
   border-radius: 16px;

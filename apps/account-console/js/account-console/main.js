@@ -48,7 +48,7 @@ import {
   showLoading,
   hideLoading,
   setLogsLoading
-} from "./ui.js?v=20260903-display-labels-2";
+} from "./ui.js?v=20260906-display-labels-3";
 import { createResponseGeneration } from "../../../common/response-generation.js?v=20260902-response-1";
 
 // ===== 状態ここから =====

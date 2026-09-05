@@ -126,6 +126,9 @@ test("管理画面は未提出・集計・項目編集停止・用途別CSV出�
   assert.match(adminSource, /downloadCsv\(false\)/);
   assert.match(adminSource, /downloadCsv\(true\)/);
   assert.match(adminSource, /attendanceRequest\("getWorkReportAdminData"/);
+  assert.match(adminHtml, /id="setupBtn"[^>]*hidden/);
+  assert.match(adminSource, /attendanceRequest\("setupWorkReportData"\)/);
+  assert.match(adminSource, /\["SHEET_SCHEMA_MISMATCH", "SHEET_NOT_FOUND"\]\.includes\(error\?\.code\)/);
   assert.match(adminSource, /attendanceRequest\("saveWorkReportItem"/);
   assert.match(adminSource, /attendanceRequest\("saveWorkReportCaseMapping"/);
   assert.match(adminSource, /attendanceRequest\("returnWorkReport"/);
@@ -141,7 +144,7 @@ test("実績項目の保存応答が途切れても再取得した状態と照�
   assert.match(adminSource, /workReportItemMatches\(saved, payload\)/);
   assert.match(adminSource, /通信応答が途切れたため、保存結果を再確認しました/);
   assert.match(adminSource, /通信が途切れ、保存結果を確認できませんでした。更新して状態を確認してください/);
-  assert.match(adminHtml, /main\.js\?v=20260902-response-generation-1/);
+  assert.match(adminHtml, /main\.js\?v=20260906-schema-setup-1/);
 });
 
 test("個人ダッシュボードは勤怠を先に表示し、本人専用成績と予定同期を後から並行取得する", () => {

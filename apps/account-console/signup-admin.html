@@ -5,14 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="../common/environment.js?v=20260902-banner-height-1"></script>
   <title>登録申請管理</title>
-  <link rel="stylesheet" href="./css/signup-admin.css" />
+  <link rel="stylesheet" href="./css/signup-admin.css?v=20260906-unified-header-1" />
   <script src="../theme/shiftcore-theme.js?v=20260903-responsive-layout-1"></script>
   <link rel="stylesheet" href="../theme/shiftcore-theme.css">
 </head>
 <body>
   <div class="container">
+    <header class="signup-header portal-module-header">
+      <div class="portal-module-heading">
+        <a class="portal-brand" href="./dashboard.html" aria-label="Another Portal ダッシュボードへ戻る">
+          <span class="portal-brand-mark" aria-hidden="true"><span></span><span></span></span>
+          <span class="portal-brand-copy"><strong>Another Portal</strong><small>WORKFORCE PLATFORM</small></span>
+        </a>
+        <div class="portal-module-title"><h1>登録申請管理</h1><p class="signup-subtitle">メンバー</p></div>
+      </div>
+      <div class="header-actions"><button class="back-btn" id="backToAccountPortalBtn" type="button">メンバーへ戻る</button></div>
+    </header>
     <div class="card">
-      <h1>登録申請管理</h1>
+      <h2>ログイン情報</h2>
       <div class="description">
         利用申請の確認、承認、却下を行います。
       </div>
@@ -82,9 +92,7 @@
 
     <div class="card">
       <h2>承認設定</h2>
-      <div class="hint">
-        既存の保存項目名は変更せず、画面表示だけ労務面に配慮した表現にしています。
-      </div>
+      <div class="hint">承認後に利用できる機能とアカウント状態を設定します。</div>
 
       <label for="roleSelect">アカウント種別</label>
       <select id="roleSelect" class="select-box">
@@ -93,42 +101,45 @@
         <option value="partner_individual">アライアンス個人</option>
         <option value="partner_company_admin">アライアンス法人 管理者</option>
       </select>
-      <div class="field-note">保存値：role。弊社内人員は member として保存します。</div>
+      <div class="field-note">申請者との契約・所属関係に合う種別を選択してください。</div>
 
-      <label for="organizationIdInput" class="mt-12">所属ID / 所属名</label>
-      <input type="text" id="organizationIdInput" class="text-box" placeholder="例: internal / ORG-001 / 所属名" />
-      <div class="field-note">保存値：organization_id。弊社内人員は internal など、外部連携先は所属名または管理IDを入れます。</div>
+      <label for="organizationIdInput" class="mt-12">所属</label>
+      <input type="text" id="organizationIdInput" class="text-box" placeholder="会社名または所属名" />
+      <div class="field-note">弊社内メンバーは「Another」、外部メンバーは会社名・所属名を入力します。</div>
 
       <label for="allowedModulesInput" class="mt-12">利用可能機能</label>
-      <input type="text" id="allowedModulesInput" class="text-box" placeholder="例: pmo,ordercase" />
-      <div class="field-note">保存値：allowed_modules。複数ある場合はカンマ区切りで入力します。</div>
+      <select id="allowedModulesInput" class="select-box" multiple size="4">
+        <option value="account_console">メンバー</option>
+        <option value="pmo">オフ</option>
+        <option value="ordercase">オーダー</option>
+        <option value="shift">シフト</option>
+        <option value="partner_hub">連携先管理</option>
+      </select>
+      <div class="field-note">複数選択できます。Macは⌘、WindowsはCtrlを押しながら選択してください。</div>
 
       <label for="statusSelect" class="mt-12">アカウント状態</label>
       <select id="statusSelect" class="select-box">
         <option value="active">有効</option>
         <option value="inactive">停止</option>
       </select>
-      <div class="field-note">保存値：status。</div>
 
       <label for="workStatusSelect" class="mt-12">稼働対象状態</label>
       <select id="workStatusSelect" class="select-box">
         <option value="on">稼働対象</option>
         <option value="off">稼働対象外</option>
       </select>
-      <div class="field-note">保存値：work_status。将来的には engagement_status へ寄せる想定です。</div>
     </div>
 
     <div class="card">
       <div class="button-stack">
         <button class="approve-btn" id="approveBtn" type="button">承認する</button>
         <button class="reject-btn" id="rejectBtn" type="button">却下する</button>
-        <button class="back-btn" id="backToAccountPortalBtn" type="button">メンバーへ戻る</button>
       </div>
 
       <div class="message" id="messageBox"></div>
     </div>
   </div>
 
-  <script type="module" src="./js/signup-admin/main.js?v=20260903-display-labels-2"></script>
+  <script type="module" src="./js/signup-admin/main.js?v=20260906-display-labels-3"></script>
 </body>
 </html>

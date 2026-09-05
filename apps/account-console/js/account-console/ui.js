@@ -102,12 +102,12 @@ const CONTRACT_TYPE_LABELS = {
 };
 
 const MODULE_LABELS = {
-  account: "メンバー（旧アカウント基盤）",
-  account_console: "メンバー（アカウント登録・申請・権限管理）",
+  account: "メンバー",
+  account_console: "メンバー",
   pmo: "オフ",
   ordercase: "オーダー",
-  manual: "取扱説明書（未公開・無効）",
   shift: "シフト",
+  shiftbuilder: "シフト",
   dashboard: "ダッシュボード"
 };
 
@@ -228,9 +228,25 @@ function modulesArray(value) {
 }
 
 function modulesTextForDisplay(value) {
-  return modulesArray(value)
-    .map((item) => MODULE_LABELS[item] || item)
+  return [...new Set(modulesArray(value)
+    .filter((item) => item !== "manual")
+    .map((item) => MODULE_LABELS[item] || item))]
     .join(", ");
+}
+
+function formatJapaneseDateTime(value) {
+  const raw = text(value);
+  if (!raw) return "-";
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Tokyo"
+  }).format(date);
 }
 
 function displayValueByField(field, value) {
@@ -674,7 +690,7 @@ export function renderLogs(logs) {
 
     const meta = document.createElement("div");
     meta.className = "log-meta";
-    meta.textContent = `${log.changed_at || "-"} / ${log.changed_by || "-"} / ${log.target_email || "-"}`;
+    meta.textContent = `${formatJapaneseDateTime(log.changed_at)} / ${log.changed_by || "-"} / ${log.target_email || "-"}`;
 
     const field = text(log.field);
     const fieldLabel = FIELD_LABELS[field] || field || "-";
@@ -704,9 +720,9 @@ export function buildSaveConfirmMessage(user) {
   const email = user?.email || "-";
   const employeeCode = user?.employee_code || user?.employeeCode || "-";
 
-  const allowedModules = user?.allowed_modules || "-";
-  const ordercasePermission = user?.ordercase_permission || "なし";
-  const shiftbuilderPermission = user?.shiftbuilder_permission || "なし";
+  const allowedModules = modulesTextForDisplay(user?.allowed_modules) || "-";
+  const ordercasePermission = labelFromMap(user?.ordercase_permission, ORDERCASE_PERMISSION_LABELS, "なし");
+  const shiftbuilderPermission = labelFromMap(user?.shiftbuilder_permission, SHIFTBUILDER_PERMISSION_LABELS, "なし");
   const affiliationType = labelFromMap(user?.affiliation_type, AFFILIATION_TYPE_LABELS, "未設定");
   const contractType = labelFromMap(user?.contract_type, CONTRACT_TYPE_LABELS, "未設定");
   const gradeRole = user?.grade_role || "未設定";

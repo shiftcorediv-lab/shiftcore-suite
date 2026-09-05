@@ -12,10 +12,13 @@
 </head>
 <body>
   <div class="container">
-    <header class="pmo-header">
-      <div>
-        <h1 class="pmo-header-title">オフ</h1>
-        <p class="pmo-header-subtitle">希望休メニュー</p>
+    <header class="pmo-header portal-module-header">
+      <div class="portal-module-heading">
+        <a class="portal-brand" href="./dashboard.html" aria-label="Another Portal ダッシュボードへ戻る">
+          <span class="portal-brand-mark" aria-hidden="true"><span></span><span></span></span>
+          <span class="portal-brand-copy"><strong>Another Portal</strong><small>WORKFORCE PLATFORM</small></span>
+        </a>
+        <div class="portal-module-title"><h1 class="pmo-header-title">オフ</h1><p class="pmo-header-subtitle">希望休メニュー</p></div>
       </div>
 
       <div class="pmo-header-actions">
@@ -35,12 +38,12 @@
         </div>
 
         <div class="info-compact-item">
-          <label>社員コード</label>
+          <label>アカウントコード</label>
           <div class="info-box" id="employeeCodeBox">取得中...</div>
         </div>
 
         <div class="info-compact-item">
-          <label>ロール</label>
+          <label>アカウント種別</label>
           <div class="info-box" id="roleBox">取得中...</div>
         </div>
       </div>
@@ -62,6 +65,6 @@
     <div class="message" id="messageBox"></div>
   </div>
 
-  <script type="module" src="./js/pmo-portal/main.js?v=20260803-role-1"></script>
+  <script type="module" src="./js/pmo-portal/main.js?v=20260906-display-labels-1"></script>
 </body>
 </html>

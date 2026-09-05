@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { buildReviewPayload, formatJapanDay, formatJapanTime } from "../js/attendance-admin/attendance-review.js";
+import { buildReviewPayload, formatCorrectionReason, formatJapanDay, formatJapanTime } from "../js/attendance-admin/attendance-review.js";
 
 const adminUiSource = await readFile(new URL("../js/attendance-admin/main.js", import.meta.url), "utf8");
 const adminHtmlSource = await readFile(new URL("../attendance-admin.html", import.meta.url), "utf8");
@@ -38,12 +38,19 @@ test("オフセットなしの申請日時をJSTとして表示する", () => {
   assert.equal(formatJapanTime("invalid time"), "—");
 });
 
+test("修正理由の区分が詳細にも含まれる場合は一度だけ表示する", () => {
+  assert.equal(formatCorrectionReason("交通機関の遅延", "交通機関の遅延：テスト"), "交通機関の遅延：テスト");
+  assert.equal(formatCorrectionReason("交通機関の遅延", "テスト"), "交通機関の遅延：テスト");
+  assert.equal(formatCorrectionReason("", "テスト"), "テスト");
+  assert.equal(formatCorrectionReason("その他", ""), "その他");
+});
+
 test("構造化エラーと通信結果不明を区別して表示する", () => {
   assert.match(adminUiSource, /e\.code\?`\$\{e\.code\}: \$\{e\.message\}`/);
   assert.match(adminUiSource, /再押下せず、画面を更新してください/);
 });
 
 test("承認画面JavaScriptのキャッシュキーを更新する", () => {
-  assert.match(adminHtmlSource, /main\.js\?v=20260904-attendance-flow-1/);
-  assert.match(adminUiSource, /attendance-review\.js\?v=20260819-approval-version-2/);
+  assert.match(adminHtmlSource, /main\.js\?v=20260906-reason-label-1/);
+  assert.match(adminUiSource, /attendance-review\.js\?v=20260906-reason-label-1/);
 });

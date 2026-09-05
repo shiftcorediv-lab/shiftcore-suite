@@ -35,6 +35,18 @@ export function formatJapanTime(value) {
     : new Intl.DateTimeFormat("ja-JP", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Tokyo" }).format(date);
 }
 
+export function formatCorrectionReason(category, detail) {
+  const normalizedCategory = String(category || "").trim();
+  const normalizedDetail = String(detail || "").trim();
+  if (!normalizedCategory) return normalizedDetail || "—";
+  if (!normalizedDetail) return normalizedCategory;
+  const withoutRepeatedPrefix = normalizedDetail.replace(
+    new RegExp(`^${escapeRegExp(normalizedCategory)}[：:\s]+`),
+    ""
+  );
+  return `${normalizedCategory}：${withoutRepeatedPrefix || normalizedCategory}`;
+}
+
 function parseJapanDateTime(value) {
   const text = String(value);
   const local = text.match(JST_LOCAL_DATE_TIME);
@@ -42,4 +54,8 @@ function parseJapanDateTime(value) {
   const [, year, month, day, hour, minute, second = "00", fraction = ""] = local;
   const milliseconds = fraction ? `.${fraction.padEnd(3, "0").slice(0, 3)}` : "";
   return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}${milliseconds}+09:00`);
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
