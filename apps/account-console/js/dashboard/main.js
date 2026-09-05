@@ -1,10 +1,10 @@
 import { auth, signOut, onAuthStateChanged } from "./auth.js?v=20260802-attendance-3";
 import { getStoredUser, saveStoredUser, clearStoredUser } from "./storage.js?v=20260802-modules-2";
 import { goToLogin } from "./navigation.js?v=20260803-role-1";
-import { renderModules, renderModuleMenu } from "./modules.js?v=20260903-display-labels-2";
+import { renderModules, renderModuleMenu } from "./modules.js?v=20260905-agency-master-1";
 import { attendanceRequest } from "./attendance-api.js?v=20260802-attendance-3";
 import { resolveCurrentUserWithGasByIdToken } from "../login/api.js?v=20260803-logintoken-1";
-import { LOCATION_CONSENT_VERSION } from "./config.js?v=20260903-display-labels-2";
+import { LOCATION_CONSENT_VERSION } from "./config.js?v=20260905-agency-master-1";
 import { setActivity } from "../common/activity.js?v=20260831-activity-1";
 import { clearShiftCoreSessionState } from "../../../common/logout-session.js?v=20260902-session-1";
 

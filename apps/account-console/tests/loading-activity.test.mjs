@@ -78,7 +78,7 @@ test("ダッシュボードの現状表示は先頭側へ配置し、表示域�
 test("ダッシュボードの日付は年月日を省略せず表示する", () => {
   assert.match(dashboardSource, /month: "numeric"/);
   assert.match(dashboardSource, /\$\{part\("year"\)\}年\$\{part\("month"\)\}月\$\{part\("day"\)\}日/);
-  assert.match(dashboardHtml, /main\.js\?v=20260905-order-sync-1/);
+  assert.match(dashboardHtml, /main\.js\?v=20260905-agency-master-1/);
 });
 
 test("最新勤怠の取得前は非稼働と断定せず稼働予定を読込中にする", () => {
@@ -109,7 +109,7 @@ test("ダッシュボードの予定同期表示は利用者向けのシフト�
   assert.match(dashboardSource, /シフトの予定は最新です/);
   assert.match(dashboardSource, /シフトの最新予定を勤怠へ反映しました/);
   assert.match(dashboardSource, /シフト同期に失敗しました/);
-  assert.match(dashboardHtml, /main\.js\?v=20260905-order-sync-1/);
+  assert.match(dashboardHtml, /main\.js\?v=20260905-agency-master-1/);
 });
 
 test("案件登録・編集の通知を受けた時だけダッシュボード予定を強制同期する", () => {
@@ -118,5 +118,5 @@ test("案件登録・編集の通知を受けた時だけダッシュボード�
   assert.match(dashboardSource, /forceScheduleRefresh: options\.forceScheduleRefresh === true/);
   assert.match(dashboardSource, /shiftDataRevision: options\.shiftDataRevision \|\| ""/);
   assert.match(dashboardSource, /event\.key === SHIFTBUILDER_DATA_REVISION_KEY/);
-  assert.match(dashboardHtml, /main\.js\?v=20260905-order-sync-1/);
+  assert.match(dashboardHtml, /main\.js\?v=20260905-agency-master-1/);
 });

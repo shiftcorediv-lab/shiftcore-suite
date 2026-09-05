@@ -61,6 +61,16 @@ function handlePost_(e) {
       const context = requireOrderCaseEditor_(getIdTokenFromBody_(body));
       return jsonResponse_({ ok: true, action: action, permission: context.permission, data: updateStoreMaster_(payload) });
     }
+
+    if (action === 'createAgencyMaster') {
+      const context = requireOrderCaseEditor_(getIdTokenFromBody_(body));
+      return jsonResponse_({ ok: true, action: action, permission: context.permission, data: createAgencyMaster_(payload, context) });
+    }
+
+    if (action === 'updateAgencyMaster') {
+      const context = requireOrderCaseEditor_(getIdTokenFromBody_(body));
+      return jsonResponse_({ ok: true, action: action, permission: context.permission, data: updateAgencyMaster_(payload, context) });
+    }
     /****************************************************
      * updateCase ここまで
      ****************************************************/

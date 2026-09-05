@@ -1584,8 +1584,8 @@ select {
 }
 
 .candidate-card.is-ng {
-  border-color: rgba(220, 38, 38, 0.48);
-  background: rgba(254, 242, 242, 0.92);
+  border-color: rgba(217, 119, 6, 0.48);
+  background: rgba(255, 251, 235, 0.94);
 }
 
 .candidate-card.is-consecutive-warning {
@@ -1636,8 +1636,8 @@ select {
 }
 
 .candidate-relation-badge.is-ng {
-  background: #fee2e2;
-  color: #b91c1c;
+  background: #fef3c7;
+  color: #92400e;
 }
 
 .candidate-card .candidate-meta {

@@ -83,6 +83,10 @@ function getOrderCaseStoresMasterSheet_() {
   return getRequiredSheet_(getOrderCaseSpreadsheet_(), ORDERCASE_STORES_MASTER_SHEET_NAME);
 }
 
+function getOrderCaseAgenciesMasterSheet_() {
+  return getOrderCaseSpreadsheet_().getSheetByName(ORDERCASE_AGENCIES_MASTER_SHEET_NAME);
+}
+
 function getPmoRequestsSheet_() {
   return getRequiredSheet_(getPmoSpreadsheet_(), PMO_REQUESTS_SHEET_NAME);
 }
@@ -519,6 +523,11 @@ function getOrderCaseDateRows_() {
 function getOrderCaseStoreRows_() {
   return getSheetObjects_(getOrderCaseStoresMasterSheet_());
 }
+
+function getOrderCaseAgencyRows_() {
+  const sheet = getOrderCaseAgenciesMasterSheet_();
+  return sheet ? getSheetObjects_(sheet) : [];
+}
 // ===== OrderCase 読み取りここまで =====
 
 // ===== OrderCase → ShiftBuilder 月次データ変換ここから =====
@@ -529,6 +538,10 @@ function buildShiftBuilderMonthData_(targetMonth, area) {
   const dates = buildMonthDateItems_(normalizedTargetMonth);
   const orderCases = getOrderCaseRows_();
   const orderCaseDates = getOrderCaseDateRows_();
+  const agenciesById = {};
+  getOrderCaseAgencyRows_().forEach(function(agency) {
+    agenciesById[normalizeText(agency.agency_id)] = agency;
+  });
   const storesById = {};
   getOrderCaseStoreRows_().forEach(function(store) {
     storesById[normalizeText(store.store_id)] = store;
@@ -585,7 +598,8 @@ function buildShiftBuilderMonthData_(targetMonth, area) {
         dates,
         assignmentsByCaseDate,
         usersById,
-        storesById[normalizeText(caseRow.store_id)] || {}
+        storesById[normalizeText(caseRow.store_id)] || {},
+        agenciesById[normalizeText(caseRow.agency_id)] || {}
       );
     })
     .filter(function(caseItem) {
@@ -651,25 +665,26 @@ function parseStoreMemberRuleIds_(value) {
   });
 }
 
-function getStoreMemberRule_(caseRow, stores) {
+function getMemberPreferenceRule_(caseRow, agencies, stores) {
+  const agencyId = normalizeText(caseRow && caseRow.agency_id);
   const storeId = normalizeText(caseRow && caseRow.store_id);
+  const targetAgency = (agencies || []).find(function(agency) {
+    return normalizeText(agency.agency_id) === agencyId;
+  }) || {};
   const targetStore = (stores || []).find(function(store) {
     return normalizeText(store.store_id) === storeId;
   }) || {};
 
   return {
-    preferred_member_ids: parseStoreMemberRuleIds_(targetStore.preferred_member_ids),
-    ng_member_ids: parseStoreMemberRuleIds_(targetStore.ng_member_ids)
+    agency_preferred_member_ids: parseStoreMemberRuleIds_(targetAgency.preferred_member_ids),
+    agency_ng_member_ids: parseStoreMemberRuleIds_(targetAgency.ng_member_ids),
+    store_preferred_member_ids: parseStoreMemberRuleIds_(targetStore.preferred_member_ids),
+    store_ng_member_ids: parseStoreMemberRuleIds_(targetStore.ng_member_ids),
+    agency_preferred_note: normalizeText(targetAgency.preferred_note),
+    agency_ng_note: normalizeText(targetAgency.ng_note),
+    store_preferred_note: normalizeText(targetStore.preferred_note),
+    store_ng_note: normalizeText(targetStore.ng_note)
   };
-}
-
-function memberMatchesStoreRule_(params, memberIds) {
-  const identifiers = [params && params.internal_user_id, params && params.account_code]
-    .map(function(value) { return normalizeLowerText(value); })
-    .filter(Boolean);
-  return identifiers.some(function(identifier) {
-    return memberIds.indexOf(identifier) !== -1;
-  });
 }
 
 function resolveShiftBuilderAssignmentContract_(params, orderCases, orderCaseDates, orderCaseStores, options) {
@@ -696,6 +711,11 @@ function resolveShiftBuilderAssignmentContract_(params, orderCases, orderCaseDat
     : enforceMemberRules && normalizeText(targetCase.store_id)
       ? getOrderCaseStoreRows_()
       : [];
+  const sourceAgencies = options && Array.isArray(options.orderCaseAgencies)
+    ? options.orderCaseAgencies
+    : enforceMemberRules && normalizeText(targetCase.agency_id)
+      ? getOrderCaseAgencyRows_()
+      : [];
 
   if (!isOrderCaseVisibleInShiftBuilder_(targetCase)) {
     throw new Error("Shift対象外または無効な案件にはアサインできません: " + caseId);
@@ -721,10 +741,8 @@ function resolveShiftBuilderAssignmentContract_(params, orderCases, orderCaseDat
     throw new Error("案件エリアとアサイン先エリアが一致しません: " + caseArea + " / " + area);
   }
 
-  const memberRule = getStoreMemberRule_(targetCase, sourceStores);
-  if (enforceMemberRules && memberMatchesStoreRule_(params, memberRule.ng_member_ids)) {
-    throw new Error("この店舗のNGメンバーはアサインできません: " + normalizeText(params.internal_user_id));
-  }
+  // NGは業務上の注意情報であり配置禁止ではない。UIで設定元と理由を示して確認する。
+  const memberRule = getMemberPreferenceRule_(targetCase, sourceAgencies, sourceStores);
 
   if (inputMode === "days") {
     if (caseDateId) {
@@ -1011,7 +1029,7 @@ function groupOrderCaseDatesByCaseId_(orderCaseDates, targetMonth) {
   return grouped;
 }
 
-function buildShiftBuilderCaseFromOrderCase_(caseRow, caseDateRows, monthDates, assignmentsByCaseDate, usersById, storeRow) {
+function buildShiftBuilderCaseFromOrderCase_(caseRow, caseDateRows, monthDates, assignmentsByCaseDate, usersById, storeRow, agencyRow) {
   const caseId = normalizeText(caseRow.case_id);
 
   if (!caseId) {
@@ -1027,10 +1045,8 @@ function buildShiftBuilderCaseFromOrderCase_(caseRow, caseDateRows, monthDates, 
     normalizeText(caseRow.case_type) ||
     caseId;
   const safeStoreRow = storeRow || {};
-  const storeMemberRule = {
-    preferred_member_ids: parseStoreMemberRuleIds_(safeStoreRow.preferred_member_ids),
-    ng_member_ids: parseStoreMemberRuleIds_(safeStoreRow.ng_member_ids)
-  };
+  const safeAgencyRow = agencyRow || {};
+  const memberRule = getMemberPreferenceRule_(caseRow, [safeAgencyRow], [safeStoreRow]);
   const effectiveAddress = normalizeText(caseRow.work_address) || normalizeText(safeStoreRow.address);
   const effectiveNearestStation = normalizeText(caseRow.work_nearest_station) || normalizeText(safeStoreRow.nearest_station);
 
@@ -1143,10 +1159,18 @@ function buildShiftBuilderCaseFromOrderCase_(caseRow, caseDateRows, monthDates, 
     requested_days: requestedDays,
     requiredPeople: caseRequiredPeople,
     required_people: caseRequiredPeople,
-    preferredMemberIds: storeMemberRule.preferred_member_ids,
-    preferred_member_ids: storeMemberRule.preferred_member_ids,
-    ngMemberIds: storeMemberRule.ng_member_ids,
-    ng_member_ids: storeMemberRule.ng_member_ids,
+    agencyPreferredMemberIds: memberRule.agency_preferred_member_ids,
+    agency_preferred_member_ids: memberRule.agency_preferred_member_ids,
+    agencyNgMemberIds: memberRule.agency_ng_member_ids,
+    agency_ng_member_ids: memberRule.agency_ng_member_ids,
+    storePreferredMemberIds: memberRule.store_preferred_member_ids,
+    store_preferred_member_ids: memberRule.store_preferred_member_ids,
+    storeNgMemberIds: memberRule.store_ng_member_ids,
+    store_ng_member_ids: memberRule.store_ng_member_ids,
+    agency_preferred_note: memberRule.agency_preferred_note,
+    agency_ng_note: memberRule.agency_ng_note,
+    store_preferred_note: memberRule.store_preferred_note,
+    store_ng_note: memberRule.store_ng_note,
 
     fulfillmentStatus: fulfillment.status,
     fulfillment_status: fulfillment.status,

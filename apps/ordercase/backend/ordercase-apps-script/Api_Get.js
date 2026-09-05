@@ -38,6 +38,7 @@ function isOrderCaseReadAction_(action) {
     'getCaseDetail',
     'getCaseDetailPageData',
     'getCaseChangeLogs',
+    'listAgenciesMaster',
     'listStoresMaster'
   ].indexOf(String(action || '')) !== -1;
 }
@@ -177,6 +178,17 @@ function handleOrderCaseRead_(params) {
     /****************************************************
      * getCaseChangeLogs ここまで
      ****************************************************/
+
+    if (action === 'listAgenciesMaster') {
+      const context = requireOrderCaseEditor_(getIdTokenFromBody_(params));
+
+      return jsonResponse_({
+        ok: true,
+        action: action,
+        permission: context.permission,
+        data: getAgenciesMasterForManagement_()
+      });
+    }
 
     if (action === 'listStoresMaster') {
       const context = requireOrderCaseEditor_(getIdTokenFromBody_(params));

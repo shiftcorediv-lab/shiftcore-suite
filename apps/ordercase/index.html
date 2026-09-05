@@ -448,6 +448,7 @@ input[type="time"] {
       <div class="grid two">
         <div class="suggest-wrap">
           <label for="agencyName">代理店名</label>
+          <input id="agencyId" type="hidden" />
           <input id="agencyName" autocomplete="off" placeholder="例：〇〇代理店" />
           <div class="suggest-dropdown" id="agencySuggest"></div>
         </div>
@@ -468,7 +469,7 @@ input[type="time"] {
       </div>
 
       <p class="hint">
-        候補を選ぶと入力欄に反映されます。店舗候補を選んだ場合、代理店名とエリアも自動入力されます。未登録の代理店・店舗は登録時に stores_master へ仮登録されます。
+        候補を選ぶと入力欄に反映されます。店舗候補を選んだ場合、代理店名とエリアも自動入力されます。未登録の代理店・店舗は登録時に各マスターへ仮登録されます。
       </p>
     </section>
 
@@ -688,7 +689,7 @@ input[type="time"] {
   <script src="./js/api.js?v=20260902-security-1"></script>
   <script src="./js/create-operation-policy.js?v=20260902-idempotency-1"></script>
   <script src="./js/loading.js"></script>
-  <script src="./js/navigation.js?v=20260903-display-labels-1"></script>
+  <script src="./js/navigation.js?v=20260905-agency-master-1"></script>
 
   <script>
     /****************************************************
@@ -697,6 +698,7 @@ input[type="time"] {
     const state = {
       bootstrap: null,
       selectedDates: [],
+      agenciesMaster: [],
       storesMaster: []
     };
     const createOperationTracker = window.OrderCaseCreateOperationPolicy.createTracker();
@@ -841,6 +843,7 @@ input[type="time"] {
         }
 
         state.bootstrap = json.data;
+        state.agenciesMaster = json.data.agencies_master || [];
         state.storesMaster = json.data.stores_master || [];
 
         renderCaseTypes();
@@ -909,6 +912,8 @@ input[type="time"] {
      * 候補表示：代理店 ここから
      ****************************************************/
     function handleAgencyInput() {
+      const exact = findExactAgency(document.getElementById('agencyName').value);
+      document.getElementById('agencyId').value = exact ? exact.agency_id || '' : '';
       renderAgencySuggestions();
       renderStoreSuggestions();
       handleInputChange();
@@ -938,7 +943,7 @@ input[type="time"] {
 
       box.innerHTML = agencies.map(row => {
         return `
-          <button type="button" class="suggest-option" data-agency-name="${escapeHtml(row.agency_name)}">
+          <button type="button" class="suggest-option" data-agency-id="${escapeHtml(row.agency_id || '')}" data-agency-name="${escapeHtml(row.agency_name)}">
             <span class="suggest-main">${escapeHtml(row.agency_name)}</span>
             <span class="suggest-sub">登録済み代理店</span>
           </button>
@@ -947,14 +952,15 @@ input[type="time"] {
 
       box.querySelectorAll('.suggest-option').forEach(button => {
         button.addEventListener('click', () => {
-          selectAgencySuggestion(button.dataset.agencyName);
+          selectAgencySuggestion(button.dataset.agencyId, button.dataset.agencyName);
         });
       });
 
       box.classList.add('show');
     }
 
-    function selectAgencySuggestion(agencyName) {
+    function selectAgencySuggestion(agencyId, agencyName) {
+      document.getElementById('agencyId').value = agencyId || '';
       document.getElementById('agencyName').value = agencyName;
 
       hideSuggest('agencySuggest');
@@ -987,14 +993,16 @@ input[type="time"] {
 
       const storeKeyword = document.getElementById('storeName').value.trim();
       const agencyName = document.getElementById('agencyName').value.trim();
-
-      const matchedAgencyName = findExactAgencyName(agencyName);
+      const agencyId = document.getElementById('agencyId').value.trim();
+      const matchedAgency = findExactAgency(agencyName);
 
       let stores = state.storesMaster.slice();
 
-      if (matchedAgencyName) {
+      if (agencyId || matchedAgency) {
         stores = stores.filter(row => {
-          return normalizeText(row.agency_name) === normalizeText(matchedAgencyName);
+          return agencyId
+            ? String(row.agency_id || '') === agencyId
+            : normalizeText(row.agency_name) === normalizeText(matchedAgency.agency_name);
         });
       }
 
@@ -1009,7 +1017,7 @@ input[type="time"] {
         .slice(0, 12);
 
       if (stores.length === 0) {
-        const message = matchedAgencyName
+        const message = agencyId || matchedAgency
           ? 'この代理店に紐づく店舗候補はありません。手入力で登録できます。'
           : '一致する店舗候補はありません。手入力で登録できます。';
 
@@ -1044,6 +1052,7 @@ input[type="time"] {
       document.getElementById('storeNearestStation').value = row.nearest_station || '';
 
       if (row.agency_name) {
+        document.getElementById('agencyId').value = row.agency_id || '';
         document.getElementById('agencyName').value = row.agency_name;
       }
 
@@ -1068,6 +1077,9 @@ input[type="time"] {
      * 候補共通 ここから
      ****************************************************/
     function getUniqueAgencies() {
+      if (state.agenciesMaster.length) {
+        return state.agenciesMaster.slice().sort((a, b) => String(a.agency_name).localeCompare(String(b.agency_name), 'ja'));
+      }
       const map = {};
 
       state.storesMaster.forEach(row => {
@@ -1078,6 +1090,7 @@ input[type="time"] {
 
         if (!map[key]) {
           map[key] = {
+            agency_id: row.agency_id || '',
             agency_name: name
           };
         }
@@ -1088,8 +1101,8 @@ input[type="time"] {
       });
     }
 
-    function findExactAgencyName(value) {
-      if (!value) return '';
+    function findExactAgency(value) {
+      if (!value) return null;
 
       const target = normalizeText(value);
 
@@ -1097,7 +1110,7 @@ input[type="time"] {
         return normalizeText(row.agency_name) === target;
       });
 
-      return found ? found.agency_name : '';
+      return found || null;
     }
 
     function normalizeText(value) {
@@ -1610,6 +1623,7 @@ input[type="time"] {
         shiftcore_display_name: document.getElementById('shiftcoreDisplayName').value.trim(),
         input_mode: inputMode,
 
+        agency_id: document.getElementById('agencyId').value.trim(),
         agency_name: document.getElementById('agencyName').value.trim(),
         store_name: document.getElementById('storeName').value.trim(),
         store_short_name: document.getElementById('storeShortName').value.trim(),
@@ -1794,6 +1808,7 @@ input[type="time"] {
      ****************************************************/
     function clearFormAfterSubmit() {
       document.getElementById('agencyName').value = '';
+      document.getElementById('agencyId').value = '';
       document.getElementById('storeName').value = '';
       document.getElementById('storeShortName').value = '';
       document.getElementById('storeAddress').value = '';
