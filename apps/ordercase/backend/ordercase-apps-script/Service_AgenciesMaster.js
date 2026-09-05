@@ -292,21 +292,37 @@ function ensureAgencyMaster_(payload, caseId) {
 
 function buildAgenciesMasterMigrationPlan_() {
   const stores = getSheetObjects_(SHEET_STORES_MASTER);
+  const cases = getSheetObjects_(SHEET_CASES);
   const grouped = {};
-  stores.forEach(function(store) {
-    const name = String(store.agency_name || '').trim();
+
+  function ensureGroup_(agencyName) {
+    const name = String(agencyName || '').trim();
     const key = normalizeMasterName_(name);
-    if (!key) return;
-    if (!grouped[key]) grouped[key] = { agency_name: name, stores: [] };
-    grouped[key].stores.push(store);
+    if (!key) return null;
+    if (!grouped[key]) grouped[key] = { agency_name: name, stores: [], cases: [] };
+    return grouped[key];
+  }
+
+  stores.forEach(function(store) {
+    const group = ensureGroup_(store.agency_name);
+    if (group) group.stores.push(store);
+  });
+  // 店舗マスターが未整備でも、過去案件に残る代理店名を初期マスターへ引き継ぐ。
+  // 案件自体は履歴として書き換えず、完全一致する名称だけを同一代理店として扱う。
+  cases.forEach(function(caseItem) {
+    const group = ensureGroup_(caseItem.agency_name);
+    if (group) group.cases.push(caseItem);
   });
   return Object.keys(grouped).sort().map(function(key) {
     const group = grouped[key];
-    const legacyIds = group.stores.map(function(store) { return String(store.agency_id || '').trim(); }).filter(Boolean);
+    const legacyIds = group.stores.concat(group.cases).map(function(item) {
+      return String(item.agency_id || '').trim();
+    }).filter(Boolean);
     return {
       agency_name: group.agency_name,
       preferred_agency_id: legacyIds.sort()[0] || '',
       store_ids: group.stores.map(function(store) { return String(store.store_id || '').trim(); }).filter(Boolean),
+      case_ids: group.cases.map(function(caseItem) { return String(caseItem.case_id || '').trim(); }).filter(Boolean),
       legacy_agency_ids: legacyIds
     };
   });
@@ -348,10 +364,10 @@ function setupAgenciesMasterFromStores() {
         contact_name: '',
         phone: '',
         email: '',
-        memo: '店舗マスターから移行',
+        memo: item.store_ids.length > 0 ? '店舗・案件データから移行' : '案件データから移行',
         status: 'active',
         provisional: 'FALSE',
-        created_from_case_id: '',
+        created_from_case_id: item.case_ids[0] || '',
         created_at: now,
         created_by: Session.getActiveUser().getEmail(),
         updated_at: now,
@@ -372,7 +388,12 @@ function setupAgenciesMasterFromStores() {
       if (agency && agencyIdIndex !== -1) values[index][agencyIdIndex] = agency.agency_id;
     }
     if (values.length > 1) storeSheet.getRange(2, 1, values.length - 1, headers.length).setValues(values.slice(1));
-    return { created_count: created.length, agency_count: Object.keys(existingByName).length, updated_store_count: Math.max(values.length - 1, 0) };
+    return {
+      created_count: created.length,
+      agency_count: Object.keys(existingByName).length,
+      updated_store_count: Math.max(values.length - 1, 0),
+      source_case_count: plan.reduce(function(total, item) { return total + item.case_ids.length; }, 0)
+    };
   } finally {
     lock.releaseLock();
   }
