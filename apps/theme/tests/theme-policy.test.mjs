@@ -4,6 +4,17 @@ import test from "node:test";
 
 const read = relativePath => readFile(new URL(relativePath, import.meta.url), "utf8");
 
+test("Blue・Redの共通ヘッダー色はダーク表示の共通背景より優先する", async () => {
+  const css = await read("../shiftcore-theme.css");
+  assert.match(css, /--portal-header-bg: #eaf2ff/);
+  assert.match(css, /--portal-header-bg: #fff0f1/);
+  assert.match(css, /--portal-header-bg: #142b4c/);
+  assert.match(css, /--portal-header-bg: #42202b/);
+  assert.match(css, /:root\[data-theme="dark"\]\[data-portal-color\] \.portal-unified-header\s*\{/);
+  assert.match(css, /Blue · 通常運用/);
+  assert.match(css, /Red · メンテナンス運用/);
+});
+
 const [source, fieldResponsiveCss, dashboardHtml, workReportHtml, pmoHtml] = await Promise.all([
   read("../shiftcore-theme.js"),
   read("../portal-field-responsive.css"),

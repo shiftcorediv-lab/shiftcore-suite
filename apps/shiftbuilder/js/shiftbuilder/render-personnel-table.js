@@ -5,7 +5,7 @@ import {
   getCaseIdentityLabel,
   getCompactCaseId,
   getCalendarDayLabel
-} from "./display-labels.mjs?v=20260906-overview-1";
+} from "./display-labels.mjs?v=20260907-compact-1";
 
 function getDateColumnClass(dateItem) {
   const weekday = String(dateItem?.weekday || "").trim().toLowerCase();
@@ -291,6 +291,7 @@ export function renderPersonnelTable(viewModel, elements, handlers = {}) {
             class="personnel-cell row-export-trigger"
             tabindex="0"
             data-person-id="${escapeHtml(person.id)}"
+            title="${escapeHtml([person.displayName, person.accountCode, person.id, person.personType, person.contractType, person.baseArea].filter(Boolean).join(' / '))}"
             aria-label="${escapeHtml(`${person.displayName}の出力メニュー。右クリックまたはShift+F10`)}"
           >
             ${renderPersonMeta(person)}
