@@ -740,3 +740,23 @@
   .shiftcore-account-menu-trigger,
   .shiftcore-theme-option { scroll-behavior: auto; }
 }
+
+/* 共通ヘッダーでもスロット色を維持し、ダークテーマの後で適用する。 */
+:root[data-portal-color="blue"] { --sc-theme-accent: #1556b8; --portal-header-bg: #eaf2ff; --portal-slot-label: "Blue · 通常運用"; }
+:root[data-portal-color="red"] { --sc-theme-accent: #b4232c; --portal-header-bg: #fff0f1; --portal-slot-label: "Red · メンテナンス運用"; }
+:root[data-theme="dark"][data-portal-color="blue"] { --sc-theme-accent: #8bb7ff; --portal-header-bg: #142b4c; }
+:root[data-theme="dark"][data-portal-color="red"] { --sc-theme-accent: #ff9aa5; --portal-header-bg: #42202b; --sb-primary: #ff9aa5; }
+:root[data-portal-color] .portal-unified-header,
+:root[data-theme="dark"][data-portal-color] .portal-unified-header {
+  background: var(--portal-header-bg)!important;
+  border-bottom: 3px solid var(--sc-theme-accent)!important;
+}
+:root[data-portal-color] .portal-unified-header .brand small {
+  font-size: 0;
+}
+:root[data-portal-color] .portal-unified-header .brand small::after {
+  content: var(--portal-slot-label);
+  font-size: 10px;
+  letter-spacing: .03em;
+  color: var(--sc-theme-accent);
+}

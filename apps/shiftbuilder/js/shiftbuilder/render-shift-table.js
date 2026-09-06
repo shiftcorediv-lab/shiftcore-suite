@@ -10,7 +10,7 @@ import {
   getAssignmentId,
   getInternalUserId
 } from "./record-normalizers.mjs?v=20260801-authfix-1";
-import { getCompactMemberLabel, getCalendarDayLabel } from "./display-labels.mjs?v=20260906-overview-1";
+import { getCompactMemberLabel, getCalendarDayLabel } from "./display-labels.mjs?v=20260907-compact-1";
 
 export function buildOrderCaseDetailsUrl(caseId, environment = globalThis.window?.ShiftCoreEnvironment) {
   if (!environment || typeof environment.withEnvironment !== "function") {
@@ -515,6 +515,7 @@ export function renderShiftTable(data, elements, handlers = {}) {
             class="case-cell row-export-trigger"
             tabindex="0"
             data-case-id="${escapeHtml(caseItem.caseId)}"
+            title="${escapeHtml([caseItem.title, caseItem.caseType, caseItem.client, caseItem.area, caseItem.caseId].filter(Boolean).join(' / '))}"
             aria-label="${escapeHtml(`${caseItem.title}の出力メニュー。右クリックまたはShift+F10`)}"
           >
             <div class="case-title">${escapeHtml(caseItem.title)}</div>

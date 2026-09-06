@@ -4,20 +4,29 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>月全体表示のローカル検証</title>
 <link rel="stylesheet" href="../../../shared/css/shiftcore-ui.css">
-<link rel="stylesheet" href="../css/shiftbuilder.css?v=20260906-overview-1">
-<link rel="stylesheet" href="../../theme/shiftcore-theme.css">
+<link rel="stylesheet" href="../css/shiftbuilder.css?v=20260907-compact-1">
+<link rel="stylesheet" href="../../theme/shiftcore-theme.css?v=20260907-slot-color-2">
 <body>
+<header class="portal-unified-header"><a class="brand"><span><strong>Another Portal</strong><small>WORKFORCE PLATFORM</small></span></a></header>
 <main class="page">
   <h1>月全体表示の検証（架空データ）</h1>
   <label>日数 <select id="days"><option>28</option><option>29</option><option>30</option><option selected>31</option></select></label>
+  <label>配信色（確認専用）<select id="color"><option value="blue">Blue</option><option value="red">Red</option></select></label>
+  <label>表示<select id="theme"><option value="light">ライト</option><option value="dark">ダーク</option></select></label>
   <section class="shift-table-panel"><h2>案件軸</h2><div class="shift-table-scroll"><table class="shift-table" id="cases"><thead></thead><tbody></tbody></table></div></section>
   <section class="shift-table-panel"><h2>人員軸</h2><div class="shift-table-scroll"><table class="shift-table personnel-axis-table" id="people"><thead></thead><tbody></tbody></table></div></section>
 </main>
 <script type="module">
-import {renderShiftTable} from '../js/shiftbuilder/render-shift-table.js?v=20260906-overview-1';
-import {renderPersonnelTable} from '../js/shiftbuilder/render-personnel-table.js?v=20260906-overview-1';
+import {renderShiftTable} from '../js/shiftbuilder/render-shift-table.js?v=20260907-compact-1';
+import {renderPersonnelTable} from '../js/shiftbuilder/render-personnel-table.js?v=20260907-compact-1';
 window.ShiftCoreEnvironment = {withEnvironment: path => path};
 const days = document.querySelector('#days');
+for (const [id, key] of [['color','portalColor'],['theme','theme']]) {
+  const control = document.getElementById(id);
+  const update = () => {document.documentElement.dataset[key] = control.value;};
+  control.addEventListener('change', update);
+  update();
+}
 function render() {
   const dates = Array.from({length:Number(days.value)}, (_,i) => ({date:`2026-10-${String(i+1).padStart(2,'0')}`, label:`10/${i+1}`, weekday:['木','金','土','日','月','火','水'][i%7]}));
   const member = {userId:'fixture', family_name:'山田', given_name:'太郎'};
