@@ -3,8 +3,9 @@
 import { escapeHtml } from "./utils.js?v=20260801-authfix-1";
 import {
   getCaseIdentityLabel,
-  getCompactCaseId
-} from "./display-labels.mjs?v=20260905-identity-labels-1";
+  getCompactCaseId,
+  getCalendarDayLabel
+} from "./display-labels.mjs?v=20260906-overview-1";
 
 function getDateColumnClass(dateItem) {
   const weekday = String(dateItem?.weekday || "").trim().toLowerCase();
@@ -249,7 +250,7 @@ export function renderPersonnelTable(viewModel, elements, handlers = {}) {
         .map(
           (dateItem) => `
             <th class="${escapeHtml(getDateColumnClass(dateItem))}">
-              <div class="table-date-label">${escapeHtml(dateItem.label)}</div>
+              <div class="table-date-label" title="${escapeHtml(dateItem.date)}">${escapeHtml(getCalendarDayLabel(dateItem))}</div>
               <div class="table-weekday">${escapeHtml(dateItem.weekday)}</div>
             </th>
           `

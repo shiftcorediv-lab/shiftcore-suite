@@ -513,7 +513,7 @@ select {
 
 .shift-table {
   width: 100%;
-  min-width: 1320px;
+  min-width: 0;
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
@@ -546,9 +546,7 @@ select {
   position: sticky;
   left: 0;
   z-index: 1;
-  width: 240px;
-  min-width: 240px;
-  max-width: 240px;
+  width: clamp(140px, 15vw, 200px);
   background: #ffffff;
 }
 
@@ -559,9 +557,10 @@ select {
 
 .shift-table th:not(:first-child),
 .shift-table td:not(:first-child) {
-  width: 96px;
-  min-width: 96px;
-  max-width: 96px;
+  /* 固定幅を置かず、左列以外を月の日数で等分する。 */
+  width: auto;
+  min-width: 0;
+  padding: 3px 1px;
 }
 
 .shift-table tr:last-child td {
@@ -588,7 +587,7 @@ select {
 
 .table-date-label {
   text-align: center;
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 900;
   line-height: 1.2;
 }
@@ -1049,14 +1048,14 @@ select {
 
 .shift-cell-status {
   width: auto;
-  min-width: 20px;
+  min-width: 0;
   max-width: 100%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 1px 4px;
+  padding: 1px 0;
   border-radius: 999px;
-  white-space: nowrap;
+  white-space: normal;
   text-align: center;
   font-size: 9px;
   font-weight: 900;
@@ -1704,16 +1703,10 @@ select {
 
 /* ===== Responsive ここから ===== */
 
-@media (min-width: 1400px) {
+@media (max-width: 720px) {
+  /* スマホまで31列を押し込めず、表の中だけを横スクロールする。 */
   .shift-table {
-    min-width: 100%;
-  }
-
-  .shift-table th:first-child,
-  .shift-table td:first-child {
-    width: 200px;
-    min-width: 200px;
-    max-width: 200px;
+    min-width: calc(140px + var(--shift-day-count, 31) * 48px);
   }
 }
 
@@ -1866,7 +1859,7 @@ select {
   max-width: 100%;
   overflow: hidden;
   color: #111111;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 900;
   line-height: 1.3;
   text-overflow: ellipsis;
