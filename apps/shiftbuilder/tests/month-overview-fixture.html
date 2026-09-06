@@ -4,7 +4,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>月全体表示のローカル検証</title>
 <link rel="stylesheet" href="../../../shared/css/shiftcore-ui.css">
-<link rel="stylesheet" href="../css/shiftbuilder.css?v=20260907-compact-1">
+<link rel="stylesheet" href="../css/shiftbuilder.css?v=20260907-compact-2">
 <link rel="stylesheet" href="../../theme/shiftcore-theme.css?v=20260907-slot-color-2">
 <body>
 <header class="portal-unified-header"><a class="brand"><span><strong>Another Portal</strong><small>WORKFORCE PLATFORM</small></span></a></header>
@@ -17,8 +17,8 @@
   <section class="shift-table-panel"><h2>人員軸</h2><div class="shift-table-scroll"><table class="shift-table personnel-axis-table" id="people"><thead></thead><tbody></tbody></table></div></section>
 </main>
 <script type="module">
-import {renderShiftTable} from '../js/shiftbuilder/render-shift-table.js?v=20260907-compact-1';
-import {renderPersonnelTable} from '../js/shiftbuilder/render-personnel-table.js?v=20260907-compact-1';
+import {renderShiftTable} from '../js/shiftbuilder/render-shift-table.js?v=20260907-compact-2';
+import {renderPersonnelTable} from '../js/shiftbuilder/render-personnel-table.js?v=20260907-compact-2';
 window.ShiftCoreEnvironment = {withEnvironment: path => path};
 const days = document.querySelector('#days');
 for (const [id, key] of [['color','portalColor'],['theme','theme']]) {
@@ -30,7 +30,7 @@ for (const [id, key] of [['color','portalColor'],['theme','theme']]) {
 function render() {
   const dates = Array.from({length:Number(days.value)}, (_,i) => ({date:`2026-10-${String(i+1).padStart(2,'0')}`, label:`10/${i+1}`, weekday:['木','金','土','日','月','火','水'][i%7]}));
   const member = {userId:'fixture', family_name:'山田', given_name:'太郎'};
-  const data = {dates, cases:[{caseId:'FIXTURE-001',title:'確認用案件',cells:Object.fromEntries(dates.map(d=>[d.date,{required:1,assigned:[member]}]))}]};
+  const data = {dates, cases:[{caseId:'CASE-202609-0005',title:'長い店舗名の折り返し確認用案件',cells:Object.fromEntries(dates.map(d=>[d.date,{required:1,assigned:[member]}]))}]};
   const person = {id:'fixture',displayName:'山田 太郎',accountCode:'TEST001',assignedDaysCount:dates.length,assignmentCount:dates.length,assignmentsByDate:Object.fromEntries(dates.map(d=>[d.date,[{caseId:'FIXTURE-001',caseTitle:'確認用店舗'}]]))};
   for (const id of ['cases','people']) {
     const table = document.getElementById(id);

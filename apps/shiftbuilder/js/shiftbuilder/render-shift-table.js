@@ -10,7 +10,7 @@ import {
   getAssignmentId,
   getInternalUserId
 } from "./record-normalizers.mjs?v=20260801-authfix-1";
-import { getCompactMemberLabel, getCalendarDayLabel } from "./display-labels.mjs?v=20260907-compact-1";
+import { getCompactMemberLabel, getCalendarDayLabel } from "./display-labels.mjs?v=20260907-compact-2";
 
 export function buildOrderCaseDetailsUrl(caseId, environment = globalThis.window?.ShiftCoreEnvironment) {
   if (!environment || typeof environment.withEnvironment !== "function") {

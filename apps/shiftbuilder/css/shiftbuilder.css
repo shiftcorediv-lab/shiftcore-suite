@@ -1708,12 +1708,14 @@ select {
 .shift-table .case-title, .shift-table .personnel-name {
   font-size: 12px;
   line-height: 14px;
+  height: 14px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .shift-table .case-meta, .shift-table .personnel-meta, .shift-table .personnel-account { display: none; }
 .shift-table .personnel-identity { gap: 0; }
+.shift-table .case-fulfillment-row { height: 16px; flex-wrap: nowrap; overflow: hidden; }
 .shift-table .personnel-cell .row-fulfillment { min-height: 11px; margin-top: 2px; }
 .shift-table .row-fulfillment-labels { gap: 2px; line-height: 11px; white-space: nowrap; }
 .shift-table .shift-cell { overflow: hidden; }
