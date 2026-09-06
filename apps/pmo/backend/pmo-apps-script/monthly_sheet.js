@@ -206,6 +206,34 @@ function getMonthlyRequestSheet(targetYearMonth) {
 // 月次シート取得ここまで
 // =========================
 
+// 既存の月次シートには、開発管理者を除外する前に作成された行が残る場合がある。
+// 原本は変更せず、管理画面・出力へ返す段階で最新名簿の developer だけを除外する。
+function filterDeveloperRowsFromMonthlyTable_(rows) {
+  try {
+    const roster = fetchRosterFromShiftCore_();
+    const developerCodes = {};
+
+    roster.forEach(function(item) {
+      if (normalizeText(item.role).toLowerCase() !== "developer") return;
+
+      const employeeCode = normalizeText(
+        item.employeeCode || item.employee_code || item.employeeId || item.employee_id
+      ).toUpperCase();
+
+      if (employeeCode) developerCodes[employeeCode] = true;
+    });
+
+    return rows.filter(function(row) {
+      const employeeCode = normalizeText(row[SETTINGS.MONTHLY_CODE_COLUMN - 1]).toUpperCase();
+      return !developerCodes[employeeCode];
+    });
+  } catch (error) {
+    // 名簿APIの一時障害で希望休一覧そのものを閲覧不能にしない。
+    console.warn("開発管理者行の除外に失敗しました: " + error.message);
+    return rows;
+  }
+}
+
 // =========================
 // PMO管理用 月次一覧取得ここから
 // pmo-admin.html 表示用
@@ -251,7 +279,9 @@ function getPmoMonthlyTable(targetYearMonth, role) {
       };
     }
 
-    const rows = sheet.getRange(2, 1, lastRow - 1, lastColumn).getDisplayValues();
+    const rows = filterDeveloperRowsFromMonthlyTable_(
+      sheet.getRange(2, 1, lastRow - 1, lastColumn).getDisplayValues()
+    );
 
     return {
       success: true,
