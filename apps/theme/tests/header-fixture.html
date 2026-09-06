@@ -1,0 +1,7 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>共通ヘッダー ローカル表示検証</title>
+<link rel="stylesheet" href="../shiftcore-theme.css">
+<script>sessionStorage.setItem('shiftcore_user', JSON.stringify({name:'表示検証',role:'developer',internal_user_id:'TEST',allowed_modules:[]}));</script>
+<script src="../shiftcore-theme.js"></script>
+<body><header class="portal-module-header"><a class="portal-brand">旧ロゴ</a><h1>メンバー（表示検証）</h1><button>既存操作</button></header><main><p>実データには接続しない表示専用ページです。</p><button id="testLoading">読み込み表示テスト</button></main>
+<script>testLoading.onclick=()=>{const done=PortalLoading.begin('読込テスト');setTimeout(done,2000);};</script></body></html>

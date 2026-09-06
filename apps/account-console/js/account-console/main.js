@@ -60,6 +60,8 @@ const idToken = async () => {
 };
 let allUsers = [];
 let selectedUser = null;
+let formBaseline = null;
+import { statusOnlyChange } from "./status-change.mjs?v=20260906-header-2";
 let currentUser = null;
 let organizationCandidates = [];
 let canEditUsers = false;
@@ -176,6 +178,7 @@ function renderCurrentUsers() {
   renderUsers(filtered, selectedId, (user) => {
     selectedUser = user;
     fillUserForm(user);
+    formBaseline = collectUserForm();
     renderCurrentUsers();
 
     if (canViewAuditLogs) {
@@ -299,8 +302,10 @@ async function saveUser(event) {
   }
 
   const user = collectUserForm();
+  const statusOnly = statusOnlyChange(user, formBaseline);
 
   try {
+    if (!statusOnly) {
     const hasFamilyName = Boolean(user.family_name);
     const hasGivenName = Boolean(user.given_name);
 
@@ -329,6 +334,7 @@ async function saveUser(event) {
     }
     if (!modules.includes("ordercase")) user.ordercase_permission = "";
     if (!modules.includes("shift")) user.shiftbuilder_permission = "";
+    }
 
     const previousOrder = selectedUser?.internal_user_id === user.internal_user_id
       ? selectedUser.sort_order ?? selectedUser.sortOrder
@@ -372,7 +378,9 @@ async function saveUser(event) {
       }
 
       if (user.internal_user_id) {
-        result = await updateAccountUser(idToken, user);
+        result = await updateAccountUser(idToken, statusOnly
+          ? { internal_user_id: user.internal_user_id, status: user.status }
+          : user);
       } else {
         result = await createAccountUser(idToken, user);
       }
@@ -405,6 +413,7 @@ async function saveUser(event) {
 
       if (selectedUser) {
         fillUserForm(selectedUser);
+        formBaseline = collectUserForm();
       }
     } catch (reloadError) {
       setStatus(
