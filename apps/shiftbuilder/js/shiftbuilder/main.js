@@ -22,7 +22,7 @@ import { mockShiftData } from "./mock-data.js?v=20260801-authfix-1";
 import { escapeHtml } from "./utils.js?v=20260801-authfix-1";
 import { getPermissionLabel, canEdit } from "./permissions.js?v=20260801-authfix-1";
 import { renderSummary } from "./render-summary.js?v=20260801-authfix-1";
-import { renderShiftTable } from "./render-shift-table.js?v=20260905-identity-labels-1";
+import { renderShiftTable } from "./render-shift-table.js?v=20260906-grid-1";
 import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20260905-identity-labels-1";
 import { renderPersonnelTable } from "./render-personnel-table.js?v=20260905-identity-labels-1";
 import { getConsecutiveWorkAlert } from "./consecutive-work-alert.js?v=20260801-authfix-1";
@@ -257,30 +257,10 @@ function setStatus(message) {
   }
 }
 
+let finishLoading = null;
 function setLoading(isLoading, message = "処理中...") {
-  const existing = document.getElementById("shiftbuilderLoadingOverlay");
-
-  if (!isLoading) {
-    if (existing) existing.remove();
-    return;
-  }
-
-  if (existing) {
-    const text = existing.querySelector(".loading-text");
-    if (text) text.textContent = message;
-    return;
-  }
-
-  const overlay = document.createElement("div");
-  overlay.id = "shiftbuilderLoadingOverlay";
-  overlay.className = "loading-overlay";
-  overlay.innerHTML = `
-    <div class="loading-card">
-      <div class="loading-spinner"></div>
-      <div class="loading-text">${escapeHtml(message)}</div>
-    </div>
-  `;
-  document.body.appendChild(overlay);
+  finishLoading?.();
+  finishLoading = isLoading ? window.PortalLoading.begin(message) : null;
 }
 
 function getNextMonthValue() {
@@ -1881,6 +1861,11 @@ function renderCurrentShiftView(options = {}) {
     return;
   }
 
+  if (elements.shiftTable) {
+    elements.shiftTable.style.width = `${240 + shiftData.dates.length * 96}px`;
+    elements.shiftTable.style.minWidth = elements.shiftTable.style.width;
+  }
+
   renderSummary(shiftData, {
     requiredTotalText: elements.requiredTotalText,
     assignedTotalText: elements.assignedTotalText,
@@ -1899,10 +1884,6 @@ function renderCurrentShiftView(options = {}) {
       previousMonthShiftData,
       isPreviousMonthDataAvailable
     );
-
-    if (elements.shiftTable) {
-      elements.shiftTable.style.minWidth = `${170 + personnelViewModel.dates.length * 44}px`;
-    }
 
     isRenderingShiftView = true;
 
@@ -1951,8 +1932,6 @@ function renderCurrentShiftView(options = {}) {
       isRenderingShiftView = false;
     }
   } else {
-    elements.shiftTable?.style.removeProperty("min-width");
-
     isRenderingShiftView = true;
 
     try {
@@ -2050,7 +2029,6 @@ function switchAxis(axis) {
   const currentAxis = getActiveAxis();
 
   if (nextAxis === currentAxis) {
-    activateShiftTableShortcuts();
     return;
   }
 
@@ -2060,11 +2038,6 @@ function switchAxis(axis) {
   setActiveAxis(nextAxis);
   syncAxisControls(nextAxis);
   renderCurrentShiftView();
-  activateShiftTableShortcuts();
-}
-
-function activateShiftTableShortcuts() {
-  requestAnimationFrame(() => focusFirstShiftCell({ announce: false }));
 }
 
 async function loadAssignmentCandidates(session, resultPromise = null) {
@@ -2217,8 +2190,17 @@ function selectShiftCell(caseId, date, anchorElement) {
 }
 
 async function loadShiftData(options = {}) {
+  // 前月・候補者の取得と描画が終わるまで、月読込の表示を維持する。
+  const done = options.silent === true ? () => {} : window.PortalLoading.begin("シフトの月情報を読み込み中…");
+  try {
+    await loadShiftDataContents(options);
+  } finally {
+    done();
+  }
+}
+
+async function loadShiftDataContents(options = {}) {
   const reloadCandidates = options.reloadCandidates !== false;
-  const silent = options.silent === true;
   const preserveSelectedCell = options.preserveSelectedCell === true;
   const preservePopoverInteraction =
     options.preservePopoverInteraction === true;
@@ -2237,15 +2219,6 @@ async function loadShiftData(options = {}) {
   let previousMonthRequest = null;
 
   try {
-    if (!silent) {
-      setLoading(
-        true,
-        IS_DEMO_MODE
-          ? "ShiftBuilderデモデータを準備中..."
-          : "ShiftBuilder月次データAPIを確認中..."
-      );
-    }
-
     if (IS_DEMO_MODE) {
       apiResult = {
         success: true,
@@ -2297,10 +2270,6 @@ async function loadShiftData(options = {}) {
       setStatus(`月次データAPI確認エラー：${error.message || String(error)}`);
     }
     return;
-  } finally {
-    if (!silent) {
-      setLoading(false);
-    }
   }
 
   const apiData = apiResult?.data;
@@ -2430,10 +2399,6 @@ async function loadShiftData(options = {}) {
     await loadAssignmentCandidates(currentSession, candidateRequest);
   } else {
     renderAssignmentCandidateCards();
-  }
-
-  if (!silent && options.activateShortcuts !== false) {
-    requestAnimationFrame(() => focusFirstShiftCell({ announce: false }));
   }
 }
 
@@ -3017,7 +2982,7 @@ async function init() {
       resolveAuthorizationShadow
     );
 
-    setLoading(true, "ShiftBuilderデータを読み込み中...");
+    setLoading(true, "シフトのデータを読み込み中...");
     const [currentUserResult] = await Promise.all([
       getCurrentShiftBuilderUser(session.idToken),
       loadShiftData({ session })

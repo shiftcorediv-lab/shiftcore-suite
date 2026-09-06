@@ -10,14 +10,14 @@ import {
 
 const mainSource = readFileSync(new URL("../js/shiftbuilder/main.js", import.meta.url), "utf8");
 
-test("同姓メンバーは名の頭文字で区別できる", () => {
+test("同姓メンバーは姓名を省略せず表示する", () => {
   assert.equal(
     getCompactMemberLabel({ family_name: "細見", given_name: "大樹" }),
-    "細見 大"
+    "細見 大樹"
   );
   assert.equal(
     getCompactMemberLabel({ family_name: "細見", given_name: "太郎" }),
-    "細見 太"
+    "細見 太郎"
   );
 });
 
@@ -39,6 +39,7 @@ test("人員軸は短い案件番号と完全な識別名を使い分ける", ()
   );
 });
 
-test("人員軸の日付列幅を描画時にも44pxで維持する", () => {
-  assert.match(mainSource, /personnelViewModel\.dates\.length \* 44/);
+test("両軸の日付列幅を描画時にも96pxで維持する", () => {
+  assert.match(mainSource, /shiftData\.dates\.length \* 96/);
+  assert.match(mainSource, /style\.minWidth = elements\.shiftTable\.style\.width/);
 });

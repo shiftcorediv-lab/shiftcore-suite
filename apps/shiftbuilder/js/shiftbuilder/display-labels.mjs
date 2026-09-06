@@ -13,7 +13,7 @@ export function getCompactMemberLabel(member = {}, fallback = "") {
   );
 
   if (familyName && givenName) {
-    return `${familyName} ${Array.from(givenName)[0]}`;
+    return `${familyName} ${givenName}`;
   }
 
   return familyName || fallbackName || "氏名未設定";

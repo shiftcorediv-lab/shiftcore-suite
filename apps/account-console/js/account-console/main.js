@@ -1,5 +1,6 @@
 import { DASHBOARD_URL, SIGNUP_ADMIN_URL } from "./config.js?v=20260802-modules-2";
 import { requireAccountConsoleSession } from "./auth.js";
+import { filterAccountArchive } from "./archive-view.mjs";
 import { compareUsersBySortOrder } from "./sort.js?v=20260902-name-sync-1";
 import { planSortOrderUpdates } from "./reorder.js?v=20260802-reorder-1";
 import { resolveAccountFullName } from "./name-policy.mjs?v=20260902-name-sync-1";
@@ -172,7 +173,8 @@ async function loadUsers(loadingMessage = "ユーザー名簿を取得中...") {
 }
 
 function renderCurrentUsers() {
-  const filtered = filterUsers(allUsers, searchInput.value).slice().sort(compareUsersBySortOrder);
+  const visibleUsers = filterAccountArchive(allUsers, document.getElementById("accountArchiveFilter").value);
+  const filtered = filterUsers(visibleUsers, searchInput.value).slice().sort(compareUsersBySortOrder);
   const selectedId = selectedUser ? selectedUser.internal_user_id : "";
 
   renderUsers(filtered, selectedId, (user) => {
@@ -555,6 +557,8 @@ clearFormBtn.addEventListener("click", () => {
   renderCurrentUsers();
   setStatus("新規入力に戻しました");
 });
+
+document.getElementById("accountArchiveFilter").addEventListener("change", renderCurrentUsers);
 
 searchInput.addEventListener("input", () => {
   renderCurrentUsers();

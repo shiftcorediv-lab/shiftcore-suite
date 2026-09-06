@@ -72,6 +72,13 @@
       <section class="panel user-panel">
         <div class="panel-header">
           <h2>アカウント一覧</h2>
+          <label>表示対象
+            <select id="accountArchiveFilter">
+              <option value="current">通常（停止済みを除く）</option>
+              <option value="archived">停止済み（アーカイブ）</option>
+              <option value="all">すべて</option>
+            </select>
+          </label>
         </div>
 
         <div class="table-wrap">
@@ -353,6 +360,6 @@
     <div id="statusBox" class="status-box">初期化中...</div>
   </div>
 
-  <script type="module" src="./js/account-console/main.js?v=20260906-header-2"></script>
+  <script type="module" src="./js/account-console/main.js?v=20260906-archive-1"></script>
 </body>
 </html>
