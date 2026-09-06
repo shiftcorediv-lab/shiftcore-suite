@@ -22,9 +22,9 @@ import { mockShiftData } from "./mock-data.js?v=20260801-authfix-1";
 import { escapeHtml } from "./utils.js?v=20260801-authfix-1";
 import { getPermissionLabel, canEdit } from "./permissions.js?v=20260801-authfix-1";
 import { renderSummary } from "./render-summary.js?v=20260801-authfix-1";
-import { renderShiftTable } from "./render-shift-table.js?v=20260906-grid-1";
+import { renderShiftTable } from "./render-shift-table.js?v=20260906-overview-1";
 import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20260905-identity-labels-1";
-import { renderPersonnelTable } from "./render-personnel-table.js?v=20260905-identity-labels-1";
+import { renderPersonnelTable } from "./render-personnel-table.js?v=20260906-overview-1";
 import { getConsecutiveWorkAlert } from "./consecutive-work-alert.js?v=20260801-authfix-1";
 import { getCaseIdentityLabel } from "./display-labels.mjs?v=20260905-identity-labels-1";
 import { getCaseMemberPreference } from "./assignment-preference-policy.mjs?v=20260905-agency-rules-1";
@@ -1862,8 +1862,8 @@ function renderCurrentShiftView(options = {}) {
   }
 
   if (elements.shiftTable) {
-    elements.shiftTable.style.width = `${240 + shiftData.dates.length * 96}px`;
-    elements.shiftTable.style.minWidth = elements.shiftTable.style.width;
+    // PCは月全体を一望する。日数はスマホの可読幅にだけ使用する。
+    elements.shiftTable.style.setProperty("--shift-day-count", shiftData.dates.length);
   }
 
   renderSummary(shiftData, {

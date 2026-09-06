@@ -2,6 +2,11 @@ function normalizeText(value) {
   return String(value || "").trim();
 }
 
+export function getCalendarDayLabel(dateItem = {}) {
+  const match = /\d{4}-\d{2}-(\d{2})$/.exec(String(dateItem.date || ""));
+  return match ? String(Number(match[1])) : String(dateItem.label || "");
+}
+
 export function getCompactMemberLabel(member = {}, fallback = "") {
   const familyName = normalizeText(member.family_name || member.familyName);
   const givenName = normalizeText(member.given_name || member.givenName);

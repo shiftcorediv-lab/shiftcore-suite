@@ -6,9 +6,16 @@ import {
   getCaseIdentityLabel,
   getCompactCaseId,
   getCompactMemberLabel,
+  getCalendarDayLabel,
 } from "../js/shiftbuilder/display-labels.mjs";
 
 const mainSource = readFileSync(new URL("../js/shiftbuilder/main.js", import.meta.url), "utf8");
+
+test("月全体表示の日付見出しは日だけを表示する", () => {
+  assert.equal(getCalendarDayLabel({date:"2026-10-01",label:"10/1"}), "1");
+  assert.equal(getCalendarDayLabel({date:"2026-10-31",label:"10/31"}), "31");
+  assert.equal(getCalendarDayLabel({label:"日付不明"}), "日付不明");
+});
 
 test("同姓メンバーは姓名を省略せず表示する", () => {
   assert.equal(
@@ -39,7 +46,7 @@ test("人員軸は短い案件番号と完全な識別名を使い分ける", ()
   );
 });
 
-test("両軸の日付列幅を描画時にも96pxで維持する", () => {
-  assert.match(mainSource, /shiftData\.dates\.length \* 96/);
-  assert.match(mainSource, /style\.minWidth = elements\.shiftTable\.style\.width/);
+test("月全体の幅はCSSへ委譲し、日数だけを渡す", () => {
+  assert.match(mainSource, /setProperty\("--shift-day-count", shiftData\.dates\.length\)/);
+  assert.doesNotMatch(mainSource, /shiftTable\.style\.(?:minWidth|width)\s*=/);
 });

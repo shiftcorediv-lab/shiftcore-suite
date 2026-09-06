@@ -10,7 +10,7 @@ import {
   getAssignmentId,
   getInternalUserId
 } from "./record-normalizers.mjs?v=20260801-authfix-1";
-import { getCompactMemberLabel } from "./display-labels.mjs?v=20260906-grid-1";
+import { getCompactMemberLabel, getCalendarDayLabel } from "./display-labels.mjs?v=20260906-overview-1";
 
 export function buildOrderCaseDetailsUrl(caseId, environment = globalThis.window?.ShiftCoreEnvironment) {
   if (!environment || typeof environment.withEnvironment !== "function") {
@@ -398,7 +398,7 @@ export function renderShiftTable(data, elements, handlers = {}) {
 
           return `
             <th class="${escapeHtml(dateColumnClass)}">
-              <div class="table-date-label">${escapeHtml(dateItem.label)}</div>
+              <div class="table-date-label" title="${escapeHtml(dateItem.date)}">${escapeHtml(getCalendarDayLabel(dateItem))}</div>
               <div class="table-weekday">${escapeHtml(dateItem.weekday)}</div>
             </th>
           `;
