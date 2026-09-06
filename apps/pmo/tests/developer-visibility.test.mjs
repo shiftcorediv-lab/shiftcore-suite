@@ -21,6 +21,29 @@ test("PMOは上流名簿に開発者が混入しても表示対象から除外�
   assert.deepEqual(Array.from(result, (user) => user.userId), ["U-1"]);
 });
 
+test("既存の月次シートを表示する際も開発者行を除外する", () => {
+  const context = vm.createContext({
+    normalizeText: (value) => String(value == null ? "" : value).trim(),
+    SETTINGS: { MONTHLY_CODE_COLUMN: 3 },
+    fetchRosterFromShiftCore_: () => [
+      { displayName: "開発者", employeeCode: "AN0000", role: "developer" },
+      { displayName: "利用者", employeeCode: "AN0001", role: "member" }
+    ],
+    console
+  });
+  vm.runInContext(
+    readFileSync(new URL("../backend/pmo-apps-script/monthly_sheet.js", import.meta.url), "utf8"),
+    context
+  );
+
+  const result = context.filterDeveloperRowsFromMonthlyTable_([
+    ["未提出", "開発者", "AN0000"],
+    ["未提出", "利用者", "AN0001"]
+  ]);
+
+  assert.deepEqual(Array.from(result, (row) => row[2]), ["AN0001"]);
+});
+
 test("PMOからAccount名簿を取得する際は秘密をURLへ出さずPOST bodyで送る", () => {
   let request = null;
   const context = vm.createContext({
