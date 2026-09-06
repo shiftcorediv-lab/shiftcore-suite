@@ -18,6 +18,24 @@ const {
   getAccountConsoleBootstrap
 } = await import(`../js/account-console/api.js?test=${Date.now()}`);
 
+test("保存のたびに現在の認証トークンを取得する", async () => {
+  let token = "before-refresh";
+  const sent = [];
+  globalThis.fetch = async (_url, options) => {
+    sent.push(JSON.parse(options.body).idToken);
+    return response(JSON.stringify({ ok: true }));
+  };
+  await createAccountUser(async () => token, { name: "test" });
+  token = "after-refresh";
+  await createAccountUser(async () => token, { name: "test" });
+  assert.deepEqual(sent, ["before-refresh", "after-refresh"]);
+});
+
+test("認証情報を更新できない時は保存要求を送らない", async () => {
+  globalThis.fetch = async () => assert.fail("must not save");
+  await assert.rejects(createAccountUser(async () => { throw new Error("SIGNED_OUT"); }, {}), /SIGNED_OUT/);
+});
+
 function response(text) {
   return { text: async () => text };
 }

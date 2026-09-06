@@ -36,7 +36,7 @@ import {
   loadLatestRequest,
   validateBeforeSubmit,
   submitRequest
-} from "./request.js?v=20260903-loading-1";
+} from "./request.js?v=20260906-integrity-1";
 
 let currentIdToken = "";
 

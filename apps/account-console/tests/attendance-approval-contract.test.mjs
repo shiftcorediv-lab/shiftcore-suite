@@ -37,9 +37,9 @@ test("承認一覧と確認画面は実勤務日・申請開始・申請終了�
   assert.match(openReviewSource, /対象日時/);
 });
 
-test("承認は版一致とDocument Lockを必須にし管理roleの全件承認へ戻さない", () => {
+test("承認は版一致とScript Lockを必須にし管理roleの全件承認へ戻さない", () => {
   const reviewFunction = attendanceSource.match(/function reviewRequest_\([\s\S]*?\n}\n\nfunction approvalContractPayload_/)[0];
-  assert.match(reviewFunction, /LockService\.getDocumentLock\(\)/);
+  assert.match(reviewFunction, /attendanceWriteLock_\(\)/);
   assert.match(reviewFunction, /expectedRequestVersion/);
   assert.match(reviewFunction, /VERSION_CONFLICT/);
   assert.doesNotMatch(reviewFunction, /requireAdmin_/);
@@ -106,8 +106,8 @@ function attendanceReviewContext(requestOverrides = {}) {
     Date,
     JSON,
     PropertiesService: { getScriptProperties: () => ({ getProperty: () => "secret" }) },
-    LockService: { getDocumentLock: () => ({ waitLock: () => { lockHeld = true; }, releaseLock: () => { lockHeld = false; } }) },
-    UrlFetchApp: {}, SpreadsheetApp: {}, Utilities: {}, ContentService: {}, MailApp: {}, Session: {}
+    LockService: { getScriptLock: () => ({ waitLock: () => { lockHeld = true; }, releaseLock: () => { lockHeld = false; } }) },
+    UrlFetchApp: {}, SpreadsheetApp: { flush() {} }, Utilities: {}, ContentService: {}, MailApp: {}, Session: {}
   };
   vm.createContext(context);
   vm.runInContext(attendanceSource, context);
@@ -168,7 +168,7 @@ test("前後空白を含む保存済み承認者IDでも正規承認者を締め
   assert.equal(fixture.getCurrent()["状態"], "承認済み");
 });
 
-test("Account外部呼出しはDocument Lock外で行う", () => {
+test("Account外部呼出しはScript Lock外で行う", () => {
   const fixture = attendanceReviewContext();
   let schemaEnsuredWithLock = false;
   fixture.context.ensureRequestContractHeaders_ = () => { schemaEnsuredWithLock = fixture.isLockHeld(); };
@@ -238,7 +238,7 @@ test("申請シートのヘッダー不足は空欄保存せず拒否する", ()
   assert.throws(() => fixture.context.appendObject_("修正・予定外申請", { request_id: "REQ-1", applicant_internal_user_id: "U-1" }), /列が不足しています/);
 });
 
-test("承認経路のヘッダー整備は専用Document Lock内で行う", () => {
+test("承認経路のヘッダー整備は専用Script Lock内で行う", () => {
   const fixture = attendanceReviewContext();
   let ensuredWithLock = false;
   fixture.context.ensureRequestContractHeaders_ = () => { ensuredWithLock = fixture.isLockHeld(); };

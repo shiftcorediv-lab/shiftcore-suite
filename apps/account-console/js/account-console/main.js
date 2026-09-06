@@ -11,7 +11,7 @@ import {
   getOrganizationAssignment,
   updateOrganizationAssignment,
   getAccountLogs
-} from "./api.js?v=20260903-account-audit-1";
+} from "./api.js?v=20260906-integrity-1";
 import {
   dashboardBtn,
   signupAdminBtn,
@@ -53,7 +53,11 @@ import { createResponseGeneration } from "../../../common/response-generation.js
 
 // ===== 状態ここから =====
 let session = null;
-let idToken = "";
+const idToken = async () => {
+  const currentSession = await requireAccountConsoleSession();
+  if (!currentSession) throw new Error("ログイン状態を確認できません。再ログインしてください。");
+  return currentSession.idToken;
+};
 let allUsers = [];
 let selectedUser = null;
 let currentUser = null;
@@ -103,8 +107,6 @@ async function init() {
       hideLoading();
       return;
     }
-
-    idToken = session.idToken;
 
     showLoading("メンバーを読み込み中...");
     setStatus("メンバーを読み込み中...");

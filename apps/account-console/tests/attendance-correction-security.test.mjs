@@ -19,14 +19,14 @@ function correctionContext({ records = [] } = {}) {
     console,
     Date,
     JSON,
-    SpreadsheetApp: {},
+    SpreadsheetApp: { flush() {} },
     PropertiesService: {},
     UrlFetchApp: {},
     ContentService: {},
     MailApp: {},
     Session: {},
     LockService: {
-      getDocumentLock: () => ({ waitLock: () => {}, releaseLock: () => {} })
+      getScriptLock: () => ({ waitLock: () => {}, releaseLock: () => {} })
     },
     Utilities: {
       getUuid: () => `REQ-${appended.length + 1}`,

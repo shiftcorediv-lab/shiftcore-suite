@@ -30,6 +30,10 @@ async function postToAccountApi(action, body = {}, options = {}) {
   const retries = Number.isInteger(options.retries) ? Math.max(0, options.retries) : 0;
 
   for (let attempt = 0; ; attempt += 1) {
+    const requestPayload = {
+      ...payload,
+      idToken: typeof body.idToken === "function" ? await body.idToken() : body.idToken
+    };
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
@@ -38,7 +42,7 @@ async function postToAccountApi(action, body = {}, options = {}) {
         headers: {
           "Content-Type": "text/plain;charset=utf-8"
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(requestPayload),
         signal: controller.signal
       });
 

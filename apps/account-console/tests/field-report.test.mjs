@@ -15,7 +15,7 @@ function formatJst(date, format) {
 }
 
 function timingContext() {
-  const context = vm.createContext({ Utilities: { formatDate: (date, _tz, format) => formatJst(date, format) }, console });
+  const context = vm.createContext({ SpreadsheetApp: { flush() {} }, Utilities: { formatDate: (date, _tz, format) => formatJst(date, format) }, console });
   vm.runInContext(backendSource, context);
   return context;
 }
@@ -136,7 +136,7 @@ test("出発保存は位置情報へ触れず、最寄り到着保存だけが�
   const context = timingContext();
   const reports = [];
   let savedLocation = null;
-  context.LockService = { getDocumentLock: () => ({ waitLock: () => {}, releaseLock: () => {} }) };
+  context.LockService = { getScriptLock: () => ({ waitLock: () => {}, releaseLock: () => {} }) };
   context.Utilities.getUuid = () => "FIELD-1";
   context.today_ = () => "2026-08-28";
   context.findSchedule_ = () => ({ "勤務日": "2026-08-28", "開発予定ID": "PLAN-1", "稼働場所": "店舗", schedule_id: "SCHEDULE-1" });
@@ -174,7 +174,7 @@ test("新しい入店は最寄り到着を必須とし、旧入店済みデー�
   context.fieldReportsFor_ = () => [{ "報告種別": "出発" }];
   context.findRecord_ = () => null;
   context.buildTimingStatus_ = () => ({ arrivalApprovalRequired: false });
-  context.LockService = { getDocumentLock: () => ({ waitLock: () => {}, releaseLock: () => {} }) };
+  context.LockService = { getScriptLock: () => ({ waitLock: () => {}, releaseLock: () => {} }) };
   context.ensureFieldReportSheet_ = () => {};
   context.ensureFieldReportContractHeaders_ = () => {};
   assert.throws(
@@ -211,7 +211,7 @@ test("実時刻は承認前に保存し承認後は既存の正式時刻へ反�
 
 test("旧clockIn経路でも予定勤務は出発報告なしに開始できない", () => {
   const context = timingContext();
-  context.LockService = { getDocumentLock: () => ({ waitLock: () => {}, releaseLock: () => {} }) };
+  context.LockService = { getScriptLock: () => ({ waitLock: () => {}, releaseLock: () => {} }) };
   context.settings_ = () => ({ start_limit_time: "23:59", start_warning_time: "23:58" });
   context.today_ = () => "2026-08-28";
   context.timeKey_ = () => "09:00";

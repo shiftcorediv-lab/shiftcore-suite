@@ -111,7 +111,7 @@ function findLatestRequestRow(userId, targetYearMonth) {
 // =========================
 // 旧最新FALSE化ここから
 // =========================
-function markOldRequestsNotLatest(userId, targetYearMonth) {
+function markOldRequestsNotLatest(userId, targetYearMonth, keepRow) {
   const sheet = getOrCreateRequestSheet();
   const lastRow = sheet.getLastRow();
 
@@ -129,7 +129,7 @@ function markOldRequestsNotLatest(userId, targetYearMonth) {
     if (
       rowUserId === normalizeText(userId) &&
       rowTargetYearMonth === normalizeText(targetYearMonth) &&
-      rowIsLatest === "TRUE"
+      rowIsLatest === "TRUE" && i + 2 !== keepRow
     ) {
       sheet.getRange(i + 2, 8).setValue(false);
     }
@@ -147,7 +147,10 @@ function markOldRequestsNotLatest(userId, targetYearMonth) {
 function saveShiftRequest(payload) {
   const sheet = getOrCreateRequestSheet();
 
-  markOldRequestsNotLatest(payload.userId, payload.targetYearMonth);
+  // 途中失敗後も、本人の再読込は保存済み原本を確認できるようにする。
+  PropertiesService.getScriptProperties().deleteProperty(
+    getLatestRequestIndexKey_(payload.userId, payload.targetYearMonth)
+  );
 
   const submittedAt = getNowIsoStringJst();
   const applicationId = generateApplicationId(payload.targetYearMonth, payload.userId);
@@ -169,6 +172,9 @@ function saveShiftRequest(payload) {
     payload.submitType,
     payload.employeeCode
   ]]);
+
+  // 新しい原本の保存が成功するまでは旧申請を無効にしない。
+  markOldRequestsNotLatest(payload.userId, payload.targetYearMonth, targetRow);
 
   return {
     row: targetRow,
@@ -207,7 +213,15 @@ function submitShiftRequest(payload) {
   ensureMonthlySheetExists_(normalized.targetYearMonth);
 
   const savedRequest = saveShiftRequest(normalized);
-  reflectShiftRequestToMonthlySheet(savedRequest);
+  try {
+    reflectShiftRequestToMonthlySheet(savedRequest);
+  } catch (error) {
+    return {
+      success: false,
+      code: "PMO_REFLECTION_PENDING",
+      message: "希望休の原本は保存済みですが、月次一覧への反映が未完了です。再読込で再試行してください。"
+    };
+  }
 
   writeLatestRequestIndex_(savedRequest.userId, savedRequest.targetYearMonth, {
     success: true,
@@ -263,7 +277,7 @@ function submitShiftRequestSecure(payload, idToken) {
 // 期限切れのないScript Propertiesを使い、通常起動時の全行走査を避ける。
 // =========================
 function getLatestRequestIndexKey_(userId, targetYearMonth) {
-  return "PMO_LATEST_REQUEST_" + normalizeText(targetYearMonth) + "_" + normalizeText(userId);
+  return "PMO_LATEST_REQUEST_V2_" + normalizeText(targetYearMonth) + "_" + normalizeText(userId);
 }
 
 function readLatestRequestIndex_(userId, targetYearMonth) {
@@ -316,7 +330,7 @@ function getLatestShiftRequest(userId, targetYearMonth) {
 
     const indexedResult = readLatestRequestIndex_(targetUserId, ym);
 
-    if (indexedResult) {
+    if (indexedResult && !indexedResult.reflectionPending) {
       return indexedResult;
     }
 
@@ -357,6 +371,18 @@ function getLatestShiftRequest(userId, targetYearMonth) {
       employeeCode: normalizeText(values[11]),
       displayName: normalizeText(values[3])
     };
+
+    if (normalizeText(values[8]).toUpperCase() !== "TRUE") {
+      try {
+        reflectShiftRequestToMonthlySheet(Object.assign({}, result, {
+          row: row, userId: targetUserId, targetYearMonth: ym
+        }));
+      } catch (error) {
+        // 原本は返し、次の読込で同じ行を再反映する。申請を追加し直さない。
+        result.reflectionPending = true;
+        result.message = "希望休の原本は保存済みですが、月次一覧への反映が未完了です。再読込で再試行できます。";
+      }
+    }
 
     writeLatestRequestIndex_(targetUserId, ym, result);
     return result;
