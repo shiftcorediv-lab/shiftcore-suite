@@ -51,6 +51,7 @@ const SETTINGS = {
   MONTHLY_DAY_START_COLUMN: 5,  // E列: 1日
 
   EXCLUDED_WORK_STATUSES_FOR_MONTHLY: ["off"],
+  EXCLUDED_EMPLOYEE_CODES_FOR_MONTHLY: ["AN0000"],
 
   // ShiftCore 側の roster API
   SHIFTCORE_ROSTER_API_URL: pmoRequiredConfig_("SHIFTCORE_ROSTER_API_URL", "https://script.google.com/macros/s/AKfycbx83rAzXDfQPJUEu9tX4dpULH4QHYUoqfaTnfzzySkW3KjGVbcH4tnq9PKCCvfuEx6eRA/exec"),

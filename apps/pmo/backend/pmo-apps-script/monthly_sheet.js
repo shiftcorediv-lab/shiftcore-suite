@@ -206,32 +206,17 @@ function getMonthlyRequestSheet(targetYearMonth) {
 // 月次シート取得ここまで
 // =========================
 
-// 既存の月次シートには、開発管理者を除外する前に作成された行が残る場合がある。
-// 原本は変更せず、管理画面・出力へ返す段階で最新名簿の developer だけを除外する。
-function filterDeveloperRowsFromMonthlyTable_(rows) {
-  try {
-    const roster = fetchRosterFromShiftCore_();
-    const developerCodes = {};
+// 既存の月次シートには、除外設定前に作成された開発用アカウントが残る場合がある。
+// 原本や外部APIには触れず、管理画面・出力へ返す段階で予約済みコードだけを除外する。
+function filterExcludedRowsFromMonthlyTable_(rows) {
+  const excludedCodes = (SETTINGS.EXCLUDED_EMPLOYEE_CODES_FOR_MONTHLY || []).map(function(code) {
+    return normalizeText(code).toUpperCase();
+  });
 
-    roster.forEach(function(item) {
-      if (normalizeText(item.role).toLowerCase() !== "developer") return;
-
-      const employeeCode = normalizeText(
-        item.employeeCode || item.employee_code || item.employeeId || item.employee_id
-      ).toUpperCase();
-
-      if (employeeCode) developerCodes[employeeCode] = true;
-    });
-
-    return rows.filter(function(row) {
-      const employeeCode = normalizeText(row[SETTINGS.MONTHLY_CODE_COLUMN - 1]).toUpperCase();
-      return !developerCodes[employeeCode];
-    });
-  } catch (error) {
-    // 名簿APIの一時障害で希望休一覧そのものを閲覧不能にしない。
-    console.warn("開発管理者行の除外に失敗しました: " + error.message);
-    return rows;
-  }
+  return rows.filter(function(row) {
+    const employeeCode = normalizeText(row[SETTINGS.MONTHLY_CODE_COLUMN - 1]).toUpperCase();
+    return excludedCodes.indexOf(employeeCode) === -1;
+  });
 }
 
 // =========================
@@ -279,7 +264,7 @@ function getPmoMonthlyTable(targetYearMonth, role) {
       };
     }
 
-    const rows = filterDeveloperRowsFromMonthlyTable_(
+    const rows = filterExcludedRowsFromMonthlyTable_(
       sheet.getRange(2, 1, lastRow - 1, lastColumn).getDisplayValues()
     );
 

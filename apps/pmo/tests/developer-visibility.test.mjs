@@ -24,11 +24,10 @@ test("PMOは上流名簿に開発者が混入しても表示対象から除外�
 test("既存の月次シートを表示する際も開発者行を除外する", () => {
   const context = vm.createContext({
     normalizeText: (value) => String(value == null ? "" : value).trim(),
-    SETTINGS: { MONTHLY_CODE_COLUMN: 3 },
-    fetchRosterFromShiftCore_: () => [
-      { displayName: "開発者", employeeCode: "AN0000", role: "developer" },
-      { displayName: "利用者", employeeCode: "AN0001", role: "member" }
-    ],
+    SETTINGS: {
+      MONTHLY_CODE_COLUMN: 3,
+      EXCLUDED_EMPLOYEE_CODES_FOR_MONTHLY: ["AN0000"]
+    },
     console
   });
   vm.runInContext(
@@ -36,7 +35,7 @@ test("既存の月次シートを表示する際も開発者行を除外する",
     context
   );
 
-  const result = context.filterDeveloperRowsFromMonthlyTable_([
+  const result = context.filterExcludedRowsFromMonthlyTable_([
     ["未提出", "開発者", "AN0000"],
     ["未提出", "利用者", "AN0001"]
   ]);
