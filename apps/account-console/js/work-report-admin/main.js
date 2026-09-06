@@ -29,6 +29,7 @@ $("cancelReturnBtn").addEventListener("click", () => $("returnDialog").close());
 $("returnForm").addEventListener("submit", submitReturn);
 
 async function load() {
+  const done = window.PortalLoading.begin("実績報告を読み込んでいます…");
   const generation = reportLoadGeneration.begin();
   message("実績報告を読み込んでいます…", false, true);
   try {
@@ -43,7 +44,7 @@ async function load() {
     message(error.message, true);
     $("setupBtn").hidden = !needsSchemaSetup(error);
     if (error.code === "FORBIDDEN") setTimeout(() => location.replace("./dashboard.html"), 1200);
-  }
+  } finally { done(); }
 }
 
 async function setupWorkReportData() {
