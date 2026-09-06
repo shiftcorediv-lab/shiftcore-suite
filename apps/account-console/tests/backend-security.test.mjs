@@ -65,7 +65,7 @@ function createAttendanceContext(records, { provision = true } = {}) {
     insertSheet: name => (sheets[name] = createSheet())
   };
   const context = vm.createContext({
-    SpreadsheetApp: { getActive: () => spreadsheet },
+    SpreadsheetApp: { getActive: () => spreadsheet, flush: () => {} },
     Utilities: {
       getUuid: () => `UUID-${++uuid}`,
       DigestAlgorithm: { SHA_256: "SHA_256" },
@@ -75,8 +75,7 @@ function createAttendanceContext(records, { provision = true } = {}) {
       formatDate: (date, _tz, format) => format === "yyyy-MM-dd" ? new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(date) : "2026/08/28 18:00"
     },
     LockService: {
-      getDocumentLock: () => ({ waitLock: () => {}, releaseLock: () => {} }),
-      getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} })
+      getScriptLock: () => ({ waitLock: () => {}, tryLock: () => true, releaseLock: () => {} })
     },
     console
   });
@@ -310,7 +309,7 @@ test("個人成績APIはログイン本人の対象勤怠と回答だけを返�
   assert.equal(typeof summary.serverTiming.totalMs, "number");
 });
 
-test("個人成績の読取経路ではシート整備とDocument Lockを実行しない", () => {
+test("個人成績の読取経路ではシート整備とScript Lockを実行しない", () => {
   const { context } = createAttendanceContext([{ record_id: "REC-READ-ONLY", email: "member@example.com", workDate: "2026-08-28" }]);
   context.ensureWorkReportSheetsWithLock_ = () => { throw new Error("read path must not ensure sheets"); };
   const summary = context.getMyWorkReportSummary_({ email: "member@example.com" }, { month: "2026-08" });

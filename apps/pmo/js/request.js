@@ -79,8 +79,8 @@ export async function loadLatestRequest(idToken) {
     if (result.success) {
       applyExistingRequest(result);
       showMainMessage(
-        result.exists ? "この月の提出済み内容を読み込みました" : "この月の提出データはまだありません",
-        result.exists ? "success" : ""
+        result.reflectionPending ? result.message : result.exists ? "この月の提出済み内容を読み込みました" : "この月の提出データはまだありません",
+        result.reflectionPending ? "error" : result.exists ? "success" : ""
       );
     } else {
       showMainMessage(result.message || "提出済み内容の取得に失敗しました", "error");

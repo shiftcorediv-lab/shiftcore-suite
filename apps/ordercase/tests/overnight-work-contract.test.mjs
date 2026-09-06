@@ -104,7 +104,7 @@ test("Shiftは日別アサイン時刻を優先し、夜間勤務のICS終了日
   assert.match(ics, /DTEND;TZID=Asia\/Tokyo:20260911T010000/);
 });
 
-test("Orderの日別時刻はShiftのセルとAttendance予定へ同じ値で連携される", () => {
+test("Orderの日別時刻はShiftへ連携し、勤怠は保持済み配置時刻を優先する", () => {
   assert.match(
     shiftRepositorySource,
     /start_time:\s*normalizeTimeString\(dateRow\.work_start_time\)\s*\|\|\s*normalizeTimeString\(caseRow\.work_start_time\)/
@@ -113,8 +113,8 @@ test("Orderの日別時刻はShiftのセルとAttendance予定へ同じ値で連
     shiftRepositorySource,
     /end_time:\s*normalizeTimeString\(dateRow\.work_end_time\)\s*\|\|\s*normalizeTimeString\(caseRow\.work_end_time\)/
   );
-  assert.match(attendanceSource, /"予定開始": cell\.start_time \|\| cell\.startTime/);
-  assert.match(attendanceSource, /"予定終了": cell\.end_time \|\| cell\.endTime/);
+  assert.match(attendanceSource, /"予定開始": member\.start_time \|\| member\.startTime \|\| cell\.start_time \|\| cell\.startTime/);
+  assert.match(attendanceSource, /"予定終了": member\.end_time \|\| member\.endTime \|\| cell\.end_time \|\| cell\.endTime/);
 });
 
 test("Attendanceは日跨ぎの予定終了までは通常終了、超過後は承認対象にする", () => {

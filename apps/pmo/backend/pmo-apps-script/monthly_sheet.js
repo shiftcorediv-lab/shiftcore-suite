@@ -481,35 +481,19 @@ function ensureEmployeeRowInMonthlySheet_(sheet, savedRequest) {
 // =========================
 function writeRequestToMonthlySheet(sheet, row, savedRequest) {
   const lastDay = getLastDayOfMonth(savedRequest.targetYearMonth);
-
-  sheet.getRange(row, SETTINGS.MONTHLY_DAY_START_COLUMN, 1, lastDay).clearContent();
-  sheet.getRange(row, SETTINGS.MONTHLY_STATUS_COLUMN).setValue(savedRequest.submitType);
-  sheet.getRange(row, 4).setValue(savedRequest.memo || "");
-
-  if (savedRequest.submitType === "希望休あり") {
-    for (let i = 0; i < savedRequest.offDates.length; i++) {
-      const dateStr = normalizeText(savedRequest.offDates[i]);
-      const parts = dateStr.split("-");
-
-      if (parts.length !== 3) {
-        continue;
-      }
-
-      const yearMonth = parts[0] + "-" + parts[1];
-      const day = Number(parts[2]);
-
-      if (yearMonth !== savedRequest.targetYearMonth) {
-        continue;
-      }
-
-      if (day < 1 || day > lastDay) {
-        continue;
-      }
-
-      const col = SETTINGS.MONTHLY_DAY_START_COLUMN + day - 1;
-      sheet.getRange(row, col).setValue("×");
-    }
+  const width = SETTINGS.MONTHLY_DAY_START_COLUMN + lastDay - 1;
+  const range = sheet.getRange(row, 1, 1, width);
+  const values = range.getValues()[0];
+  values[SETTINGS.MONTHLY_STATUS_COLUMN - 1] = savedRequest.submitType;
+  values[3] = savedRequest.memo || "";
+  const offDates = new Set(savedRequest.offDates || []);
+  for (let day = 1; day <= lastDay; day += 1) {
+    const date = savedRequest.targetYearMonth + "-" + String(day).padStart(2, "0");
+    values[SETTINGS.MONTHLY_DAY_START_COLUMN + day - 2] =
+      savedRequest.submitType === "希望休あり" && offDates.has(date) ? "×" : "";
   }
+  // 日別に消去・追記せず、氏名とコードを保持した一行をまとめて反映する。
+  range.setValues([values]);
 }
 // =========================
 // 月次反映ここまで

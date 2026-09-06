@@ -1,5 +1,28 @@
 const ATTENDANCE_PRODUCTION_SCRIPT_ID = "1tsjulGLiTCpX8dG66cdqR0E0rx2ntKcKpRxwr_6H_UYy5FExuZgmNi-Y";
 
+// GASの1実行内でだけ共有する。打刻から予定同期へ入っても外側のロックを解放しない。
+let attendanceWriteLockDepth_ = 0;
+function attendanceWriteLock_() {
+  const lock = LockService.getScriptLock();
+  let acquired = false;
+  return {
+    waitLock(milliseconds) {
+      if (acquired) return;
+      if (attendanceWriteLockDepth_ === 0) lock.waitLock(milliseconds);
+      attendanceWriteLockDepth_ += 1;
+      acquired = true;
+    },
+    releaseLock() {
+      if (!acquired) return;
+      acquired = false;
+      attendanceWriteLockDepth_ -= 1;
+      if (attendanceWriteLockDepth_ === 0) {
+        try { SpreadsheetApp.flush(); } finally { lock.releaseLock(); }
+      }
+    }
+  };
+}
+
 function attendanceRuntimeEnvironment_() {
   if (typeof ScriptApp === "undefined" || typeof PropertiesService === "undefined") return "unit-test";
   const explicit = String(PropertiesService.getScriptProperties().getProperty("SHIFTCORE_ENVIRONMENT") || "").trim().toLowerCase();
@@ -417,7 +440,7 @@ function withAllDashboardReferenceInvalidation_(action) {
 function submitFieldReport_(user, payload, idToken) {
   const reportType = String(payload.reportType || "");
   if (!["出発", "最寄り到着"].includes(reportType)) throw apiError_("FIELD_REPORT_TYPE_INVALID", "未対応の現場報告です。");
-  const lock = LockService.getDocumentLock();
+  const lock = attendanceWriteLock_();
   lock.waitLock(20000);
   try {
     ensureFieldReportSheet_();
@@ -479,7 +502,7 @@ function arrive_(user, payload, idToken) {
   const timing = buildTimingStatus_(schedule, now);
   if (timing.arrivalApprovalRequired && !String(payload.reason || "").trim()) throw apiError_("REASON_REQUIRED", "予定開始以降の入店理由を入力してください。");
   const approval = timing.arrivalApprovalRequired ? accountApprovalRequest_({ phase: "prepare", idToken: idToken }) : null;
-  const lock = LockService.getDocumentLock();
+  const lock = attendanceWriteLock_();
   lock.waitLock(20000);
   try {
     ensureFieldReportSheet_();
@@ -510,7 +533,7 @@ function createClockInRecord_(user, schedule, payload, now, status) {
 }
 
 function clockIn_(user, payload, idToken) {
-  const lock = LockService.getDocumentLock();
+  const lock = attendanceWriteLock_();
   lock.waitLock(20000);
   try {
     const settings = settings_();
@@ -571,7 +594,7 @@ function clockOut_(user, payload, idToken) {
   const timing = schedule ? buildTimingStatus_(schedule, now) : { endApprovalRequired: dateKey_(now) > workDate, endWarning: false };
   if (timing.endApprovalRequired && !String(payload.reason || "").trim()) throw apiError_("REASON_REQUIRED", "0:00以降の終了理由を入力してください。");
   const approval = timing.endApprovalRequired ? accountApprovalRequest_({ phase: "prepare", idToken: idToken }) : null;
-  const lock = LockService.getDocumentLock();
+  const lock = attendanceWriteLock_();
   lock.waitLock(20000);
   try {
     const record = selectClockOutRecord_(user.email, requestedScheduleId);
@@ -610,7 +633,7 @@ function ensureStoredApprovalRequest_(user, idToken, payload) {
   if (existingRequestId) return existingRequestId;
 
   const approval = accountApprovalRequest_({ phase: "prepare", idToken: idToken });
-  const lock = LockService.getDocumentLock();
+  const lock = attendanceWriteLock_();
   lock.waitLock(20000);
   try {
     return createApprovalRequestIfMissing_(user, approval, payload);
@@ -716,7 +739,7 @@ function submitCorrection_(user, payload, idToken) {
   const correction = normalizeCorrectionSubmission_(user, payload);
   const approval = accountApprovalRequest_({ phase: "prepare", idToken: idToken });
   const requestId = Utilities.getUuid();
-  const lock = LockService.getDocumentLock();
+  const lock = attendanceWriteLock_();
   lock.waitLock(20000);
   try {
     ensureRequestContractHeaders_();
@@ -791,7 +814,7 @@ function submitReport_(user, payload) {
   const operationId = normalizeWorkReportOperationId_(payload.operationId);
   const expectedVersion = normalizeWorkReportExpectedVersion_(payload.expectedVersion);
   assertReportableRecord_(user, payload.recordId);
-  const lock = LockService.getDocumentLock();
+  const lock = attendanceWriteLock_();
   lock.waitLock(20000);
   try {
     assertWorkReportSchema_();
@@ -1065,7 +1088,7 @@ function buildWorkReportAdminData_(payload) {
 
 function saveWorkReportItem_(user, payload) {
   requireAdmin_(user);
-  const lock = LockService.getDocumentLock();
+  const lock = attendanceWriteLock_();
   lock.waitLock(20000);
   try {
     assertWorkReportSchema_();
@@ -1115,7 +1138,7 @@ function saveWorkReportItem_(user, payload) {
 
 function saveWorkReportCaseMapping_(user, payload) {
   requireAdmin_(user);
-  const lock = LockService.getDocumentLock();
+  const lock = attendanceWriteLock_();
   lock.waitLock(20000);
   try {
     assertWorkReportSchema_();
@@ -1155,7 +1178,7 @@ function returnWorkReport_(user, payload) {
   if (!reason || reason.length > 1000) throw apiError_("REPORT_RETURN_REASON_REQUIRED", "差戻し理由を1〜1000文字で入力してください。");
   const operationId = normalizeWorkReportOperationId_(payload.operationId);
   const expectedVersion = normalizeWorkReportExpectedVersion_(payload.expectedVersion);
-  const lock = LockService.getDocumentLock();
+  const lock = attendanceWriteLock_();
   lock.waitLock(20000);
   try {
     assertWorkReportSchema_();
@@ -1543,13 +1566,14 @@ function reviewRequest_(user, payload, idToken) {
   const authorization = authorizeAttendanceReview_(initial, payload, idToken);
   const eventId = authorization.authorization_event_id;
   const reviewerId = authorization.reviewer_internal_user_id;
-  const lock = LockService.getDocumentLock();
+  const lock = attendanceWriteLock_();
   lock.waitLock(20000);
   let request;
   let record;
   let conflictCode = "";
   let processingError;
   let writeRollbackSucceeded = true;
+  let appliedRecordRevision = "";
   try {
     request = findRequestById_(payload.requestId);
     if (!request || request["状態"] !== "申請中") {
@@ -1575,6 +1599,7 @@ function reviewRequest_(user, payload, idToken) {
             if (request["種別"] === "日付またぎ終了報告") formalChanges["状態"] = "終了却下";
           }
           updateById_(SHEETS.records, "record_id", request.record_id, formalChanges);
+          appliedRecordRevision = attendanceRecordRevision_(rows_(SHEETS.records).find(r => String(r.record_id) === String(request.record_id)));
         }
       }
     }
@@ -1605,7 +1630,7 @@ function reviewRequest_(user, payload, idToken) {
   try {
     finalizeAttendanceAudit_(request, payload, idToken, eventId, reviewerId, "success", nextStatus, "");
   } catch (finalizeError) {
-    handleAttendanceFinalizeFailure_(request, record, payload, idToken, eventId, reviewerId, finalizeError);
+    handleAttendanceFinalizeFailure_(request, record, payload, idToken, eventId, reviewerId, finalizeError, appliedRecordRevision);
   }
   try {
     createNotification_(request["申請者メール"], request["申請者氏名"], "申請結果", `${request["種別"]}は${payload.decision}されました。`, payload.requestId);
@@ -1638,14 +1663,14 @@ function finalizeAttendanceAudit_(request, payload, idToken, eventId, reviewerId
   }));
 }
 
-function handleAttendanceFinalizeFailure_(request, record, payload, idToken, eventId, reviewerId, originalError) {
+function handleAttendanceFinalizeFailure_(request, record, payload, idToken, eventId, reviewerId, originalError, appliedRecordRevision) {
   try {
     finalizeAttendanceAudit_(request, payload, idToken, eventId, reviewerId, "success", payload.decision + "済み", "");
     return;
   } catch (retryError) {
     originalError = retryError;
   }
-  const lock = LockService.getDocumentLock();
+  const lock = attendanceWriteLock_();
   lock.waitLock(20000);
   let rollbackSucceeded = false;
   let rollbackError;
@@ -1654,6 +1679,12 @@ function handleAttendanceFinalizeFailure_(request, record, payload, idToken, eve
     const expectedStatus = payload.decision + "済み";
     if (!current || String(current["状態"]) !== expectedStatus || Number(current.request_version) !== Number(request.request_version) + 1) {
       throw apiError_("ROLLBACK_STATE_CHANGED", "復元対象の申請状態が変わっています。");
+    }
+    if (record) {
+      const currentRecord = rows_(SHEETS.records).find(r => String(r.record_id) === String(record.record_id));
+      if (!appliedRecordRevision || attendanceRecordRevision_(currentRecord) !== appliedRecordRevision) {
+        throw apiError_("ROLLBACK_RECORD_CHANGED", "承認後に勤怠が更新されているため、自動復元を中止しました。");
+      }
     }
     restoreAttendanceReview_(request, record);
     rollbackSucceeded = true;
@@ -1677,7 +1708,7 @@ function handleAttendanceFinalizeFailure_(request, record, payload, idToken, eve
 }
 
 function markRouteForReconfirmation_(request) {
-  const lock = LockService.getDocumentLock();
+  const lock = attendanceWriteLock_();
   lock.waitLock(20000);
   try {
     const current = findRequestById_(request.request_id);
@@ -1705,6 +1736,10 @@ function accountApprovalRequest_(payload) {
   try { result = JSON.parse(response.getContentText() || "{}"); } catch (error) { result = {}; }
   if (!result.ok) throw apiError_(result.code || "ACCOUNT_APPROVAL_UNAVAILABLE", result.message || "承認経路を確認できません。");
   return result;
+}
+
+function attendanceRecordRevision_(record) {
+  return record ? JSON.stringify(Object.keys(record).sort().map(key => [key, record[key]])) : "";
 }
 
 function restoreAttendanceReview_(request, record) {
@@ -1868,8 +1903,8 @@ function syncSchedules_(idToken, sourceLocal) {
             email: member.email || member.mail || member.gmail || "",
             "氏名": member.display_name || member.displayName || member.name || "",
             "勤務日": workDate,
-            "予定開始": cell.start_time || cell.startTime || caseItem.start_time || caseItem.startTime || "",
-            "予定終了": cell.end_time || cell.endTime || caseItem.end_time || caseItem.endTime || "",
+            "予定開始": member.start_time || member.startTime || cell.start_time || cell.startTime || caseItem.start_time || caseItem.startTime || "",
+            "予定終了": member.end_time || member.endTime || cell.end_time || cell.endTime || caseItem.end_time || caseItem.endTime || "",
             "稼働場所": caseItem.shiftcore_display_name || caseItem.shiftcoreDisplayName || caseItem.store_name || caseItem.storeName || caseItem.title || caseItem.client || caseItem.area || "場所未定",
             "開発予定ID": caseItem.caseId || "",
             "開発予定名": caseItem.shiftcore_display_name || caseItem.title || caseItem.caseId || "開発予定"
@@ -1926,9 +1961,26 @@ function markDashboardScheduleSyncFresh_(sourceCache, sourceKey, sourceRevision)
 function clearDashboardScheduleSyncState_(cache, key) { if (!cache) return; try { cache.remove(key); } catch (error) {} }
 
 function mergeSchedules_(local, derived, targetMonth) {
+  const lock = attendanceWriteLock_();
+  lock.waitLock(20000);
+  try {
+    // 外部API待ちの間に他実行が行を追加・削除している可能性がある。
+    return mergeSchedulesLocked_(rows_(SHEETS.schedules), derived, targetMonth);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function mergeSchedulesLocked_(local, derived, targetMonth) {
   const sheet = SpreadsheetApp.getActive().getSheetByName(SHEETS.schedules);
   const result = pruneShiftBuilderSchedules_(local, derived, targetMonth, sheet);
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  const scheduleIdColumn = headers.indexOf("schedule_id");
+  const rowNumbers = {};
+  sheet.getDataRange().getValues().slice(1).forEach((row, index) => {
+    const id = String(row[scheduleIdColumn] || "");
+    if (id && !rowNumbers[id]) rowNumbers[id] = index + 2;
+  });
   const syncedFields = ["organization_id", "employee_code", "email", "氏名", "勤務日", "予定開始", "予定終了", "稼働場所", "開発予定ID", "開発予定名"];
   derived.forEach(item => {
     const key = String(item.schedule_id || "");
@@ -1940,6 +1992,7 @@ function mergeSchedules_(local, derived, targetMonth) {
         item["勤務日"] || "", item["予定開始"] || "", item["予定終了"] || "", item["稼働場所"] || "",
         item["開発予定ID"] || "", item["開発予定名"] || "", new Date()
       ]);
+      rowNumbers[key] = sheet.getLastRow();
       return;
     }
 
@@ -1948,7 +2001,7 @@ function mergeSchedules_(local, derived, targetMonth) {
     if (changed) {
       const merged = Object.assign({}, existing, item, { "更新日時": new Date() });
       result[existingIndex] = merged;
-      sheet.getRange(existingIndex + 2, 1, 1, headers.length).setValues([headers.map(header => merged[header] == null ? "" : merged[header])]);
+      sheet.getRange(rowNumbers[key], 1, 1, headers.length).setValues([headers.map(header => merged[header] == null ? "" : merged[header])]);
     }
   });
   return result;
@@ -2143,7 +2196,7 @@ function appendObjects_(name, values) { if (!values.length) return; const sheet 
 function updateById_(sheetName, idColumn, id, changes) { const sheet = SpreadsheetApp.getActive().getSheetByName(sheetName); const values = sheet.getDataRange().getValues(); const headers = values[0].map(String); const rowIndex = values.findIndex((r, i) => i > 0 && String(r[headers.indexOf(idColumn)]) === String(id)); if (rowIndex < 1) throw apiError_("NOT_FOUND", "対象データが見つかりません。"); Object.keys(changes).forEach(k => { const col = headers.indexOf(k); if (col >= 0) sheet.getRange(rowIndex + 1, col + 1).setValue(changes[k]); }); }
 function settings_() { return rows_(SHEETS.settings).reduce((o, r) => (o[String(r["設定キー"])] = String(r["設定値"]), o), {}); }
 function ensureReportSheet_() { const ss = SpreadsheetApp.getActive(); if (!ss.getSheetByName(SHEETS.reports)) { const s = ss.insertSheet(SHEETS.reports); s.appendRow(HEADERS.reports); s.setFrozenRows(1); } }
-function ensureWorkReportSheetsWithLock_() { const lock = LockService.getDocumentLock(); lock.waitLock(20000); try { return ensureWorkReportSheets_(); } finally { lock.releaseLock(); } }
+function ensureWorkReportSheetsWithLock_() { const lock = attendanceWriteLock_(); lock.waitLock(20000); try { return ensureWorkReportSheets_(); } finally { lock.releaseLock(); } }
 function assertWorkReportSchema_() {
   assertSheetHeaders_(SHEETS.reports, HEADERS.reports.concat(HEADERS.reportContract));
   assertSheetHeaders_(SHEETS.reportTemplates, HEADERS.reportTemplates);
@@ -2203,7 +2256,7 @@ function fieldReportsFor_(user, workDate, scheduleKey, planId, sourceReports, so
 }
 function legacyScheduleUnambiguous_(user, workDate, planId, sourceSchedules) { return (sourceSchedules || rows_(SHEETS.schedules)).filter(r => matchesUser_(r, user) && dateKey_(r["勤務日"]) === workDate && String(r["開発予定ID"] || "") === String(planId || "")).length === 1; }
 function ensureRequestContractHeaders_() { const sheet = SpreadsheetApp.getActive().getSheetByName(SHEETS.requests); if (!sheet) throw apiError_("SHEET_NOT_FOUND", `${SHEETS.requests}シートがありません。`); const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String); const duplicate = headers.find((header, index) => header && headers.indexOf(header) !== index); if (duplicate) throw apiError_("SHEET_SCHEMA_MISMATCH", `${SHEETS.requests}シートに重複列があります: ${duplicate}`); const missingExisting = HEADERS.requests.filter(header => !headers.includes(header)); if (missingExisting.length) throw apiError_("SHEET_SCHEMA_MISMATCH", `${SHEETS.requests}シートの既存列が不足しています: ${missingExisting.join(",")}`); HEADERS.requestContract.forEach(header => { if (!headers.includes(header)) { sheet.getRange(1, sheet.getLastColumn() + 1).setValue(header); headers.push(header); } }); }
-function ensureRequestContractHeadersForReview_() { const lock = LockService.getDocumentLock(); lock.waitLock(20000); try { ensureRequestContractHeaders_(); } finally { lock.releaseLock(); } }
+function ensureRequestContractHeadersForReview_() { const lock = attendanceWriteLock_(); lock.waitLock(20000); try { ensureRequestContractHeaders_(); } finally { lock.releaseLock(); } }
 function publicUser_(user) { return { internal_user_id: internalUserId_(user), name: user.name || "", email: user.email || "", role: user.role || "", organization_id: user.organization_id || "", employee_code: user.employee_code || "", employment_type: user.employment_type || user.contract_type || "" }; }
 function internalUserId_(user) { return String(user && (user.internal_user_id || user.internalUserId || user.user_id || user.userId) || "").trim(); }
 function hasApprovalReviewAccess_(user) { const userId = internalUserId_(user); return Boolean(userId) && rows_(SHEETS.requests).some(request => String(request["状態"]) === "申請中" && String(request.approval_reviewer_internal_user_id || "") === userId); }

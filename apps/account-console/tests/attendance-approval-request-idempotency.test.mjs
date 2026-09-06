@@ -18,14 +18,14 @@ function requestContext() {
     console,
     Date,
     JSON,
-    SpreadsheetApp: {},
+    SpreadsheetApp: { flush() {} },
     PropertiesService: {},
     UrlFetchApp: {},
     ContentService: {},
     MailApp: {},
     Session: {},
     LockService: {
-      getDocumentLock: () => ({
+      getScriptLock: () => ({
         waitLock: () => { lockHeld = true; },
         releaseLock: () => { lockHeld = false; }
       })
