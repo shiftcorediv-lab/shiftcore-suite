@@ -209,6 +209,9 @@
 
     <div class="message" id="messageBox">読み込み中...</div>
     <div id="detailRoot"></div>
+    <div class="actions">
+      <a class="button-link" id="repeatCaseBottomLink" href="./index.html" style="display:none">同条件で新規受注</a>
+    </div>
   </main>
 
   <script src="./js/config.js"></script>
@@ -283,9 +286,11 @@
       const canEdit = state.permission === 'all' || state.permission === 'edit';
 
       const editLink = document.getElementById('editCaseLink');
-      const repeatLink = document.getElementById('repeatCaseLink');
-      repeatLink.href = './index.html?repeat_from=' + encodeURIComponent(getQueryParam('case_id'));
-      repeatLink.style.display = canEdit ? '' : 'none';
+      ['repeatCaseLink', 'repeatCaseBottomLink'].forEach(id => {
+        const repeatLink = document.getElementById(id);
+        repeatLink.href = './index.html?repeat_from=' + encodeURIComponent(getQueryParam('case_id'));
+        repeatLink.style.display = canEdit ? '' : 'none';
+      });
 
       if (editLink) {
         editLink.style.display = canEdit ? '' : 'none';
