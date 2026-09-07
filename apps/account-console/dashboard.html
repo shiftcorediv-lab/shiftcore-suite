@@ -96,9 +96,9 @@
 
   <dialog id="actionDialog">
     <form method="dialog" id="actionForm">
-      <div class="dialog-heading"><div><span class="section-label">勤怠報告</span><h2 id="dialogTitle">報告</h2></div><button value="cancel" aria-label="閉じる">×</button></div>
+      <div class="dialog-heading"><div><span class="section-label">勤怠報告</span><h2 id="dialogTitle">報告</h2></div><button value="cancel" formnovalidate aria-label="閉じる">×</button></div>
       <div id="dialogBody"></div>
-      <div class="dialog-actions"><button value="cancel" class="outline-action">キャンセル</button><button id="dialogSubmitBtn" value="default" class="primary-action">登録する</button></div>
+      <div class="dialog-actions"><button value="cancel" formnovalidate class="outline-action">キャンセル</button><button id="dialogSubmitBtn" value="default" class="primary-action">登録する</button></div>
     </form>
   </dialog>
 
@@ -112,6 +112,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="./js/dashboard/main.js?v=20260907-display-labels-1"></script>
+  <script type="module" src="./js/dashboard/main.js?v=20260907-attendance-correction-1"></script>
 </body>
 </html>

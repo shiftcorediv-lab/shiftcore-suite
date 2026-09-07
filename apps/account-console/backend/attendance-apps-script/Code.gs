@@ -468,8 +468,17 @@ function submitFieldReport_(user, payload, idToken) {
       ? saveLocation_(user, fieldReportId, validateNearestArrivalLocation_(payload.location), `最寄り到着: ${schedule["稼働場所"] || ""}`)
       : null;
     appendObject_(SHEETS.fieldReports, { field_report_id: fieldReportId, "勤務日": workDate, "開発予定ID": schedule["開発予定ID"] || "", "報告種別": reportType, "報告者メール": user.email, "報告者氏名": user.name || "", "報告日時": now, schedule_id: schedule.schedule_id || "" });
-    notifyManagers_(user, `${reportType}報告`, `${user.name || user.email}さんが${formatJst_(now)}に${reportType}を報告しました。`);
-    return { ok: true, report: fieldReportsFor_(user, workDate, scheduleKey, schedule["開発予定ID"]).find(report => String(report["報告種別"]) === reportType) || null, locationStatus: location ? location.status : "対象外" };
+    // 通知は保存後の付随処理。失敗しても保存済みの打刻を失敗と返さない。
+    SpreadsheetApp.flush();
+    const savedReport = fieldReportsFor_(user, workDate, scheduleKey, schedule["開発予定ID"]).find(report => String(report["報告種別"]) === reportType) || null;
+    let notificationStatus = "sent";
+    try {
+      notifyManagers_(user, `${reportType}報告`, `${user.name || user.email}さんが${formatJst_(now)}に${reportType}を報告しました。`);
+    } catch (error) {
+      notificationStatus = "failed";
+      console.warn("FIELD_REPORT_NOTIFICATION_FAILED");
+    }
+    return { ok: true, report: savedReport, notificationStatus, locationStatus: location ? location.status : "対象外" };
   } finally {
     lock.releaseLock();
   }

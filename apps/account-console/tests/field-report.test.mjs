@@ -22,6 +22,45 @@ function timingContext() {
 
 function schedule() { return { "勤務日": "2026-08-28", "予定開始": "10:00", "予定終了": "18:00" }; }
 
+for (const reportType of ["出発", "最寄り到着"]) {
+  for (const failure of ["none", "identity", "mail", "save"]) {
+    test(`${reportType}: ${failure} の失敗を保存結果と区別する`, () => {
+      const context = timingContext();
+      const reports = reportType === "最寄り到着" ? [{ "報告種別": "出発" }] : [];
+      let notifications = 0;
+      let released = false;
+      context.console = { warn() {} };
+      context.LockService = { getScriptLock: () => ({ waitLock() {}, releaseLock() { released = true; } }) };
+      context.Utilities.getUuid = () => "F-TEST";
+      context.today_ = () => "2026-08-28";
+      context.findSchedule_ = context.findScheduleById_ = () => ({ "勤務日": "2026-08-28", "開発予定ID": "P-TEST", schedule_id: "S-TEST" });
+      context.ensureFieldReportSheet_ = context.ensureFieldReportContractHeaders_ = () => {};
+      context.fieldReportsFor_ = () => reports;
+      context.findRecord_ = () => null;
+      context.appendObject_ = (_sheet, row) => { if (failure === "save") throw new Error("SAVE_FAILED"); reports.push(row); };
+      context.saveLocation_ = () => ({ status: "取得済み" });
+      context.managerEmails_ = () => { notifications++; if (failure === "identity") throw new Error("Session.getEffectiveUser: userinfo.email"); return []; };
+      context.createNotification_ = () => {};
+      context.sendAttendanceMail_ = () => { if (failure === "mail") throw new Error("MAIL_FAILED"); };
+      const user = { email: "test@example.invalid" };
+      const payload = { reportType, scheduleId: "S-TEST", location: { status: "取得済み", latitude: 35, longitude: 135, accuracy: 10 } };
+      if (failure === "save") {
+        assert.throws(() => context.submitFieldReport_(user, payload, "TOKEN"), /SAVE_FAILED/);
+        assert.equal(notifications, 0);
+      } else {
+        const result = context.submitFieldReport_(user, payload, "TOKEN");
+        assert.equal(result.ok, true);
+        assert.equal(result.report["報告種別"], reportType);
+        assert.equal(result.notificationStatus, failure === "none" ? "sent" : "failed");
+        assert.equal(context.submitFieldReport_(user, payload, "TOKEN").duplicate, true);
+        assert.equal(reports.filter(row => row["報告種別"] === reportType).length, 1);
+        assert.equal(notifications, 1);
+      }
+      assert.equal(released, true);
+    });
+  }
+}
+
 test("出発リミットは1時間前ちょうどを警告せず直後だけ警告する", () => {
   const context = timingContext();
   assert.equal(context.buildTimingStatus_(schedule(), new Date("2026-08-28T09:00:00+09:00")).departureWarning, false);

@@ -368,21 +368,26 @@ async function submitDeparture() {
   const accepted = await openDialog("出発", "<p>現在時刻で出発を報告します。位置情報は取得しません。</p>", "出発する");
   if (!accepted) return;
   await runAction(async () => {
-    await attendanceRequest("submitFieldReport", { reportType: "出発", scheduleId: dashboardData.schedule.schedule_id || "" });
+    const result = await attendanceRequest("submitFieldReport", { reportType: "出発", scheduleId: dashboardData.schedule.schedule_id || "" });
     await loadDashboard();
-    showAlert("出発を記録しました。", "success");
+    showFieldReportResult("出発", result);
   });
 }
 
 async function submitNearestArrival() {
   if (busy || !dashboardData?.schedule) return;
   if (!await openDialog("最寄り到着", "<p>稼働先の最寄りへ到着した時刻と位置情報を記録します。</p>", "到着を報告する")) return;
-  const location = await readAttendanceLocation();
   await runAction(async () => {
-    await attendanceRequest("submitFieldReport", { reportType: "最寄り到着", scheduleId: dashboardData.schedule.schedule_id || "", location });
+    const location = await readAttendanceLocation();
+    const result = await attendanceRequest("submitFieldReport", { reportType: "最寄り到着", scheduleId: dashboardData.schedule.schedule_id || "", location });
     await loadDashboard();
-    showAlert("最寄り到着を記録しました。", "success");
+    showFieldReportResult("最寄り到着", result);
   });
+}
+
+function showFieldReportResult(label, result) {
+  const failed = result.notificationStatus === "failed";
+  showAlert(`${label}を記録しました。${failed ? "通知の送信に失敗しましたが、打刻は保存されています。再打刻は不要です。" : ""}`, failed ? "warning" : "success");
 }
 
 function renderUnavailable(message = "勤怠情報を確認できませんでした") {
@@ -448,16 +453,26 @@ $("startBtn").addEventListener("click", async () => {
   if (state.name === "unplanned") return submitUnplanned();
 });
 
-$("correctionBtn").addEventListener("click", () => openCorrection(dashboardData?.record?.["実開始"] ? "終了修正" : "開始修正"));
+$("correctionBtn").addEventListener("click", chooseCorrection);
 
-async function openCorrection(type) {
+async function chooseCorrection() {
+  if (busy || !dashboardData?.record?.record_id) return;
+  const recordId = dashboardData.record.record_id;
+  const body = `<label>修正する時刻<select id="correctionType"><option value="開始修正">開始時刻</option><option value="終了修正">終了時刻（押し忘れを含む）</option></select></label><p>修正は管理者の承認後に反映されます。</p>`;
+  if (!await openDialog("勤怠の修正申請", body, "次へ")) return;
+  const type = $("correctionType")?.value;
+  if (!["開始修正", "終了修正"].includes(type)) return;
+  await openCorrection(type, recordId);
+}
+
+async function openCorrection(type, recordId) {
   const body = `<label>実際の${type === "開始修正" ? "開始" : "終了"}時刻<input id="actualTime" type="datetime-local" required></label>${reasonFields("修正申請の理由")}`;
   if (!await openDialog(type, body, "申請する")) return;
   const actual = $("actualTime")?.value;
   const reason = readReason();
   if (!actual || !reason) return showStatus("実際の時刻と理由を入力してください。", true);
   await runAction(async () => {
-    await attendanceRequest("submitCorrection", { type, recordId: dashboardData?.record?.record_id || "", actualStart: type === "開始修正" ? actual : "", actualEnd: type === "終了修正" ? actual : "", reasonType: $("reasonType")?.value || "その他", reason });
+    await attendanceRequest("submitCorrection", { type, recordId, actualStart: type === "開始修正" ? actual : "", actualEnd: type === "終了修正" ? actual : "", reasonType: $("reasonType")?.value || "その他", reason });
     showAlert("修正申請を送信しました。管理者の確認をお待ちください。", "success");
     await loadDashboard();
   });
@@ -534,6 +549,7 @@ function openDialog(title, body, submitLabel) {
   $("dialogTitle").textContent = title;
   $("dialogBody").innerHTML = body;
   $("dialogSubmitBtn").textContent = submitLabel;
+  $("actionDialog").returnValue = "";
   $("actionDialog").showModal();
   return new Promise(resolve => $("actionDialog").addEventListener("close", () => resolve($("actionDialog").returnValue === "default"), { once: true }));
 }
