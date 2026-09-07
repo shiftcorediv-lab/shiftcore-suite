@@ -659,6 +659,21 @@ test("マネージャーは別系統の対象を画面上でも編集不可と�
   assert.equal(context.canOperatorEditOrganizationTarget_(operator, otherLeader, users), false);
 });
 
+test("組織設定の対象判定は現在の所属を優先しアカウント区分を書き換えない", () => {
+  const context = createContext();
+  const target = { affiliation_type: "another_member", person_type: "alliance_individual", role: "partner_individual" };
+  const before = JSON.stringify(target);
+  assert.doesNotThrow(() => context.assertInternalOrganizationTarget_(target));
+  assert.equal(JSON.stringify(target), before);
+  assert.doesNotThrow(() => context.assertInternalOrganizationTarget_({ person_type: "internal" }));
+  for (const affiliation_type of ["external_member", "unknown"]) {
+    assert.throws(
+      () => context.assertInternalOrganizationTarget_({ affiliation_type, person_type: "internal" }),
+      error => error.code === "ORGANIZATION_TARGET_NOT_INTERNAL"
+    );
+  }
+});
+
 test("外部人員を内部組織階層へ割り当てない", () => {
   const context = createContext();
 

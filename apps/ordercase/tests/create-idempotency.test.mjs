@@ -44,6 +44,17 @@ function createCasesContext() {
   return { context, sheetRows };
 }
 
+test('日別人数が異なる登録の再送は実際の日付数で完了判定する', () => {
+  const {context, sheetRows} = createCasesContext();
+  const payload = {case_dates:[{work_date:'2026-10-01',person_conditions:[{},{},{}]},{work_date:'2026-10-02',person_conditions:[{}]}]};
+  const operation = {operation_id:'operation-person-lines',payload_hash:'same',input_mode:'dates',same_condition_count:3};
+  sheetRows.cases = [1,2,3].map(i=>({case_id:`C${i}`,copy_index:i,create_operation_id:operation.operation_id,create_payload_hash:'same'}));
+  sheetRows.case_dates = [{case_id:'C1'},{case_id:'C1'},{case_id:'C2'},{case_id:'C3'}];
+  assert.equal(context.resolveCreateOperationReplay_(payload,operation).created_case_dates_count,4);
+  sheetRows.case_dates.pop();
+  assert.throws(()=>context.resolveCreateOperationReplay_(payload,operation),/途中状態/);
+});
+
 test('同じ入力の再送には同じ操作IDを使い、入力変更後は新しいIDにする', () => {
   let sequence = 0;
   const window = {

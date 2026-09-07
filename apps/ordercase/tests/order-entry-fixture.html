@@ -1,0 +1,19 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><title>オーダー入力確認専用</title>
+<body><p>架空データの確認画面を準備しています。本番へ保存しません。</p>
+<script type="module">
+const html = await (await fetch('../index.html')).text();
+const doc = new DOMParser().parseFromString(html, 'text/html');
+const base = doc.createElement('base'); base.href = new URL('../', location.href).href; doc.head.prepend(base);
+for (const script of doc.querySelectorAll('script[src]')) {
+  if (!/\/(utils|loading|create-operation-policy|repeat-policy)\.js/.test(script.src)) script.remove();
+}
+const stub = doc.createElement('script');
+stub.textContent = `
+function renderOrderCaseHeader() { document.title='確認専用・本番保存なし'; const banner=document.createElement('p');banner.textContent='確認専用：架空データ。本番には保存しません。';banner.style='background:#fff3bf;padding:16px;font-weight:bold';document.body.prepend(banner); }
+async function fetchApiJson() {return {ok:true,data:{supports_person_conditions:true,case_types:[{case_type_id:'retail_store',case_type_name:'店頭稼働',default_input_mode:'dates',show_work_time:true,show_work_location:true,show_work_area:true,show_required_skill:true}],agencies_master:[],stores_master:[],settings:{area_options:'関西,関東'}}};}
+async function fetchApiJsonWithParams() {return {ok:true,data:{case_type:'retail_store',shiftcore_display_name:'梅田店・催事',input_mode:'dates',agency_name:'確認用代理店',store_name:'確認用梅田店',store_area:'関西',work_start_time:'10:00',work_end_time:'18:00',amount_type:'per_person_day',amount:15000,internal_memo:'反復受注の引継ぎ確認'}};}
+async function postCreateCase(payload) {const out=document.createElement('pre');out.id='capturedPayload';out.textContent=JSON.stringify(payload,null,2);document.body.appendChild(out);return {ok:false,message:'確認専用：送信内容を画面末尾に表示しました。本番には保存していません。'};}
+`;
+doc.querySelector('script:not([src])').before(stub);
+document.open();document.write('<!doctype html>'+doc.documentElement.outerHTML);document.close();
+</script></body></html>

@@ -164,8 +164,21 @@ input[type="time"] {
 
     .calendar {
       display: grid;
-      grid-template-columns: repeat(7, 1fr);
+      grid-template-columns: repeat(7, minmax(0, 1fr));
       gap: 6px;
+      align-items: start;
+    }
+
+    .calendar-date-cell { min-width: 0; }
+    .calendar-date-cell > .day { width: 100%; }
+    .calendar-date-cell .date-row { padding: 4px; margin-top: 4px; }
+    .calendar-date-cell label { font-size: 11px; margin: 2px 0; }
+    .calendar-date-cell input { min-width: 0; width: 100%; padding: 4px 2px; font-size: 12px; box-sizing: border-box; }
+    .calendar-date-cell input[data-people-count],
+    .calendar-date-cell > label > input[type="number"] { display: block; width: 56px; max-width: 100%; }
+    .calendar-person { border-top: 1px solid #d9dee5; margin-top: 6px; padding-top: 4px; }
+    @media (max-width: 600px) {
+      .calendar { grid-template-columns: repeat(7, minmax(105px, 1fr)); overflow-x: auto; }
     }
 
     .weekday {
@@ -422,12 +435,6 @@ input[type="time"] {
         </div>
 
         <div>
-          <label for="shiftcoreDisplayName">Another Portal表示用省略名称</label>
-          <input id="shiftcoreDisplayName" maxlength="24" placeholder="例：池袋8月1" />
-          <p class="hint">シフトの人員×日付セルに表示します。正式な案件情報は変更しません。</p>
-        </div>
-
-        <div>
           <label for="inputMode">入力方式</label>
           <select id="inputMode">
             <option value="dates">日付指定</option>
@@ -466,6 +473,11 @@ input[type="time"] {
         <div><label for="storeShortName">店舗略称</label><input id="storeShortName" placeholder="例：長居店" /></div>
         <div><label for="storeAddress">店舗住所</label><input id="storeAddress" /></div>
         <div><label for="storeNearestStation">店舗最寄り駅</label><input id="storeNearestStation" /></div>
+        <div>
+          <label for="shiftcoreDisplayName">シフト人員セル表示用略称</label>
+          <input id="shiftcoreDisplayName" maxlength="24" placeholder="例：池袋8月1" />
+          <p class="hint">案件ごとの略称です（例：梅田店・催事）。シフトの人員×日付セルで店舗略称より優先して表示します。店舗略称は店舗マスター共通の名前です。</p>
+        </div>
       </div>
 
       <p class="hint">
@@ -477,7 +489,7 @@ input[type="time"] {
       <h2>必要人数・作成件数</h2>
 
       <p class="hint">
-        Shiftでは、1案件を1人分・1列として扱います。<br>
+        シフトでは、1案件を1人分・1列として扱います。<br>
         同じ条件で複数名必要な場合は、同条件の案件を人数分作成します。
       </p>
 
@@ -485,7 +497,7 @@ input[type="time"] {
         <div>
           <label for="sameConditionCount">同条件で作成する件数</label>
           <input id="sameConditionCount" type="number" min="1" max="20" value="1" />
-          <p class="hint">例：同月・同店舗で3名必要なら 3</p>
+          <p class="hint">日付指定では、各日付の人数の最大値を自動計算します。日数指定では必要人数を入力してください。</p>
         </div>
 
         <div>
@@ -600,6 +612,7 @@ input[type="time"] {
         <button type="button" class="secondary" id="clearDatesButton">選択日をクリア</button>
       </div>
 
+      <p class="hint">日付の真下に人数を入力してください。1名は共通条件を使用し、2名以上で人数分の時間・単価欄を表示します。空欄は共通条件を使用します。人数を減らすと末尾の入力を削除し、1名に戻すと個別条件を解除します。0名で日付の選択を解除します。</p>
       <div class="calendar" id="calendar"></div>
 
       <div class="selected-date-list" id="selectedDateList"></div>
@@ -688,6 +701,7 @@ input[type="time"] {
   <script src="./js/auth-session.js"></script>
   <script src="./js/api.js?v=20260902-security-1"></script>
   <script src="./js/create-operation-policy.js?v=20260902-idempotency-1"></script>
+  <script src="./js/repeat-policy.js?v=20260907-repeat-1"></script>
   <script src="./js/loading.js"></script>
   <script src="./js/navigation.js?v=20260905-agency-master-1"></script>
 
@@ -722,6 +736,7 @@ input[type="time"] {
         setupEventListeners();
 
         await loadBootstrap();
+        await loadRepeatSource();
 
         updateRequiredPeople();
         updateAmountInputState();
@@ -745,6 +760,27 @@ input[type="time"] {
      * disableEntryForm ここから
      * 初期化失敗時に登録フォームを止める
      ****************************************************/
+    async function loadRepeatSource() {
+      const sourceId = new URLSearchParams(location.search).get('repeat_from');
+      if (!sourceId) return;
+      showLoading('反復受注の元案件を読み込み中...');
+      try {
+        const result = await fetchApiJsonWithParams('getCaseDetail', {case_id: sourceId});
+        if (!result.ok || !result.data) throw new Error(result.message || '元案件を取得できませんでした。');
+        const fields = window.OrderCaseRepeatPolicy.buildFields(result.data, state.storesMaster);
+        Object.entries(fields).forEach(([id, value]) => {
+          const input = document.getElementById(id);
+          if (input) input.value = value;
+        });
+        document.getElementById('hasSeparateWorkLocation').checked = Boolean(result.data.work_location && result.data.work_location !== result.data.store_name);
+        applyCaseTypeRule();
+        document.getElementById('inputMode').value = fields.inputMode || 'dates';
+        updateWorkLocationView();
+        state.selectedDates = [];
+        setMessage(`元案件 ${sourceId} の共通条件を引き継ぎました。対象月・日程・人数・単価を確認して新規登録してください。元案件と配置は変更しません。`, 'success');
+      } finally { hideLoading(); }
+    }
+
     function disableEntryForm() {
       const submitButton = document.getElementById('submitButton');
 
@@ -1260,7 +1296,32 @@ input[type="time"] {
         }
 
         button.addEventListener('click', () => toggleDate(date));
-        calendar.appendChild(button);
+        const cell = document.createElement('div');
+        cell.className = 'calendar-date-cell';
+        cell.dataset.workDate = date;
+        cell.appendChild(button);
+        if (!state.selectedDates.some(item => item.work_date === date)) {
+          const label = document.createElement('label');
+          label.textContent = '人数';
+          const countInput = document.createElement('input');
+          countInput.type = 'number'; countInput.min = '0'; countInput.max = '20'; countInput.value = '0';
+          countInput.setAttribute('aria-label', `${date} の人数`);
+          countInput.addEventListener('change', event => {
+            const count = Number(event.target.value);
+            if (!Number.isInteger(count) || count < 0 || count > 20) {
+              event.target.value = '0';
+              setMessage('日別人数は0〜20名の整数で入力してください。', 'error');
+              return;
+            }
+            if (!count) return;
+            toggleDate(date);
+            const item = state.selectedDates.find(item => item.work_date === date);
+            item.person_conditions = Array.from({length: count}, () => ({work_start_time:'', work_end_time:'', amount:''}));
+            renderCalendar(); updateSummary();
+          });
+          label.appendChild(countInput); cell.appendChild(label);
+        }
+        calendar.appendChild(cell);
       }
 
       renderSelectedDateList();
@@ -1281,6 +1342,7 @@ input[type="time"] {
       } else {
         state.selectedDates.push({
           work_date: date,
+          person_conditions: [{work_start_time:'', work_end_time:'', amount:''}],
           required_lines: 1,
           people_per_line: 1,
           has_condition_override: false,
@@ -1312,6 +1374,7 @@ input[type="time"] {
     function renderSelectedDateList() {
       const list = document.getElementById('selectedDateList');
       list.innerHTML = '';
+      document.querySelectorAll('#calendar .date-row').forEach(row => row.remove());
 
       if (state.selectedDates.length === 0) {
         const p = document.createElement('p');
@@ -1326,7 +1389,16 @@ input[type="time"] {
         row.className = 'date-row';
 
         row.innerHTML = `
-          <div class="date-row-title">${item.work_date}</div>
+          <label>人数
+            <input type="number" min="0" max="20" value="${item.person_conditions.length}" data-people-count="${index}" aria-label="${item.work_date} の人数">
+          </label>
+          ${(item.person_conditions.length >= 2 ? item.person_conditions : []).map((person, personIndex) => `
+            <div class="calendar-person">
+              <label>${personIndex + 1}人目 開始<input type="time" value="${escapeHtml(person.work_start_time)}" data-person-date="${index}" data-person-index="${personIndex}" data-person-field="work_start_time"></label>
+              <label>${personIndex + 1}人目 終了<input type="time" value="${escapeHtml(person.work_end_time)}" data-person-date="${index}" data-person-index="${personIndex}" data-person-field="work_end_time"></label>
+              <label>${personIndex + 1}人目 単価<input type="number" min="0" value="${escapeHtml(person.amount)}" placeholder="共通単価" data-person-date="${index}" data-person-index="${personIndex}" data-person-field="amount"></label>
+            </div>`).join('')}
+          <div hidden>
           <label>
             <input type="checkbox" ${item.has_condition_override ? 'checked' : ''}
               data-date-index="${index}" data-field="has_condition_override">
@@ -1380,6 +1452,7 @@ input[type="time"] {
               </div>
             </div>
           </div>
+          </div>
           <div>
             <label>日別メモ</label>
             <input type="text" value="${escapeHtml(item.memo)}" data-date-index="${index}" data-field="memo">
@@ -1390,8 +1463,23 @@ input[type="time"] {
           input.addEventListener('input', updateDateDetail);
           input.addEventListener('change', updateDateDetail);
         });
+        row.querySelector('[data-people-count]').addEventListener('change', event => {
+          const count = Number(event.target.value);
+          if (!Number.isInteger(count) || count < 0 || count > 20) {
+            event.target.value = item.person_conditions.length;
+            setMessage('日別人数は0〜20名の整数で入力してください。', 'error');
+            return;
+          }
+          if (count === 0) { toggleDate(item.work_date); return; }
+          item.person_conditions = Array.from({length:count}, (_, i) => count >= 2 && item.person_conditions[i] || {work_start_time:'',work_end_time:'',amount:''});
+          renderSelectedDateList(); updateSummary();
+        });
+        row.querySelectorAll('[data-person-field]').forEach(input => input.addEventListener('input', event => {
+          item.person_conditions[Number(input.dataset.personIndex)][input.dataset.personField] = input.value;
+        }));
 
-        list.appendChild(row);
+        const cell = document.querySelector(`#calendar [data-work-date="${item.work_date}"]`);
+        if (cell) cell.appendChild(row);
       });
     }
     /****************************************************
@@ -1480,7 +1568,7 @@ input[type="time"] {
       const checkbox = document.getElementById('hasAlternateTimeWorkers');
       const fields = document.getElementById('alternateTimeFields');
       const countInput = document.getElementById('alternateWorkerCount');
-      const canUse = total > 1;
+      const canUse = total > 1 && document.getElementById('inputMode').value === 'days';
 
       option.classList.toggle('hidden', !canUse);
       if (!canUse) checkbox.checked = false;
@@ -1611,7 +1699,9 @@ input[type="time"] {
     function buildPayload() {
       const inputMode = document.getElementById('inputMode').value;
       const storeArea = document.getElementById('storeArea').value;
-      const sameConditionCount = Number(document.getElementById('sameConditionCount').value || 1);
+      const sameConditionCount = inputMode === 'dates'
+        ? Math.max(1, ...state.selectedDates.map(item => item.person_conditions.length))
+        : Number(document.getElementById('sameConditionCount').value || 1);
       const usesSeparateLocation = document.getElementById('hasSeparateWorkLocation').checked;
 
       return {
@@ -1647,7 +1737,7 @@ input[type="time"] {
         required_lines: 1,
         people_per_line: 1,
         same_condition_count: sameConditionCount,
-        has_alternate_time_workers: document.getElementById('hasAlternateTimeWorkers').checked,
+        has_alternate_time_workers: inputMode === 'days' && document.getElementById('hasAlternateTimeWorkers').checked,
         alternate_worker_count: Number(document.getElementById('alternateWorkerCount').value || 0),
         alternate_work_start_time: document.getElementById('alternateWorkStartTime').value,
         alternate_work_end_time: document.getElementById('alternateWorkEndTime').value,
@@ -1667,6 +1757,7 @@ input[type="time"] {
         case_dates: inputMode === 'dates'
           ? state.selectedDates.map(item => ({
               work_date: item.work_date,
+              person_conditions: item.person_conditions.map(person => ({...person})),
               required_lines: 1,
               people_per_line: 1,
               has_condition_override: item.has_condition_override === true,
@@ -1692,10 +1783,22 @@ input[type="time"] {
      * validatePayload ここから
      ****************************************************/
     function validatePayload(payload) {
+      if (payload.input_mode === 'dates' && state.bootstrap.supports_person_conditions !== true) {
+        throw new Error('人数別入力の保存機能が未反映です。登録せず管理者へ確認してください。');
+      }
+      payload.case_dates.forEach(date => date.person_conditions.forEach(person => {
+        if (!date.work_date.startsWith(payload.target_month + '-')) throw new Error('対象月以外の日付が残っています。選択日をクリアして選び直してください。');
+        const start = person.work_start_time || payload.work_start_time;
+        const end = person.work_end_time || payload.work_end_time;
+        if (!start || !end || start === end) throw new Error(`${date.work_date} の人数別時間を確認してください。`);
+        if (person.amount !== '' && (payload.amount_type !== 'per_person_day' || !Number.isFinite(Number(person.amount)) || Number(person.amount) < 0)) {
+          throw new Error('人数別単価は金額区分「1コマ・1日あたり」で0以上を入力してください。');
+        }
+      }));
       if (!payload.target_month) throw new Error('対象月を入力してください。');
       if (!payload.case_type) throw new Error('案件種別を選択してください。');
       if (!['A', 'B', 'C'].includes(payload.case_rank)) throw new Error('案件ランクを選択してください。');
-      if (!payload.shiftcore_display_name) throw new Error('Another Portal表示用省略名称を入力してください。');
+      if (!payload.shiftcore_display_name) throw new Error('シフト人員セル表示用略称を入力してください。');
       if (!payload.agency_name) throw new Error('代理店名を入力してください。');
       if (!payload.store_name) throw new Error('連携店舗を入力してください。');
       if (!payload.store_area) throw new Error('連携店舗エリアを選択してください。');
@@ -1774,6 +1877,9 @@ input[type="time"] {
       }
 
       (payload.case_dates || []).forEach(dateItem => {
+        (dateItem.person_conditions || []).forEach((person, index) => addIfOvernight(
+          `${dateItem.work_date} の${index + 1}人目`, person.work_start_time || payload.work_start_time, person.work_end_time || payload.work_end_time
+        ));
         if (!dateItem.has_condition_override) return;
         addIfOvernight(
           `${dateItem.work_date} の基本時間`,
@@ -1872,6 +1978,9 @@ input[type="time"] {
      ****************************************************/
     function updateSummary() {
       const mode = document.getElementById('inputMode').value;
+      const countInput = document.getElementById('sameConditionCount');
+      countInput.readOnly = mode === 'dates';
+      if (mode === 'dates') countInput.value = Math.max(1, ...state.selectedDates.map(item => item.person_conditions.length));
       const sameConditionCount = Number(document.getElementById('sameConditionCount').value || 1);
 
       const dateText = mode === 'dates'

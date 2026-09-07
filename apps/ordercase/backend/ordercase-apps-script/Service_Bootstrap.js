@@ -10,6 +10,7 @@
  ****************************************************/
 function getBootstrapData_() {
   return {
+    supports_person_conditions: true,
     case_types: getActiveCaseTypes_(),
     agencies_master: getActiveAgenciesMaster_(),
     stores_master: getActiveStoresMaster_(),

@@ -29,6 +29,7 @@ function createCase_(payload) {
     const sameConditionCount = normalizeSameConditionCount_(payload.same_condition_count);
     const alternateWorkerCount = normalizeAlternateWorkerCount_(payload, sameConditionCount);
     validateCaseDateConditionOverrides_(payload, sameConditionCount);
+    validatePersonConditions_(payload, sameConditionCount);
     const targetMonth = String(payload.target_month).trim();
     const inputMode = String(payload.input_mode || 'dates').trim();
     const operationId = normalizeCreateOperationId_(payload.create_operation_id);
@@ -428,7 +429,9 @@ function resolveCreateOperationReplay_(payload, operation) {
   const existingDateCount = getSheetObjects_(SHEET_CASE_DATES).filter(function(row) {
     return uniqueCaseIds[String(row.case_id || '').trim()] === true;
   }).length;
-  const expectedTotalDateCount = operation.same_condition_count * expectedDateCountPerCase;
+  const expectedTotalDateCount = operation.input_mode === 'dates' && (payload.case_dates || []).some(item => Array.isArray(item.person_conditions))
+    ? payload.case_dates.reduce((sum, item) => sum + item.person_conditions.length, 0)
+    : operation.same_condition_count * expectedDateCountPerCase;
   const isComplete = sortedCases.length === operation.same_condition_count &&
     Object.keys(uniqueCaseIds).length === operation.same_condition_count &&
     existingDateCount === expectedTotalDateCount;
@@ -569,7 +572,18 @@ function buildSinglePersonCasePayload_(payload, copyInfo, options) {
   }
 
   if (Array.isArray(payload.case_dates)) {
-    normalized.case_dates = payload.case_dates.map(function(dateItem) {
+    normalized.case_dates = payload.case_dates.filter(function(dateItem) {
+      return !Array.isArray(dateItem.person_conditions) || Number(safeCopyInfo.copy_index || 1) <= dateItem.person_conditions.length;
+    }).map(function(dateItem) {
+      if (Array.isArray(dateItem.person_conditions)) {
+        const person = dateItem.person_conditions[Number(safeCopyInfo.copy_index || 1) - 1];
+        return {
+          work_date: dateItem.work_date, required_lines: 1, people_per_line: 1, required_people: 1,
+          work_start_time: person.work_start_time || '', work_end_time: person.work_end_time || '',
+          unit_amount_override: person.amount === '' || person.amount == null ? '' : Number(person.amount),
+          memo: dateItem.memo || ''
+        };
+      }
       const dailyOverride = dateItem.has_condition_override === true || dateItem.has_condition_override === 'true';
       const dailyAlternateCount = dailyOverride && (dateItem.has_alternate_time_workers === true || dateItem.has_alternate_time_workers === 'true')
         ? Number(dateItem.alternate_worker_count || 0)
@@ -615,6 +629,34 @@ function buildSinglePersonCasePayload_(payload, copyInfo, options) {
   }
 
   return normalized;
+}
+
+function validatePersonConditions_(payload, totalCount) {
+  const dates = payload.case_dates || [];
+  if (!dates.some(item => item.person_conditions !== undefined)) return;
+  if (payload.input_mode !== 'dates' || payload.has_alternate_time_workers === true || payload.has_alternate_time_workers === 'true') {
+    throw new Error('人数別条件は日付指定で使用し、共通の異時間者設定とは併用できません。');
+  }
+  let maximum = 0;
+  dates.forEach(function(date) {
+    const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(date.work_date || ''));
+    if (!parts || (payload.target_month && !String(date.work_date).startsWith(payload.target_month + '-')) || Number(parts[3]) < 1 || Number(parts[3]) > new Date(Number(parts[1]), Number(parts[2]), 0).getDate()) {
+      throw new Error('人数別条件の日付は対象月の有効な日付にしてください。');
+    }
+    const people = date.person_conditions;
+    if (!Array.isArray(people) || people.length < 1 || people.length > 20) throw new Error('各日付の人数は1〜20名で指定してください。');
+    maximum = Math.max(maximum, people.length);
+    people.forEach(function(person) {
+      if (!person || typeof person !== 'object') throw new Error('人数別条件が不正です。');
+      validateWorkTimeRange_(String(person.work_start_time || payload.work_start_time).trim(), String(person.work_end_time || payload.work_end_time).trim(), date.work_date + ' の人数別時間');
+      if (person.amount !== '' && person.amount != null) {
+        if (payload.amount_type !== 'per_person_day' || !['number','string'].includes(typeof person.amount) || !Number.isFinite(Number(person.amount)) || Number(person.amount) < 0) {
+          throw new Error('人数別単価は「1コマ・1日あたり」で0以上の数値を指定してください。');
+        }
+      }
+    });
+  });
+  if (maximum !== totalCount) throw new Error('作成件数は日別人数の最大値と一致させてください。');
 }
 
 function normalizeAlternateWorkerCount_(payload, totalCount) {
@@ -1191,7 +1233,7 @@ function validateCreateCasePayload_(payload) {
   );
 
   if (!String(payload.shiftcore_display_name || '').trim()) {
-    throw new Error('Another Portal表示用省略名称が必要です。');
+    throw new Error('シフト人員セル表示用略称が必要です。');
   }
 
   if (payload.input_mode !== 'dates' && payload.input_mode !== 'days') {
@@ -1247,7 +1289,7 @@ function validateUpdateCasePayload_(payload) {
   );
 
   if (!String(payload.shiftcore_display_name || '').trim()) {
-    throw new Error('Another Portal表示用省略名称が必要です。');
+    throw new Error('シフト人員セル表示用略称が必要です。');
   }
 
   if (payload.input_mode !== 'dates' && payload.input_mode !== 'days') {

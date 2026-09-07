@@ -426,12 +426,6 @@
         </div>
 
         <div>
-          <label for="shiftcoreDisplayName">Another Portal表示用省略名称</label>
-          <input id="shiftcoreDisplayName" maxlength="24" placeholder="例：池袋8月1" />
-          <p class="hint">シフトの人員×日付セルに表示します。正式な案件情報は変更しません。</p>
-        </div>
-
-        <div>
           <label for="status">ステータス</label>
           <select id="status">
             <option value="received">受付済み</option>
@@ -481,6 +475,11 @@
         <div><label for="storeShortName">店舗略称</label><input id="storeShortName" readonly /></div>
         <div><label for="storeAddress">店舗住所</label><input id="storeAddress" readonly /></div>
         <div><label for="storeNearestStation">店舗最寄り駅</label><input id="storeNearestStation" readonly /></div>
+        <div>
+          <label for="shiftcoreDisplayName">シフト人員セル表示用略称</label>
+          <input id="shiftcoreDisplayName" maxlength="24" placeholder="例：池袋8月1" />
+          <p class="hint">案件ごとの略称です（例：梅田店・催事）。シフトの人員×日付セルで店舗略称より優先して表示します。店舗略称は店舗マスター共通の名前です。</p>
+        </div>
       </div>
 
       <p class="hint">
@@ -1599,7 +1598,7 @@ if (payload.change_type !== 'status_change' && !payload.change_memo) {
       if (!payload.target_month) throw new Error('対象月を入力してください。');
       if (!payload.case_type) throw new Error('案件種別を選択してください。');
       if (!['A', 'B', 'C'].includes(payload.case_rank)) throw new Error('案件ランクを選択してください。');
-      if (!payload.shiftcore_display_name) throw new Error('Another Portal表示用省略名称を入力してください。');
+      if (!payload.shiftcore_display_name) throw new Error('シフト人員セル表示用略称を入力してください。');
       if (!payload.input_mode) throw new Error('入力方式を選択してください。');
       if (!payload.agency_name) throw new Error('代理店名を入力してください。');
       if (!payload.store_name) throw new Error('連携店舗を入力してください。');
