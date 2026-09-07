@@ -633,8 +633,7 @@ select {
 }
 
 .case-agency-break td {
-  border-top: 1px solid var(--sb-border-strong);
-  border-bottom: 0;
+  border-top: 8px solid #f5f5f3;
 }
 
 .case-agency-break td:first-child {
