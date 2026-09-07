@@ -192,6 +192,8 @@
       margin-bottom: 2px;
     }
 
+    .case-actions { display: grid; gap: 6px; min-width: 0; }
+    .case-actions .repeat-link { background: #fff; color: #1957ad; border: 1px solid #1957ad; }
     .detail-link {
       display: inline-block;
       width: 100%;
@@ -367,6 +369,7 @@
         font-size: 10px;
       }
 
+      .case-actions { grid-column: 1 / -1; }
       .detail-link {
         grid-column: 1 / -1;
         width: 100%;
@@ -721,7 +724,10 @@
             ${escapeHtml(formatBillingUnits(billingUnits))}
           </div>
 
-          <a class="detail-link" href="${detailUrl}">詳細を見る</a>
+          <div class="case-actions">
+            <a class="detail-link" href="${detailUrl}">詳細を見る</a>
+            ${state.permission === 'all' || state.permission === 'edit' ? `<a class="detail-link repeat-link" href="./index.html?repeat_from=${encodeURIComponent(item.case_id)}">同条件で新規受注</a>` : ''}
+          </div>
         </div>
 
         ${renderOverviewLine(item)}
