@@ -9,6 +9,19 @@ vm.runInContext(read('../backend/ordercase-apps-script/Service_Cases.js'), conte
 vm.runInContext(read('../backend/ordercase-apps-script/Util_Format.js'), context);
 const person = (amount = '') => ({work_start_time:'10:00',work_end_time:'18:00',amount});
 const payload = () => ({input_mode:'dates',amount_type:'per_person_day',amount:10000,work_start_time:'10:00',work_end_time:'18:00',case_dates:[{work_date:'2026-10-01',person_conditions:[person(0),person(20000),person(30000)]},{work_date:'2026-10-02',person_conditions:[person()]}]});
+test('詳細上下の反復受注導線は同じURLと編集権限を使用する', () => {
+  const source = read('../case.html');
+  assert.ok(source.indexOf('id="repeatCaseBottomLink"') > source.indexOf('id="detailRoot"'));
+  const body = source.match(/function applyPermissionView\(\) \{([\s\S]*?)\n    \}/)[1];
+  for (const permission of ['all', 'edit', 'view', '']) {
+    const links = Object.fromEntries(['editCaseLink', 'repeatCaseLink', 'repeatCaseBottomLink'].map(id => [id, {style:{}}]));
+    vm.runInNewContext(body, {state:{permission},document:{getElementById:id=>links[id],querySelectorAll:()=>[]},getQueryParam:()=> 'CASE-202610-0002'});
+    for (const id of ['repeatCaseLink','repeatCaseBottomLink']) {
+      assert.equal(links[id].href, './index.html?repeat_from=CASE-202610-0002');
+      assert.equal(links[id].style.display, ['all','edit'].includes(permission) ? '' : 'none');
+    }
+  }
+});
 test('反復受注は共通条件とメモを引き継ぐが識別・日付・状態は引き継がない', () => {
   const fields = context.window.OrderCaseRepeatPolicy.buildFields({case_id:'OLD',target_month:'2020-01',status:'confirmed',case_rank:'A',shiftcore_display_name:'梅田催事',store_id:'STORE',amount_type:'per_person_day',amount:0,internal_memo:'確認事項',case_dates:[{work_date:'2020-01-01'}]}, [{store_id:'STORE',store_short_name:'梅田店'}]);
   assert.equal(fields.shiftcoreDisplayName,'梅田催事'); assert.equal(fields.storeShortName,'梅田店');
