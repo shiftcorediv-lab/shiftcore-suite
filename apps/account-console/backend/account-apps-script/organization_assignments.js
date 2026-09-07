@@ -416,7 +416,12 @@ function handleExecutiveBulkUpdateFailure_(
 }
 
 function assertInternalOrganizationTarget_(target) {
-  if (getNormalizedPersonType(target) !== "internal") {
+  // 現在の所属を優先する。旧区分は所属未移行のアカウントだけで参照する。
+  const affiliation = normalizeText(target && target.affiliation_type);
+  const isInternal = affiliation
+    ? affiliation === "another_member"
+    : getNormalizedPersonType(target) === "internal";
+  if (!isInternal) {
     throw organizationAuthorizationError_("ORGANIZATION_TARGET_NOT_INTERNAL");
   }
 }

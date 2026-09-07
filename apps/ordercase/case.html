@@ -204,6 +204,7 @@
     <div class="actions">
       <a class="button-link secondary" href="./cases.html">案件一覧へ戻る</a>
       <a class="button-link edit" id="editCaseLink" href="./edit.html">編集する</a>
+      <a class="button-link" id="repeatCaseLink" href="./index.html" style="display:none">同条件で新規受注</a>
     </div>
 
     <div class="message" id="messageBox">読み込み中...</div>
@@ -282,6 +283,9 @@
       const canEdit = state.permission === 'all' || state.permission === 'edit';
 
       const editLink = document.getElementById('editCaseLink');
+      const repeatLink = document.getElementById('repeatCaseLink');
+      repeatLink.href = './index.html?repeat_from=' + encodeURIComponent(getQueryParam('case_id'));
+      repeatLink.style.display = canEdit ? '' : 'none';
 
       if (editLink) {
         editLink.style.display = canEdit ? '' : 'none';
@@ -519,7 +523,7 @@ applyPermissionView();
         <section class="detail-card">
           <h2 class="section-title">管理情報</h2>
           <div class="grid two">
-            ${fieldHtml('Shift対象', formatBoolean(item.for_shift_builder))}
+            ${fieldHtml('シフト対象', formatBoolean(item.for_shift_builder))}
             ${fieldHtml('アーカイブ', formatBoolean(item.archived))}
             ${fieldHtml('登録者', item.created_by)}
             ${fieldHtml('登録日時', item.created_at)}
