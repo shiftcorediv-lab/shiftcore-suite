@@ -454,16 +454,15 @@ input[type="time"] {
 
       <div class="grid two">
         <div class="suggest-wrap">
+          <label for="storeName">連携店舗</label>
+          <input id="storeName" autocomplete="off" placeholder="例：ドコモショップ〇〇店" />
+          <div class="suggest-dropdown" id="storeSuggest"></div>
+        </div>
+        <div class="suggest-wrap">
           <label for="agencyName">代理店名</label>
           <input id="agencyId" type="hidden" />
           <input id="agencyName" autocomplete="off" placeholder="例：〇〇代理店" />
           <div class="suggest-dropdown" id="agencySuggest"></div>
-        </div>
-
-        <div class="suggest-wrap">
-          <label for="storeName">連携店舗</label>
-          <input id="storeName" autocomplete="off" placeholder="例：ドコモショップ〇〇店" />
-          <div class="suggest-dropdown" id="storeSuggest"></div>
         </div>
 
         <div>
@@ -481,12 +480,13 @@ input[type="time"] {
       </div>
 
       <p class="hint">
-        候補を選ぶと入力欄に反映されます。店舗候補を選んだ場合、代理店名とエリアも自動入力されます。未登録の代理店・店舗は登録時に各マスターへ仮登録されます。
+        先に連携店舗を選び、代理店を確認してください。店舗候補には代理店・エリアも表示します。店舗略称・住所・最寄駅はマスターに未記載の項目だけ入力できます。未登録の代理店・店舗は登録時に各マスターへ仮登録されます。
       </p>
     </section>
 
     <section id="daysSection" class="hidden">
       <h2>日数指定</h2>
+      <div id="daysCommonTime" class="grid two"></div>
 
       <p class="hint">
         必要人数と希望日数を入力してください。日付への割当は後工程で行います。
@@ -608,6 +608,7 @@ input[type="time"] {
 
     <section id="datesSection">
       <h2>日付指定</h2>
+      <div id="datesCommonTime" class="grid two"></div>
 
       <div class="calendar-head">
         <div class="calendar-title" id="calendarTitle">----</div>
@@ -628,7 +629,7 @@ input[type="time"] {
           <label for="amountType">金額区分</label>
           <select id="amountType">
             <option value="">未入力</option>
-            <option value="per_person_day">1コマ・1日あたり</option>
+            <option value="per_person_day" selected>1コマ・1日あたり</option>
             <option value="per_case">案件一式</option>
           </select>
         </div>
@@ -642,7 +643,7 @@ input[type="time"] {
           <label for="taxType">税区分</label>
           <select id="taxType">
             <option value="">未入力</option>
-            <option value="tax_included">税込</option>
+            <option value="tax_included" selected>税込</option>
             <option value="tax_excluded">税別</option>
             <option value="unknown">不明</option>
           </select>
@@ -724,6 +725,7 @@ input[type="time"] {
 
         await loadBootstrap();
         await loadRepeatSource();
+        updateStoreMasterFields();
 
         updateRequiredPeople();
         updateAmountInputState();
@@ -937,6 +939,7 @@ input[type="time"] {
     function handleAgencyInput() {
       const exact = findExactAgency(document.getElementById('agencyName').value);
       document.getElementById('agencyId').value = exact ? exact.agency_id || '' : '';
+      updateStoreMasterFields();
       renderAgencySuggestions();
       renderStoreSuggestions();
       handleInputChange();
@@ -985,14 +988,12 @@ input[type="time"] {
     function selectAgencySuggestion(agencyId, agencyName) {
       document.getElementById('agencyId').value = agencyId || '';
       document.getElementById('agencyName').value = agencyName;
+      updateStoreMasterFields();
 
       hideSuggest('agencySuggest');
       renderStoreSuggestions();
       handleInputChange();
 
-      setTimeout(() => {
-        document.getElementById('storeName').focus();
-      }, 50);
     }
     /****************************************************
      * 候補表示：代理店 ここまで
@@ -1003,6 +1004,7 @@ input[type="time"] {
      * 候補表示：店舗 ここから
      ****************************************************/
     function handleStoreInput() {
+      updateStoreMasterFields();
       renderStoreSuggestions();
       handleInputChange();
     }
@@ -1015,19 +1017,10 @@ input[type="time"] {
       }
 
       const storeKeyword = document.getElementById('storeName').value.trim();
-      const agencyName = document.getElementById('agencyName').value.trim();
-      const agencyId = document.getElementById('agencyId').value.trim();
-      const matchedAgency = findExactAgency(agencyName);
 
       let stores = state.storesMaster.slice();
 
-      if (agencyId || matchedAgency) {
-        stores = stores.filter(row => {
-          return agencyId
-            ? String(row.agency_id || '') === agencyId
-            : normalizeText(row.agency_name) === normalizeText(matchedAgency.agency_name);
-        });
-      }
+      // 店舗から選ぶため、前に入力した代理店では候補を絞り込まない。
 
       if (storeKeyword) {
         stores = stores.filter(row => {
@@ -1040,9 +1033,7 @@ input[type="time"] {
         .slice(0, 12);
 
       if (stores.length === 0) {
-        const message = agencyId || matchedAgency
-          ? 'この代理店に紐づく店舗候補はありません。手入力で登録できます。'
-          : '一致する店舗候補はありません。手入力で登録できます。';
+        const message = '一致する店舗候補はありません。手入力で登録できます。';
 
         box.innerHTML = `<div class="suggest-empty">${message}</div>`;
         box.classList.add('show');
@@ -1074,10 +1065,8 @@ input[type="time"] {
       document.getElementById('storeAddress').value = row.address || '';
       document.getElementById('storeNearestStation').value = row.nearest_station || '';
 
-      if (row.agency_name) {
-        document.getElementById('agencyId').value = row.agency_id || '';
-        document.getElementById('agencyName').value = row.agency_name;
-      }
+      document.getElementById('agencyId').value = row.agency_id || '';
+      document.getElementById('agencyName').value = row.agency_name || '';
 
       if (row.store_area) {
         document.getElementById('storeArea').value = row.store_area;
@@ -1089,7 +1078,26 @@ input[type="time"] {
 
       hideSuggest('storeSuggest');
       hideSuggest('agencySuggest');
+      updateStoreMasterFields(row);
       handleInputChange();
+      document.getElementById('agencyName').focus();
+    }
+
+    function updateStoreMasterFields(selected) {
+      const storeName = document.getElementById('storeName').value;
+      const agencyName = document.getElementById('agencyName').value;
+      const matches = state.storesMaster.filter(row => normalizeText(row.store_name) === normalizeText(storeName) && normalizeText(row.agency_name) === normalizeText(agencyName));
+      const row = selected || (matches.length === 1 ? matches[0] : null);
+      const previous = state.selectedStoreMaster;
+      const changed = previous && previous !== row;
+      [['storeShortName','store_short_name'],['storeAddress','address'],['storeNearestStation','nearest_station']].forEach(([id,key]) => {
+        const input = document.getElementById(id);
+        const known = row && String(row[key] || '').trim();
+        if (known) input.value = row[key];
+        else if (changed) input.value = '';
+        input.parentElement.classList.toggle('hidden', Boolean(known));
+      });
+      state.selectedStoreMaster = row;
     }
     /****************************************************
      * 候補表示：店舗 ここまで
@@ -1199,7 +1207,7 @@ input[type="time"] {
 
     function updateWorkLocationView() {
       const rule = getSelectedCaseTypeRule();
-      const usesSeparateLocation = document.getElementById('hasSeparateWorkLocation').checked;
+      const usesSeparateLocation = document.getElementById('hasSeparateWorkLocation').checked && !['retail_store', 'roadside'].includes(document.getElementById('caseType').value);
 
       toggleWrap('workLocationWrap', usesSeparateLocation && rule?.show_work_location);
       toggleWrap('workAreaWrap', usesSeparateLocation && rule?.show_work_area);
@@ -1216,8 +1224,23 @@ input[type="time"] {
 
       document.getElementById('datesSection').classList.toggle('hidden', mode !== 'dates');
       document.getElementById('daysSection').classList.toggle('hidden', mode !== 'days');
+      updateCommonWorkTimeView();
 
       updateSummary();
+    }
+
+    function updateCommonWorkTimeView() {
+      const compact = ['retail_store', 'roadside'].includes(document.getElementById('caseType').value);
+      const section = document.getElementById('workConditionSection');
+      section.classList.toggle('hidden', compact);
+      const target = compact
+        ? document.getElementById(document.getElementById('inputMode').value === 'days' ? 'daysCommonTime' : 'datesCommonTime')
+        : section.querySelector('.grid.two');
+      ['workStartTimeWrap', 'workEndTimeWrap'].forEach(id => {
+        const field = document.getElementById(id);
+        target.appendChild(field);
+        if (compact) field.classList.remove('hidden');
+      });
     }
     /****************************************************
      * updateInputModeView ここまで
@@ -1689,7 +1712,7 @@ input[type="time"] {
       const sameConditionCount = inputMode === 'dates'
         ? Math.max(1, ...state.selectedDates.map(item => item.person_conditions.length))
         : Number(document.getElementById('sameConditionCount').value || 1);
-      const usesSeparateLocation = document.getElementById('hasSeparateWorkLocation').checked;
+      const usesSeparateLocation = document.getElementById('hasSeparateWorkLocation').checked && !['retail_store', 'roadside'].includes(document.getElementById('caseType').value);
 
       return {
         target_month: document.getElementById('targetMonth').value,
@@ -1933,8 +1956,9 @@ input[type="time"] {
       document.getElementById('requestedDays').value = '';
 
       document.getElementById('amount').value = '';
-      document.getElementById('amountType').value = '';
-      document.getElementById('taxType').value = '';
+      document.getElementById('amountType').value = 'per_person_day';
+      document.getElementById('taxType').value = 'tax_included';
+      updateStoreMasterFields();
       document.getElementById('amountMemo').value = '';
 
       document.getElementById('clientMemo').value = '';
