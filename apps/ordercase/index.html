@@ -485,28 +485,30 @@ input[type="time"] {
       </p>
     </section>
 
-    <section>
-      <h2>必要人数・作成件数</h2>
+    <section id="daysSection" class="hidden">
+      <h2>日数指定</h2>
 
       <p class="hint">
-        シフトでは、1案件を1人分・1列として扱います。<br>
-        同じ条件で複数名必要な場合は、同条件の案件を人数分作成します。
+        必要人数と希望日数を入力してください。日付への割当は後工程で行います。
       </p>
 
-      <div class="grid three">
+      <div class="grid two">
         <div>
-          <label for="sameConditionCount">同条件で作成する件数</label>
+          <label for="requestedDays">希望日数</label>
+          <input id="requestedDays" type="number" min="1" placeholder="例：10" />
+        </div>
+        <div>
+          <label for="sameConditionCount">必要人数</label>
           <input id="sameConditionCount" type="number" min="1" max="20" value="1" />
-          <p class="hint">日付指定では、各日付の人数の最大値を自動計算します。日数指定では必要人数を入力してください。</p>
         </div>
 
-        <div>
+        <div hidden>
           <label for="requiredLines">必要枠数</label>
           <input id="requiredLines" type="number" min="1" value="1" readonly />
           <p class="hint">1案件1人分のため 1 固定</p>
         </div>
 
-        <div>
+        <div hidden>
           <label for="requiredPeople">1案件あたり必要人数</label>
           <input id="requiredPeople" type="number" value="1" readonly />
           <p class="hint">1案件 = 1人分</p>
@@ -616,21 +618,6 @@ input[type="time"] {
       <div class="calendar" id="calendar"></div>
 
       <div class="selected-date-list" id="selectedDateList"></div>
-    </section>
-
-    <section id="daysSection" class="hidden">
-      <h2>日数指定</h2>
-
-      <div class="grid two">
-        <div>
-          <label for="requestedDays">希望日数</label>
-          <input id="requestedDays" type="number" min="1" placeholder="例：10" />
-        </div>
-      </div>
-
-      <p class="hint">
-        日数指定はOrderでは日数のまま保存し、日付への割当は後工程で行います。
-      </p>
     </section>
 
     <section>
