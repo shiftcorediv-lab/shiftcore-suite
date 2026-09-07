@@ -2024,3 +2024,12 @@ select {
 :root[data-theme="dark"] .shiftcore-account-menu-logout {
   color: #ffbdc5;
 }
+.personnel-profile-trigger { border:0; padding:0; background:transparent; color:inherit; text-align:left; cursor:pointer; font:inherit; }
+.personnel-profile-trigger:focus-visible { outline:2px solid #2463b8; outline-offset:2px; }
+.personnel-profile-popover { position:fixed; z-index:10010; width:min(280px,calc(100vw - 16px)); box-sizing:border-box; padding:16px; background:#fff; color:#19314e; border:1px solid #d8e3f2; border-radius:14px; box-shadow:0 8px 32px #16355733; }
+.personnel-profile-popover[hidden] { display:none; }
+.personnel-profile-popover a { display:block; padding:8px 0; color:#215eb0; }
+.personnel-profile-popover p { margin:4px 0; }
+.personnel-profile-popover small { display:block; line-height:1.5; }
+.shift-table .personnel-daily-summary th, .shift-table .personnel-daily-summary td { height:22px; padding:2px; font-size:11px; background:#eef4fc; text-align:center; }
+.shift-table .personnel-daily-summary th { text-align:left; padding-left:8px; top:auto; }

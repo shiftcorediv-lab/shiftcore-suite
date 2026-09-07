@@ -1,0 +1,20 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><title>指名・NG確認専用</title><body>
+<script type="module">
+const html = await (await fetch('../member-rules.html')).text();
+const doc = new DOMParser().parseFromString(html, 'text/html');
+const base = doc.createElement('base'); base.href = new URL('../', location.href).href; doc.head.prepend(base);
+for (const script of doc.querySelectorAll('script[src]')) {
+  if (!/\/(utils|member-rules)\.js/.test(script.src)) script.remove();
+}
+const stub = doc.createElement('script');
+stub.textContent = `
+window.PortalLoading={begin(){return ()=>{};}};
+window.ShiftCoreEnvironment={withEnvironment:url=>url};
+const fixtureRules={store:[{store_id:'ST-TEST',store_name:'確認用店舗',agency_name:'確認用代理店',preferred_member_ids:'TEST001,UOTHER',ng_member_ids:'',preferred_note:'店舗共通の理由',ng_note:''}],agency:[{agency_id:'AG-TEST',agency_name:'確認用代理店',preferred_member_ids:'',ng_member_ids:'TEST001'}]};
+function renderOrderCaseHeader(){const p=document.createElement('p');p.textContent='架空データ：本番には保存しません';p.style='background:#fff3bf;padding:16px';document.body.prepend(p);}
+async function fetchApiJson(action){if(action==='getOrderCasePermission')return {ok:true,data:{can_edit:true}};return {ok:true,data:JSON.parse(JSON.stringify(fixtureRules[action==='listStoresMaster'?'store':'agency']))};}
+async function postOrderCaseAction(action,payload){const row=fixtureRules[payload.scope][0];const aliases=payload.member_keys.map(v=>v.toLowerCase());for(const column of ['preferred_member_ids','ng_member_ids']){const ids=row[column].split(',').filter(id=>id&&!aliases.includes(id.toLowerCase()));if((column==='preferred_member_ids'&&payload.rule==='preferred')||(column==='ng_member_ids'&&payload.rule==='ng'))ids.push(payload.member_keys[0]);row[column]=ids.join(',');}return {ok:true,data:{preferred_member_ids:row.preferred_member_ids,ng_member_ids:row.ng_member_ids}};}
+`;
+doc.querySelector('script[src*="member-rules.js"]').before(stub);
+document.open();document.write('<!doctype html>'+doc.documentElement.outerHTML);document.close();
+</script></body></html>

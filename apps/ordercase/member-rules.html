@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<script src="../common/environment.js?v=20260902-banner-height-1"></script>
+<title>メンバーの指名・NG | Another Portal</title>
+<link rel="stylesheet" href="./css/common.css"><link rel="stylesheet" href="../theme/shiftcore-theme.css?v=20260907-slot-color-2">
+<script src="../theme/shiftcore-theme.js?v=20260906-header-2"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script><script defer src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
+<style>.rule-row{display:grid;grid-template-columns:minmax(0,1fr) 150px auto;gap:12px;align-items:center;margin:8px 0;padding:12px;border:1px solid #dfe5ef;border-radius:12px}.rule-row small{display:block}.rule-row a{display:inline-block;margin-top:4px}#ruleMessage{white-space:pre-wrap}@media(max-width:600px){.rule-row{grid-template-columns:1fr auto}.rule-row>div{grid-column:1/-1}}</style>
+</head><body><header id="ordercaseHeader"></header><main>
+<section><h1 id="memberTitle">メンバーの指名・NG</h1><p>店舗・代理店マスターと同じ情報を編集します。NGは配置禁止ではなく非推奨です。保存後は他の画面を再読み込みしてください。</p>
+<label for="ruleSearch">店舗名・代理店名で絞り込み</label><input id="ruleSearch" type="search">
+<p id="ruleMessage" role="status"></p><button id="reloadRules" class="primary-button" type="button">再読み込み</button></section>
+<section><h2>店舗の指名・NG</h2><div id="storeRules"></div></section>
+<section><h2>代理店の指名・NG</h2><div id="agencyRules"></div></section>
+</main><script src="./js/config.js"></script><script src="./js/utils.js"></script><script src="./js/auth-session.js"></script><script src="./js/api.js?v=20260905-agency-master-1"></script><script src="./js/navigation.js?v=20260905-agency-master-1"></script><script src="./js/member-rules.js"></script></body></html>

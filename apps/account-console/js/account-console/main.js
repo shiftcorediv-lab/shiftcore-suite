@@ -1,6 +1,7 @@
 import { DASHBOARD_URL, SIGNUP_ADMIN_URL } from "./config.js?v=20260802-modules-2";
 import { requireAccountConsoleSession } from "./auth.js";
 import { filterAccountArchive } from "./archive-view.mjs";
+import { memberManagementLinks } from '../../../common/member-management-links.mjs';
 import { compareUsersBySortOrder } from "./sort.js?v=20260902-name-sync-1";
 import { planSortOrderUpdates } from "./reorder.js?v=20260802-reorder-1";
 import { resolveAccountFullName } from "./name-policy.mjs?v=20260902-name-sync-1";
@@ -135,6 +136,12 @@ async function init() {
     clearUserForm();
     applyUserEditingMode();
     setStatus(canEditUsers ? "メンバーを読み込みました" : "メンバーを閲覧モードで読み込みました");
+    const targetId = new URLSearchParams(location.search).get('target_member');
+    if (targetId) {
+      const target = findUserById(targetId);
+      if (target) { selectManagedUser(target); userForm.scrollIntoView({block: 'start'}); }
+      else setStatus('指定されたメンバーは見つからないか、閲覧対象外です。');
+    }
 
   } catch (error) {
     setPermissionError(error.message);
@@ -173,11 +180,27 @@ async function loadUsers(loadingMessage = "ユーザー名簿を取得中...") {
 }
 
 function renderCurrentUsers() {
+  const management = document.getElementById('memberManagementLinks');
+  management.replaceChildren();
+  management.hidden = !selectedUser;
+  if (selectedUser) {
+    const links = memberManagementLinks(selectedUser);
+    for (const [key, label] of [['off', '希望休管理'], ['rules', '指名・NGを編集']]) {
+      const link = document.createElement('a');
+      link.href = links[key]; link.textContent = label; link.target = '_blank'; link.rel = 'noopener';
+      link.style.cssText = 'display:inline-block;margin:0 12px 12px 0';
+      management.append(link);
+    }
+  }
   const visibleUsers = filterAccountArchive(allUsers, document.getElementById("accountArchiveFilter").value);
   const filtered = filterUsers(visibleUsers, searchInput.value).slice().sort(compareUsersBySortOrder);
   const selectedId = selectedUser ? selectedUser.internal_user_id : "";
 
-  renderUsers(filtered, selectedId, (user) => {
+  renderUsers(filtered, selectedId, selectManagedUser);
+  renderSummary(filtered, allUsers);
+}
+
+function selectManagedUser(user) {
     selectedUser = user;
     fillUserForm(user);
     formBaseline = collectUserForm();
@@ -196,9 +219,6 @@ function renderCurrentUsers() {
       .catch((error) => {
         resetOrganizationAssignment(error.message || "組織設定を取得できませんでした");
       });
-  });
-
-  renderSummary(filtered, allUsers);
 }
 
 function findUserById(userId) {
