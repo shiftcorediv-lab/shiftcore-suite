@@ -32,9 +32,11 @@ async function loadMemberRules() {
   const done = window.PortalLoading.begin('指名・NGを読み込んでいます…');
   try {
     const permission = await fetchApiJson('getOrderCasePermission');
-    if (!permission.ok || !permission.data?.can_edit) throw new Error('指名・NGの編集にはオーダーの編集権限が必要です。');
+    if (!permission.ok) throw new Error(permission.message || '権限情報を取得できませんでした。再読み込みしてください。');
+    if (!permission.data?.can_edit) throw new Error('指名・NGの編集にはオーダーの編集権限が必要です。');
     const results = await Promise.all([fetchApiJson('listStoresMaster'), fetchApiJson('listAgenciesMaster')]);
-    if (results.some(result => !result.ok)) throw new Error('マスターを取得できませんでした。再読み込みしてください。');
+    const failed = results.find(result => !result.ok);
+    if (failed) throw new Error(failed.message || 'マスターを取得できませんでした。再読み込みしてください。');
     ruleState.store = results[0].data || []; ruleState.agency = results[1].data || [];
     renderMemberRules(); ruleMessage.textContent = '最新の指名・NGを読み込みました。';
   } catch (error) { ruleMessage.textContent = error.message; }
