@@ -9,16 +9,33 @@ vm.runInContext(read('../backend/ordercase-apps-script/Service_Cases.js'), conte
 vm.runInContext(read('../backend/ordercase-apps-script/Util_Format.js'), context);
 const person = (amount = '') => ({work_start_time:'10:00',work_end_time:'18:00',amount});
 const payload = () => ({input_mode:'dates',amount_type:'per_person_day',amount:10000,work_start_time:'10:00',work_end_time:'18:00',case_dates:[{work_date:'2026-10-01',person_conditions:[person(0),person(20000),person(30000)]},{work_date:'2026-10-02',person_conditions:[person()]}]});
-test('詳細上下の反復受注導線は同じURLと編集権限を使用する', () => {
+test('詳細の反復受注導線は編集権限を使用し誤配置した下部導線を残さない', () => {
   const source = read('../case.html');
-  assert.ok(source.indexOf('id="repeatCaseBottomLink"') > source.indexOf('id="detailRoot"'));
+  assert.doesNotMatch(source, /repeatCaseBottomLink/);
   const body = source.match(/function applyPermissionView\(\) \{([\s\S]*?)\n    \}/)[1];
   for (const permission of ['all', 'edit', 'view', '']) {
     const links = Object.fromEntries(['editCaseLink', 'repeatCaseLink', 'repeatCaseBottomLink'].map(id => [id, {style:{}}]));
     vm.runInNewContext(body, {state:{permission},document:{getElementById:id=>links[id],querySelectorAll:()=>[]},getQueryParam:()=> 'CASE-202610-0002'});
-    for (const id of ['repeatCaseLink','repeatCaseBottomLink']) {
+    for (const id of ['repeatCaseLink']) {
       assert.equal(links[id].href, './index.html?repeat_from=CASE-202610-0002');
       assert.equal(links[id].style.display, ['all','edit'].includes(permission) ? '' : 'none');
+    }
+  }
+});
+test('一覧の詳細ボタン直下に編集可能者だけ反復受注ボタンを表示する', () => {
+  const source = read('../cases.html');
+  const body = source.match(/function createCaseCard\(item\) \{([\s\S]*?)\n    \}/)[1];
+  for (const permission of ['all','edit','view','']) {
+    const card = vm.runInNewContext('(function(item){' + body + '})({case_id:"CASE-1"})', {
+      state:{permission,caseTypes:[]},document:{createElement:()=>({})},
+      getCaseTypeName:()=>'',getStatusName:()=>'',calculateBillingUnits:()=>0,
+      escapeHtml:value=>String(value),formatCreatedAt:()=>'',formatTargetMonth:()=>'',
+      getCaseRankName:()=>'',formatRequiredPeople:()=>'',formatBillingUnits:()=>'',renderOverviewLine:()=>''
+    });
+    assert.equal(card.innerHTML.includes('同条件で新規受注'), ['all','edit'].includes(permission));
+    if (['all','edit'].includes(permission)) {
+      assert.ok(card.innerHTML.indexOf('同条件で新規受注') > card.innerHTML.indexOf('詳細を見る'));
+      assert.match(card.innerHTML, /repeat_from=CASE-1/);
     }
   }
 });
