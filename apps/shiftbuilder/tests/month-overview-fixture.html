@@ -4,7 +4,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>月全体表示のローカル検証</title>
 <link rel="stylesheet" href="../../../shared/css/shiftcore-ui.css">
-<link rel="stylesheet" href="../css/shiftbuilder.css?v=20260907-compact-2">
+<link rel="stylesheet" href="../css/shiftbuilder.css?v=20260907-compact-3">
 <link rel="stylesheet" href="../../theme/shiftcore-theme.css?v=20260907-slot-color-2">
 <body>
 <header class="portal-unified-header"><a class="brand"><span><strong>Another Portal</strong><small>WORKFORCE PLATFORM</small></span></a></header>
@@ -17,8 +17,8 @@
   <section class="shift-table-panel"><h2>人員軸</h2><div class="shift-table-scroll"><table class="shift-table personnel-axis-table" id="people"><thead></thead><tbody></tbody></table></div></section>
 </main>
 <script type="module">
-import {renderShiftTable} from '../js/shiftbuilder/render-shift-table.js?v=20260907-compact-2';
-import {renderPersonnelTable} from '../js/shiftbuilder/render-personnel-table.js?v=20260907-compact-2';
+import {renderShiftTable} from '../js/shiftbuilder/render-shift-table.js?v=20260907-compact-3';
+import {renderPersonnelTable} from '../js/shiftbuilder/render-personnel-table.js?v=20260907-compact-3';
 window.ShiftCoreEnvironment = {withEnvironment: path => path};
 const days = document.querySelector('#days');
 for (const [id, key] of [['color','portalColor'],['theme','theme']]) {
