@@ -4,24 +4,36 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 const source = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const body = name => source.match(new RegExp('function ' + name + '\\([^)]*\\) \\{([\\s\\S]*?)\\n    \\}'))[1];
-test('店舗を先に入力し、金額区分と税区分に新規登録の初期値がある', () => {
-  assert.ok(source.indexOf('id="storeName"') < source.indexOf('id="agencyName"'));
+test('代理店を先に入力し、金額区分と税区分に新規登録の初期値がある', () => {
+  assert.ok(source.indexOf('id="agencyName"') < source.indexOf('id="storeName"'));
   assert.match(source, /value="per_person_day" selected/);
   assert.match(source, /value="tax_included" selected/);
-  assert.doesNotMatch(body('renderStoreSuggestions'), /stores\.filter\(row => \{\s*return agencyId/);
+  assert.match(body('renderStoreSuggestions'), /normalizeText\(row.agency_name\) === normalizeText\(agencyName\)/);
 });
-test('店舗の既知項目だけ非表示にし、別店舗へ変えたら前店舗の値を解除する', () => {
-  const fields = Object.fromEntries(['storeName','agencyName','storeShortName','storeAddress','storeNearestStation'].map(id => [id,{value:'',parentElement:{classList:{toggle(_,hidden){fields[id].hidden=hidden;}}}}]));
-  const row = {store_name:'梅田',agency_name:'代理店A',store_short_name:'梅田店',address:'大阪',nearest_station:''};
+test('未登録店舗だけ補足4項目を表示し、空欄・登録済みでは非表示にする', () => {
+  const fields = Object.fromEntries(['storeName','agencyName','storeArea','storeShortName','storeAddress','storeNearestStation'].map(id => [id,{value:'',parentElement:{classList:{toggle(_,hidden){fields[id].hidden=hidden;}}}}]));
+  const row = {store_name:'梅田',agency_name:'代理店A',store_area:'関西',store_short_name:'梅田店',address:'大阪',nearest_station:''};
   fields.storeName.value='梅田'; fields.agencyName.value='代理店A';
   const state={storesMaster:[row]};
   const context={document:{getElementById:id=>fields[id]},state,normalizeText:value=>String(value||'').trim(),selected:undefined};
   vm.runInNewContext('(function(){'+body('updateStoreMasterFields')+'})()',context);
   assert.equal(fields.storeAddress.value,'大阪'); assert.equal(fields.storeAddress.hidden,true);
-  assert.equal(fields.storeNearestStation.hidden,false);
+  assert.equal(fields.storeNearestStation.hidden,true);
+  assert.equal(fields.storeArea.hidden,true);
   fields.storeName.value='別店舗';
   vm.runInNewContext('(function(){'+body('updateStoreMasterFields')+'})()',context);
   assert.equal(fields.storeAddress.value,''); assert.equal(fields.storeAddress.hidden,false);
+  for (const id of ['storeArea','storeShortName','storeAddress','storeNearestStation']) assert.equal(fields[id].hidden,false);
+  fields.storeAddress.value='新住所';
+  vm.runInNewContext('(function(){'+body('updateStoreMasterFields')+'})()',context);
+  assert.equal(fields.storeAddress.value,'新住所');
+  fields.storeName.value='';
+  vm.runInNewContext('(function(){'+body('updateStoreMasterFields')+'})()',context);
+  for (const id of ['storeArea','storeShortName','storeAddress','storeNearestStation']) assert.equal(fields[id].hidden,true);
+  fields.storeName.value='梅田';
+  fields.agencyName.value='別代理店';
+  vm.runInNewContext('(function(){'+body('updateStoreMasterFields')+'})()',context);
+  assert.equal(fields.storeAddress.hidden,false);
 });
 test('店頭・軒先は共通時間を日付／日数カードへ移し他種別は稼働条件へ戻す', () => {
   for (const type of ['retail_store','roadside','event']) for (const mode of ['dates','days']) {

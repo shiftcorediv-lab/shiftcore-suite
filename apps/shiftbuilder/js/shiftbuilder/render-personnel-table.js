@@ -1,6 +1,7 @@
 // ===== ShiftBuilder render-personnel-table.js ここから =====
 
 import { escapeHtml } from "./utils.js?v=20260801-authfix-1";
+import { bindPersonnelProfiles } from './personnel-profile-popover.js';
 import {
   getCaseIdentityLabel,
   getCompactCaseId,
@@ -32,11 +33,29 @@ function renderPersonMeta(person) {
 
   return `
     <div class="personnel-identity">
-      <div class="personnel-name" title="${escapeHtml(person.displayName)}">${escapeHtml(person.displayName)}</div>
+      <button type="button" class="personnel-name personnel-profile-trigger" data-member-profile="${escapeHtml(person.id)}" aria-haspopup="dialog" aria-expanded="false">${escapeHtml(person.displayName)}</button>
       <div class="personnel-account">${escapeHtml(accountCode)} / ${escapeHtml(person.id)}</div>
     </div>
     <div class="personnel-meta">${escapeHtml(attributes.join(" / "))}</div>
   `;
+}
+
+function renderDailySummaryRows(viewModel) {
+  const summary = viewModel.dailySummary || [];
+  const undated = summary.some(item => item.undated);
+  const unknown = summary.some(item => item.submitted === null);
+  return [['提出シフト数', 'submitted'], ['案件受注数', 'required'], ['過不足数', 'balance']]
+    .map(([label, key]) => {
+      const suffix = key === 'required' && undated ? '（日程未定あり）' : key === 'submitted' && unknown ? '（未確認）' : '';
+      const cells = summary.map(item => {
+        const hint = item.submitted === null ? '提出状況を取得できていないため、提出人数・過不足は未確認です。'
+          : item.undated ? '日程未定の受注が残っているため、日別の過不足は未確定です。'
+          : '提出済みの希望休以外を人数として集計。未提出者は除外。';
+        const value = item[key] === null ? '—' : `${key === 'balance' && item[key] > 0 ? '+' : ''}${item[key]}`;
+        return `<td title="${hint}">${value}${key === 'required' && item.undated ? '+' : ''}</td>`;
+      }).join('');
+      return `<tr class="personnel-daily-summary"><th scope="row">${label}${suffix}</th>${cells}</tr>`;
+    }).join('');
 }
 
 function renderPersonnelGauge(person) {
@@ -270,7 +289,7 @@ export function renderPersonnelTable(viewModel, elements, handlers = {}) {
     return;
   }
 
-  elements.shiftTableBody.innerHTML = people
+  elements.shiftTableBody.innerHTML = renderDailySummaryRows(viewModel) + people
     .map((person) => {
       const dateCells = dates
         .map((dateItem) => {
@@ -304,6 +323,7 @@ export function renderPersonnelTable(viewModel, elements, handlers = {}) {
     .join("");
 
   bindPersonnelCellEvents(elements.shiftTableBody, handlers);
+  bindPersonnelProfiles(elements.shiftTableBody, people, dates[0]?.date?.slice(0, 7));
 
   const cornerCell = elements.shiftTableHead.querySelector(".personnel-header-cell");
   cornerCell?.addEventListener("contextmenu", (event) => {

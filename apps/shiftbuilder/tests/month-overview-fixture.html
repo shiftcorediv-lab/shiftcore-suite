@@ -19,6 +19,7 @@
 <script type="module">
 import {renderShiftTable} from '../js/shiftbuilder/render-shift-table.js?v=20260907-compact-4';
 import {renderPersonnelTable} from '../js/shiftbuilder/render-personnel-table.js?v=20260907-compact-4';
+import {buildPersonnelDailySummary} from '../js/shiftbuilder/personnel-daily-summary.mjs';
 window.ShiftCoreEnvironment = {withEnvironment: path => path};
 const days = document.querySelector('#days');
 for (const [id, key] of [['color','portalColor'],['theme','theme']]) {
@@ -36,7 +37,7 @@ function render() {
     const table = document.getElementById(id);
     table.style.setProperty('--shift-day-count', dates.length);
     const elements = {shiftTableHead:table.tHead,shiftTableBody:table.tBodies[0]};
-    if(id==='cases') renderShiftTable(data,elements); else renderPersonnelTable({dates,people:[person]},elements);
+    if(id==='cases') renderShiftTable(data,elements); else renderPersonnelTable({dates,people:[person],dailySummary:buildPersonnelDailySummary(dates,data.cases,[{pmoSubmitted:true,requestedOffDates:['2026-10-02']}])},elements);
   }
 }
 days.addEventListener('change',render);

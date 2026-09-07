@@ -62,6 +62,11 @@ function handlePost_(e) {
       return jsonResponse_({ ok: true, action: action, permission: context.permission, data: updateStoreMaster_(payload) });
     }
 
+    if (action === 'updateMemberAssignmentRule') {
+      const context = requireOrderCaseEditor_(getIdTokenFromBody_(body));
+      return jsonResponse_({ ok: true, action: action, permission: context.permission, data: updateMemberAssignmentRule_(payload) });
+    }
+
     if (action === 'createAgencyMaster') {
       const context = requireOrderCaseEditor_(getIdTokenFromBody_(body));
       return jsonResponse_({ ok: true, action: action, permission: context.permission, data: createAgencyMaster_(payload, context) });

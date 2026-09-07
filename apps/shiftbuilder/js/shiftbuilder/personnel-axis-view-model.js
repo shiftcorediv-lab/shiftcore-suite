@@ -1,6 +1,7 @@
 // ===== ShiftBuilder personnel-axis-view-model.js ここから =====
 
 import { getConsecutiveWorkAlert } from "./consecutive-work-alert.js?v=20260801-authfix-1";
+import { buildPersonnelDailySummary } from "./personnel-daily-summary.mjs";
 
 function firstValue(source, keys) {
   for (const key of keys) {
@@ -48,6 +49,7 @@ function normalizePerson(source = {}) {
       "employeeCode"
     ]),
     email: firstValue(source, ["email", "mail", "gmail"]),
+    pmoSubmitted: typeof source.pmo_submitted === 'boolean' ? source.pmo_submitted : undefined,
     requestedOffDates: Array.isArray(source.requested_off_dates)
       ? source.requested_off_dates
       : Array.isArray(source.requestedOffDates)
@@ -78,6 +80,7 @@ function mergePerson(current, incoming) {
         : incoming.displayName,
     accountCode: current.accountCode || incoming.accountCode,
     email: current.email || incoming.email,
+    pmoSubmitted: current.pmoSubmitted ?? incoming.pmoSubmitted,
     requestedOffDates:
       current.requestedOffDates?.length
         ? current.requestedOffDates
@@ -192,7 +195,8 @@ export function buildPersonnelAxisViewModel(
 
   return {
     dates,
-    people
+    people,
+    dailySummary: buildPersonnelDailySummary(dates, cases, people)
   };
 }
 

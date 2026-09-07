@@ -169,11 +169,17 @@ function createTableHeader(headers) {
   return thead;
 }
 
-function createTableBody(rows) {
+function createTableBody(rows, headers) {
   const tbody = document.createElement("tbody");
+  const targetCode = new URLSearchParams(location.search).get('member_code');
+  const codeIndex = headers.indexOf('employee_code');
 
   rows.forEach((rowData) => {
     const row = document.createElement("tr");
+    if (targetCode && codeIndex >= 0 && String(rowData[codeIndex]).toLowerCase() === targetCode.toLowerCase()) {
+      row.style.outline = '2px solid #2463b8';
+      row.setAttribute('aria-label', '選択メンバー');
+    }
 
     rowData.forEach((cellValue) => {
       row.appendChild(createCell(cellValue));
@@ -198,7 +204,7 @@ export function renderMonthlyTable(tableData) {
   table.className = "spreadsheet-table";
 
   table.appendChild(createTableHeader(tableData.headers));
-  table.appendChild(createTableBody(Array.isArray(tableData.rows) ? tableData.rows : []));
+  table.appendChild(createTableBody(Array.isArray(tableData.rows) ? tableData.rows : [], tableData.headers));
 
   wrapper.appendChild(table);
 

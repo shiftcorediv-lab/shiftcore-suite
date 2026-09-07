@@ -236,6 +236,7 @@ function updateAgencyMaster_(payload, context) {
     if (targetIndex < 1) throw new Error('代理店が見つかりません: ' + agencyId);
     const current = {};
     headers.forEach(function(header, index) { current[header] = values[targetIndex][index]; });
+    if (payload.expected_member_rules) assertMemberRuleBaseline_(current, payload.expected_member_rules);
     assertUniqueAgencyName_(payload.agency_name, agencyId);
     const record = buildAgencyMasterRecord_(payload, current, context);
     if (record.status === 'archived' && countActiveStoresForAgency_(agencyId) > 0) {

@@ -16,7 +16,7 @@ import {
   renderEmptyTable,
   renderMonthlyTable,
   showMessage
-} from "./ui.js?v=20260906-display-labels-1";
+} from "./ui.js?v=20260907-member-management-1";
 import {
   canManagePmo,
   goToDashboard,
@@ -58,7 +58,7 @@ async function initializePage() {
 
     currentIdToken = sessionResult.idToken || "";
 
-    await loadMeta("");
+    await loadMeta(/^\d{4}-\d{2}$/.test(params.target_month || '') ? params.target_month : "");
   } catch (error) {
     console.error(error);
     renderEmptyTable("認証確認に失敗しました。");

@@ -187,6 +187,15 @@ function updateStoreMaster_(payload) {
   }
 }
 
+function assertMemberRuleBaseline_(current, baseline) {
+  if (!baseline) return;
+  ['preferred_member_ids', 'ng_member_ids'].forEach(function(key) {
+    if (String(current[key] || '') !== String(baseline[key] || '')) {
+      throw new Error('別の画面で指名・NGが更新されました。再読み込みして確認してください。');
+    }
+  });
+}
+
 function updateStoreMasterWithoutLock_(payload) {
   ensureStoreMasterLocationColumns_();
   const storeId = String(payload.store_id || '').trim();
@@ -212,6 +221,11 @@ function updateStoreMasterWithoutLock_(payload) {
     if (String(values[i][storeIdIndex] || '') === storeId) { targetIndex = i; break; }
   }
   if (targetIndex < 1) throw new Error('店舗が見つかりません: ' + storeId);
+  if (payload.expected_member_rules) {
+    const current = {};
+    headers.forEach(function(header, index) { current[header] = values[targetIndex][index]; });
+    assertMemberRuleBaseline_(current, payload.expected_member_rules);
+  }
   const record = {
     agency_id: String(agency.agency_id || '').trim(),
     agency_name: String(agency.agency_name || '').trim(),

@@ -709,6 +709,7 @@ function buildShiftBuilderAssignmentCandidates_(targetMonth, area) {
         shiftbuilder_permission: normalizeText(user.shiftbuilder_permission),
         requested_off_dates: (pmoRequestsByUserId[normalizeText(user.internal_user_id)] || {}).requested_off_dates || [],
         requested_off_memo: (pmoRequestsByUserId[normalizeText(user.internal_user_id)] || {}).requested_off_memo || "",
+        pmo_submitted: ["希望休あり", "希望休なし"].indexOf((pmoRequestsByUserId[normalizeText(user.internal_user_id)] || {}).submit_type) !== -1,
         target_month: normalizedTargetMonth,
         area: normalizedArea
       };
