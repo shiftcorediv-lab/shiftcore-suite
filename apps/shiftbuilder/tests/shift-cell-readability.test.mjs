@@ -13,6 +13,7 @@ const detailSource = readFileSync(new URL("../js/shiftbuilder/render-detail-pane
 const cssSource = readFileSync(new URL("../css/shiftbuilder.css", import.meta.url), "utf8");
 
 test("両軸のセルは従来80pxの半分以下で高さを揃える", () => {
+  assert.match(cssSource, /\.case-agency-break td \{\s*border-top: 1px solid var\(--sb-border-strong\);\s*border-bottom: 0;/);
   for (const selector of ["shift-cell", "personnel-shift-cell"]) {
     const rule = cssSource.match(new RegExp(`\\.${selector} \\{([^}]+)\\}`))[1];
     assert.match(rule, /height:\s*36px/);
@@ -37,9 +38,9 @@ test("配置対象セルは配置数と必要数を空白付きで表示する",
 });
 
 test("表示変更したCSSとJavaScriptは新しい版番号で読み込む", () => {
-  assert.match(indexSource, /shiftbuilder\.css\?v=20260907-compact-2/);
-  assert.match(indexSource, /main\.js\?v=20260907-compact-2/);
-  assert.match(mainSource, /render-shift-table\.js\?v=20260907-compact-2/);
+  assert.match(indexSource, /shiftbuilder\.css\?v=20260907-compact-3/);
+  assert.match(indexSource, /main\.js\?v=20260907-compact-3/);
+  assert.match(mainSource, /render-shift-table\.js\?v=20260907-compact-3/);
   assert.match(mainSource, /render-detail-panel\.js\?v=20260905-agency-rules-1/);
   assert.match(detailSource, /render-shift-table\.js\?v=20260905-identity-labels-1/);
 });

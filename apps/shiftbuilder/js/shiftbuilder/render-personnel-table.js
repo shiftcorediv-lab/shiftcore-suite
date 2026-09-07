@@ -5,7 +5,7 @@ import {
   getCaseIdentityLabel,
   getCompactCaseId,
   getCalendarDayLabel
-} from "./display-labels.mjs?v=20260907-compact-2";
+} from "./display-labels.mjs?v=20260907-compact-3";
 
 function getDateColumnClass(dateItem) {
   const weekday = String(dateItem?.weekday || "").trim().toLowerCase();
