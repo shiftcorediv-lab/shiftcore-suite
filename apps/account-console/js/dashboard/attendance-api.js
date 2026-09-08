@@ -19,7 +19,18 @@ export async function attendanceRequest(action, payload = {}) {
     headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: JSON.stringify({ action, idToken, payload })
   });
-  const result = await response.json();
+  let result;
+  try { result = await response.json(); }
+  catch (_) {
+    const error = new Error("サーバーの応答を確認できませんでした。保存操作の場合は結果が不明です。再送せず、画面を更新して記録を確認してください。");
+    error.code = "INVALID_API_RESPONSE";
+    throw error;
+  }
+  if (!result || typeof result !== "object" || typeof result.ok !== "boolean") {
+    const error = new Error("サーバーから正しい応答が届きませんでした。保存操作の場合は再送せず、画面を更新して記録を確認してください。");
+    error.code = "INVALID_API_RESPONSE";
+    throw error;
+  }
   // このコードは保存前の本人確認だけが返す。通信切断や一般エラーは再送しない。
   if (result.code === "AUTH_REFRESH_REQUIRED" && !result.ok && attempt === 0) continue;
   if (!result.ok) {

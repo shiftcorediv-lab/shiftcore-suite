@@ -28,7 +28,7 @@ test('通信失敗が続けば本人情報なしで処理を進めない', () =>
 });
 async function frontend(results) {
   const tokens = []; let calls = 0;
-  const context = vm.createContext({auth:{currentUser:{uid:'test',getIdToken:async force => {tokens.push(force);return 'TEST';}}},ATTENDANCE_API_URL:'https://example.com',fetch:async () => {const result=results[calls++];if(result instanceof Error)throw result;return {json:async()=>result};}});
+  const context = vm.createContext({auth:{currentUser:{uid:'test',getIdToken:async force => {tokens.push(force);return 'TEST';}}},ATTENDANCE_API_URL:'https://example.com',fetch:async () => {const result=results[calls++];if(result instanceof Error)throw result;return {json:async()=>{if(result?.invalidJson)throw new SyntaxError('Unexpected token <');return result;}};}});
   vm.runInContext(read('../js/dashboard/attendance-api.js').replace(/^import .*;\n/gm,'').replace('export async function','async function'),context);
   return {context,tokens,calls:()=>calls};
 }
@@ -37,6 +37,13 @@ test('保存前の期限切れだけトークンを更新して一度再送す�
   assert.equal((await context.attendanceRequest('submitFieldReport')).ok,true);
   assert.deepEqual(tokens,[false,true]); assert.equal(calls(),2);
 });
+for (const result of [{invalidJson:true}, null, {}, 'html']) {
+  test(`不正応答を日本語で案内し、保存操作を自動再送しない: ${JSON.stringify(result)}`, async () => {
+    const {context,calls} = await frontend([result]);
+    await assert.rejects(context.attendanceRequest('submitFieldReport'), error => error.code === 'INVALID_API_RESPONSE' && /再送せず/.test(error.message));
+    assert.equal(calls(), 1);
+  });
+}
 for(const result of [{ok:false,code:'AUTH_ACCOUNT_UNAVAILABLE'},{ok:false,code:'AUTH_SERVICE_UNAVAILABLE'},new Error('network')]) {
   test(`保存済みか不明な失敗や停止では自動再送しない: ${result.code || result.message}`,async()=>{
     const {context,calls}=await frontend([result]);

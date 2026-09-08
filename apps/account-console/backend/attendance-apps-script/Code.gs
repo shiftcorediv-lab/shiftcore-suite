@@ -2295,8 +2295,15 @@ function ensureFieldReportContractHeaders_() { const sheet = SpreadsheetApp.getA
 function ensureRecordContractHeaders_() { const sheet = SpreadsheetApp.getActive().getSheetByName(SHEETS.records); if (!sheet) throw apiError_("SHEET_NOT_FOUND", `${SHEETS.records}シートがありません。`); const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String); if (!headers.includes("schedule_id")) sheet.getRange(1, sheet.getLastColumn() + 1).setValue("schedule_id"); }
 function scheduleReportKey_(schedule) { return String(schedule && (schedule.schedule_id || schedule["開発予定ID"]) || ""); }
 function fieldReportsFor_(user, workDate, scheduleKey, planId, sourceReports, sourceSchedules) {
-  const allowLegacy = Boolean(planId) && legacyScheduleUnambiguous_(user, workDate, planId, sourceSchedules);
-  return (sourceReports || rows_(SHEETS.fieldReports)).filter(r => normalizeEmail_(r["報告者メール"]) === normalizeEmail_(user.email) && dateKey_(r["勤務日"]) === workDate && (!scheduleKey || String(r.schedule_id || "") === String(scheduleKey) || (allowLegacy && !r.schedule_id && String(r["開発予定ID"] || "") === String(planId))));
+  let allowLegacy;
+  return (sourceReports || rows_(SHEETS.fieldReports)).filter(r => {
+    if (normalizeEmail_(r["報告者メール"]) !== normalizeEmail_(user.email) || dateKey_(r["勤務日"]) !== workDate) return false;
+    if (!scheduleKey || String(r.schedule_id || "") === String(scheduleKey)) return true;
+    if (!planId || r.schedule_id || String(r["開発予定ID"] || "") !== String(planId)) return false;
+    // 現行の配置IDだけで一致する報告には、旧記録用の予定一覧取得は不要。
+    if (allowLegacy === undefined) allowLegacy = legacyScheduleUnambiguous_(user, workDate, planId, sourceSchedules);
+    return allowLegacy;
+  });
 }
 function legacyScheduleUnambiguous_(user, workDate, planId, sourceSchedules) { return (sourceSchedules || rows_(SHEETS.schedules)).filter(r => matchesUser_(r, user) && dateKey_(r["勤務日"]) === workDate && String(r["開発予定ID"] || "") === String(planId || "")).length === 1; }
 function ensureRequestContractHeaders_() { const sheet = SpreadsheetApp.getActive().getSheetByName(SHEETS.requests); if (!sheet) throw apiError_("SHEET_NOT_FOUND", `${SHEETS.requests}シートがありません。`); const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String); const duplicate = headers.find((header, index) => header && headers.indexOf(header) !== index); if (duplicate) throw apiError_("SHEET_SCHEMA_MISMATCH", `${SHEETS.requests}シートに重複列があります: ${duplicate}`); const missingExisting = HEADERS.requests.filter(header => !headers.includes(header)); if (missingExisting.length) throw apiError_("SHEET_SCHEMA_MISMATCH", `${SHEETS.requests}シートの既存列が不足しています: ${missingExisting.join(",")}`); HEADERS.requestContract.forEach(header => { if (!headers.includes(header)) { sheet.getRange(1, sheet.getLastColumn() + 1).setValue(header); headers.push(header); } }); }
