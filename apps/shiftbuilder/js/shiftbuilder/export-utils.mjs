@@ -56,7 +56,7 @@ export function buildCaseCsv(caseItem, dates = []) {
         firstValue(member, ["family_name", "familyName"]),
         firstValue(member, ["given_name", "givenName"])
       ].filter(Boolean).join(" ");
-      return separatedName || firstValue(member, ["display_name", "displayName", "name"]) || "氏名未設定";
+      return firstValue(member, ["display_name", "displayName"]) || separatedName || firstValue(member, ["name"]) || "氏名未設定";
     });
     const label = dateItem.label || dateItem.date;
     headers.push(`${label} 必要人数`, `${label} 配置人数`, `${label} 配置者`);

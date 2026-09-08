@@ -8,6 +8,8 @@ export function getCalendarDayLabel(dateItem = {}) {
 }
 
 export function getCompactMemberLabel(member = {}, fallback = "") {
+  const displayName = normalizeText(member.display_name) || normalizeText(member.displayName);
+  if (displayName) return displayName;
   const familyName = normalizeText(member.family_name || member.familyName);
   const givenName = normalizeText(member.given_name || member.givenName);
   const fallbackName = normalizeText(
@@ -21,7 +23,7 @@ export function getCompactMemberLabel(member = {}, fallback = "") {
     return `${familyName} ${givenName}`;
   }
 
-  return familyName || fallbackName || "氏名未設定";
+  return familyName || givenName || fallbackName || "氏名未設定";
 }
 
 export function getCompactCaseId(caseId) {

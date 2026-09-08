@@ -11,6 +11,12 @@ import {
 
 const mainSource = readFileSync(new URL("../js/shiftbuilder/main.js", import.meta.url), "utf8");
 
+test("表示用名を姓名より優先し、空欄なら姓名に戻す", () => {
+  const member = { family_name: "山田", given_name: "太郎", display_name: "やまだ" };
+  assert.equal(getCompactMemberLabel(member), "やまだ");
+  assert.equal(getCompactMemberLabel({ ...member, display_name: "  " }), "山田 太郎");
+});
+
 test("月全体表示の日付見出しは日だけを表示する", () => {
   assert.equal(getCalendarDayLabel({date:"2026-10-01",label:"10/1"}), "1");
   assert.equal(getCalendarDayLabel({date:"2026-10-31",label:"10/31"}), "31");
