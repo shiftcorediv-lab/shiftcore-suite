@@ -2065,7 +2065,7 @@ function mergeSchedulesLocked_(local, derived, targetMonth) {
     }
 
     const existing = result[existingIndex];
-    const changed = syncedFields.some(field => String(existing[field] || "") !== String(item[field] || ""));
+    const changed = syncedFields.some(field => scheduleSyncComparableValue_(field, existing[field]) !== scheduleSyncComparableValue_(field, item[field]));
     if (changed) {
       const merged = Object.assign({}, existing, item, { "更新日時": new Date() });
       result[existingIndex] = merged;
@@ -2073,6 +2073,25 @@ function mergeSchedulesLocked_(local, derived, targetMonth) {
     }
   });
   return result;
+}
+
+function scheduleSyncComparableValue_(field, value) {
+  // Sheetsの日付・時刻型とシフトの文字列を、保存値を変更せず比較する。
+  const isDate = Object.prototype.toString.call(value) === "[object Date]";
+  const text = String(value == null ? "" : value);
+  if (field === "勤務日") {
+    if (isDate) return Utilities.formatDate(value, TZ, "yyyy-MM-dd");
+    const date = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+    if (date) return `${date[1]}-${date[2].padStart(2, "0")}-${date[3].padStart(2, "0")}`;
+  }
+  if (field === "予定開始" || field === "予定終了") {
+    if (isDate) return Utilities.formatDate(value, TZ, "HH:mm:ss");
+    const time = text.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (time && Number(time[1]) < 24 && Number(time[2]) < 60 && Number(time[3] || 0) < 60) {
+      return `${time[1].padStart(2, "0")}:${time[2]}:${time[3] || "00"}`;
+    }
+  }
+  return text;
 }
 
 function pruneShiftBuilderSchedules_(local, derived, targetMonth, sheet) {

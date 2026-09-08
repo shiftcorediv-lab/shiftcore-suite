@@ -589,6 +589,46 @@ test("背景予定同期の失敗は印を消して次回再試行できる", ()
   assert.equal(cacheValues.size, 0);
 });
 
+test("日付・時刻型と同じ文字列の同期では更新せず、実際の変更は反映する", () => {
+  const fields = ["schedule_id", "organization_id", "employee_code", "email", "氏名", "勤務日", "予定開始", "予定終了", "稼働場所", "開発予定ID", "開発予定名", "更新日時"];
+  for (const modification of [{}, { "勤務日": "2026-09-10" }, { "予定開始": "10:01" }, { "予定終了": "18:01" }, { "稼働場所": "店舗B" }, { "予定開始": "10:00:01" }]) {
+    const { context, sheets } = createAttendanceContext([]);
+    const originalFormat = context.Utilities.formatDate;
+    context.Utilities.formatDate = (date, tz, format) => format === "HH:mm:ss"
+      ? new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).format(date)
+      : originalFormat(date, tz, format);
+    const incoming = { schedule_id: "SA-SAME", organization_id: "", employee_code: "", email: "member@example.com", "氏名": "担当者", "勤務日": "2026-09-09", "予定開始": "10:00", "予定終了": "18:00", "稼働場所": "店舗A", "開発予定ID": "CASE-1", "開発予定名": "案件1" };
+    const stored = { ...incoming, "勤務日": new Date("2026-09-09T00:00:00+09:00"), "予定開始": new Date("1899-12-30T10:00:00+09:00"), "予定終了": new Date("1899-12-30T18:00:00+09:00"), "更新日時": "unchanged" };
+    sheets["稼働予定"] = createSheet([fields, fields.map(field => stored[field])]);
+    let writes = 0;
+    const getRange = sheets["稼働予定"].getRange;
+    sheets["稼働予定"].getRange = (...args) => {
+      const range = getRange(...args);
+      const setValues = range.setValues;
+      range.setValues = rows => { writes++; setValues(rows); };
+      return range;
+    };
+    for (let pass = 0; pass < 2; pass++) {
+      const changes = {};
+      context.mergeSchedules_([], [{ ...incoming, ...modification }], "2026-09", changes);
+      assert.equal(changes.changed, pass === 0 && Object.keys(modification).length > 0);
+    }
+    assert.equal(writes, Object.keys(modification).length > 0 ? 1 : 0);
+    if (!Object.keys(modification).length) assert.equal(sheets["稼働予定"].values[1][11], "unchanged");
+  }
+});
+
+test("同期比較は空欄・深夜・翌日表記・秒差を勝手に同一視しない", () => {
+  const { context } = createAttendanceContext([]);
+  const key = context.scheduleSyncComparableValue_;
+  assert.equal(key("勤務日", "2026/9/9"), key("勤務日", "2026-09-09"));
+  assert.equal(key("予定開始", "9:00"), key("予定開始", "09:00:00"));
+  assert.notEqual(key("予定開始", ""), key("予定開始", "00:00"));
+  assert.notEqual(key("予定終了", "24:00"), key("予定終了", "00:00"));
+  assert.notEqual(key("予定終了", "10:00:01"), key("予定終了", "10:00"));
+  assert.notEqual(key("employee_code", "001"), key("employee_code", "1"));
+});
+
 test("ShiftBuilder同期は解除済み予定と重複を除去し、勤怠参照済み予定は残す", () => {
   const { context, sheets } = createAttendanceContext([]);
   const headers = ["schedule_id", "employee_code", "氏名", "勤務日", "予定開始", "予定終了", "稼働場所", "開発予定ID", "開発予定名", "更新日時"];
