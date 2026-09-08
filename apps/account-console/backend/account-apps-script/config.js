@@ -253,6 +253,7 @@ const VALID_AFFILIATION_TYPES = [
 
 const VALID_CONTRACT_TYPES = [
   "",
+  "officer",
   "regular_employee",
   "contract_employee",
   "part_time",
