@@ -1895,7 +1895,7 @@ function managerEmails_(organizationId) {
 
 function getSchedules_(idToken) {
   const result = syncSchedules_(idToken);
-  if (result.synced) markDashboardScheduleSyncFresh_();
+  if (result.synced) markDashboardScheduleSyncFresh_(null, null, null, result.changed);
   return result.schedules;
 }
 
@@ -1921,7 +1921,7 @@ function getDashboardSchedules_(idToken, options) {
 
   const result = syncSchedules_(idToken, local);
   if (result.synced) {
-    markDashboardScheduleSyncFresh_(cache, key, sourceRevision);
+    markDashboardScheduleSyncFresh_(cache, key, sourceRevision, result.changed);
     return { schedules: result.schedules, sync: { status: "refreshed", syncedAt: nowIso_() } };
   }
   clearDashboardScheduleSyncState_(cache, key);
@@ -1973,7 +1973,9 @@ function syncSchedules_(idToken, sourceLocal) {
         });
       });
     });
-    return { schedules: mergeSchedules_(local, derived, targetMonth), synced: true };
+    const changes = {};
+    const schedules = mergeSchedules_(local, derived, targetMonth, changes);
+    return { schedules, synced: true, changed: changes.changed };
   } catch (error) {
     console.warn("ShiftBuilder schedule fetch failed", error);
     return { schedules: local, synced: false };
@@ -2011,22 +2013,27 @@ function claimDashboardScheduleSync_(cache, key, options) {
     if (lock && acquired) lock.releaseLock();
   }
 }
-function markDashboardScheduleSyncFresh_(sourceCache, sourceKey, sourceRevision) {
+function markDashboardScheduleSyncFresh_(sourceCache, sourceKey, sourceRevision, changed) {
   const cache = sourceCache || dashboardScheduleSyncCache_();
   if (!cache) return;
   try {
     cache.put(sourceKey || dashboardScheduleSyncCacheKey_(), JSON.stringify({ status: "fresh", syncedAt: nowIso_(), sourceRevision: String(sourceRevision || "").trim() }), DASHBOARD_SCHEDULE_SYNC_TTL_SECONDS);
-    invalidateAllDashboardReferenceCache_();
+    // 変更なしを確認できた同期だけ再利用を維持。不明な場合は従来どおり無効化する。
+    if (changed !== false) invalidateAllDashboardReferenceCache_();
   } catch (error) {}
 }
 function clearDashboardScheduleSyncState_(cache, key) { if (!cache) return; try { cache.remove(key); } catch (error) {} }
 
-function mergeSchedules_(local, derived, targetMonth) {
+function mergeSchedules_(local, derived, targetMonth, changes) {
   const lock = attendanceWriteLock_();
   lock.waitLock(20000);
   try {
     // 外部API待ちの間に他実行が行を追加・削除している可能性がある。
-    return mergeSchedulesLocked_(rows_(SHEETS.schedules), derived, targetMonth);
+    const current = rows_(SHEETS.schedules);
+    const before = changes ? JSON.stringify(current) : "";
+    const merged = mergeSchedulesLocked_(current, derived, targetMonth);
+    if (changes) changes.changed = before !== JSON.stringify(merged);
+    return merged;
   } finally {
     lock.releaseLock();
   }
