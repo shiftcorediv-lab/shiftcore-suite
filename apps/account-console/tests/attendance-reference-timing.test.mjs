@@ -1,0 +1,32 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import { readFileSync } from 'node:fs';
+const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
+test('参照の種類ごとに時間を測り、取得回数とデータを変えない', () => {
+  let now = 0;
+  const calls = [];
+  const c = vm.createContext({ Date: { now: () => now } });
+  vm.runInContext(read('../backend/attendance-apps-script/Code.gs'), c);
+  c.dashboardScheduleSyncCache_ = () => null;
+  c.dashboardReferenceCacheKey_ = () => 'TEST';
+  c.rows_ = name => { calls.push(name); now += { '稼働予定': 10, '現場報告': 20, '通知': 30, '設定': 40 }[name]; return []; };
+  c.hasApprovalReviewAccess_ = () => { now += 50; return false; };
+  const result = c.dashboardReferenceData_({ email: 'test@example.com', role: 'member' });
+  assert.deepEqual(calls, ['稼働予定', '現場報告', '通知', '設定']);
+  assert.deepEqual(JSON.parse(JSON.stringify(result.timing)), { cacheReadMs: 0, schedulesMs: 10, fieldReportsMs: 20, notificationsMs: 30, settingsMs: 40, approvalAccessMs: 50, cacheWriteMs: 0 });
+  assert.equal(result.data.approvalReviewAccess, false);
+});
+test('画面用の計測値は項目を限定し、再利用時は古い内訳を消す', () => {
+  const dataset = {};
+  const c = vm.createContext({ $: () => ({ dataset }) });
+  const fn = read('../js/dashboard/main.js').match(/function rememberServerTiming\([^]*?\n\}/)[0];
+  vm.runInContext(fn, c);
+  c.rememberServerTiming('dashboard', { totalMs: 100, referenceBreakdown: { schedulesMs: 20, email: 'test@example.com', settingsMs: -1 } });
+  assert.equal(dataset.dashboardReferenceSchedulesMs, '20');
+  assert.equal(dataset.dashboardReferenceEmail, undefined);
+  assert.equal(dataset.dashboardReferenceSettingsMs, undefined);
+  c.rememberServerTiming('dashboard', { totalMs: 3, referenceBreakdown: { cacheReadMs: 2 } });
+  assert.equal(dataset.dashboardReferenceSchedulesMs, undefined);
+  assert.equal(dataset.dashboardReferenceCacheReadMs, '2');
+});

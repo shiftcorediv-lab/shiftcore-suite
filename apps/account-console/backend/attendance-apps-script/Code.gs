@@ -162,6 +162,7 @@ function doPost(e) {
       dashboard.serverTiming = {
         authMs: authenticatedAt - requestStartedAt,
         referenceMs: Number(readTiming.referenceMs) || 0,
+        referenceBreakdown: readTiming.referenceBreakdown || {},
         recordsMs: Number(readTiming.recordsMs) || 0,
         recordsCache: readTiming.recordsCache || "disabled",
         assembleMs: Number(readTiming.assembleMs) || 0,
@@ -188,6 +189,7 @@ function doPost(e) {
           authMs: authenticatedAt - requestStartedAt,
           scheduleSyncMs: scheduleCompletedAt - startedAt,
           referenceMs: Number(readTiming.referenceMs) || 0,
+          referenceBreakdown: readTiming.referenceBreakdown || {},
           recordsMs: Number(readTiming.recordsMs) || 0,
           recordsCache: readTiming.recordsCache || "disabled",
           assembleMs: Number(readTiming.assembleMs) || 0,
@@ -355,6 +357,7 @@ function getDashboardData_(user, sourceSchedules, selectedScheduleId, sourceRows
   };
   result._serverTiming = {
     referenceMs: referenceCompletedAt - referenceStartedAt,
+    referenceBreakdown: referenceResult.timing || {},
     recordsMs: recordsCompletedAt - recordsStartedAt,
     recordsCache: recordsResult.cacheStatus,
     assembleMs: Date.now() - recordsCompletedAt,
@@ -364,26 +367,42 @@ function getDashboardData_(user, sourceSchedules, selectedScheduleId, sourceRows
 }
 
 function dashboardReferenceData_(user, sourceSchedules) {
+  const timing = {};
+  const cacheStartedAt = Date.now();
   const cache = dashboardScheduleSyncCache_();
   const key = dashboardReferenceCacheKey_(user, cache);
   if (!sourceSchedules && cache) {
     try {
       const cached = cache.get(key);
-      if (cached) return { data: dashboardCacheDecode_(JSON.parse(cached)), cacheStatus: "hit" };
+      if (cached) {
+        const data = dashboardCacheDecode_(JSON.parse(cached));
+        timing.cacheReadMs = Date.now() - cacheStartedAt;
+        return { data, cacheStatus: "hit", timing };
+      }
     } catch (error) {}
   }
 
-  const data = {
-    schedules: (sourceSchedules || rows_(SHEETS.schedules)).filter(row => matchesUser_(row, user)),
-    fieldReports: rows_(SHEETS.fieldReports).filter(row => normalizeEmail_(row["報告者メール"]) === normalizeEmail_(user.email)),
-    notifications: rows_(SHEETS.notifications).filter(row => normalizeEmail_(row["宛先メール"]) === normalizeEmail_(user.email)).sort((a, b) => String(b["作成日時"]).localeCompare(String(a["作成日時"]))).slice(0, 20),
-    settings: settings_(),
-    approvalReviewAccess: isAdmin_(user) ? false : hasApprovalReviewAccess_(user)
+  timing.cacheReadMs = Date.now() - cacheStartedAt;
+  // 対象データ・件数・個人情報は計測結果へ含めず、処理時間だけ返す。
+  const measure = (name, read) => {
+    const startedAt = Date.now();
+    const value = read();
+    timing[name] = Date.now() - startedAt;
+    return value;
   };
+  const data = {
+    schedules: measure("schedulesMs", () => (sourceSchedules || rows_(SHEETS.schedules)).filter(row => matchesUser_(row, user))),
+    fieldReports: measure("fieldReportsMs", () => rows_(SHEETS.fieldReports).filter(row => normalizeEmail_(row["報告者メール"]) === normalizeEmail_(user.email))),
+    notifications: measure("notificationsMs", () => rows_(SHEETS.notifications).filter(row => normalizeEmail_(row["宛先メール"]) === normalizeEmail_(user.email)).sort((a, b) => String(b["作成日時"]).localeCompare(String(a["作成日時"]))).slice(0, 20)),
+    settings: measure("settingsMs", () => settings_()),
+    approvalReviewAccess: measure("approvalAccessMs", () => isAdmin_(user) ? false : hasApprovalReviewAccess_(user))
+  };
+  const cacheWriteStartedAt = Date.now();
   if (cache) {
     try { cache.put(key, JSON.stringify(dashboardCacheEncode_(data)), DASHBOARD_REFERENCE_CACHE_TTL_SECONDS); } catch (error) {}
   }
-  return { data, cacheStatus: cache ? "miss" : "disabled" };
+  timing.cacheWriteMs = Date.now() - cacheWriteStartedAt;
+  return { data, cacheStatus: cache ? "miss" : "disabled", timing };
 }
 
 function dashboardReferenceCacheKey_(user, sourceCache) {
