@@ -1,4 +1,6 @@
 // ===== ShiftBuilder API client ここから =====
+import { createMutationQueue } from "./mutation-queue.mjs";
+const enqueueMutation = createMutationQueue();
 
 import {
   ACCOUNT_AUTHORIZATION_API_URL,
@@ -183,6 +185,7 @@ async function postCachedRead(action, idToken, body = {}, options = {}) {
 }
 
 async function postMutation(action, idToken, body = {}) {
+  return enqueueMutation(async () => {
   const result = await postToShiftBuilderApi(action, {
     ...body,
     idToken: idToken
@@ -193,6 +196,7 @@ async function postMutation(action, idToken, body = {}) {
   }
 
   return result;
+  });
 }
 
 

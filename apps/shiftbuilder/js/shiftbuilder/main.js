@@ -16,7 +16,7 @@ import {
   sendShiftBuilderPersonnelIcs,
   resolveAuthorizationShadow,
   SHIFTBUILDER_DATA_REVISION_KEY
-} from "./api.js?v=20260807-shadow-1";
+} from "./api.js?v=20260908-save-queue-1";
 import { runAuthorizationShadowCheck } from "./authorization-shadow-policy.mjs?v=20260807-shadow-1";
 import { mockShiftData } from "./mock-data.js?v=20260801-authfix-1";
 import { escapeHtml } from "./utils.js?v=20260801-authfix-1";
@@ -78,6 +78,8 @@ import {
   isMutationSessionRequiredError,
   restoreAssignedSnapshot
 } from "./mutation-session-policy.mjs?v=20260903-display-labels-1";
+
+import { removePendingAssignment } from "./mutation-queue.mjs";
 
 let assignmentCandidates = [];
 let previousMonthShiftData = null;
@@ -2546,11 +2548,8 @@ async function createAssignmentFromSelectedCell(internalUserId) {
 
   const caseId = caseItem.caseId;
   const workDate = dateItem.date;
-  const previousAssigned = Array.isArray(cell.assigned)
-    ? [...cell.assigned]
-    : [];
-
   const pendingAssignmentId = createPendingAssignmentId();
+  const targetMonth = String(workDate).slice(0, 7);
 
   const optimisticMember = buildAssignedMemberFromCandidate(
     targetInternalUserId,
@@ -2580,12 +2579,6 @@ async function createAssignmentFromSelectedCell(internalUserId) {
 
   try {
     const session = await requireMutationSession();
-
-    const shiftData = getCurrentShiftData();
-    const targetMonth =
-      shiftData?.month ||
-      elements.targetMonthInput?.value ||
-      getNextMonthValue();
 
     const result = await createShiftBuilderAssignment(session.idToken, {
       targetMonth: targetMonth,
@@ -2633,7 +2626,7 @@ async function createAssignmentFromSelectedCell(internalUserId) {
     const found = findShiftCell(caseId, workDate);
 
     if (found?.cell) {
-      restoreAssignedSnapshot(found.cell, previousAssigned);
+      removePendingAssignment(found.cell, pendingAssignmentId);
 
       if (isSelectedCellKey(caseId, workDate)) {
         setSelectedCell(found);
