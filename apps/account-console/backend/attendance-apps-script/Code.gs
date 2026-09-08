@@ -154,7 +154,7 @@ function doPost(e) {
     if (action === "getPortalBootstrap") return jsonOutput_(getPortalBootstrap_(user, payload));
     if (action === "getDashboardData") {
       const startedAt = Date.now();
-      const dashboard = getDashboardData_(user, null, payload.scheduleId);
+      const dashboard = getDashboardData_(user, null, payload.scheduleId, { deferNotifications: payload.deferNotifications === true });
       const completedAt = Date.now();
       const readTiming = dashboard._serverTiming || {};
       delete dashboard._serverTiming;
@@ -179,7 +179,7 @@ function doPost(e) {
         sourceRevision: String(payload.shiftDataRevision || '').trim()
       });
       const scheduleCompletedAt = Date.now();
-      const dashboard = getDashboardData_(user, scheduleResult.schedules, payload.scheduleId);
+      const dashboard = getDashboardData_(user, scheduleResult.schedules, payload.scheduleId, { deferNotifications: payload.deferNotifications === true });
       const completedAt = Date.now();
       const readTiming = dashboard._serverTiming || {};
       delete dashboard._serverTiming;
@@ -216,6 +216,7 @@ function doPost(e) {
       };
       return jsonOutput_(summary);
     }
+    if (action === "getMyNotifications") return jsonOutput_({ ok: true, notifications: dashboardNotifications_(user) });
     if (action === "getWorkReportAdminData") return jsonOutput_(getWorkReportAdminData_(user, payload));
     if (action === "setupWorkReportData") return jsonOutput_(setupWorkReportData_(user));
     if (action === "saveWorkReportItem") return jsonOutput_(saveWorkReportItem_(user, payload));
@@ -317,7 +318,7 @@ function dashboardReadAuthCacheKey_(idToken) {
 function getDashboardData_(user, sourceSchedules, selectedScheduleId, sourceRows) {
   const sources = sourceRows || {};
   const referenceStartedAt = Date.now();
-  const referenceResult = dashboardReferenceData_(user, sourceSchedules || sources.schedules);
+  const referenceResult = dashboardReferenceData_(user, sourceSchedules || sources.schedules, sources.deferNotifications === true);
   const referenceCompletedAt = Date.now();
   const reference = referenceResult.data;
   const today = today_();
@@ -366,11 +367,15 @@ function getDashboardData_(user, sourceSchedules, selectedScheduleId, sourceRows
   return result;
 }
 
-function dashboardReferenceData_(user, sourceSchedules) {
+function dashboardNotifications_(user) {
+  return rows_(SHEETS.notifications).filter(row => normalizeEmail_(row["宛先メール"]) === normalizeEmail_(user.email)).sort((a, b) => String(b["作成日時"]).localeCompare(String(a["作成日時"]))).slice(0, 20);
+}
+
+function dashboardReferenceData_(user, sourceSchedules, deferNotifications) {
   const timing = {};
   const cacheStartedAt = Date.now();
   const cache = dashboardScheduleSyncCache_();
-  const key = dashboardReferenceCacheKey_(user, cache);
+  const key = dashboardReferenceCacheKey_(user, cache) + (deferNotifications ? ":without-notifications" : "");
   if (!sourceSchedules && cache) {
     try {
       const cached = cache.get(key);
@@ -393,7 +398,7 @@ function dashboardReferenceData_(user, sourceSchedules) {
   const data = {
     schedules: measure("schedulesMs", () => (sourceSchedules || rows_(SHEETS.schedules)).filter(row => matchesUser_(row, user))),
     fieldReports: measure("fieldReportsMs", () => rows_(SHEETS.fieldReports).filter(row => normalizeEmail_(row["報告者メール"]) === normalizeEmail_(user.email))),
-    notifications: measure("notificationsMs", () => rows_(SHEETS.notifications).filter(row => normalizeEmail_(row["宛先メール"]) === normalizeEmail_(user.email)).sort((a, b) => String(b["作成日時"]).localeCompare(String(a["作成日時"]))).slice(0, 20)),
+    notifications: deferNotifications ? null : measure("notificationsMs", () => dashboardNotifications_(user)),
     settings: measure("settingsMs", () => settings_()),
     approvalReviewAccess: measure("approvalAccessMs", () => isAdmin_(user) ? false : hasApprovalReviewAccess_(user))
   };
@@ -464,6 +469,7 @@ function invalidateDashboardReferenceCache_(user) {
   if (!cache) return;
   try {
     cache.remove(dashboardReferenceCacheKey_(user, cache));
+    cache.remove(dashboardReferenceCacheKey_(user, cache) + ":without-notifications");
     cache.remove(dashboardRecordCacheKey_(user, cache));
   } catch (error) {}
 }

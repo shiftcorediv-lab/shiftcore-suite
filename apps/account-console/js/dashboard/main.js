@@ -19,6 +19,7 @@ let dashboardData = null;
 let busy = false;
 let selectedScheduleId = "";
 let dashboardLoadVersion = 0;
+let notificationLoadVersion = 0;
 const SCHEDULE_SYNC_RETRY_DELAY_MS = 2000;
 const MAX_SCHEDULE_SYNC_RETRIES = 6;
 
@@ -87,7 +88,7 @@ async function loadDashboard() {
   });
   showStatus("打刻に必要な勤怠情報を読み込んでいます…", false, true);
   try {
-    const loadedDashboard = await attendanceRequest("getDashboardData", { scheduleId: selectedScheduleId });
+    const loadedDashboard = await attendanceRequest("getDashboardData", { scheduleId: selectedScheduleId, deferNotifications: true });
     if (loadVersion !== dashboardLoadVersion) return;
     dashboardData = loadedDashboard;
     selectedScheduleId = dashboardData.schedule?.schedule_id || selectedScheduleId;
@@ -104,7 +105,7 @@ async function loadDashboard() {
     else if (syncStatus === "in-progress") showStatus("勤怠情報を表示しました。別の画面で最新予定を同期中です。", false, true);
     else showStatus("勤怠情報を表示しました。最新予定を確認中です。", false, true);
     // 打刻可能な状態を先に返し、重い成績集計と外部予定同期は表示後に並行する。
-    const secondaryLoads = [loadMyWorkReportSummary(loadVersion)];
+    const secondaryLoads = [loadMyWorkReportSummary(loadVersion), loadMyNotifications(loadVersion)];
     if (!["fresh-cache", "in-progress"].includes(syncStatus) || scheduleSyncPending || forceScheduleRefresh) {
       secondaryLoads.push(refreshDashboardInBackground(loadVersion, 0, {
         forceScheduleRefresh,
@@ -135,6 +136,7 @@ async function refreshDashboardInBackground(loadVersion, retryCount = 0, options
   try {
     const refreshed = await attendanceRequest("refreshDashboardData", {
       scheduleId: selectedScheduleId,
+      deferNotifications: true,
       forceScheduleRefresh: options.forceScheduleRefresh === true,
       shiftDataRevision: options.shiftDataRevision || ""
     });
@@ -342,7 +344,7 @@ function renderDashboard(data) {
   $("deadlineNote").textContent = schedule ? "出発は予定開始1時間前、最寄り到着は15分前が目安です。入店すると稼働開始になります。" : "本日は稼働予定がありません。";
   renderTimingWarning(data, primaryState.name);
   renderUpcoming(data.upcoming || []);
-  renderNotifications(data.notifications || []);
+  if (Array.isArray(data.notifications)) renderNotifications(data.notifications);
 }
 
 function renderDashboardLoading({ preserveSchedule = false } = {}) {
@@ -417,13 +419,33 @@ function scheduleOptionText(schedule) { return [schedule?.["開発予定名"] ||
 
 $("scheduleSelect").addEventListener("change", async event => { if (busy) return; selectedScheduleId = event.target.value; await loadDashboard(); });
 
+async function loadMyNotifications(loadVersion) {
+  const requestVersion = ++notificationLoadVersion;
+  const uid = auth.currentUser?.uid;
+  const current = () => loadVersion === dashboardLoadVersion && requestVersion === notificationLoadVersion && uid && auth.currentUser?.uid === uid;
+  $("notificationBadge").hidden = true;
+  setActivity($("notificationList"), true, "通知を読み込んでいます…");
+  try {
+    const result = await attendanceRequest("getMyNotifications");
+    if (!current()) return;
+    setActivity($("notificationList"), false);
+    renderNotifications(result.notifications || []);
+  } catch (error) {
+    if (!current()) return;
+    setActivity($("notificationList"), false);
+    $("notificationList").textContent = "通知を取得できませんでした。通知を開き直すと再試行します。";
+    $("notificationList").dataset.retry = "true";
+  }
+}
+
 function renderNotifications(items) {
+  delete $("notificationList").dataset.retry;
   const unread = items.filter(item => !truthy(item["既読"])).length;
   $("notificationBadge").hidden = unread === 0;
   $("notificationBadge").textContent = String(unread);
   $("notificationList").innerHTML = items.length ? items.map(item => `<button class="notification-item ${truthy(item["既読"]) ? "" : "unread"}" data-id="${escapeHtml(item.notification_id)}"><strong>${escapeHtml(item["タイトル"] || item["種別"] || "お知らせ")}</strong><span>${escapeHtml(item["本文"] || "")}</span><small>${escapeHtml(dateTimeText(item["作成日時"]))}</small></button>`).join("") : `<div class="empty-state">通知はありません。</div>`;
   document.querySelectorAll(".notification-item[data-id]").forEach(button => button.addEventListener("click", async () => {
-    try { await attendanceRequest("markNotificationRead", { notificationId: button.dataset.id }); button.classList.remove("unread"); } catch (error) { showStatus(error.message, true); }
+    try { ++notificationLoadVersion; await attendanceRequest("markNotificationRead", { notificationId: button.dataset.id }); button.classList.remove("unread"); void loadMyNotifications(dashboardLoadVersion); } catch (error) { showStatus(error.message, true); }
   }));
 }
 
@@ -432,6 +454,7 @@ $("notificationBtn").addEventListener("click", () => {
   closeUserMenu();
   panel.hidden = !panel.hidden;
   $("notificationBtn").setAttribute("aria-expanded", String(!panel.hidden));
+  if (!panel.hidden && $("notificationList").dataset.retry === "true") { delete $("notificationList").dataset.retry; void loadMyNotifications(dashboardLoadVersion); }
 });
 $("notificationCloseBtn").addEventListener("click", () => { $("notificationPanel").hidden = true; });
 

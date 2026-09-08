@@ -154,7 +154,7 @@ test("個人ダッシュボードは勤怠を先に表示し、本人専用成�
   assert.doesNotMatch(dashboardSource, /attendanceRequest\("getPortalBootstrap"/);
   assert.match(dashboardSource, /attendanceRequest\("getDashboardData"/);
   assert.match(dashboardSource, /attendanceRequest\("getMyWorkReportSummary"/);
-  assert.match(dashboardSource, /secondaryLoads = \[loadMyWorkReportSummary\(loadVersion\)\]/);
+  assert.match(dashboardSource, /secondaryLoads = \[loadMyWorkReportSummary\(loadVersion\), loadMyNotifications\(loadVersion\)\]/);
   assert.match(dashboardSource, /!\["fresh-cache", "in-progress"\]\.includes\(syncStatus\)/);
   assert.match(dashboardSource, /Promise\.allSettled\(secondaryLoads\)/);
   assert.match(dashboardSource, /shiftcore_attendance_dashboard:\$\{dashboardEnvironment\}:/);
