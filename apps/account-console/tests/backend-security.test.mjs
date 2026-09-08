@@ -493,6 +493,32 @@ test("読取専用認証だけ15分再利用し、打刻などの書込認証は
   assert.ok(Array.from(cacheTtls.entries()).some(([key, ttl]) => key.includes("dashboard-auth") && ttl === 900));
 });
 
+test("管理画面の変更なし同期は再利用を維持し、変更あり・不明なら無効化する", () => {
+  for (const changed of [false, true, undefined]) {
+    const { context } = createAttendanceContext([]);
+    const values = new Map();
+    context.CacheService = { getScriptCache: () => ({ get: key => values.get(key) || null, put: (key, value) => values.set(key, value) }) };
+    let invalidations = 0;
+    context.invalidateAllDashboardReferenceCache_ = () => invalidations++;
+    context.syncSchedules_ = () => ({ schedules: [], synced: true, changed });
+    context.getSchedules_("token");
+    assert.equal(invalidations, changed === false ? 0 : 1);
+    assert.equal(context.dashboardScheduleSyncStatus_().status, "fresh-cache");
+  }
+});
+
+test("同期変更判定はロック取得後の予定を基準に比較する", () => {
+  for (const changed of [false, true]) {
+    const { context } = createAttendanceContext([]);
+    const current = [{ schedule_id: "SA-CURRENT", "予定開始": "10:00" }];
+    context.rows_ = () => current;
+    context.mergeSchedulesLocked_ = rows => changed ? [{ ...rows[0], "予定開始": "11:00" }] : rows.slice();
+    const changes = {};
+    context.mergeSchedules_([{ schedule_id: "STALE" }], [], "2026-09", changes);
+    assert.equal(changes.changed, changed);
+  }
+});
+
 test("背景予定同期は成功後5分の印だけを共有し、予定本体は勤怠シートから再読込する", () => {
   const { context } = createAttendanceContext([]);
   const cacheValues = new Map();
