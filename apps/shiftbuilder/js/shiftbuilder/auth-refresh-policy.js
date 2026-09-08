@@ -1,6 +1,7 @@
 const AUTH_REFRESH_PATTERN = /タイムアウト|認証.*期限|token.*expired|id[_ ]?token.*expired/i;
 
 export function requiresAuthRefresh(value) {
+  if (/ロック|lock.*timeout|SHIFT_WRITE_BUSY/i.test(String(value || ""))) return false;
   return AUTH_REFRESH_PATTERN.test(String(value || ""));
 }
 

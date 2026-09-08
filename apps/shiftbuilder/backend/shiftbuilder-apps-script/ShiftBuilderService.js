@@ -206,7 +206,7 @@ function buildMonthDateItems_(targetMonth) {
 function shiftBuilderCreateAssignment(body) {
   const operator = requireShiftBuilderEditorOperator_(body);
   const lock = LockService.getScriptLock();
-  lock.waitLock(10000);
+  if (!lock.tryLock(10000)) return ng_("他の保存処理を待っています", "SHIFT_WRITE_BUSY");
 
   try {
     const params = buildCreateAssignmentParams_(body, operator);
@@ -216,6 +216,23 @@ function shiftBuilderCreateAssignment(body) {
       assignment: assignment,
       message: "アサインを作成しました"
     });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// 応答が途切れた作成の結果だけを照合する。再作成はしない。
+function shiftBuilderCheckAssignment(body) {
+  requireShiftBuilderEditorOperator_(body);
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return ng_("他の保存処理を待っています", "SHIFT_WRITE_BUSY");
+  try {
+    const assignment = getActiveShiftAssignments_().find(function(row) {
+      return normalizeText(row.case_id) === normalizeText(body.caseId) &&
+        normalizeDateString(row.work_date) === normalizeDateString(body.workDate) &&
+        normalizeText(row.internal_user_id) === normalizeText(body.internalUserId);
+    });
+    return ok_({ assignment: assignment || null });
   } finally {
     lock.releaseLock();
   }
@@ -512,7 +529,7 @@ function shiftBuilderArchiveAssignment(body) {
   }
 
   const lock = LockService.getScriptLock();
-  lock.waitLock(10000);
+  if (!lock.tryLock(10000)) return ng_("他の保存処理を待っています", "SHIFT_WRITE_BUSY");
 
   try {
     archiveShiftAssignment_(assignmentId, operator);
@@ -532,7 +549,7 @@ function shiftBuilderReplaceAssignment(body) {
   const operator = requireShiftBuilderEditorOperator_(body);
   const lock = LockService.getScriptLock();
 
-  lock.waitLock(10000);
+  if (!lock.tryLock(10000)) return ng_("他の保存処理を待っています", "SHIFT_WRITE_BUSY");
 
   try {
     const replaceAssignmentId = normalizeText(

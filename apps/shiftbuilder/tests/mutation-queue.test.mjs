@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { createMutationQueue, removePendingAssignment } from '../js/shiftbuilder/mutation-queue.mjs';
+import { runRecoverableMutation } from '../js/shiftbuilder/mutation-recovery.mjs';
 
 test('連続保存は先の応答を待ち、1件失敗しても後続を保存する', async () => {
   const enqueue = createMutationQueue(); const events = []; let release;
@@ -28,7 +29,7 @@ test('先の配置が失敗しても後から配置した人と保存済みの�
 test('実APIクライアントで連続した配置要求を重ねずに送信する', async () => {
   let release; const gate = new Promise(resolve => {release = resolve;});
   const sent = []; let active = 0; let maxActive = 0;
-  const c = vm.createContext({ createMutationQueue, SHIFTBUILDER_API_URL:'https://example.com', window:{ShiftCoreEnvironment:{name:'staging'}}, localStorage:{getItem:()=>null}, sessionStorage:{}, fetch:async (_url, options) => {
+  const c = vm.createContext({ createMutationQueue, runRecoverableMutation, SHIFTBUILDER_API_URL:'https://example.com', window:{ShiftCoreEnvironment:{name:'staging'}}, localStorage:{getItem:()=>null}, sessionStorage:{}, fetch:async (_url, options) => {
     const body = JSON.parse(options.body); sent.push(body.internalUserId); active++; maxActive = Math.max(maxActive,active);
     if(sent.length === 1) await gate;
     active--; return {text:async()=>JSON.stringify({success:true})};
