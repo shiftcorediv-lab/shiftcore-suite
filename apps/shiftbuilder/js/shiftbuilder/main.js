@@ -22,12 +22,12 @@ import { mockShiftData } from "./mock-data.js?v=20260801-authfix-1";
 import { escapeHtml } from "./utils.js?v=20260801-authfix-1";
 import { getPermissionLabel, canEdit } from "./permissions.js?v=20260801-authfix-1";
 import { renderSummary } from "./render-summary.js?v=20260801-authfix-1";
-import { renderShiftTable } from "./render-shift-table.js?v=20260907-compact-4";
-import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20260907-member-management-1";
+import { renderShiftTable } from "./render-shift-table.js?v=20260909-member-display-1";
+import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20260909-member-display-1";
 import { renderPersonnelTable } from "./render-personnel-table.js?v=20260907-member-management-1";
 import { closePersonnelProfiles } from './personnel-profile-popover.js';
 import { getConsecutiveWorkAlert } from "./consecutive-work-alert.js?v=20260801-authfix-1";
-import { getCaseIdentityLabel } from "./display-labels.mjs?v=20260905-identity-labels-1";
+import { getCaseIdentityLabel } from "./display-labels.mjs?v=20260909-member-display-1";
 import { getCaseMemberPreference } from "./assignment-preference-policy.mjs?v=20260905-agency-rules-1";
 import {
   renderSelectedCell,
@@ -35,7 +35,7 @@ import {
   renderCellPreviewPopover,
   renderPersonnelCellPreviewPopover,
   renderCellActionPopover
-} from "./render-detail-panel.js?v=20260905-agency-rules-1";
+} from "./render-detail-panel.js?v=20260909-member-display-1";
 import {
   setCurrentSession,
   setCurrentUser,
@@ -63,11 +63,11 @@ import {
   openCaseExportMenu,
   openPersonnelExportMenu,
   openPersonnelBulkMenu
-} from "./export-menu.js?v=20260903-display-labels-1";
+} from "./export-menu.js?v=20260909-member-display-1";
 import {
   buildPersonnelExportFilename,
   buildPersonnelIcs
-} from "./export-utils.mjs?v=20260902-overnight-1";
+} from "./export-utils.mjs?v=20260909-member-display-1";
 import { getRequestedOffState } from "./availability-policy.mjs?v=20260801-authfix-1";
 import {
   getAssignmentId,
@@ -1783,9 +1783,9 @@ function renderAssignmentCandidateCards() {
       candidate.given_name || candidate.givenName || ""
     ].filter(Boolean).join(" ");
     const displayName =
-      separatedName ||
       candidate.display_name ||
       candidate.displayName ||
+      separatedName ||
       candidate.name ||
       userId ||
       "氏名未設定";

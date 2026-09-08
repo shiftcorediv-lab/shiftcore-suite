@@ -1,9 +1,9 @@
 // ===== ShiftBuilder render-detail-panel.js ここから =====
 
 import { escapeHtml } from "./utils.js?v=20260801-authfix-1";
-import { getCellStatus } from "./render-shift-table.js?v=20260905-identity-labels-1";
+import { getCellStatus } from "./render-shift-table.js?v=20260909-member-display-1";
 import { CANDIDATE_GROUP_CLASSES } from "./constants.js?v=20260801-authfix-1";
-import { getCaseIdentityLabel } from "./display-labels.mjs?v=20260905-identity-labels-1";
+import { getCaseIdentityLabel } from "./display-labels.mjs?v=20260909-member-display-1";
 import {
   getAssignmentId,
   getInternalUserId
@@ -18,6 +18,8 @@ function getRequiredCount(cell) {
 }
 
 function getAssignedMemberName(member) {
+  const displayName = String(member?.display_name || "").trim() || String(member?.displayName || "").trim();
+  if (displayName) return displayName;
   const familyName = String(member?.family_name || member?.familyName || "").trim();
   const givenName = String(member?.given_name || member?.givenName || "").trim();
   const fullName = [familyName, givenName].filter(Boolean).join(" ");

@@ -35,7 +35,7 @@ function normalizePerson(source = {}) {
 
   return {
     id,
-    displayName: separatedName || firstValue(source, [
+    displayName: firstValue(source, ["display_name", "displayName"]) || separatedName || firstValue(source, [
         "display_name",
         "displayName",
         "name",

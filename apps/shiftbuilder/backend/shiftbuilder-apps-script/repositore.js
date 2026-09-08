@@ -973,6 +973,9 @@ function buildAssignedMembers_(assignments, usersById) {
     const familyName = normalizeText(user.family_name);
     const givenName = normalizeText(user.given_name);
     const displayName =
+      normalizeText(user.display_name) ||
+      [familyName, givenName].filter(Boolean).join(" ") ||
+      normalizeText(user.name) ||
       normalizeText(assignment.display_name) ||
       normalizeText(assignment.account_code) ||
       normalizeText(assignment.internal_user_id) ||

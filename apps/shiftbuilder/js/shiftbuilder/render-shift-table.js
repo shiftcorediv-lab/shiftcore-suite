@@ -10,7 +10,7 @@ import {
   getAssignmentId,
   getInternalUserId
 } from "./record-normalizers.mjs?v=20260801-authfix-1";
-import { getCompactMemberLabel, getCalendarDayLabel } from "./display-labels.mjs?v=20260907-compact-4";
+import { getCompactMemberLabel, getCalendarDayLabel } from "./display-labels.mjs?v=20260909-member-display-1";
 
 export function buildOrderCaseDetailsUrl(caseId, environment = globalThis.window?.ShiftCoreEnvironment) {
   if (!environment || typeof environment.withEnvironment !== "function") {
@@ -493,7 +493,7 @@ export function renderShiftTable(data, elements, handlers = {}) {
 
                     ? renderAssignedMemberNames(cell)
 
-                    : cellCountLabel
+                    : assignedCount > 0 && cellCountLabel
                       ? `<span class="shift-cell-count">${escapeHtml(cellCountLabel)}</span>`
                       : ""
 
