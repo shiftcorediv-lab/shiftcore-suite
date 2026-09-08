@@ -1,5 +1,6 @@
 // ===== ShiftBuilder API client ここから =====
 import { createMutationQueue } from "./mutation-queue.mjs";
+import { runRecoverableMutation } from "./mutation-recovery.mjs?v=20260909-save-recovery-1";
 const enqueueMutation = createMutationQueue();
 
 import {
@@ -186,16 +187,12 @@ async function postCachedRead(action, idToken, body = {}, options = {}) {
 
 async function postMutation(action, idToken, body = {}) {
   return enqueueMutation(async () => {
-  const result = await postToShiftBuilderApi(action, {
-    ...body,
-    idToken: idToken
-  });
-
-  if (result && (result.success === true || result.ok === true)) {
-    clearReadCache(idToken);
-  }
-
-  return result;
+    try {
+      return await runRecoverableMutation(action, { ...body, idToken }, postToShiftBuilderApi);
+    } finally {
+      // 通信失敗でも実保存され得る。次の読込みに古いキャッシュを使わせない。
+      clearReadCache(idToken);
+    }
   });
 }
 

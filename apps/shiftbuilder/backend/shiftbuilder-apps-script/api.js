@@ -37,6 +37,10 @@ function doPost(e) {
         result = shiftBuilderCreateAssignment(body);
         break;
 
+      case "shiftBuilderCheckAssignment":
+        result = shiftBuilderCheckAssignment(body);
+        break;
+
       case "shiftBuilderArchiveAssignment":
         result = shiftBuilderArchiveAssignment(body);
         break;

@@ -16,7 +16,7 @@ import {
   sendShiftBuilderPersonnelIcs,
   resolveAuthorizationShadow,
   SHIFTBUILDER_DATA_REVISION_KEY
-} from "./api.js?v=20260908-save-queue-1";
+} from "./api.js?v=20260909-save-recovery-1";
 import { runAuthorizationShadowCheck } from "./authorization-shadow-policy.mjs?v=20260807-shadow-1";
 import { mockShiftData } from "./mock-data.js?v=20260801-authfix-1";
 import { escapeHtml } from "./utils.js?v=20260801-authfix-1";
@@ -50,7 +50,7 @@ import {
 } from "./state.js?v=20260801-authfix-1";
 import { elements } from "./dom.js?v=20260801-authfix-1";
 import { getMonthShortcutOffset, isTableNavigationKey } from "./keyboard-shortcuts.js?v=20260802-shortcuts-4";
-import { requiresAuthRefresh, buildAuthRefreshMessage } from "./auth-refresh-policy.js?v=20260802-shortcuts-2";
+import { requiresAuthRefresh, buildAuthRefreshMessage } from "./auth-refresh-policy.js?v=20260909-save-recovery-1";
 import {
   resolvePopoverAnchorTarget,
   shouldClosePersonnelPopoverForExternalRefresh,
@@ -2626,7 +2626,10 @@ async function createAssignmentFromSelectedCell(internalUserId) {
     const found = findShiftCell(caseId, workDate);
 
     if (found?.cell) {
-      removePendingAssignment(found.cell, pendingAssignmentId);
+      // 未確認の保存を未配置へ戻すと、利用者が重ねて配置してしまう。
+      if (error?.code !== "MUTATION_RESULT_UNKNOWN") {
+        removePendingAssignment(found.cell, pendingAssignmentId);
+      }
 
       if (isSelectedCellKey(caseId, workDate)) {
         setSelectedCell(found);
