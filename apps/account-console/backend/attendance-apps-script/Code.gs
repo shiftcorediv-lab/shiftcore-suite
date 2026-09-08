@@ -270,18 +270,41 @@ function resolveUser_(idToken, options) {
       if (cached) return JSON.parse(cached);
     } catch (error) {}
   }
-  const response = UrlFetchApp.fetch(LOGIN_PROXY_URL, {
-    method: "post",
-    contentType: "text/plain;charset=utf-8",
-    payload: JSON.stringify({ action: "resolveCurrentUserByIdToken", idToken: idToken }),
-    muteHttpExceptions: true
-  });
-  const data = JSON.parse(response.getContentText() || "{}");
-  if (!data.ok || !data.user || !data.user.email) throw apiError_("AUTH_INVALID", "ログイン情報を確認できませんでした。");
+  const data = resolveAttendanceIdentity_(idToken);
   if (cache) {
     try { cache.put(cacheKey, JSON.stringify(data.user), DASHBOARD_READ_AUTH_CACHE_TTL_SECONDS); } catch (error) {}
   }
   return data.user;
+}
+
+function resolveAttendanceIdentity_(idToken) {
+  // 本人確認だけを再試行する。打刻処理そのものはここでは実行しない。
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let data = {};
+    let status = 0;
+    try {
+      const response = UrlFetchApp.fetch(LOGIN_PROXY_URL, {
+        method: "post",
+        contentType: "text/plain;charset=utf-8",
+        payload: JSON.stringify({ action: "resolveCurrentUserByIdToken", idToken: idToken }),
+        muteHttpExceptions: true
+      });
+      status = response.getResponseCode();
+      data = JSON.parse(response.getContentText() || "{}");
+    } catch (_) {}
+    const code = String(data.code || "");
+    if (status === 200 && data.ok === true && data.user && data.user.email) return data;
+    if (["TOKEN_EXPIRED", "INVALID_ID_TOKEN", "ID_TOKEN_REQUIRED", "INVALID_REFRESH_TOKEN"].includes(code)) {
+      throw apiError_("AUTH_REFRESH_REQUIRED", "ログインの有効期限を確認できません。ログインし直してから操作してください。");
+    }
+    if (["USER_STOPPED", "USER_DISABLED", "USER_NOT_FOUND", "EMAIL_NOT_FOUND"].includes(code)) {
+      throw apiError_("AUTH_ACCOUNT_UNAVAILABLE", "このアカウントは利用できません。管理者に確認してください。");
+    }
+    // トークン・メール・上流の自由文はログに残さない。
+    console.warn("ATTENDANCE_IDENTITY_UNAVAILABLE", status, ["WORKER_ERROR", "INVALID_LOOKUP_RESPONSE", "TOKEN_LOOKUP_FAILED"].includes(code) ? code : "OTHER");
+    if (attempt === 0) Utilities.sleep(500);
+  }
+  throw apiError_("AUTH_SERVICE_UNAVAILABLE", "本人確認サービスに接続できず、今回の操作は保存していません。少し待ってからもう一度押してください。");
 }
 
 function dashboardReadAuthCacheKey_(idToken) {
