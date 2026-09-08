@@ -448,7 +448,7 @@ test("読取専用認証だけ15分再利用し、打刻などの書込認証は
   context.Utilities.computeDigest = (_algorithm, value) => Array.from(String(value), character => character.charCodeAt(0));
   context.Utilities.base64EncodeWebSafe = bytes => Buffer.from(bytes).toString("base64url");
   let fetchCalls = 0;
-  context.UrlFetchApp = { fetch: () => ({ getContentText: () => (fetchCalls += 1, JSON.stringify({ ok: true, user: { email: "member@example.com", role: "member" } })) }) };
+  context.UrlFetchApp = { fetch: () => ({ getResponseCode: () => 200, getContentText: () => (fetchCalls += 1, JSON.stringify({ ok: true, user: { email: "member@example.com", role: "member" } })) }) };
 
   context.resolveUser_("TOKEN", { allowReadCache: true });
   context.resolveUser_("TOKEN", { allowReadCache: true });
