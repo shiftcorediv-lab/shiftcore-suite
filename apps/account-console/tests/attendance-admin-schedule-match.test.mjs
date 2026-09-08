@@ -6,6 +6,25 @@ const source = readFileSync(new URL('../backend/attendance-apps-script/Code.gs',
 const schedule = { schedule_id: 'SA-TEST', employee_code: 'TEST-1', email: '', '勤務日': '2026-09-08', '予定開始': '10:00', '予定終了': '18:00' };
 const record = { record_id: 'R-TEST', schedule_id: 'SA-TEST', employee_code: 'TEST-1', email: 'test@example.com', '勤務日': '2026-09-08', '実終了': '2026-09-08T22:52:00+09:00' };
 function context() { const c = vm.createContext({}); vm.runInContext(source,c); return c; }
+test('終了前でも出発・最寄り到着・入店の各段階を管理画面へ返す', () => {
+  const c = context();
+  let savedReports = [];
+  let savedRecords = [];
+  c.today_ = () => '2026-09-08'; c.nowIso_ = () => '2026-09-08T10:00:00+09:00';
+  c.getSchedules_ = () => [schedule];
+  c.rows_ = name => ({ '勤怠記録': savedRecords, '現場報告': savedReports }[name] || []);
+  c.canViewPreciseLocation_ = () => false; c.settings_ = () => ({});
+  for (const [index, type] of ['出発', '最寄り到着', '入店'].entries()) {
+    savedReports.push({ schedule_id: schedule.schedule_id, '勤務日': '2026-09-08', '報告者メール': record.email, '報告種別': type, '報告日時': `2026-09-08T0${7 + index}:00:00+09:00` });
+    if (type === '入店') savedRecords = [{ ...record, '実開始': '2026-09-08T09:00:00+09:00', '実終了': '', '状態': '稼働中' }];
+    const result = c.getAdminDashboard_({ role: 'admin' }, 'TEST');
+    assert.equal(result.people.length, 1, `${type}: 同じ予定は1行`);
+    assert.deepEqual(Array.from(result.people[0].fieldReports, r => r['報告種別']), savedReports.map(r => r['報告種別']));
+    assert.equal(result.people[0].record?.['実終了'] || '', '', `${type}: 終了報告はまだない`);
+    if (type === '入店') assert.equal(result.people[0].record['状態'], '稼働中');
+    else assert.equal(result.people[0].record, null);
+  }
+});
 test('メールなし予定と保存済み打刻を配置IDで1行に統合し各報告を表示する', () => {
   const c = context();
   const reports = ['出発','最寄り到着','入店'].map(type => ({ schedule_id: schedule.schedule_id, '勤務日': '2026-09-08', '報告者メール': record.email, '報告種別': type }));

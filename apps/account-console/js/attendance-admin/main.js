@@ -4,16 +4,46 @@ import { buildReviewPayload, formatCorrectionReason, formatJapanDay as day, form
 import { setActivity } from "../common/activity.js?v=20260831-activity-1";
 
 const $=id=>document.getElementById(id); let data=null; let reviewRequest=null;
-onAuthStateChanged(auth,user=>user?load():window.location.replace("./index.html"));
-$("refreshBtn").addEventListener("click",load); $("statusFilter").addEventListener("change",renderPeople); $("searchInput").addEventListener("input",renderPeople);
-$("saveTimeBtn").addEventListener("click",async()=>{message("通知時刻を保存しています…",false,true);try{await attendanceRequest("updateEndWarningTime",{time:$("endWarningTime").value});message("通知時刻を保存しました。");await load();}catch(e){message(e.message,true)}});
+let authenticated=false, inFlight=null, writing=false, settingsDirty=false, timer=null, generation=0;
+let mutationError=false;
+const REFRESH_MS=30000;
+function interacting(){return writing||$("reviewDialog").open||Boolean(document.activeElement?.matches("input,textarea,select,[contenteditable=true]"));}
+function scheduleRefresh(){clearTimeout(timer);timer=null;if(authenticated&&!document.hidden&&!mutationError)timer=setTimeout(()=>load({background:true}),REFRESH_MS);}
+document.addEventListener("visibilitychange",()=>{clearTimeout(timer);if(!document.hidden&&authenticated)load({background:true});});
+onAuthStateChanged(auth,user=>{authenticated=Boolean(user);if(user)load();else{clearTimeout(timer);generation++;window.location.replace("./index.html");}});
+$("refreshBtn").addEventListener("click",()=>load()); $("statusFilter").addEventListener("change",renderPeople); $("searchInput").addEventListener("input",renderPeople);
+$("endWarningTime").addEventListener("input",()=>{settingsDirty=true;});
+$("saveTimeBtn").addEventListener("click",async()=>{if(writing)return;writing=true;generation++;const time=$("endWarningTime").value;message("通知時刻を保存しています…",false,true);try{await attendanceRequest("updateEndWarningTime",{time});settingsDirty=$("endWarningTime").value!==time;message("通知時刻を保存しました。");await inFlight;await load();}catch(e){message(e.message,true)}finally{writing=false;scheduleRefresh()}});
 
-async function load(){const done=window.PortalLoading.begin("勤怠情報を読み込んでいます…");message("勤怠情報を読み込んでいます…",false,true);try{data=await attendanceRequest("getAdminDashboard");$("endWarningTime").value=data.settings.end_warning_time||"19:00";render();message("最新情報を表示しています。");}catch(e){message(e.message,true);if(e.code==="FORBIDDEN")setTimeout(()=>location.replace("./dashboard.html"),1200)}finally{done()}}
+function load({background=false}={}){
+  if(inFlight)return inFlight;
+  if(!authenticated)return Promise.resolve();
+  if(background&&(document.hidden||interacting()||mutationError)){scheduleRefresh();return Promise.resolve();}
+  clearTimeout(timer);
+  const requestGeneration=generation;
+  const done=background?()=>{}:window.PortalLoading.begin("勤怠情報を読み込んでいます…");
+  if(!background)message("勤怠情報を読み込んでいます…",false,true);
+  inFlight=(async()=>{
+    try{
+      const next=await attendanceRequest("getAdminDashboard");
+      // 通信開始後に入力・承認操作を始めた場合も、操作中の画面を差し替えない。
+      if(!authenticated||requestGeneration!==generation||(background&&(document.hidden||interacting())))return;
+      data=next;mutationError=false;
+      if(!settingsDirty)$("endWarningTime").value=data.settings.end_warning_time||"19:00";
+      render();message("最新情報を表示しています。（表示中は約30秒ごとに自動更新）");
+    }catch(e){
+      if(requestGeneration!==generation||!authenticated)return;
+      if(!background||(!document.hidden&&!interacting()))message(background?"自動更新できませんでした。表示は前回取得時点の情報です。「更新」で再確認できます。":e.message,true);
+      if(e.code==="FORBIDDEN"){authenticated=false;setTimeout(()=>location.replace("./dashboard.html"),1200);}
+    }finally{done();}
+  })().finally(()=>{inFlight=null;scheduleRefresh();});
+  return inFlight;
+}
 function render(){const people=data.people||[];const status=p=>p.record?.["状態"]||"未開始";const counts={all:people.length,not:people.filter(p=>status(p)==="未開始").length,running:people.filter(p=>["稼働中","開始遅延"].includes(status(p))).length,issues:(data.requests||[]).length};$("summary").innerHTML=card("本日の予定",counts.all)+card("未開始",counts.not)+card("稼働中",counts.running)+card("承認待ち",counts.issues);renderPeople();renderRequests()}
 function renderPeople(){const filter=$("statusFilter").value;const q=$("searchInput").value.toLowerCase();const items=(data.people||[]).filter(p=>{const status=p.record?.["状態"]||"未開始";const hay=[p.schedule?.["氏名"],p.record?.["氏名"],p.schedule?.email,p.record?.email,p.schedule?.["稼働場所"],p.record?.["予定場所"]].join(" ").toLowerCase();return(!filter||status===filter)&&(!q||hay.includes(q))});$("peopleRows").innerHTML=items.length?items.map(p=>{const s=p.schedule||{};const r=p.record||{};const reports=p.fieldReports||[];const departure=reports.find(x=>x["報告種別"]==="出発");const nearestArrival=reports.find(x=>x["報告種別"]==="最寄り到着");const arrival=reports.find(x=>x["報告種別"]==="入店");const status=r["状態"]||"未開始";const locationLinks=[];if(data.preciseLocationAccess&&hasCoordinate(p.nearestLocation))locationLinks.push(locationLink("最寄り到着",p.nearestLocation));if(data.preciseLocationAccess&&hasCoordinate(p.location))locationLinks.push(locationLink("入店（旧記録）",p.location));const location=locationLinks.join("<br>")||(r["位置取得状態"]||"未取得");return`<tr><td><strong>${e(s["氏名"]||r["氏名"]||"—")}</strong><br><small>${e(s.email||r.email||"")}</small></td><td>${e(t(s["予定開始"]))}–${e(t(s["予定終了"]))}</td><td>${e(s["稼働場所"]||r["予定場所"]||"予定外")}</td><td>${e(t(departure?.["報告日時"]))}</td><td>${e(t(nearestArrival?.["報告日時"]))}</td><td>${e(t(arrival?.["報告日時"]))}</td><td><span class="badge ${cls(status)}">${e(status)}</span></td><td>${e(t(r["実開始"]))}</td><td>${e(t(r["実終了"]))}</td><td>${location}</td></tr>`}).join(""):`<tr><td colspan="10">該当者はいません。</td></tr>`}
 function hasCoordinate(location){return location?.["緯度"]!==undefined&&location?.["緯度"]!==null&&location?.["緯度"]!==""&&location?.["経度"]!==undefined&&location?.["経度"]!==null&&location?.["経度"]!==""}
 function locationLink(label,location){return`<a class="location-link" target="_blank" rel="noopener" href="https://www.google.com/maps?q=${encodeURIComponent(location["緯度"]+","+location["経度"])}">${e(label)}位置</a>`}
 function renderRequests(){const items=data.requests||[];$("requestCount").textContent=`${items.length}件`;$("requestList").innerHTML=items.length?items.map(r=>`<div class="request-item"><div><strong>${e(r["申請者氏名"]||r["申請者メール"])}・${e(r["種別"])}</strong><span>${e(day(r["実勤務日"]))} ${e(t(r["申請開始"]))}–${e(t(r["申請終了"]))}</span><span>${e(formatCorrectionReason(r["理由区分"],r["理由詳細"]))}</span></div><button data-id="${e(r.request_id)}">確認</button></div>`).join(""):`<p>承認待ちの申請はありません。</p>`;document.querySelectorAll("[data-id]").forEach(b=>b.addEventListener("click",()=>openReview(b.dataset.id)))}
 function openReview(id){reviewRequest=(data.requests||[]).find(r=>String(r.request_id)===id);if(!reviewRequest)return;$("reviewBody").innerHTML=`<p><strong>${e(reviewRequest["申請者氏名"]||reviewRequest["申請者メール"])}</strong></p><p>${e(reviewRequest["種別"])} / ${e(reviewRequest["理由区分"])}<br>${e(reviewRequest["理由詳細"])}</p><p><strong>対象日時</strong><br>${e(day(reviewRequest["実勤務日"]))} ${e(t(reviewRequest["申請開始"]))}–${e(t(reviewRequest["申請終了"]))}</p>`;$("reviewReason").value="";$("reviewDialog").showModal()}
-$("reviewDialog").addEventListener("close",async()=>{const decision=$("reviewDialog").returnValue;if(!reviewRequest||!["approve","reject"].includes(decision))return;const reason=$("reviewReason").value.trim();if(decision==="reject"&&!reason)return message("却下理由を入力してください。",true);message("申請を処理しています…",false,true);try{await attendanceRequest("reviewRequest",buildReviewPayload(reviewRequest,decision,reason));message("申請を処理しました。");reviewRequest=null;await load()}catch(e){message(e.code?`${e.code}: ${e.message}`:`通信結果を確認できませんでした。再押下せず、画面を更新してください。（${e.message}）`,true)}});
-function card(label,value){return`<article><small>${label}</small><strong>${value}</strong></article>`}function message(v,err=false,loading=false){setActivity($("message"),loading,v);$("message").classList.toggle("error",err)}function cls(v){return v==="稼働中"?"running":v==="開始遅延"?"delay":v==="終了済み"?"done":""}function e(v){const d=document.createElement("div");d.textContent=String(v??"");return d.innerHTML}
+$("reviewDialog").addEventListener("close",async()=>{const decision=$("reviewDialog").returnValue;if(writing||!reviewRequest||!["approve","reject"].includes(decision))return;const reason=$("reviewReason").value.trim();if(decision==="reject"&&!reason)return message("却下理由を入力してください。",true);writing=true;generation++;message("申請を処理しています…",false,true);try{await attendanceRequest("reviewRequest",buildReviewPayload(reviewRequest,decision,reason));message("申請を処理しました。");reviewRequest=null;await inFlight;await load()}catch(e){message(e.code?`${e.code}: ${e.message}`:`通信結果を確認できませんでした。再押下せず、画面を更新してください。（${e.message}）`,true)}finally{writing=false;scheduleRefresh()}});
+function card(label,value){return`<article><small>${label}</small><strong>${value}</strong></article>`}function message(v,err=false,loading=false){if(err&&writing)mutationError=true;setActivity($("message"),loading,v);$("message").classList.toggle("error",err)}function cls(v){return v==="稼働中"?"running":v==="開始遅延"?"delay":v==="終了済み"?"done":""}function e(v){const d=document.createElement("div");d.textContent=String(v??"");return d.innerHTML}
