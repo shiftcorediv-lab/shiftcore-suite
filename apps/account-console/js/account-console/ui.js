@@ -91,6 +91,7 @@ const AFFILIATION_TYPE_LABELS = {
 };
 
 const CONTRACT_TYPE_LABELS = {
+  officer: "役員",
   regular_employee: "正社員",
   contract_employee: "契約社員",
   part_time: "アルバイト",
