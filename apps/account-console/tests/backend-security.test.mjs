@@ -309,6 +309,38 @@ test("個人成績APIはログイン本人の対象勤怠と回答だけを返�
   assert.equal(typeof summary.serverTiming.totalMs, "number");
 });
 
+test("個人成績は本人の対象月の終了済み勤務がなければ関連6シートを読まない", () => {
+  const { context } = createAttendanceContext([
+    { record_id: "OTHER", email: "other@example.com", workDate: "2026-08-28" },
+    { record_id: "OLD", email: "member@example.com", workDate: "2026-07-28" },
+    { record_id: "ACTIVE", email: "member@example.com", workDate: "2026-08-28", actualEnd: "", formalEnd: "" }
+  ]);
+  const readRows = context.rows_;
+  const reads = [];
+  context.rows_ = name => { reads.push(name); return readRows(name); };
+  const summary = context.getMyWorkReportSummary_({ email: "member@example.com" }, { month: "2026-08" });
+  assert.equal(reads.length, 1);
+  assert.equal(summary.ownerEmail, "member@example.com");
+  assert.equal(summary.month, "2026-08");
+  assert.deepEqual(JSON.parse(JSON.stringify(summary.counts)), { total: 0, submitted: 0, missing: 0, returned: 0 });
+  assert.equal(summary.metrics.length, 0);
+  assert.equal(summary.submissions.length, 0);
+});
+
+test("個人成績は未提出勤務を残しつつ回答と項目シートの読取を省く", () => {
+  const { context } = createAttendanceContext([{ record_id: "MISSING", email: "member@example.com", workDate: "2026-08-28" }]);
+  const readRows = context.rows_;
+  const reads = [];
+  context.rows_ = name => { reads.push(name); return readRows(name); };
+  const summary = context.getMyWorkReportSummary_({ email: "member@example.com" }, { month: "2026-08" });
+  assert.equal(summary.counts.total, 1);
+  assert.equal(summary.counts.missing, 1);
+  assert.equal(summary.submissions[0].recordId, "MISSING");
+  assert.equal(summary.metrics.length, 0);
+  assert.equal(reads.includes("実績回答"), false);
+  assert.equal(reads.length, 5);
+});
+
 test("個人成績の読取経路ではシート整備とScript Lockを実行しない", () => {
   const { context } = createAttendanceContext([{ record_id: "REC-READ-ONLY", email: "member@example.com", workDate: "2026-08-28" }]);
   context.ensureWorkReportSheetsWithLock_ = () => { throw new Error("read path must not ensure sheets"); };
@@ -380,9 +412,10 @@ test("ポータル初期表示は大きいシートを同一リクエスト内�
 
   const result = context.getPortalBootstrap_({ email: "member@example.com", name: "本人", role: "developer" }, { month: "2026-08" });
   assert.equal(result.ok, true);
-  for (const sheetName of ["稼働予定", "勤怠記録", "実績テンプレート", "実績項目"]) {
+  for (const sheetName of ["稼働予定", "勤怠記録", "実績テンプレート"]) {
     assert.equal(rowReads[sheetName], 1, sheetName);
   }
+  assert.equal(rowReads["実績項目"] || 0, 0, "提出済み報告がないため集計項目は読まない");
 });
 
 test("勤怠ダッシュボードは本人の読取データを再利用し、打刻後の無効化で全件再読込する", () => {
