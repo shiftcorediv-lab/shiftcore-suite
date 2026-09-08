@@ -1007,15 +1007,17 @@ function getMyWorkReportSummary_(user, payload, sourceRows) {
   const month = /^\d{4}-\d{2}$/.test(String(payload && payload.month || "")) ? String(payload.month) : today_().slice(0, 7);
   const dateFrom = `${month}-01`;
   const dateTo = monthEnd_(month);
-  const schedules = sources.schedules || rows_(SHEETS.schedules);
-  const templates = sources.reportTemplates || rows_(SHEETS.reportTemplates);
-  const mappings = rows_(SHEETS.reportCaseMappings);
-  const reports = rows_(SHEETS.reports);
-  const reportAnswers = rows_(SHEETS.reportAnswers);
-  const reportByRecord = reports.reduce((result, report) => (result[String(report.record_id || "")] = report, result), Object.create(null));
-  const records = (sources.records || rows_(SHEETS.records)).filter(record => {
+  // 本人・対象月の終了済み勤務がなければ、集計用の関連シートは不要。
+  const completedRecords = (sources.records || rows_(SHEETS.records)).filter(record => {
     const workDate = dateKey_(record["勤務日"]);
-    if (normalizeEmail_(record.email) !== normalizeEmail_(user.email) || !Boolean(record["実終了"] || record["正式終了"]) || workDate < dateFrom || workDate > dateTo) return false;
+    return normalizeEmail_(record.email) === normalizeEmail_(user.email) && Boolean(record["実終了"] || record["正式終了"]) && workDate >= dateFrom && workDate <= dateTo;
+  });
+  const schedules = completedRecords.length ? sources.schedules || rows_(SHEETS.schedules) : [];
+  const templates = completedRecords.length ? sources.reportTemplates || rows_(SHEETS.reportTemplates) : [];
+  const mappings = completedRecords.length ? rows_(SHEETS.reportCaseMappings) : [];
+  const reports = completedRecords.length ? rows_(SHEETS.reports) : [];
+  const reportByRecord = reports.reduce((result, report) => (result[String(report.record_id || "")] = report, result), Object.create(null));
+  const records = completedRecords.filter(record => {
     return Boolean(reportByRecord[String(record.record_id || "")] || workReportTemplateForContext_(workReportContext_(record, schedules), mappings, templates));
   });
   const submissions = records.map(record => {
@@ -1035,9 +1037,11 @@ function getMyWorkReportSummary_(user, payload, sourceRows) {
   }).sort((a, b) => b.workDate.localeCompare(a.workDate));
   const metrics = Object.create(null);
   const targetRecordIds = submissions.map(item => item.recordId);
-  const reportItems = (sources.reportItems || rows_(SHEETS.reportItems)).slice().sort(workReportItemSort_);
+  const submittedReports = reports.filter(report => targetRecordIds.includes(String(report.record_id || "")) && normalizeEmail_(report["報告者メール"]) === normalizeEmail_(user.email) && isSubmittedWorkReport_(report));
+  const reportAnswers = submittedReports.length ? rows_(SHEETS.reportAnswers) : [];
+  const reportItems = submittedReports.length ? (sources.reportItems || rows_(SHEETS.reportItems)).slice().sort(workReportItemSort_) : [];
   const itemById = reportItems.reduce((result, item) => (result[String(item.item_id || "")] = item, result), Object.create(null));
-  reports.filter(report => targetRecordIds.includes(String(report.record_id || "")) && normalizeEmail_(report["報告者メール"]) === normalizeEmail_(user.email) && isSubmittedWorkReport_(report)).forEach(report => {
+  submittedReports.forEach(report => {
     currentWorkReportAnswers_(report, reportAnswers).forEach(answer => {
       const master = itemById[String(answer.item_id || "")];
       if (!master || !booleanValue_(master["ダッシュボード表示"]) || String(answer["種別"] || "") !== "number") return;
