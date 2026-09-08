@@ -2197,15 +2197,27 @@ function findPendingOvernightReport_(user, today, sourceReports) {
   return null;
 }
 function recordMatchesSchedule_(record, schedule, schedules) {
-  if (normalizeEmail_(record.email) !== normalizeEmail_(schedule.email)) return false;
-  if (record.schedule_id) return String(record.schedule_id) === String(schedule.schedule_id || "");
+  const recordEmail = normalizeEmail_(record.email);
+  const scheduleEmail = normalizeEmail_(schedule.email);
+  if (record.schedule_id) {
+    // シフト由来の予定はメールを持たない場合がある。配置IDで結び、既知の本人情報の矛盾は拒否する。
+    if (recordEmail && scheduleEmail && recordEmail !== scheduleEmail) return false;
+    if (record.employee_code && schedule.employee_code && String(record.employee_code) !== String(schedule.employee_code)) return false;
+    return String(record.schedule_id) === String(schedule.schedule_id || "");
+  }
+  if (!recordEmail || !scheduleEmail || recordEmail !== scheduleEmail) return false;
   const sameUserSchedules = schedules.filter(s => normalizeEmail_(s.email) === normalizeEmail_(schedule.email));
   return sameUserSchedules.length === 1;
 }
 function findScheduleRecordIn_(records, schedule, schedules) { return records.find(record => recordMatchesSchedule_(record, schedule, schedules)) || null; }
 function fieldReportMatchesSchedule_(report, schedule, schedules) {
-  if (normalizeEmail_(report["報告者メール"]) !== normalizeEmail_(schedule.email)) return false;
-  if (report.schedule_id) return String(report.schedule_id) === String(schedule.schedule_id || "");
+  const reportEmail = normalizeEmail_(report["報告者メール"]);
+  const scheduleEmail = normalizeEmail_(schedule.email);
+  if (report.schedule_id) {
+    if (reportEmail && scheduleEmail && reportEmail !== scheduleEmail) return false;
+    return String(report.schedule_id) === String(schedule.schedule_id || "");
+  }
+  if (!reportEmail || !scheduleEmail || reportEmail !== scheduleEmail) return false;
   const samePlanSchedules = schedules.filter(s => normalizeEmail_(s.email) === normalizeEmail_(schedule.email) && String(s["開発予定ID"] || "") === String(schedule["開発予定ID"] || ""));
   return samePlanSchedules.length === 1 && String(report["開発予定ID"] || "") === String(schedule["開発予定ID"] || "");
 }
