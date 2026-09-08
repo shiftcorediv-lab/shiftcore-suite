@@ -562,7 +562,17 @@ async function submitCompletion() {
   if (!await openDialog("終了報告", body, "終了報告する")) return;
   const reason = readReason();
   if (approvalRequired && !reason) return showStatus("理由を入力してください。", true);
-  await runAction(async () => { const result = await attendanceRequest("clockOut", { scheduleId: dashboardData.schedule?.schedule_id || "", reason, reasonType: $("reasonType")?.value || "その他" }); if (result.workReportRequired) { sessionStorage.setItem("shiftcore_report_context", JSON.stringify({ recordId: result.record.record_id })); window.location.href = "./work-report.html"; return; } await loadDashboard(); showAlert("終了報告を記録しました。この案件は実績報告の対象外です。", "success"); });
+  await runAction(async () => {
+    const result = await attendanceRequest("clockOut", { scheduleId: dashboardData.schedule?.schedule_id || "", reason, reasonType: $("reasonType")?.value || "その他" });
+    showAlert("終了報告を記録しました。", "success");
+    if (result.workReportRequired) {
+      sessionStorage.setItem("shiftcore_report_context", JSON.stringify({ recordId: result.record.record_id }));
+      window.location.href = "./work-report.html";
+      return;
+    }
+    await loadDashboard();
+    showAlert("終了報告を記録しました。この案件は実績報告の対象外です。", "success");
+  });
 }
 
 function actionState(data) { const reports = data.fieldReports || []; const departure = reports.some(r => r["報告種別"] === "出発"); const nearestArrival = reports.some(r => r["報告種別"] === "最寄り到着"); const arrival = reports.some(r => r["報告種別"] === "入店"); if (!data.schedule) return data.record?.["実開始"] && !data.record?.["実終了"] ? { name: "completion", label: "終了報告", hidden: false } : { name: "unplanned", label: "予定外稼働", hidden: Boolean(data.record?.["実終了"]) }; if (!departure) return { name: "departure", label: "出発", hidden: false }; if (!nearestArrival && !arrival && !data.record?.["実開始"]) return { name: "nearestArrival", label: "最寄り到着", hidden: false }; if (!arrival || !data.record?.["実開始"]) return { name: "arrival", label: "入店", hidden: false }; if (!data.record?.["実終了"]) return { name: "completion", label: "終了報告", hidden: false }; return { name: "done", label: "終了報告済み", hidden: true }; }
