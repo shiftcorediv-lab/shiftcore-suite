@@ -226,6 +226,12 @@ function rememberServerTiming(name, timing) {
   });
   if (timing?.referenceCache) $("statusBox").dataset[`${name}ReferenceCache`] = String(timing.referenceCache);
   if (timing?.recordsCache) $("statusBox").dataset[`${name}RecordsCache`] = String(timing.recordsCache);
+  ["cacheReadMs", "schedulesMs", "fieldReportsMs", "notificationsMs", "settingsMs", "approvalAccessMs", "cacheWriteMs"].forEach(key => {
+    const attribute = `${name}Reference${key[0].toUpperCase()}${key.slice(1)}`;
+    const value = timing?.referenceBreakdown?.[key];
+    delete $("statusBox").dataset[attribute];
+    if (typeof value === "number" && Number.isFinite(value) && value >= 0) $("statusBox").dataset[attribute] = String(Math.round(value));
+  });
 }
 
 function renderMyWorkReportSummaryError(message) {

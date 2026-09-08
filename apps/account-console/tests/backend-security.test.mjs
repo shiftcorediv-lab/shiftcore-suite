@@ -414,6 +414,9 @@ test("勤怠ダッシュボードは本人の読取データを再利用し、�
   assert.equal(second._serverTiming.referenceCache, "hit");
   assert.equal(first._serverTiming.recordsCache, "miss");
   assert.equal(second._serverTiming.recordsCache, "hit");
+  assert.deepEqual(Object.keys(first._serverTiming.referenceBreakdown).sort(), ["approvalAccessMs", "cacheReadMs", "cacheWriteMs", "fieldReportsMs", "notificationsMs", "schedulesMs", "settingsMs"].sort());
+  assert.ok(Object.values(first._serverTiming.referenceBreakdown).every(value => typeof value === "number" && value >= 0));
+  assert.deepEqual(Object.keys(second._serverTiming.referenceBreakdown), ["cacheReadMs"], "再利用時に前回の各取得時間を返さない");
   assert.ok(Array.from(cacheTtls.entries()).some(([key, ttl]) => key.includes("dashboard-records") && ttl === 900));
   for (const sheetName of ["稼働予定", "現場報告", "通知", "設定"]) assert.equal(rowReads[sheetName], 1, sheetName);
   assert.equal(rowReads["勤怠記録"], 1);
