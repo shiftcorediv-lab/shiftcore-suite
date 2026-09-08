@@ -369,8 +369,9 @@ async function submitDeparture() {
   if (!accepted) return;
   await runAction(async () => {
     const result = await attendanceRequest("submitFieldReport", { reportType: "出発", scheduleId: dashboardData.schedule.schedule_id || "" });
-    await loadDashboard();
+    // 保存確定の通知は重い再取得を待たせない。次の操作は再取得後に解放する。
     showFieldReportResult("出発", result);
+    await loadDashboard();
   });
 }
 
@@ -380,8 +381,8 @@ async function submitNearestArrival() {
   await runAction(async () => {
     const location = await readAttendanceLocation();
     const result = await attendanceRequest("submitFieldReport", { reportType: "最寄り到着", scheduleId: dashboardData.schedule.schedule_id || "", location });
-    await loadDashboard();
     showFieldReportResult("最寄り到着", result);
+    await loadDashboard();
   });
 }
 

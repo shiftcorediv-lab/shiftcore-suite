@@ -6,6 +6,38 @@ import vm from "node:vm";
 const source = readFileSync(new URL("../js/dashboard/main.js", import.meta.url), "utf8");
 const functionSource = name => source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0];
 
+for (const name of ['submitDeparture', 'submitNearestArrival']) {
+  test(`${name}: 保存確定後すぐ通知し、再取得完了までは処理を終えない`, async () => {
+    const events = [];
+    let resolveSave, resolveRefresh, finished = false;
+    const save = new Promise(resolve => { resolveSave = resolve; });
+    const refresh = new Promise(resolve => { resolveRefresh = resolve; });
+    const c = vm.createContext({ busy: false, dashboardData: { schedule: { schedule_id: 'S1' } },
+      openDialog: async () => true, readAttendanceLocation: async () => ({}),
+      runAction: async action => action(), attendanceRequest: () => save,
+      showFieldReportResult: () => events.push('saved'),
+      loadDashboard: () => { events.push('refresh'); return refresh; } });
+    vm.runInContext(functionSource(name), c);
+    const pending = c[name]().then(() => { finished = true; });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(events, [], '保存前に成功を表示しない');
+    resolveSave({ ok: true });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(events, ['saved', 'refresh']);
+    assert.equal(finished, false);
+    resolveRefresh(); await pending;
+    assert.equal(finished, true);
+  });
+  test(`${name}: 保存失敗なら成功通知も再取得も行わない`, async () => {
+    const c = vm.createContext({ busy: false, dashboardData: { schedule: { schedule_id: 'S1' } },
+      openDialog: async () => true, readAttendanceLocation: async () => ({}),
+      runAction: async action => action(), attendanceRequest: async () => { throw new Error('保存失敗'); },
+      showFieldReportResult: () => assert.fail('成功通知禁止'), loadDashboard: () => assert.fail('再取得禁止') });
+    vm.runInContext(functionSource(name), c);
+    await assert.rejects(c[name](), /保存失敗/);
+  });
+}
+
 test("通知失敗は打刻保存済みの警告として表示する", () => {
   let result;
   const context = vm.createContext({ showAlert: (message, type) => { result = { message, type }; } });
