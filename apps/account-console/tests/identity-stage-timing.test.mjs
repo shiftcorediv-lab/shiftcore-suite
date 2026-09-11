@@ -97,3 +97,36 @@ test('通常のダッシュボード応答に今回の本人確認の計測値�
   assert.equal(response.serverTiming.identity.memberLookupMs, 34);
   assert.doesNotMatch(JSON.stringify(response.serverTiming), /PRIVATE_EMAIL/);
 });
+
+test('本人確認の一回の遅延と失敗後の再試行を分離して計測する', () => {
+  for (const retry of [false,true]) {
+    let now = 0, calls = 0;
+    const c = vm.createContext({Date:{now:()=>now},console:{warn(){}},Utilities:{sleep:ms=>{now+=ms;}},UrlFetchApp:{fetch(){
+      calls++;
+      now += calls === 1 ? 40000 : 2000;
+      if(retry && calls===1) throw new Error('PRIVATE_TOKEN');
+      return {getResponseCode:()=>200,getContentText:()=>JSON.stringify({ok:true,user:{email:'PRIVATE_EMAIL'}})};
+    }}});
+    vm.runInContext(attendance,c);
+    const timing={};
+    assert.equal(c.resolveUser_('PRIVATE_TOKEN',{timing}).email,'PRIVATE_EMAIL');
+    assert.equal(timing.attemptCount,retry?2:1);
+    assert.equal(timing.firstAttemptMs,40000);
+    assert.equal(timing.secondAttemptMs,retry?2000:undefined);
+    assert.equal(timing.retryWaitMs,retry?500:undefined);
+    assert.equal(timing.roundTripMs,retry?42500:40000);
+    assert.equal(calls,retry?2:1);
+    assert.doesNotMatch(JSON.stringify(timing),/PRIVATE/);
+  }
+});
+
+test('再試行の表示値はキャッシュ利用時に全て消える', () => {
+  const fn=read('../js/dashboard/main.js').match(/function rememberServerTiming\([^]*?\n\}/)[0];
+  const element={dataset:{}};
+  const c=vm.createContext({$:()=>element});vm.runInContext(fn,c);
+  c.rememberServerTiming('dashboard',{totalMs:42500,identity:{cache:'miss',attemptCount:2,firstAttemptMs:40000,secondAttemptMs:2000,retryWaitMs:500}});
+  assert.equal(element.dataset.dashboardIdentityAttemptCount,'2');
+  assert.equal(element.dataset.dashboardIdentityFirstAttemptMs,'40000');
+  c.rememberServerTiming('dashboard',{totalMs:40,identity:{cache:'hit'}});
+  for(const key of ['AttemptCount','FirstAttemptMs','SecondAttemptMs','RetryWaitMs']) assert.equal(element.dataset[`dashboardIdentity${key}`],undefined);
+});

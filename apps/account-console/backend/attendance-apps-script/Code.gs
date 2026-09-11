@@ -305,7 +305,7 @@ function resolveUser_(idToken, options) {
     } catch (error) {}
   }
   const lookupStartedAt = Date.now();
-  const data = resolveAttendanceIdentity_(idToken);
+  const data = resolveAttendanceIdentity_(idToken, timing);
   if (timing) {
     timing.roundTripMs = Date.now() - lookupStartedAt;
     // 古いアカウントAPIとも互換。自由な上流データを診断へ転送しない。
@@ -320,10 +320,11 @@ function resolveUser_(idToken, options) {
   return data.user;
 }
 
-function resolveAttendanceIdentity_(idToken) {
+function resolveAttendanceIdentity_(idToken, timing) {
   const failures = [];
   // 本人確認だけを再試行する。打刻処理そのものはここでは実行しない。
   for (let attempt = 0; attempt < 2; attempt++) {
+    const attemptStartedAt = Date.now();
     let data = {};
     let status = 0;
     let failure = "TRANSPORT";
@@ -339,6 +340,10 @@ function resolveAttendanceIdentity_(idToken) {
       data = JSON.parse(response.getContentText() || "{}");
       failure = "INVALID_RESPONSE";
     } catch (_) {}
+    if (timing) {
+      timing.attemptCount = attempt + 1;
+      timing[attempt === 0 ? "firstAttemptMs" : "secondAttemptMs"] = Date.now() - attemptStartedAt;
+    }
     if (!data || typeof data !== "object" || Array.isArray(data)) data = {};
     if (Number.isInteger(status) && status >= 100 && status <= 599 && status !== 200) failure = "HTTP_" + status;
     const code = String(data.code || "");
@@ -354,7 +359,11 @@ function resolveAttendanceIdentity_(idToken) {
     failures.push(failure);
     // ログが取得できない環境でも画面で照合できる固定分類のみ。上流の自由文や認証情報は出さない。
     try { console.warn("ATTENDANCE_IDENTITY_UNAVAILABLE", failure); } catch (_) {}
-    if (attempt === 0) Utilities.sleep(500);
+    if (attempt === 0) {
+      const waitStartedAt = Date.now();
+      Utilities.sleep(500);
+      if (timing) timing.retryWaitMs = Date.now() - waitStartedAt;
+    }
   }
   throw apiError_("AUTH_SERVICE_UNAVAILABLE", "本人確認サービスに接続できず、今回の操作は保存していません。少し待ってからもう一度押してください。（確認コード：" + failures.join(" → ") + "）");
 }
