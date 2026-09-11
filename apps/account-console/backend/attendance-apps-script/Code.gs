@@ -166,7 +166,8 @@ function doPost(e) {
     const body = JSON.parse((e && e.postData && e.postData.contents) || "{}");
     const action = String(body.action || "");
     attendanceDiagnosticAction_ = ["getPortalBootstrap", "getDashboardData", "refreshDashboardData", "getMyWorkReportSummary", "submitFieldReport", "arrive", "clockIn", "clockOut", "submitCorrection"].includes(action) ? action : null;
-    const user = attendanceStage_("auth", () => resolveUser_(body.idToken, { allowReadCache: ["getPortalBootstrap", "getDashboardData", "getMyWorkReportSummary"].includes(action) }));
+    const identityTiming = {};
+    const user = attendanceStage_("auth", () => resolveUser_(body.idToken, { allowReadCache: ["getPortalBootstrap", "getDashboardData", "getMyWorkReportSummary"].includes(action), timing: identityTiming }));
     const authenticatedAt = Date.now();
     const payload = body.payload || {};
 
@@ -179,6 +180,7 @@ function doPost(e) {
       delete dashboard._serverTiming;
       dashboard.scheduleSync = dashboardScheduleSyncStatus_();
       dashboard.serverTiming = {
+        identity: identityTiming,
         authMs: authenticatedAt - requestStartedAt,
         referenceMs: Number(readTiming.referenceMs) || 0,
         referenceBreakdown: readTiming.referenceBreakdown || {},
@@ -205,6 +207,7 @@ function doPost(e) {
       return jsonOutput_(Object.assign(dashboard, {
         scheduleSync: scheduleResult.sync,
         serverTiming: {
+          identity: identityTiming,
           authMs: authenticatedAt - requestStartedAt,
           scheduleSyncMs: scheduleCompletedAt - startedAt,
           referenceMs: Number(readTiming.referenceMs) || 0,
@@ -229,6 +232,7 @@ function doPost(e) {
       const summary = attendanceStage_("summary", () => getMyWorkReportSummary_(user, payload));
       const actionMs = Number(summary.serverTiming && summary.serverTiming.totalMs) || 0;
       summary.serverTiming = {
+        identity: identityTiming,
         authMs: authenticatedAt - requestStartedAt,
         summaryMs: actionMs,
         totalMs: Date.now() - requestStartedAt
@@ -286,15 +290,30 @@ function getPortalBootstrap_(user, payload) {
 
 function resolveUser_(idToken, options) {
   if (!idToken) throw apiError_("AUTH_REQUIRED", "ログイン情報がありません。");
+  const timing = options && options.timing;
   const cache = options && options.allowReadCache ? dashboardScheduleSyncCache_() : null;
   const cacheKey = cache ? dashboardReadAuthCacheKey_(idToken) : "";
+  if (timing) timing.cache = cache ? "miss" : "disabled";
   if (cache) {
     try {
       const cached = cache.get(cacheKey);
-      if (cached) return JSON.parse(cached);
+      if (cached) {
+        const user = JSON.parse(cached);
+        if (timing) timing.cache = "hit";
+        return user;
+      }
     } catch (error) {}
   }
+  const lookupStartedAt = Date.now();
   const data = resolveAttendanceIdentity_(idToken);
+  if (timing) {
+    timing.roundTripMs = Date.now() - lookupStartedAt;
+    // 古いアカウントAPIとも互換。自由な上流データを診断へ転送しない。
+    ["firebaseMs", "memberLookupMs"].forEach(key => {
+      const value = data.identityTiming && data.identityTiming[key];
+      if (typeof value === "number" && Number.isFinite(value) && value >= 0) timing[key] = value;
+    });
+  }
   if (cache) {
     try { cache.put(cacheKey, JSON.stringify(data.user), DASHBOARD_READ_AUTH_CACHE_TTL_SECONDS); } catch (error) {}
   }

@@ -72,12 +72,19 @@ function resolveFirebaseEmailByIdToken_(idToken) {
 
 // ===== IDトークンから currentUser 解決ここから =====
 function resolveCurrentUserByIdToken(idToken) {
+  const startedAt = Date.now();
   const tokenResult = resolveFirebaseEmailByIdToken_(idToken);
+  const verifiedAt = Date.now();
 
   if (!tokenResult.ok) {
     return tokenResult;
   }
 
-  return checkLoginUserByEmail(tokenResult.email);
+  const result = checkLoginUserByEmail(tokenResult.email);
+  // 応答の組み立てを含む台帳照合時間。本人情報や認証情報は診断へ複製しない。
+  return Object.assign({}, result, { identityTiming: {
+    firebaseMs: verifiedAt - startedAt,
+    memberLookupMs: Date.now() - verifiedAt
+  } });
 }
 // ===== IDトークンから currentUser 解決ここまで =====
