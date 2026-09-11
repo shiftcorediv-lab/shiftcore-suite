@@ -130,3 +130,22 @@ test('再試行の表示値はキャッシュ利用時に全て消える', () =>
   c.rememberServerTiming('dashboard',{totalMs:40,identity:{cache:'hit'}});
   for(const key of ['AttemptCount','FirstAttemptMs','SecondAttemptMs','RetryWaitMs']) assert.equal(element.dataset[`dashboardIdentity${key}`],undefined);
 });
+
+test('本人確認は同じアカウントAPIへ直接接続し、一時障害時だけ既存中継へ戻す', () => {
+  for (const failure of [null, 'temporary', 'TOKEN_EXPIRED', 'USER_STOPPED']) {
+    const requests=[];
+    const c=vm.createContext({Date,console:{warn(){}},Utilities:{sleep(){}},UrlFetchApp:{fetch(url,options){
+      requests.push({url,body:JSON.parse(options.payload)});
+      if(requests.length===1 && failure==='temporary')throw new Error('offline');
+      const body=failure && failure!=='temporary'?{ok:false,code:failure}:{ok:true,user:{email:'PRIVATE_EMAIL'}};
+      return {getResponseCode:()=>200,getContentText:()=>JSON.stringify(body)};
+    }}});
+    vm.runInContext(attendance,c);
+    if(failure==='TOKEN_EXPIRED'||failure==='USER_STOPPED') assert.throws(()=>c.resolveUser_('TEST'),e=>e.code===(failure==='TOKEN_EXPIRED'?'AUTH_REFRESH_REQUIRED':'AUTH_ACCOUNT_UNAVAILABLE'));
+    else assert.equal(c.resolveUser_('TEST').email,'PRIVATE_EMAIL');
+    assert.equal(requests.length,failure==='temporary'?2:1);
+    assert.equal(requests[0].url,vm.runInContext('ACCOUNT_APPROVAL_API_RUNTIME_URL',c));
+    if(requests.length===2)assert.equal(requests[1].url,vm.runInContext('LOGIN_PROXY_URL',c));
+    for(const request of requests)assert.deepEqual(request.body,{action:'resolveCurrentUserByIdToken',idToken:'TEST'});
+  }
+});
