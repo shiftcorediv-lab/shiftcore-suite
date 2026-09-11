@@ -1,5 +1,22 @@
 const ATTENDANCE_PRODUCTION_SCRIPT_ID = "1tsjulGLiTCpX8dG66cdqR0E0rx2ntKcKpRxwr_6H_UYy5FExuZgmNi-Y";
 
+// 実行内だけの診断。自由入力・識別子・例外本文は記録しない。
+let attendanceDiagnosticAction_ = null;
+function attendanceStage_(stage, work) {
+  const startedAt = Date.now();
+  let completed = false;
+  try {
+    const result = work();
+    completed = true;
+    return result;
+  } finally {
+    if (attendanceDiagnosticAction_ && ["auth", "schedule", "save", "notification", "lock", "dashboard", "summary"].includes(stage)) {
+      // ログ障害によって打刻の戻り値や例外を変えない。
+      try { console.log("ATTENDANCE_STAGE_TIMING", JSON.stringify({ action: attendanceDiagnosticAction_, stage, durationMs: Date.now() - startedAt, outcome: completed ? "completed" : "error" })); } catch (_) {}
+    }
+  }
+}
+
 // GASの1実行内でだけ共有する。打刻から予定同期へ入っても外側のロックを解放しない。
 let attendanceWriteLockDepth_ = 0;
 function attendanceWriteLock_() {
@@ -8,7 +25,7 @@ function attendanceWriteLock_() {
   return {
     waitLock(milliseconds) {
       if (acquired) return;
-      if (attendanceWriteLockDepth_ === 0) lock.waitLock(milliseconds);
+      if (attendanceWriteLockDepth_ === 0) attendanceStage_("lock", () => lock.waitLock(milliseconds));
       attendanceWriteLockDepth_ += 1;
       acquired = true;
     },
@@ -17,7 +34,7 @@ function attendanceWriteLock_() {
       acquired = false;
       attendanceWriteLockDepth_ -= 1;
       if (attendanceWriteLockDepth_ === 0) {
-        try { SpreadsheetApp.flush(); } finally { lock.releaseLock(); }
+        try { attendanceStage_("save", () => SpreadsheetApp.flush()); } finally { lock.releaseLock(); }
       }
     }
   };
@@ -143,18 +160,20 @@ function doGet(e) {
 }
 
 function doPost(e) {
+  attendanceDiagnosticAction_ = null;
   try {
     const requestStartedAt = Date.now();
     const body = JSON.parse((e && e.postData && e.postData.contents) || "{}");
     const action = String(body.action || "");
-    const user = resolveUser_(body.idToken, { allowReadCache: ["getPortalBootstrap", "getDashboardData", "getMyWorkReportSummary"].includes(action) });
+    attendanceDiagnosticAction_ = ["getPortalBootstrap", "getDashboardData", "refreshDashboardData", "getMyWorkReportSummary", "submitFieldReport", "arrive", "clockIn", "clockOut", "submitCorrection"].includes(action) ? action : null;
+    const user = attendanceStage_("auth", () => resolveUser_(body.idToken, { allowReadCache: ["getPortalBootstrap", "getDashboardData", "getMyWorkReportSummary"].includes(action) }));
     const authenticatedAt = Date.now();
     const payload = body.payload || {};
 
     if (action === "getPortalBootstrap") return jsonOutput_(getPortalBootstrap_(user, payload));
     if (action === "getDashboardData") {
       const startedAt = Date.now();
-      const dashboard = getDashboardData_(user, null, payload.scheduleId, { deferNotifications: payload.deferNotifications === true });
+      const dashboard = attendanceStage_("dashboard", () => getDashboardData_(user, null, payload.scheduleId, { deferNotifications: payload.deferNotifications === true }));
       const completedAt = Date.now();
       const readTiming = dashboard._serverTiming || {};
       delete dashboard._serverTiming;
@@ -179,7 +198,7 @@ function doPost(e) {
         sourceRevision: String(payload.shiftDataRevision || '').trim()
       });
       const scheduleCompletedAt = Date.now();
-      const dashboard = getDashboardData_(user, scheduleResult.schedules, payload.scheduleId, { deferNotifications: payload.deferNotifications === true });
+      const dashboard = attendanceStage_("dashboard", () => getDashboardData_(user, scheduleResult.schedules, payload.scheduleId, { deferNotifications: payload.deferNotifications === true }));
       const completedAt = Date.now();
       const readTiming = dashboard._serverTiming || {};
       delete dashboard._serverTiming;
@@ -207,7 +226,7 @@ function doPost(e) {
     if (action === "getWorkReportForm") return jsonOutput_(getWorkReportForm_(user, payload));
     if (action === "submitReport") return jsonOutput_(submitReport_(user, payload));
     if (action === "getMyWorkReportSummary") {
-      const summary = getMyWorkReportSummary_(user, payload);
+      const summary = attendanceStage_("summary", () => getMyWorkReportSummary_(user, payload));
       const actionMs = Number(summary.serverTiming && summary.serverTiming.totalMs) || 0;
       summary.serverTiming = {
         authMs: authenticatedAt - requestStartedAt,
@@ -230,6 +249,8 @@ function doPost(e) {
     throw apiError_("UNKNOWN_ACTION", "未対応の操作です。");
   } catch (error) {
     return jsonOutput_({ ok: false, code: error.code || "SERVER_ERROR", message: error.message || String(error) });
+  } finally {
+    attendanceDiagnosticAction_ = null;
   }
 }
 
@@ -1876,6 +1897,10 @@ function validateAttendanceLocation_(location, actionCode) {
 }
 
 function notifyManagers_(subjectUser, title, message) {
+  return attendanceStage_("notification", () => notifyManagersCore_(subjectUser, title, message));
+}
+
+function notifyManagersCore_(subjectUser, title, message) {
   let stage = "recipients";
   try {
     const managers = managerEmails_(subjectUser.organization_id);
@@ -1912,7 +1937,7 @@ function managerEmails_(organizationId) {
 }
 
 function getSchedules_(idToken) {
-  const result = syncSchedules_(idToken);
+  const result = attendanceStage_("schedule", () => syncSchedules_(idToken));
   if (result.synced) markDashboardScheduleSyncFresh_(null, null, null, result.changed);
   return result.schedules;
 }
@@ -1937,7 +1962,7 @@ function getDashboardSchedules_(idToken, options) {
     return { schedules: local, sync: { status: claimed && claimed.status === "fresh" ? "fresh-cache" : "in-progress", syncedAt: claimed && claimed.syncedAt || "" } };
   }
 
-  const result = syncSchedules_(idToken, local);
+  const result = attendanceStage_("schedule", () => syncSchedules_(idToken, local));
   if (result.synced) {
     markDashboardScheduleSyncFresh_(cache, key, sourceRevision, result.changed);
     return { schedules: result.schedules, sync: { status: "refreshed", syncedAt: nowIso_() } };
@@ -2308,9 +2333,9 @@ function locationSpreadsheetId_() {
 }
 function objects_(sheet) { const values = sheet.getDataRange().getValues(); if (values.length < 2) return []; const headers = values.shift().map(String); return values.filter(row => row.some(v => v !== "")).map(row => headers.reduce((o, h, i) => (o[h] = row[i], o), {})); }
 function append_(name, values) { const sheet = SpreadsheetApp.getActive().getSheetByName(name); if (!sheet) throw apiError_("SHEET_NOT_FOUND", `${name}シートがありません。`); sheet.appendRow(values); }
-function appendObject_(name, value) { const sheet = SpreadsheetApp.getActive().getSheetByName(name); if (!sheet) throw apiError_("SHEET_NOT_FOUND", `${name}シートがありません。`); const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String); const missing = Object.keys(value).filter(key => !headers.includes(key)); if (missing.length) throw apiError_("SHEET_SCHEMA_MISMATCH", `${name}シートの列が不足しています: ${missing.join(",")}`); sheet.appendRow(headers.map(header => value[header] == null ? "" : value[header])); }
+function appendObject_(name, value) { return attendanceStage_("save", () => { const sheet = SpreadsheetApp.getActive().getSheetByName(name); if (!sheet) throw apiError_("SHEET_NOT_FOUND", `${name}シートがありません。`); const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String); const missing = Object.keys(value).filter(key => !headers.includes(key)); if (missing.length) throw apiError_("SHEET_SCHEMA_MISMATCH", `${name}シートの列が不足しています: ${missing.join(",")}`); sheet.appendRow(headers.map(header => value[header] == null ? "" : value[header])); }); }
 function appendObjects_(name, values) { if (!values.length) return; const sheet = SpreadsheetApp.getActive().getSheetByName(name); if (!sheet) throw apiError_("SHEET_NOT_FOUND", `${name}シートがありません。`); const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String); const missing = values.reduce((result, value) => result.concat(Object.keys(value).filter(key => !headers.includes(key))), []).filter((value, index, all) => all.indexOf(value) === index); if (missing.length) throw apiError_("SHEET_SCHEMA_MISMATCH", `${name}シートの列が不足しています: ${missing.join(",")}`); const rows = values.map(value => headers.map(header => value[header] == null ? "" : value[header])); sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, headers.length).setValues(rows); }
-function updateById_(sheetName, idColumn, id, changes) { const sheet = SpreadsheetApp.getActive().getSheetByName(sheetName); const values = sheet.getDataRange().getValues(); const headers = values[0].map(String); const rowIndex = values.findIndex((r, i) => i > 0 && String(r[headers.indexOf(idColumn)]) === String(id)); if (rowIndex < 1) throw apiError_("NOT_FOUND", "対象データが見つかりません。"); Object.keys(changes).forEach(k => { const col = headers.indexOf(k); if (col >= 0) sheet.getRange(rowIndex + 1, col + 1).setValue(changes[k]); }); }
+function updateById_(sheetName, idColumn, id, changes) { return attendanceStage_("save", () => { const sheet = SpreadsheetApp.getActive().getSheetByName(sheetName); const values = sheet.getDataRange().getValues(); const headers = values[0].map(String); const rowIndex = values.findIndex((r, i) => i > 0 && String(r[headers.indexOf(idColumn)]) === String(id)); if (rowIndex < 1) throw apiError_("NOT_FOUND", "対象データが見つかりません。"); Object.keys(changes).forEach(k => { const col = headers.indexOf(k); if (col >= 0) sheet.getRange(rowIndex + 1, col + 1).setValue(changes[k]); }); }); }
 function settings_() { return rows_(SHEETS.settings).reduce((o, r) => (o[String(r["設定キー"])] = String(r["設定値"]), o), {}); }
 function ensureReportSheet_() { const ss = SpreadsheetApp.getActive(); if (!ss.getSheetByName(SHEETS.reports)) { const s = ss.insertSheet(SHEETS.reports); s.appendRow(HEADERS.reports); s.setFrozenRows(1); } }
 function ensureWorkReportSheetsWithLock_() { const lock = attendanceWriteLock_(); lock.waitLock(20000); try { return ensureWorkReportSheets_(); } finally { lock.releaseLock(); } }
