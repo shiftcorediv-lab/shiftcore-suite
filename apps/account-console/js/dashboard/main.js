@@ -222,6 +222,15 @@ function rememberServerTiming(name, timing) {
   const totalMs = Number(timing?.totalMs);
   if (!Number.isFinite(totalMs) || totalMs < 0) return;
   $("statusBox").dataset[`${name}ServerMs`] = String(Math.round(totalMs));
+  // キャッシュ利用時に前回の実照合時間を残さない。
+  delete $("statusBox").dataset[`${name}IdentityCache`];
+  if (["hit", "miss", "disabled"].includes(timing?.identity?.cache)) $("statusBox").dataset[`${name}IdentityCache`] = timing.identity.cache;
+  ["roundTripMs", "firebaseMs", "memberLookupMs"].forEach(key => {
+    const attribute = `${name}Identity${key[0].toUpperCase()}${key.slice(1)}`;
+    delete $("statusBox").dataset[attribute];
+    const value = timing?.identity?.[key];
+    if (typeof value === "number" && Number.isFinite(value) && value >= 0) $("statusBox").dataset[attribute] = String(Math.round(value));
+  });
   ["authMs", "referenceMs", "recordsMs", "assembleMs", "dashboardMs"].forEach(key => {
     const value = Number(timing?.[key]);
     if (Number.isFinite(value) && value >= 0) $("statusBox").dataset[`${name}${key[0].toUpperCase()}${key.slice(1)}`] = String(Math.round(value));
