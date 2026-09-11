@@ -87,9 +87,44 @@ test('送信後の通信切断は保存失敗と断定せず、自動再送し�
 });
 
 test('読み込みの通信切断を打刻失敗として扱わない', async () => {
-  const {context,calls}=await frontend([new Error('Failed to fetch')]);
+  const {context,calls}=await frontend([new Error('Failed to fetch'),new Error('Failed to fetch')]);
   await assert.rejects(context.attendanceRequest('getDashboardData'), error =>
     error.code === 'API_NETWORK_ERROR' && !/保存|打刻/.test(error.message));
+  assert.equal(calls(),2);
+});
+
+for (const action of ['getDashboardData','getMyWorkReportSummary']) {
+  for (const failure of [new Error('offline'),{invalidJson:true},null,{}]) {
+    test(`${action}の一時的な通信・応答不良は一度だけ再試行する: ${JSON.stringify(failure)}`, async () => {
+      const {context,calls,tokens} = await frontend([failure,{ok:true}]);
+      assert.equal((await context.attendanceRequest(action)).ok,true);
+      assert.equal(calls(),2);
+      assert.deepEqual(tokens,[false,false]);
+    });
+  }
+}
+test('読み取り応答不良が続いても二回で止まり、保存結果不明と案内しない', async () => {
+  const {context,calls} = await frontend([{invalidJson:true},{invalidJson:true},{ok:true}]);
+  await assert.rejects(context.attendanceRequest('getDashboardData'), e => e.code==='INVALID_API_RESPONSE' && !/保存|再送/.test(e.message));
+  assert.equal(calls(),2);
+});
+for (const action of ['refreshDashboardData','getWorkReportForm','arrive','clockIn','clockOut','submitCorrection','submitFieldReport','submitReport']) {
+  test(`${action}は読み取り再試行の対象へ広げない`, async () => {
+    const {context,calls} = await frontend([{invalidJson:true},{ok:true}]);
+    await assert.rejects(context.attendanceRequest(action));
+    assert.equal(calls(),1);
+  });
+}
+test('停止・権限エラーは読み取りでも再試行しない', async () => {
+  const {context,calls} = await frontend([{ok:false,code:'AUTH_ACCOUNT_UNAVAILABLE'},{ok:true}]);
+  await assert.rejects(context.attendanceRequest('getDashboardData'));
+  assert.equal(calls(),1);
+});
+test('再試行時にログイン本人が変わっていたら送信しない', async () => {
+  const {context,calls} = await frontend([{invalidJson:true},{ok:true}]);
+  const fetch = context.fetch;
+  context.fetch = async () => { const result = await fetch(); context.auth.currentUser = {uid:'different'}; return result; };
+  await assert.rejects(context.attendanceRequest('getDashboardData'), /アカウントが変わりました/);
   assert.equal(calls(),1);
 });
 
