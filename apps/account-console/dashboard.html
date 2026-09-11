@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="../common/environment.js?v=20260902-banner-height-1"></script>
   <title>Another Portal ダッシュボード</title>
-  <link rel="stylesheet" href="./css/dashboard.css?v=20260912-compact-weather-1">
+  <link rel="stylesheet" href="./css/dashboard.css?v=20260912-month-1">
   <script src="../theme/shiftcore-theme.js?v=20260906-header-2"></script>
   <link rel="stylesheet" href="../theme/shiftcore-theme.css?v=20260907-slot-color-2">
   <link rel="stylesheet" href="../theme/portal-field-responsive.css?v=20260903-responsive-layout-1">
@@ -87,6 +87,7 @@
       </section>
 
       <section class="content-grid">
+        <article class="card monthly-shift-card" aria-labelledby="monthlyShiftTitle"><div class="card-heading"><div><span class="section-label">予定</span><h2 id="monthlyShiftTitle">今月のシフト</h2></div></div><p class="monthly-shift-help">日付を選ぶと、その日の稼働場所と時間を確認できます。</p><div id="monthlyShift" data-shiftcore-loading="true" aria-busy="true">月間シフトを読み込んでいます…</div></article>
         <article class="card schedule-card"><div class="card-heading"><div><span class="section-label">予定</span><h2>直近の稼働予定</h2></div></div><div id="upcomingList" class="schedule-list"></div></article>
         <article class="card module-card-wrap"><div class="card-heading"><div><span class="section-label">機能</span><h2>業務モジュール</h2></div></div><div id="moduleList" class="module-list"></div></article>
       </section>
@@ -113,6 +114,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="./js/dashboard/main.js?v=20260909-report-feedback-1"></script>
+  <script type="module" src="./js/dashboard/main.js?v=20260912-month-1"></script>
 </body>
 </html>

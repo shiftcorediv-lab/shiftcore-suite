@@ -407,6 +407,10 @@ function getDashboardData_(user, sourceSchedules, selectedScheduleId, sourceRows
     schedule: selectedSchedule || null,
     schedules: todaySchedules,
     upcoming,
+    // 本人に絞った既存の取得結果を再利用し、月間表示のための外部通信は増やさない。
+    monthSchedules: schedules.filter(row => dateKey_(row["勤務日"]).slice(0, 7) === today.slice(0, 7)).map(row => ({
+      "勤務日": dateKey_(row["勤務日"]), "稼働場所": row["稼働場所"] || "", "予定開始": row["予定開始"] || "", "予定終了": row["予定終了"] || ""
+    })),
     record: selectedRecord,
     fieldReports: fieldReportsFor_(user, selectedWorkDate, selectedSchedule ? scheduleReportKey_(selectedSchedule) : "", selectedSchedule ? selectedSchedule["開発予定ID"] : "", fieldReports, schedules),
     timing: selectedSchedule ? safeTimingStatus_(selectedSchedule, new Date()) : null,
