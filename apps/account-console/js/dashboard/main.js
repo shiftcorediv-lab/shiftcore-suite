@@ -7,6 +7,7 @@ import { resolveCurrentUserWithGasByIdToken } from "../login/api.js?v=20260803-l
 import { LOCATION_CONSENT_VERSION } from "./config.js?v=20260905-agency-master-1";
 import { setActivity } from "../common/activity.js?v=20260831-activity-1";
 import { clearShiftCoreSessionState } from "../../../common/logout-session.js?v=20260902-session-1";
+import { renderMonthlyShift } from "./monthly-shift.js?v=20260912-month-1";
 
 const $ = id => document.getElementById(id);
 const storedUser = getStoredUser();
@@ -117,6 +118,7 @@ async function loadDashboard() {
     if (loadVersion !== dashboardLoadVersion) return;
     showStatus(error.message, true);
     renderUnavailable();
+    if ($("monthlyShift")) setActivity($("monthlyShift"), false, "月間シフトを取得できませんでした。画面を再読み込みしてください。");
   }
 }
 
@@ -299,7 +301,7 @@ function readDashboardCache() {
 function writeDashboardCache(data) {
   try {
     // 通知と個人成績は端末へ残さず、当日の打刻表示に必要な情報だけを再利用する。
-    localStorage.setItem(dashboardCacheKey, JSON.stringify({ ...data, notifications: [], workReportSummary: null, workReportSummaryError: null }));
+    localStorage.setItem(dashboardCacheKey, JSON.stringify({ ...data, monthSchedules: null, notifications: [], workReportSummary: null, workReportSummaryError: null }));
   } catch (_) {
     // キャッシュ不可でも通常のAPI表示は継続する。
   }
@@ -353,6 +355,8 @@ function renderDashboard(data) {
   $("deadlineNote").textContent = schedule ? "出発は予定開始1時間前、最寄り到着は15分前が目安です。入店すると稼働開始になります。" : "本日は稼働予定がありません。";
   renderTimingWarning(data, primaryState.name);
   renderUpcoming(data.upcoming || []);
+  if (Array.isArray(data.monthSchedules)) setActivity($("monthlyShift"), false);
+  renderMonthlyShift($("monthlyShift"), data, plannedTimeText);
   if (Array.isArray(data.notifications)) renderNotifications(data.notifications);
 }
 
