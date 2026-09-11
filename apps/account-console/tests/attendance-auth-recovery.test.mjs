@@ -5,7 +5,7 @@ import vm from 'node:vm';
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
 function backend(responses) {
   let calls = 0;
-  const context = vm.createContext({ console: { warn() {} }, Utilities: { sleep() {} }, UrlFetchApp: { fetch() { const data = responses[calls++]; if (data instanceof Error) throw data; return { getResponseCode: () => data.status ?? 200, getContentText: () => JSON.stringify(data.body) }; } } });
+  const context = vm.createContext({ console: { warn() {} }, Utilities: { sleep() {} }, UrlFetchApp: { fetch() { const data = responses[calls++]; if (data instanceof Error) throw data; return { getResponseCode: () => data.status ?? 200, getContentText: () => data.raw ?? JSON.stringify(data.body) }; } } });
   vm.runInContext(read('../backend/attendance-apps-script/Code.gs'), context);
   return { context, calls: () => calls };
 }
@@ -24,6 +24,34 @@ for (const [upstream, expected] of [['TOKEN_EXPIRED','AUTH_REFRESH_REQUIRED'],['
 test('通信失敗が続けば本人情報なしで処理を進めない', () => {
   const {context,calls} = backend([new Error('offline'),new Error('offline')]);
   assert.throws(() => context.resolveUser_('TEST'), error => error.code === 'AUTH_SERVICE_UNAVAILABLE');
+  assert.equal(calls(),2);
+});
+for (const [response, classification] of [
+  [new Error('PRIVATE_TOKEN PRIVATE_EMAIL'), 'TRANSPORT'],
+  [{status:503,raw:'PRIVATE_TOKEN PRIVATE_EMAIL'}, 'HTTP_503'],
+  [{raw:'<html>PRIVATE_TOKEN PRIVATE_EMAIL</html>'}, 'INVALID_JSON'],
+  [{body:null}, 'INVALID_RESPONSE'],
+  [{body:[]}, 'INVALID_RESPONSE'],
+  [{body:{ok:false,code:'PRIVATE_TOKEN',message:'PRIVATE_EMAIL'}}, 'INVALID_RESPONSE'],
+  [{body:{ok:true,user:{}}}, 'MISSING_USER_EMAIL'],
+  [{body:{ok:false,code:'TOKEN_LOOKUP_FAILED'}}, 'TOKEN_LOOKUP_FAILED'],
+]) {
+  test(`本人確認の失敗を安全な固定分類で画面に返す: ${classification}`, () => {
+    const {context,calls} = backend([response,response]);
+    assert.throws(() => context.resolveUser_('PRIVATE_TOKEN'), error => {
+      assert.equal(error.code,'AUTH_SERVICE_UNAVAILABLE');
+      assert.ok(error.message.includes(`確認コード：${classification} → ${classification}`));
+      assert.doesNotMatch(error.message,/PRIVATE_TOKEN|PRIVATE_EMAIL/);
+      return true;
+    });
+    assert.equal(calls(),2);
+  });
+}
+test('異なる失敗を順に残し、ログ障害でも既存の再試行を維持する', () => {
+  const {context,calls} = backend([new Error('offline'),{status:502,body:{}}]);
+  context.console.warn = () => { throw new Error('log unavailable'); };
+  assert.throws(() => context.resolveUser_('TEST'), error =>
+    error.code === 'AUTH_SERVICE_UNAVAILABLE' && error.message.includes('TRANSPORT → HTTP_502'));
   assert.equal(calls(),2);
 });
 async function frontend(results) {
