@@ -302,10 +302,12 @@ function resolveUser_(idToken, options) {
 }
 
 function resolveAttendanceIdentity_(idToken) {
+  const failures = [];
   // 本人確認だけを再試行する。打刻処理そのものはここでは実行しない。
   for (let attempt = 0; attempt < 2; attempt++) {
     let data = {};
     let status = 0;
+    let failure = "TRANSPORT";
     try {
       const response = UrlFetchApp.fetch(LOGIN_PROXY_URL, {
         method: "post",
@@ -314,8 +316,12 @@ function resolveAttendanceIdentity_(idToken) {
         muteHttpExceptions: true
       });
       status = response.getResponseCode();
+      failure = "INVALID_JSON";
       data = JSON.parse(response.getContentText() || "{}");
+      failure = "INVALID_RESPONSE";
     } catch (_) {}
+    if (!data || typeof data !== "object" || Array.isArray(data)) data = {};
+    if (Number.isInteger(status) && status >= 100 && status <= 599 && status !== 200) failure = "HTTP_" + status;
     const code = String(data.code || "");
     if (status === 200 && data.ok === true && data.user && data.user.email) return data;
     if (["TOKEN_EXPIRED", "INVALID_ID_TOKEN", "ID_TOKEN_REQUIRED", "INVALID_REFRESH_TOKEN"].includes(code)) {
@@ -324,11 +330,14 @@ function resolveAttendanceIdentity_(idToken) {
     if (["USER_STOPPED", "USER_DISABLED", "USER_NOT_FOUND", "EMAIL_NOT_FOUND"].includes(code)) {
       throw apiError_("AUTH_ACCOUNT_UNAVAILABLE", "このアカウントは利用できません。管理者に確認してください。");
     }
-    // トークン・メール・上流の自由文はログに残さない。
-    console.warn("ATTENDANCE_IDENTITY_UNAVAILABLE", status, ["WORKER_ERROR", "INVALID_LOOKUP_RESPONSE", "TOKEN_LOOKUP_FAILED"].includes(code) ? code : "OTHER");
+    if (status === 200 && ["WORKER_ERROR", "INVALID_LOOKUP_RESPONSE", "TOKEN_LOOKUP_FAILED"].includes(code)) failure = code;
+    if (status === 200 && data.ok === true && !(data.user && data.user.email)) failure = "MISSING_USER_EMAIL";
+    failures.push(failure);
+    // ログが取得できない環境でも画面で照合できる固定分類のみ。上流の自由文や認証情報は出さない。
+    try { console.warn("ATTENDANCE_IDENTITY_UNAVAILABLE", failure); } catch (_) {}
     if (attempt === 0) Utilities.sleep(500);
   }
-  throw apiError_("AUTH_SERVICE_UNAVAILABLE", "本人確認サービスに接続できず、今回の操作は保存していません。少し待ってからもう一度押してください。");
+  throw apiError_("AUTH_SERVICE_UNAVAILABLE", "本人確認サービスに接続できず、今回の操作は保存していません。少し待ってからもう一度押してください。（確認コード：" + failures.join(" → ") + "）");
 }
 
 function dashboardReadAuthCacheKey_(idToken) {
