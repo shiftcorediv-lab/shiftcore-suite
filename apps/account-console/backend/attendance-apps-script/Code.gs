@@ -1648,6 +1648,7 @@ function normalizeDashboardOrder_(value) { const order = Number(value || 0); if 
 function getAdminDashboard_(user, idToken) {
   const today = today_();
   const admin = isAdmin_(user);
+  const settings = admin ? settings_() : {};
   const schedules = admin ? getSchedules_(idToken).filter(r => dateKey_(r["勤務日"]) === today) : [];
   const records = admin ? rows_(SHEETS.records).filter(r => dateKey_(r["勤務日"]) === today) : [];
   const fieldReports = admin ? rows_(SHEETS.fieldReports).filter(r => dateKey_(r["勤務日"]) === today) : [];
@@ -1656,7 +1657,7 @@ function getAdminDashboard_(user, idToken) {
   const requests = admin
     ? pendingRequests
     : pendingRequests.filter(r => String(r.approval_reviewer_internal_user_id || "") === reviewerId);
-  const locations = admin && canViewPreciseLocation_(user) ? locationRows_() : [];
+  const locations = admin && canViewPreciseLocation_(user) ? locationRows_(settings) : [];
   const people = schedules.map(schedule => {
     const record = findScheduleRecordIn_(records, schedule, schedules);
     const matchingReports = fieldReports.filter(r => fieldReportMatchesSchedule_(r, schedule, schedules));
@@ -1669,7 +1670,7 @@ function getAdminDashboard_(user, idToken) {
     const loc = locations.find(l => String(l.attendance_record_id) === String(record.record_id));
     people.push({ schedule: null, record, location: loc || null, fieldReports: fieldReports.filter(r => normalizeEmail_(r["報告者メール"]) === normalizeEmail_(record.email)) });
   });
-  return { ok: true, serverNow: nowIso_(), people, requests, settings: admin ? settings_() : {}, preciseLocationAccess: admin && canViewPreciseLocation_(user) };
+  return { ok: true, serverNow: nowIso_(), people, requests, settings, preciseLocationAccess: admin && canViewPreciseLocation_(user) };
 }
 
 function reviewRequest_(user, payload, idToken) {
@@ -2361,10 +2362,11 @@ function findApprovalRequestId_(recordId, type) { const request = rows_(SHEETS.r
 function findTodayPlans_(user, idToken) { return getSchedules_(idToken).filter(r => matchesUser_(r, user) && dateKey_(r["勤務日"]) === today_()).map(r => ({ id: r["開発予定ID"] || r.schedule_id, name: r["開発予定名"] || r["稼働場所"] || "当日の開発予定" })); }
 function findPlansForDate_(user, idToken, workDate, sourceSchedules) { return (sourceSchedules || getSchedules_(idToken)).filter(r => matchesUser_(r, user) && dateKey_(r["勤務日"]) === workDate).map(r => ({ id: r["開発予定ID"] || r.schedule_id, name: r["開発予定名"] || r["稼働場所"] || "当日の開発予定" })); }
 function rows_(name) { const sheet = SpreadsheetApp.getActive().getSheetByName(name); return sheet ? objects_(sheet) : []; }
-function locationRows_() { const sheet = SpreadsheetApp.openById(locationSpreadsheetId_()).getSheetByName("位置情報ログ"); return objects_(sheet); }
+function locationRows_(sourceSettings) { const sheet = SpreadsheetApp.openById(locationSpreadsheetId_(sourceSettings)).getSheetByName("位置情報ログ"); return objects_(sheet); }
 
-function locationSpreadsheetId_() {
-  const id = settings_().location_spreadsheet_id;
+function locationSpreadsheetId_(sourceSettings) {
+  // 同じ応答のために取得済みの設定だけを再利用し、実行をまたぐキャッシュは作らない。
+  const id = (sourceSettings || settings_()).location_spreadsheet_id;
   if (!id) throw apiError_("CONFIG_MISSING", "位置情報保存先が設定されていません。");
   return id;
 }
