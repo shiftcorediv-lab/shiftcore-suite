@@ -57,6 +57,7 @@ test('異なる失敗を順に残し、ログ障害でも既存の再試行を�
 async function frontend(results) {
   const tokens = []; let calls = 0;
   const context = vm.createContext({auth:{currentUser:{uid:'test',getIdToken:async force => {tokens.push(force);return 'TEST';}}},ATTENDANCE_API_URL:'https://example.com',fetch:async () => {const result=results[calls++];if(result instanceof Error)throw result;return {json:async()=>{if(result?.invalidJson)throw new SyntaxError('Unexpected token <');return result;}};}});
+  Object.assign(context, { AbortController, setTimeout, clearTimeout });
   vm.runInContext(read('../js/dashboard/attendance-api.js').replace(/^import .*;\n/gm,'').replace('export async function','async function'),context);
   return {context,tokens,calls:()=>calls};
 }
@@ -126,6 +127,37 @@ test('再試行時にログイン本人が変わっていたら送信しない',
   context.fetch = async () => { const result = await fetch(); context.auth.currentUser = {uid:'different'}; return result; };
   await assert.rejects(context.attendanceRequest('getDashboardData'), /アカウントが変わりました/);
   assert.equal(calls(),1);
+});
+
+for (const phase of ['fetch', 'body']) {
+  test(`読み取りの${phase}待ちが60秒を超えたら終了し、自動再送しない`, async () => {
+    const {context} = await frontend([]);
+    let expire, requests = 0, cleared = 0;
+    context.setTimeout = (fn, ms) => { assert.equal(ms, 60000); expire = fn; return 1; };
+    context.clearTimeout = () => { cleared++; };
+    context.fetch = async (_url, options) => {
+      requests++;
+      const pending = () => new Promise((_resolve, reject) => {
+        options.signal.addEventListener('abort', () => reject(new Error('aborted')), {once:true});
+        expire();
+      });
+      return phase === 'fetch' ? pending() : {json: pending};
+    };
+    await assert.rejects(context.attendanceRequest('getDashboardData'), e => e.code === 'API_READ_TIMEOUT' && /再読み込み/.test(e.message));
+    assert.equal(requests, 1);
+    assert.equal(cleared, 1);
+  });
+}
+test('正常な読み取りはタイマーを解除し、保存・予定同期には打ち切りを追加しない', async () => {
+  const {context} = await frontend([{ok:true},{ok:true},{ok:true}]);
+  let started = 0, cleared = 0;
+  context.setTimeout = () => { started++; return 1; };
+  context.clearTimeout = () => { cleared++; };
+  await context.attendanceRequest('getMyWorkReportSummary');
+  await context.attendanceRequest('submitFieldReport');
+  await context.attendanceRequest('refreshDashboardData');
+  assert.equal(started, 1);
+  assert.equal(cleared, 1);
 });
 
 test('保存結果不明の画面は再打刻を止め、失敗と断定しない', async () => {
