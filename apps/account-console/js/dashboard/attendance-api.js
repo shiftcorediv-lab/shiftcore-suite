@@ -14,11 +14,21 @@ export async function attendanceRequest(action, payload = {}) {
     throw new Error("本人確認に接続できません。通信状況を確認して、もう一度押してください。今回の操作は送信していません。");
   }
   if (auth.currentUser?.uid !== user.uid) throw new Error("ログインしたアカウントが変わりました。画面を再読み込みしてください。");
-  const response = await fetch(ATTENDANCE_API_URL, {
+  let response;
+  try { response = await fetch(ATTENDANCE_API_URL, {
     method: "POST",
     headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: JSON.stringify({ action, idToken, payload })
-  });
+  }); } catch (_) {
+    // 応答が届かなくてもサーバー側では保存済みの場合がある。自動再送しない。
+    const error = new Error("サーバーに接続できませんでした。通信状況を確認して、画面を更新してください。");
+    error.code = "API_NETWORK_ERROR";
+    if (!/^(get|refresh)/.test(action)) {
+      error.message = "保存結果を確認できませんでした。保存済みの可能性があります。再送せず、画面を更新して記録を確認してください。確認できない場合は上席へ連絡してください。";
+      error.code = "SAVE_RESULT_UNKNOWN";
+    }
+    throw error;
+  }
   let result;
   try { result = await response.json(); }
   catch (_) {

@@ -602,7 +602,14 @@ async function runAction(action) {
   busy = true;
   document.body.classList.add("is-busy");
   showStatus("処理を送信しています…", false, true);
-  try { await action(); } catch (error) { showStatus(error.message, true); if (/通信|fetch|network/i.test(error.message)) showAlert("打刻を記録できませんでした。上席へ電話またはLINEで報告し、復旧後に修正申請してください。", "danger"); } finally { busy = false; document.body.classList.remove("is-busy"); }
+  try { await action(); } catch (error) {
+    showStatus(error.message, true);
+    if (["SAVE_RESULT_UNKNOWN", "INVALID_API_RESPONSE"].includes(error.code)) {
+      // 古い画面の同じ打刻を再送しない。再読込で保存結果が確認できてから操作する。
+      renderUnavailable("保存結果の確認が必要です");
+      showAlert(error.message, "warning");
+    }
+  } finally { busy = false; document.body.classList.remove("is-busy"); }
 }
 
 $("logoutBtn").addEventListener("click", logoutDashboard);
