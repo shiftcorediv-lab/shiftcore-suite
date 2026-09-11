@@ -6,6 +6,45 @@ const source = readFileSync(new URL('../backend/attendance-apps-script/Code.gs',
 const schedule = { schedule_id: 'SA-TEST', employee_code: 'TEST-1', email: '', '勤務日': '2026-09-08', '予定開始': '10:00', '予定終了': '18:00' };
 const record = { record_id: 'R-TEST', schedule_id: 'SA-TEST', employee_code: 'TEST-1', email: 'test@example.com', '勤務日': '2026-09-08', '実終了': '2026-09-08T22:52:00+09:00' };
 function context() { const c = vm.createContext({}); vm.runInContext(source,c); return c; }
+test('位置情報の表示でも設定の取得は更新ごとに1回だけにする', () => {
+  const c = context();
+  let reads = 0;
+  let locationId = 'location-first';
+  const opened = [];
+  c.today_ = () => '2026-09-08'; c.nowIso_ = () => 'TEST';
+  c.getSchedules_ = () => []; c.rows_ = () => [];
+  c.canViewPreciseLocation_ = () => true;
+  c.settings_ = () => { reads++; return { location_spreadsheet_id: locationId }; };
+  c.SpreadsheetApp = { openById: id => {
+    opened.push(id);
+    return { getSheetByName: () => ({ getDataRange: () => ({ getValues: () => [[]] }) }) };
+  } };
+  assert.equal(c.getAdminDashboard_({ role: 'admin' }, 'TEST').settings.location_spreadsheet_id, 'location-first');
+  assert.equal(reads, 1);
+  locationId = 'location-updated';
+  assert.equal(c.getAdminDashboard_({ role: 'admin' }, 'TEST').settings.location_spreadsheet_id, 'location-updated');
+  assert.equal(reads, 2);
+  assert.deepEqual(opened, ['location-first', 'location-updated']);
+});
+test('一般の承認担当には設定と位置情報を読み込まない', () => {
+  const c = context();
+  c.today_ = () => '2026-09-08'; c.nowIso_ = () => 'TEST'; c.rows_ = () => [];
+  c.isAdmin_ = () => false;
+  c.settings_ = () => { throw new Error('設定へのアクセス禁止'); };
+  c.locationRows_ = () => { throw new Error('位置情報へのアクセス禁止'); };
+  const result = c.getAdminDashboard_({ internal_user_id: 'reviewer' }, 'TEST');
+  assert.equal(Object.keys(result.settings).length, 0);
+  assert.equal(result.preciseLocationAccess, false);
+});
+test('位置情報保存先の単独取得は最新設定を読み、不足時は従来のエラーを返す', () => {
+  const c = context();
+  let reads = 0;
+  c.settings_ = () => { reads++; return { location_spreadsheet_id: 'location' }; };
+  assert.equal(c.locationSpreadsheetId_(), 'location');
+  assert.equal(reads, 1);
+  assert.throws(() => c.locationSpreadsheetId_({}), error => error.code === 'CONFIG_MISSING');
+  assert.equal(reads, 1);
+});
 test('終了前でも出発・最寄り到着・入店の各段階を管理画面へ返す', () => {
   const c = context();
   let savedReports = [];
