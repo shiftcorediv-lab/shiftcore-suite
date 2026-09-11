@@ -50,3 +50,34 @@ for(const result of [{ok:false,code:'AUTH_ACCOUNT_UNAVAILABLE'},{ok:false,code:'
     await assert.rejects(context.attendanceRequest('submitFieldReport'));assert.equal(calls(),1);
   });
 }
+
+test('送信後の通信切断は保存失敗と断定せず、自動再送しない', async () => {
+  const {context,calls}=await frontend([new Error('Failed to fetch')]);
+  await assert.rejects(context.attendanceRequest('submitFieldReport'), error =>
+    error.code === 'SAVE_RESULT_UNKNOWN' && /保存済みの可能性/.test(error.message) && /再送せず/.test(error.message));
+  assert.equal(calls(),1);
+});
+
+test('読み込みの通信切断を打刻失敗として扱わない', async () => {
+  const {context,calls}=await frontend([new Error('Failed to fetch')]);
+  await assert.rejects(context.attendanceRequest('getDashboardData'), error =>
+    error.code === 'API_NETWORK_ERROR' && !/保存|打刻/.test(error.message));
+  assert.equal(calls(),1);
+});
+
+test('保存結果不明の画面は再打刻を止め、失敗と断定しない', async () => {
+  const source=read('../js/dashboard/main.js');
+  const fn=source.match(/async function runAction\([^]*?\n\}/)[0];
+  for (const code of ['SAVE_RESULT_UNKNOWN','INVALID_API_RESPONSE']) {
+    const alerts=[]; let unavailable=false;
+    const context=vm.createContext({busy:false,document:{body:{classList:{add(){},remove(){}}}},
+      showStatus(){},showAlert:(message,kind)=>alerts.push({message,kind}),renderUnavailable:()=>{unavailable=true;}});
+    vm.runInContext(fn,context);
+    const error=Object.assign(new Error('保存結果が不明です。再送せず確認してください。'),{code});
+    await context.runAction(async()=>{throw error;});
+    assert.equal(unavailable,true);
+    assert.equal(alerts[0].kind,'warning');
+    assert.doesNotMatch(alerts[0].message,/記録できませんでした/);
+    assert.equal(context.busy,false);
+  }
+});
