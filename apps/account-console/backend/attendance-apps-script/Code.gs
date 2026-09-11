@@ -329,7 +329,9 @@ function resolveAttendanceIdentity_(idToken, timing) {
     let status = 0;
     let failure = "TRANSPORT";
     try {
-      const response = UrlFetchApp.fetch(LOGIN_PROXY_URL, {
+      // サーバー間の本人確認は同じ認証処理へ直接接続する。
+      // 一時障害時だけ既存の中継へ戻す。認証拒否では経路を変えて再試行しない。
+      const response = UrlFetchApp.fetch(attempt === 0 ? ACCOUNT_APPROVAL_API_RUNTIME_URL : LOGIN_PROXY_URL, {
         method: "post",
         contentType: "text/plain;charset=utf-8",
         payload: JSON.stringify({ action: "resolveCurrentUserByIdToken", idToken: idToken }),
