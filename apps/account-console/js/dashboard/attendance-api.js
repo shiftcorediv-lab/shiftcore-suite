@@ -17,12 +17,19 @@ export async function attendanceRequest(action, payload = {}) {
     throw new Error("本人確認に接続できません。通信状況を確認して、もう一度押してください。今回の操作は送信していません。");
   }
   if (auth.currentUser?.uid !== user.uid) throw new Error("ログインしたアカウントが変わりました。画面を再読み込みしてください。");
+  // 読み取りだけ待機を打ち切る。サーバー側の処理を止めた保証はないため、時間切れは自動再送しない。
+  const readController = retryableRead ? new AbortController() : null;
+  const readTimeout = readController ? setTimeout(() => readController.abort(), 60000) : null;
+  const timeoutError = () => Object.assign(new Error("読み込みに時間がかかっています。少し待ってから画面を再読み込みしてください。"), { code: "API_READ_TIMEOUT" });
   let response;
   try { response = await fetch(ATTENDANCE_API_URL, {
     method: "POST",
     headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify({ action, idToken, payload })
+    body: JSON.stringify({ action, idToken, payload }),
+    ...(readController ? { signal: readController.signal } : {})
   }); } catch (_) {
+    if (readTimeout !== null) clearTimeout(readTimeout);
+    if (readController?.signal.aborted) throw timeoutError();
     if (retryableRead && attempt === 0) continue;
     // 応答が届かなくてもサーバー側では保存済みの場合がある。自動再送しない。
     const error = new Error("サーバーに接続できませんでした。通信状況を確認して、画面を更新してください。");
@@ -36,10 +43,13 @@ export async function attendanceRequest(action, payload = {}) {
   let result;
   try { result = await response.json(); }
   catch (_) {
+    if (readController?.signal.aborted) throw timeoutError();
     if (retryableRead && attempt === 0) continue;
     const error = new Error(retryableRead ? "情報を読み込めませんでした。少し待ってから画面を更新してください。" : "サーバーの応答を確認できませんでした。保存操作の場合は結果が不明です。再送せず、画面を更新して記録を確認してください。");
     error.code = "INVALID_API_RESPONSE";
     throw error;
+  } finally {
+    if (readTimeout !== null) clearTimeout(readTimeout);
   }
   if (!result || typeof result !== "object" || typeof result.ok !== "boolean") {
     if (retryableRead && attempt === 0) continue;
