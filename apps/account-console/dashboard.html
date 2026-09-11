@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="../common/environment.js?v=20260902-banner-height-1"></script>
   <title>Another Portal ダッシュボード</title>
-  <link rel="stylesheet" href="./css/dashboard.css?v=20260831-work-report-alert-1">
+  <link rel="stylesheet" href="./css/dashboard.css?v=20260912-compact-weather-1">
   <script src="../theme/shiftcore-theme.js?v=20260906-header-2"></script>
   <link rel="stylesheet" href="../theme/shiftcore-theme.css?v=20260907-slot-color-2">
   <link rel="stylesheet" href="../theme/portal-field-responsive.css?v=20260903-responsive-layout-1">
@@ -51,7 +51,13 @@
       <section class="hero-grid">
         <article class="work-card card">
           <div class="card-heading"><div><span class="section-label">勤怠</span><h2>本日の稼働予定</h2></div><span id="workStatus" class="status-pill" data-shiftcore-loading="true" aria-busy="true">確認中</span></div>
-          <div class="work-place"><span class="place-icon">⌖</span><div><small>稼働予定場所</small><strong id="workLocation" data-shiftcore-loading="true" aria-busy="true">読み込み中...</strong></div></div>
+          <div class="work-context">
+            <div class="work-place"><span class="place-icon">⌖</span><div><small>稼働予定場所</small><strong id="workLocation" data-shiftcore-loading="true" aria-busy="true">読み込み中...</strong></div></div>
+            <aside class="weather-summary" aria-label="稼働場所の天気">
+              <span aria-hidden="true">☁</span>
+              <div><span>天気：準備中</span><small id="weatherLocation">稼働場所を確認中</small></div>
+            </aside>
+          </div>
           <label id="scheduleSelectWrap" hidden>対象予定<select id="scheduleSelect"></select></label>
           <dl class="work-details">
             <div><dt>予定時間</dt><dd id="plannedTime">—</dd></div>
@@ -67,11 +73,6 @@
           <p class="deadline-note" id="deadlineNote">予定時刻を基準に出発・最寄り到着・入店・終了報告を管理します。</p>
         </article>
 
-        <article class="weather-card card">
-          <div class="card-heading"><div><span class="section-label">天気</span><h2>稼働場所の天気</h2></div></div>
-          <div class="weather-main"><span class="weather-icon">☁</span><div><strong>準備中</strong><p id="weatherLocation">稼働場所の天気情報</p></div></div>
-          <div class="weather-note">天気情報の提供元を選定後に表示します。勤怠操作には影響しません。</div>
-        </article>
       </section>
 
       <section class="performance-card card" aria-labelledby="performanceTitle">
