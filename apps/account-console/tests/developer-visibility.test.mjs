@@ -31,7 +31,7 @@ test("PMO名簿APIはサービス認証を必須にし開発者を除外して�
   assert.equal(result.success, true);
   assert.deepEqual(
     JSON.parse(JSON.stringify(result.roster)),
-    [{ displayName: "利用者", employeeCode: "001" }]
+    [{ userId: "U-1", displayName: "利用者", employeeCode: "001" }]
   );
 });
 
