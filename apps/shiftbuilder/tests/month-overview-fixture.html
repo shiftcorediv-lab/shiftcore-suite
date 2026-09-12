@@ -37,7 +37,8 @@ function render() {
     const table = document.getElementById(id);
     table.style.setProperty('--shift-day-count', dates.length);
     const elements = {shiftTableHead:table.tHead,shiftTableBody:table.tBodies[0]};
-    if(id==='cases') renderShiftTable(data,elements); else renderPersonnelTable({dates,people:[person],dailySummary:buildPersonnelDailySummary(dates,data.cases,[{pmoSubmitted:true,requestedOffDates:['2026-10-02']}])},elements);
+    const dailySummary = buildPersonnelDailySummary(dates,data.cases,[{pmoSubmitted:true,requestedOffDates:['2026-10-02']}]);
+    if(id==='cases') renderShiftTable(data,elements,{dailySummary}); else renderPersonnelTable({dates,people:[person],dailySummary},elements);
   }
 }
 days.addEventListener('change',render);

@@ -724,6 +724,7 @@ function buildShiftBuilderAssignmentCandidates_(targetMonth, area) {
         contract_type: normalizeText(user.contract_type),
         engagement_status: normalizeText(user.engagement_status),
         shiftbuilder_permission: normalizeText(user.shiftbuilder_permission),
+        member_store_preferences: normalizeText(user.member_store_preferences),
         requested_off_dates: (pmoRequestsByUserId[normalizeText(user.internal_user_id)] || {}).requested_off_dates || [],
         requested_off_memo: (pmoRequestsByUserId[normalizeText(user.internal_user_id)] || {}).requested_off_memo || "",
         pmo_submitted: ["希望休あり", "希望休なし"].indexOf((pmoRequestsByUserId[normalizeText(user.internal_user_id)] || {}).submit_type) !== -1,

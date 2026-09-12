@@ -1,7 +1,15 @@
 // ===== ShiftBuilder render-detail-panel.js ここから =====
 
 import { escapeHtml } from "./utils.js?v=20260801-authfix-1";
-import { getCellStatus } from "./render-shift-table.js?v=20260909-member-display-1";
+import { memberManagementLinks } from '../../../common/member-management-links.mjs';
+
+function renderMemberRuleLink(member) {
+  const id = getInternalUserId(member);
+  if (!id) return '';
+  const href = memberManagementLinks({...member, id}).rules;
+  return `<a class="secondary-button" href="${escapeHtml(href)}" target="_blank" rel="noopener">店舗・代理店の指名・NG</a>`;
+}
+import { getCellStatus } from "./render-shift-table.js?v=20260913-demo2";
 import { CANDIDATE_GROUP_CLASSES } from "./constants.js?v=20260801-authfix-1";
 import { getCaseIdentityLabel } from "./display-labels.mjs?v=20260909-member-display-1";
 import {
@@ -472,6 +480,7 @@ function renderAssignedMemberCardHtml(member) {
         </div>
 
         <div class="member-meta">${escapeHtml(memberMeta)}</div>
+        ${renderMemberRuleLink(member)}
       </div>
 
       <div class="member-card-actions">
@@ -672,6 +681,7 @@ function renderAssignmentCandidatesHtml(candidates, assignedMembers, actionMode 
           <div class="candidate-card ${alreadyAssigned ? "is-assigned" : ""} ${hasSameDayConflict ? "is-conflict" : ""} ${uiState.isPreferred ? "is-preferred" : ""} ${uiState.isNg ? "is-ng" : ""} ${consecutiveAlertLevel ? `is-consecutive-${escapeHtml(consecutiveAlertLevel)}` : ""}">
             <div class="candidate-card-main">
               <div class="candidate-name">${escapeHtml(displayName)}${preferenceBadge}</div>
+              ${renderMemberRuleLink(candidate)}
               <div class="candidate-meta">
                 ${escapeHtml(accountCode || "社員コードなし")} / ${escapeHtml(userId)}
               </div>

@@ -11,6 +11,7 @@ import {
   getInternalUserId
 } from "./record-normalizers.mjs?v=20260801-authfix-1";
 import { getCompactMemberLabel, getCalendarDayLabel } from "./display-labels.mjs?v=20260909-member-display-1";
+import { renderDailySummaryRows } from './render-personnel-table.js?v=20260913-demo2';
 
 export function buildOrderCaseDetailsUrl(caseId, environment = globalThis.window?.ShiftCoreEnvironment) {
   if (!environment || typeof environment.withEnvironment !== "function") {
@@ -389,7 +390,7 @@ export function renderShiftTable(data, elements, handlers = {}) {
   const dates = Array.isArray(data?.dates) ? data.dates : [];
   const cases = Array.isArray(data?.cases) ? data.cases : [];
 
-  shiftTableHead.innerHTML = `
+  shiftTableHead.innerHTML = renderDailySummaryRows({dailySummary: handlers.dailySummary || []}) + `
     <tr>
       <th class="case-header-cell">案件</th>
       ${dates
@@ -452,7 +453,7 @@ export function renderShiftTable(data, elements, handlers = {}) {
           const isFulfilledDaysModeUnassigned =
             isDaysModeCase &&
             caseFulfillment.status === "fulfilled" &&
-            status.key === SHIFT_CELL_STATUS.UNASSIGNED;
+            assignedCount === 0;
 
           const shiftCellClass = [
             "shift-cell",
@@ -477,13 +478,13 @@ export function renderShiftTable(data, elements, handlers = {}) {
 
                 data-date="${escapeHtml(dateItem.date)}"
 
-                title="${escapeHtml(cellCountLabel ? `${status.label} 配置${assignedCount}名 / 必要${required}名` : status.label)}"
+                title="${escapeHtml(isFulfilledDaysModeUnassigned ? '充足済み・追加配置不要' : cellCountLabel ? `${status.label} 配置${assignedCount}名 / 必要${required}名` : status.label)}"
 
               >
 
                 <span class="shift-cell-status" title="${escapeHtml(status.label)}">
 
-                  ${escapeHtml(compactStatusLabel)}
+                  ${escapeHtml(isFulfilledDaysModeUnassigned ? '—' : compactStatusLabel)}
 
                 </span>
 

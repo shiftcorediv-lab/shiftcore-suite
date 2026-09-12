@@ -7,7 +7,8 @@ const body = name => source.match(new RegExp('function ' + name + '\\([^)]*\\) \
 test('代理店を先に入力し、金額区分と税区分に新規登録の初期値がある', () => {
   assert.ok(source.indexOf('id="agencyName"') < source.indexOf('id="storeName"'));
   assert.match(source, /value="per_person_day" selected/);
-  assert.match(source, /value="tax_included" selected/);
+  assert.match(source, /value="tax_excluded" selected/);
+  assert.match(body('clearFormAfterSubmit'), /tax_excluded/);
   assert.match(body('renderStoreSuggestions'), /normalizeText\(row.agency_name\) === normalizeText\(agencyName\)/);
 });
 test('未登録店舗だけ補足4項目を表示し、空欄・登録済みでは非表示にする', () => {

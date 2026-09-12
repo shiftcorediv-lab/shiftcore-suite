@@ -6,6 +6,14 @@ import {
   collectPersonnelAssignments
 } from "./export-utils.mjs?v=20260909-member-display-1";
 import { escapeHtml } from "./utils.js?v=20260801-authfix-1";
+import { memberManagementLinks } from '../../../common/member-management-links.mjs';
+
+function openMasterRule(scope, id, onStatus) {
+  if (!id) { onStatus?.('対象マスターのIDを取得できません。案件の店舗・代理店設定を確認してください。'); return; }
+  const url = new URL(`../../../ordercase/${scope === 'store' ? 'stores' : 'agencies'}.html`, import.meta.url);
+  url.searchParams.set('edit_id', id);
+  window.open(window.ShiftCoreEnvironment.withEnvironment(url.href), '_blank', 'noopener');
+}
 
 let activeMenu = null;
 let restoreFocusTarget = null;
@@ -88,7 +96,10 @@ export function openCaseExportMenu({ anchor, point, caseItem, shiftData, onStatu
     anchor,
     point,
     title: caseItem.title || caseItem.caseId || "案件",
-    actions: [{
+    actions: [
+      {label:'店舗からの指名・NGを登録', run:() => openMasterRule('store', caseItem.store_id, onStatus)},
+      {label:'代理店からの指名・NGを登録', run:() => openMasterRule('agency', caseItem.agency_id, onStatus)},
+      {
       label: "この案件をCSV出力",
       run: () => {
         downloadBlob(
@@ -192,6 +203,10 @@ export function openPersonnelExportMenu({
     point,
     title: person.displayName || person.id || "人員",
     actions: [
+      {
+        label: 'この人員への店舗・代理店の指名・NGを登録',
+        run: () => window.open(memberManagementLinks(person, shiftData.month).rules, '_blank', 'noopener')
+      },
       {
         label: "月間カレンダー画像を出力",
         run: () => {

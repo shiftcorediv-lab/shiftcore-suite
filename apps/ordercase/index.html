@@ -169,9 +169,10 @@ input[type="time"] {
       align-items: start;
     }
 
-    .calendar-date-cell { min-width: 0; }
+    .calendar-date-cell { min-width: 0; height: 106px; }
     .calendar-date-cell > .day { width: 100%; }
-    .calendar-date-cell .date-row { padding: 4px; margin-top: 4px; }
+    .calendar-date-cell .date-row { padding: 0; margin-top: 2px; display:flex; align-items:end; gap:4px; border:0; }
+    .calendar-date-cell .date-row button { padding:6px 4px; font-size:11px; margin-bottom:2px; }
     .calendar-date-cell label { font-size: 11px; margin: 2px 0; }
     .calendar-date-cell input { min-width: 0; width: 100%; padding: 4px 2px; font-size: 12px; box-sizing: border-box; }
     .calendar-date-cell input[data-people-count],
@@ -615,7 +616,7 @@ input[type="time"] {
         <button type="button" class="secondary" id="clearDatesButton">選択日をクリア</button>
       </div>
 
-      <p class="hint">日付の真下に人数を入力してください。1名は共通条件を使用し、2名以上で人数分の時間・単価欄を表示します。空欄は共通条件を使用します。人数を減らすと末尾の入力を削除し、1名に戻すと個別条件を解除します。0名で日付の選択を解除します。</p>
+      <p class="hint">日付の真下に人数を入力すると、日別条件をポップアップで編集できます。1名は共通条件、2名以上は人数分の時間・単価を設定できます。空欄は共通条件を使用します。人数を減らすと末尾の入力を削除し、1名に戻すと個別条件を解除します。0名で日付の選択を解除します。「条件」から再編集できます。</p>
       <div class="calendar" id="calendar"></div>
 
       <div class="selected-date-list" id="selectedDateList"></div>
@@ -643,8 +644,8 @@ input[type="time"] {
           <label for="taxType">税区分</label>
           <select id="taxType">
             <option value="">未入力</option>
-            <option value="tax_included" selected>税込</option>
-            <option value="tax_excluded">税別</option>
+            <option value="tax_included">税込</option>
+            <option value="tax_excluded" selected>税抜</option>
             <option value="unknown">不明</option>
           </select>
         </div>
@@ -1330,7 +1331,7 @@ input[type="time"] {
             toggleDate(date);
             const item = state.selectedDates.find(item => item.work_date === date);
             item.person_conditions = Array.from({length: count}, () => ({work_start_time:'', work_end_time:'', amount:''}));
-            renderCalendar(); updateSummary();
+            renderCalendar(); updateSummary(); openDateConditions(date);
           });
           label.appendChild(countInput); cell.appendChild(label);
         }
@@ -1384,6 +1385,30 @@ input[type="time"] {
     /****************************************************
      * renderSelectedDateList ここから
      ****************************************************/
+    let dateConditionsDialog;
+    let dateConditionsTarget = '';
+    function openDateConditions(date) {
+      const item = state.selectedDates.find(item => item.work_date === date);
+      if (!item) return;
+      if (!dateConditionsDialog) {
+        dateConditionsDialog = document.createElement('dialog');
+        dateConditionsDialog.style.cssText = 'width:min(560px,calc(100vw - 32px));max-height:80vh;overflow:auto;border:1px solid #d9dee5;border-radius:16px;padding:20px;box-sizing:border-box';
+        dateConditionsDialog.setAttribute('aria-label', '日別の稼働条件');
+        dateConditionsDialog.innerHTML = '<h2></h2><div data-date-dialog-body></div><button type="button">閉じる</button>';
+        dateConditionsDialog.querySelector('button').addEventListener('click', () => dateConditionsDialog.close());
+        dateConditionsDialog.addEventListener('close', () => {
+          const restoreDate = dateConditionsTarget;
+          dateConditionsTarget = '';
+          renderSelectedDateList();
+          document.querySelector(`#calendar [data-work-date="${restoreDate}"] > .day`)?.focus();
+        });
+        document.body.appendChild(dateConditionsDialog);
+      }
+      dateConditionsTarget = date;
+      renderSelectedDateList();
+      if (!dateConditionsDialog.open) dateConditionsDialog.showModal();
+    }
+
     function renderSelectedDateList() {
       const list = document.getElementById('selectedDateList');
       list.innerHTML = '';
@@ -1485,14 +1510,28 @@ input[type="time"] {
           }
           if (count === 0) { toggleDate(item.work_date); return; }
           item.person_conditions = Array.from({length:count}, (_, i) => count >= 2 && item.person_conditions[i] || {work_start_time:'',work_end_time:'',amount:''});
-          renderSelectedDateList(); updateSummary();
+          renderSelectedDateList(); updateSummary(); openDateConditions(item.work_date);
         });
         row.querySelectorAll('[data-person-field]').forEach(input => input.addEventListener('input', event => {
           item.person_conditions[Number(input.dataset.personIndex)][input.dataset.personField] = input.value;
         }));
 
         const cell = document.querySelector(`#calendar [data-work-date="${item.work_date}"]`);
-        if (cell) cell.appendChild(row);
+        if (cell) {
+          // 人数だけを日付直下に残し、詳細は別パネルで編集して週の高さを固定する。
+          const compact = document.createElement('div');
+          compact.className = 'date-row';
+          compact.appendChild(row.querySelector('label'));
+          const edit = document.createElement('button');
+          edit.type = 'button'; edit.textContent = '条件';
+          edit.setAttribute('aria-label', `${item.work_date} の条件を編集`);
+          edit.addEventListener('click', () => openDateConditions(item.work_date));
+          compact.appendChild(edit); cell.appendChild(compact);
+          if (dateConditionsTarget === item.work_date && dateConditionsDialog) {
+            dateConditionsDialog.querySelector('h2').textContent = `${item.work_date}・${item.person_conditions.length}名`;
+            dateConditionsDialog.querySelector('[data-date-dialog-body]').replaceChildren(row);
+          }
+        }
       });
     }
     /****************************************************
@@ -1960,7 +1999,7 @@ input[type="time"] {
 
       document.getElementById('amount').value = '';
       document.getElementById('amountType').value = 'per_person_day';
-      document.getElementById('taxType').value = 'tax_included';
+      document.getElementById('taxType').value = 'tax_excluded';
       updateStoreMasterFields();
       document.getElementById('amountMemo').value = '';
 

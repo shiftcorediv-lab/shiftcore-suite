@@ -1151,6 +1151,8 @@ function buildShiftBuilderCaseFromOrderCase_(caseRow, caseDateRows, monthDates, 
   return {
     caseId: caseId,
     title: caseTitle,
+    store_id: normalizeText(caseRow.store_id),
+    agency_id: normalizeText(caseRow.agency_id),
     shiftcore_display_name: normalizeText(caseRow.shiftcore_display_name) || normalizeText(safeStoreRow.store_short_name),
     client: client,
     area: area,
