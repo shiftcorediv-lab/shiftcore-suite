@@ -219,6 +219,18 @@ function filterExcludedRowsFromMonthlyTable_(rows) {
   });
 }
 
+// 月次シートは作成時の名簿を保持する。原本を消さず、現在の回収対象だけを表示する。
+// 名簿取得失敗時は呼び出し元へエラーを返し、古い対象者を正常な一覧として表示しない。
+function filterCurrentRosterRowsFromMonthlyTable_(rows) {
+  const employeeCodes = new Set(fetchRosterFromShiftCore_().map(function(user) {
+    return normalizeText(user.employeeCode).toUpperCase();
+  }).filter(function(code) { return !!code; }));
+
+  return filterExcludedRowsFromMonthlyTable_(rows).filter(function(row) {
+    return employeeCodes.has(normalizeText(row[SETTINGS.MONTHLY_CODE_COLUMN - 1]).toUpperCase());
+  });
+}
+
 // =========================
 // PMO管理用 月次一覧取得ここから
 // pmo-admin.html 表示用
@@ -264,7 +276,7 @@ function getPmoMonthlyTable(targetYearMonth, role) {
       };
     }
 
-    const rows = filterExcludedRowsFromMonthlyTable_(
+    const rows = filterCurrentRosterRowsFromMonthlyTable_(
       sheet.getRange(2, 1, lastRow - 1, lastColumn).getDisplayValues()
     );
 
