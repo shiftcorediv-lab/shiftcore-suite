@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>人員名選択・送信なしの検証画面</title>
+<style>
+body{font-family:system-ui;background:#f4f7fc;color:#17253b;padding:24px}main{max-width:780px;margin:auto;background:white;border-radius:18px;padding:24px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}input[type=search]{box-sizing:border-box;width:100%;padding:12px;margin:8px 0;border:1px solid #dce4ef;border-radius:10px}h2{font-size:18px}.hidden{display:none!important}@media(max-width:600px){.grid{grid-template-columns:1fr}}
+</style>
+<main><h1>指名・NGの人員名選択</h1><p>架空の人員だけを使用する検証画面です。保存・本番通信は行いません。</p>
+<div id="editorBackdrop"><div class="grid">
+<section><h2>店舗指名メンバー</h2><textarea id="editPreferredMemberIds">AN1001,OLD-ID</textarea></section>
+<section><h2>店舗NGメンバー（非推奨）</h2><textarea id="editNgMemberIds"></textarea></section>
+</div></div></main>
+<script>
+async function fetchApiJson(){return {ok:true,data:[
+{id:'U1001',code:'AN1001',name:'検証 太郎',status:'active'},
+{id:'U1002',code:'AN1002',name:'検証 太郎',status:'active'},
+{id:'U1003',code:'AN1003',name:'検証 花子',status:'active'},
+{id:'U1004',code:'AN1004',name:'停止済みの人員',status:'inactive'}]};}
+</script><script src="../js/member-rule-picker.js"></script></html>

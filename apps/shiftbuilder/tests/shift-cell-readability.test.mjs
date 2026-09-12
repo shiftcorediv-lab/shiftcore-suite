@@ -61,7 +61,7 @@ test("未配置セルは人数比率を表示せず、必要人数はツール�
 
 test("表示変更したCSSとJavaScriptは新しい版番号で読み込む", () => {
   assert.match(indexSource, /shiftbuilder\.css\?v=20260913-demo2/);
-  assert.match(indexSource, /main\.js\?v=20260913-demo2/);
+  assert.match(indexSource, /main\.js\?v=20260913-daily-supply-1/);
   assert.match(mainSource, /render-shift-table\.js\?v=20260913-demo2/);
   assert.match(mainSource, /render-detail-panel\.js\?v=20260913-demo2/);
   assert.match(detailSource, /render-shift-table\.js\?v=20260913-demo2/);

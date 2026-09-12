@@ -88,3 +88,21 @@ test('1名では個別欄を表示せず、人数を1名へ戻した場合は共
   assert.match(source, /item\.person_conditions\.length >= 2 \? item\.person_conditions : \[\]/);
   assert.match(source, /count >= 2 && item\.person_conditions\[i\] \|\| \{work_start_time:'',work_end_time:'',amount:''\}/);
 });
+
+test('全員共通を基本とし、例外を入力した人の条件だけ上書きする', () => {
+  const p=payload();
+  p.case_dates=[{work_date:'2026-10-01',person_conditions:[
+    {work_start_time:'',work_end_time:'',amount:''},
+    {work_start_time:'11:00',work_end_time:'',amount:0}
+  ]}];
+  const first=context.buildSinglePersonCasePayload_(p,{copy_index:1,copy_count:2},{});
+  const second=context.buildSinglePersonCasePayload_(p,{copy_index:2,copy_count:2},{});
+  assert.equal(first.work_start_time,'10:00');assert.equal(first.work_end_time,'18:00');
+  assert.equal(first.case_dates[0].work_start_time,'');assert.equal(first.case_dates[0].unit_amount_override,'');
+  assert.equal(second.case_dates[0].work_start_time,'11:00');assert.equal(second.case_dates[0].work_end_time,'');
+  assert.equal(second.work_end_time,'18:00');assert.equal(second.case_dates[0].unit_amount_override,0);
+  const source=read('../index.html');
+  assert.match(source,/data-person-exception/);
+  assert.match(source,/\$\{exceptional \? '' : 'hidden'\}/);
+  assert.match(source,/person_conditions: item\.person_conditions\.map\(\(\{work_start_time, work_end_time, amount\}\)/);
+});

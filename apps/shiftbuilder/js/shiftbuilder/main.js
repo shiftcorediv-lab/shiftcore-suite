@@ -23,8 +23,8 @@ import { escapeHtml } from "./utils.js?v=20260801-authfix-1";
 import { getPermissionLabel, canEdit } from "./permissions.js?v=20260801-authfix-1";
 import { renderSummary } from "./render-summary.js?v=20260801-authfix-1";
 import { renderShiftTable } from "./render-shift-table.js?v=20260913-demo2";
-import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20260909-member-display-1";
-import { renderPersonnelTable, renderDailySummaryRows } from "./render-personnel-table.js?v=20260913-demo2";
+import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20260913-daily-supply-1";
+import { renderPersonnelTable, renderDailySummaryRows } from "./render-personnel-table.js?v=20260913-daily-supply-1";
 import { closePersonnelProfiles } from './personnel-profile-popover.js';
 import { getConsecutiveWorkAlert } from "./consecutive-work-alert.js?v=20260801-authfix-1";
 import { getCaseIdentityLabel } from "./display-labels.mjs?v=20260909-member-display-1";
@@ -82,6 +82,7 @@ import {
 import { removePendingAssignment } from "./mutation-queue.mjs";
 
 let assignmentCandidates = [];
+let dailySupply = null;
 let previousMonthShiftData = null;
 let isPreviousMonthDataAvailable = false;
 let activePopoverMode = "";
@@ -1884,7 +1885,8 @@ function renderCurrentShiftView(options = {}) {
       shiftData,
       assignmentCandidates,
       previousMonthShiftData,
-      isPreviousMonthDataAvailable
+      isPreviousMonthDataAvailable,
+      dailySupply
     );
 
     isRenderingShiftView = true;
@@ -1944,7 +1946,7 @@ function renderCurrentShiftView(options = {}) {
           shiftTableBody: elements.shiftTableBody
         },
         {
-          dailySummary: buildPersonnelAxisViewModel(shiftData, assignmentCandidates, previousMonthShiftData, isPreviousMonthDataAvailable).dailySummary,
+          dailySummary: buildPersonnelAxisViewModel(shiftData, assignmentCandidates, previousMonthShiftData, isPreviousMonthDataAvailable, dailySupply).dailySummary,
           onSelectCell: selectShiftCell,
           onPreviewCell: previewShiftCell,
           onLeaveCell: leaveShiftCell,
@@ -2051,7 +2053,7 @@ function refreshCandidateDependentShiftView() {
   // 候補者はシフト本体より後に届く。配置中のセルは描き直さず集計だけ更新する。
   const data = getCurrentShiftData();
   if (!data || !elements.shiftTableHead) return;
-  const viewModel = buildPersonnelAxisViewModel(data, assignmentCandidates, previousMonthShiftData, isPreviousMonthDataAvailable);
+  const viewModel = buildPersonnelAxisViewModel(data, assignmentCandidates, previousMonthShiftData, isPreviousMonthDataAvailable, dailySupply);
   elements.shiftTableHead.querySelectorAll('.personnel-daily-summary').forEach(row => row.remove());
   elements.shiftTableHead.insertAdjacentHTML('afterbegin', renderDailySummaryRows(viewModel));
 }
@@ -2059,6 +2061,7 @@ function refreshCandidateDependentShiftView() {
 async function loadAssignmentCandidates(session, resultPromise = null) {
   if (!session || !session.isLoggedIn || !session.idToken) {
     assignmentCandidates = [];
+    dailySupply = null;
     renderAssignmentCandidateCards();
     refreshActiveActionPopover();
 
@@ -2093,6 +2096,7 @@ async function loadAssignmentCandidates(session, resultPromise = null) {
     assignmentCandidates = Array.isArray(result.candidates)
       ? result.candidates
       : [];
+    dailySupply = result.daily_supply || null;
 
     if (elements.assignmentCandidateStatus) {
       elements.assignmentCandidateStatus.textContent =
@@ -2107,6 +2111,7 @@ async function loadAssignmentCandidates(session, resultPromise = null) {
     console.error("[ShiftBuilder] assignment candidates error:", error);
 
     assignmentCandidates = [];
+    dailySupply = null;
 
     if (elements.assignmentCandidateStatus) {
       elements.assignmentCandidateStatus.textContent =
@@ -2333,6 +2338,7 @@ async function loadShiftDataContents(options = {}) {
 
   if (reloadCandidates && !preservePopoverInteraction) {
     assignmentCandidates = [];
+    dailySupply = null;
   }
 
   const selectedKey = preservePopoverInteraction

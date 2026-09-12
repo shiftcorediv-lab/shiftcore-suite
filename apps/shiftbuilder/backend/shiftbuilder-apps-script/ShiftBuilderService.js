@@ -675,23 +675,26 @@ function shiftBuilderGetAssignmentCandidates(body) {
     throw new Error("targetMonth が必要です");
   }
 
-  const candidates = buildShiftBuilderAssignmentCandidates_(targetMonth, area);
+  const users = getUsersMasterRows_();
+  const requests = getLatestPmoRequestsByUserForMonth_(targetMonth);
+  const candidates = buildShiftBuilderAssignmentCandidates_(targetMonth, area, users, requests);
 
   return ok_({
     user: buildShiftBuilderUser_(operator),
     target_month: targetMonth,
     area: area,
-    candidates: candidates
+    candidates: candidates,
+    daily_supply: buildShiftBuilderDailySupply_(targetMonth, users, requests, area)
   });
 }
 
-function buildShiftBuilderAssignmentCandidates_(targetMonth, area) {
+function buildShiftBuilderAssignmentCandidates_(targetMonth, area, users, requests) {
   const normalizedTargetMonth = normalizeMonth(targetMonth);
   const normalizedArea = normalizeText(area) || "all";
 
-  const pmoRequestsByUserId = getLatestPmoRequestsByUserForMonth_(normalizedTargetMonth);
+  const pmoRequestsByUserId = requests || getLatestPmoRequestsByUserForMonth_(normalizedTargetMonth);
 
-  return getUsersMasterRows_()
+  return (users || getUsersMasterRows_())
     .filter(function(user) {
       return isShiftBuilderAssignableUser_(user);
     })
@@ -745,6 +748,35 @@ function buildShiftBuilderAssignmentCandidates_(targetMonth, area) {
     });
 }
 // ===== アサイン候補者取得ここまで =====
+
+// 操作権限と稼働対象は別。名簿・希望休を一度だけ読み、集計値のみ返す。
+function buildShiftBuilderDailySupply_(month, users, requests, area) {
+  const labels = {fukuoka:'福岡',kitakyushu:'北九州',kumamoto:'熊本',saga:'佐賀',nagasaki:'長崎',oita:'大分',miyazaki:'宮崎',kagoshima:'鹿児島'};
+  const areaName = value => labels[normalizeLowerText(value)] || normalizeLowerText(value);
+  const selectedArea = normalizeLowerText(area) || 'all';
+  const counts = {};
+  const parts = month.split('-').map(Number);
+  const days = new Date(parts[0], parts[1], 0).getDate();
+  for (let day = 1; day <= days; day++) counts[month + '-' + ('0' + day).slice(-2)] = 0;
+  const seen = new Set();
+  users.forEach(function(user) {
+    const id = normalizeText(user.internal_user_id);
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    if (normalizeLowerText(user.status) !== 'active' || normalizeLowerText(user.role) === 'developer') return;
+    // 拠点未設定や別拠点を、応援可能と推測して地域の供給へ加えない。
+    if (selectedArea !== 'all' && areaName(user.base_area) !== areaName(selectedArea)) return;
+    const work = normalizeLowerText(user.workStatus || user.work_status);
+    const engagement = normalizeLowerText(user.engagement_status);
+    if ((work && work !== 'on') || (engagement && engagement !== 'active')) return;
+    if (work !== 'on' && engagement !== 'active') return;
+    const request = requests[id] || {};
+    if (['希望休あり', '希望休なし'].indexOf(request.submit_type) === -1) return;
+    const off = new Set(request.requested_off_dates || []);
+    Object.keys(counts).forEach(function(date) { if (!off.has(date)) counts[date]++; });
+  });
+  return counts;
+}
 
 // ===== ShiftBuilder 操作者確認ここから =====
 function requireShiftBuilderOperator_(body) {

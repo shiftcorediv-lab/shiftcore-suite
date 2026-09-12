@@ -13,7 +13,7 @@ test('候補者の遅延到着後は案件セルを壊さず集計だけ更新�
   let axis='case', removed=0, inserted='', fullRenders=0;
   const context=vm.createContext({
     getActiveAxis:()=>axis, renderCurrentShiftView:()=>fullRenders++, getCurrentShiftData:()=>({dates:[]}),
-    assignmentCandidates:[{id:'U1'}],previousMonthShiftData:null,isPreviousMonthDataAvailable:false,
+    assignmentCandidates:[{id:'U1'}],dailySupply:{},previousMonthShiftData:null,isPreviousMonthDataAvailable:false,
     buildPersonnelAxisViewModel:(_data,candidates)=>({dailySummary:candidates}),
     renderDailySummaryRows:model=>JSON.stringify(model.dailySummary),
     elements:{shiftTableHead:{querySelectorAll:()=>[{remove:()=>removed++}],insertAdjacentHTML:(where,html)=>{assert.equal(where,'afterbegin');inserted=html;}}},
