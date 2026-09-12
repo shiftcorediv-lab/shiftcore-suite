@@ -22,20 +22,20 @@ import { mockShiftData } from "./mock-data.js?v=20260801-authfix-1";
 import { escapeHtml } from "./utils.js?v=20260801-authfix-1";
 import { getPermissionLabel, canEdit } from "./permissions.js?v=20260801-authfix-1";
 import { renderSummary } from "./render-summary.js?v=20260801-authfix-1";
-import { renderShiftTable } from "./render-shift-table.js?v=20260909-member-display-1";
+import { renderShiftTable } from "./render-shift-table.js?v=20260913-demo2";
 import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20260909-member-display-1";
-import { renderPersonnelTable } from "./render-personnel-table.js?v=20260907-member-management-1";
+import { renderPersonnelTable } from "./render-personnel-table.js?v=20260913-demo2";
 import { closePersonnelProfiles } from './personnel-profile-popover.js';
 import { getConsecutiveWorkAlert } from "./consecutive-work-alert.js?v=20260801-authfix-1";
 import { getCaseIdentityLabel } from "./display-labels.mjs?v=20260909-member-display-1";
-import { getCaseMemberPreference } from "./assignment-preference-policy.mjs?v=20260905-agency-rules-1";
+import { getCaseMemberPreference } from "./assignment-preference-policy.mjs?v=20260913-demo2";
 import {
   renderSelectedCell,
   resetDetailPanel,
   renderCellPreviewPopover,
   renderPersonnelCellPreviewPopover,
   renderCellActionPopover
-} from "./render-detail-panel.js?v=20260909-member-display-1";
+} from "./render-detail-panel.js?v=20260913-demo2";
 import {
   setCurrentSession,
   setCurrentUser,
@@ -63,7 +63,7 @@ import {
   openCaseExportMenu,
   openPersonnelExportMenu,
   openPersonnelBulkMenu
-} from "./export-menu.js?v=20260909-member-display-1";
+} from "./export-menu.js?v=20260913-demo2";
 import {
   buildPersonnelExportFilename,
   buildPersonnelIcs
@@ -1343,11 +1343,9 @@ function confirmRequestedOffAssignment(internalUserId, workDate) {
 function confirmNgPreferenceAssignment(internalUserId, caseItem) {
   const candidate = findCandidateByInternalUserId(internalUserId);
   const preference = getCaseMemberPreference(caseItem, candidate);
-  if (!preference.isNg) return true;
-  const isStore = preference.effectiveType === "store-ng";
-  const label = isStore ? "店舗NG" : "代理店NG";
-  const note = isStore ? caseItem?.store_ng_note : caseItem?.agency_ng_note;
-  return window.confirm(`${label}（非推奨）に設定されています。${note ? `\n理由：${note}` : ""}\n\n事情を確認したうえで配置しますか？`);
+  if (!preference.badgeLabels.length) return true;
+  const notes = [preference.isStoreNg && caseItem?.store_ng_note && `店舗NG理由：${caseItem.store_ng_note}`, preference.isAgencyNg && caseItem?.agency_ng_note && `代理店NG理由：${caseItem.agency_ng_note}`].filter(Boolean);
+  return window.confirm(`${preference.badgeLabels.join('・')}が設定されています。NGは非推奨です。${notes.length ? '\n' + notes.join('\n') : ''}\n\n指名・NGの内容を確認したうえで配置しますか？`);
 }
 
 function getPersonnelCellAssignments(internalUserId, workDate) {
@@ -1946,6 +1944,7 @@ function renderCurrentShiftView(options = {}) {
           shiftTableBody: elements.shiftTableBody
         },
         {
+          dailySummary: buildPersonnelAxisViewModel(shiftData, assignmentCandidates, previousMonthShiftData, isPreviousMonthDataAvailable).dailySummary,
           onSelectCell: selectShiftCell,
           onPreviewCell: previewShiftCell,
           onLeaveCell: leaveShiftCell,

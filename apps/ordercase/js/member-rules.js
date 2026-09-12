@@ -2,6 +2,14 @@ const ruleParams = new URLSearchParams(location.search);
 const ruleMemberKeys = [ruleParams.get('target_member'), ruleParams.get('member_code')].filter(Boolean);
 const ruleState = {store: [], agency: [], busy: false};
 const ruleMessage = document.getElementById('ruleMessage');
+async function fetchMemberRuleData(action) {
+  try { return await fetchApiJson(action); }
+  catch (error) {
+    // 実画面で一時的なHTML 404を確認。読み取りだけ1度再取得し、保存は再送しない。
+    if (!String(error.message).includes('JSONではありません')) throw error;
+    return await fetchApiJson(action);
+  }
+}
 function getMemberRule(row) {
   const aliases = ruleMemberKeys.map(value => value.toLowerCase());
   const contains = value => String(value || '').split(/[\s,、]+/).some(id => aliases.includes(id.toLowerCase()));
@@ -31,10 +39,10 @@ async function loadMemberRules() {
   ruleState.busy = true;
   const done = window.PortalLoading.begin('指名・NGを読み込んでいます…');
   try {
-    const permission = await fetchApiJson('getOrderCasePermission');
+    const permission = await fetchMemberRuleData('getOrderCasePermission');
     if (!permission.ok) throw new Error(permission.message || '権限情報を取得できませんでした。再読み込みしてください。');
     if (!permission.data?.can_edit) throw new Error('指名・NGの編集にはオーダーの編集権限が必要です。');
-    const results = await Promise.all([fetchApiJson('listStoresMaster'), fetchApiJson('listAgenciesMaster')]);
+    const results = await Promise.all([fetchMemberRuleData('listStoresMaster'), fetchMemberRuleData('listAgenciesMaster')]);
     const failed = results.find(result => !result.ok);
     if (failed) throw new Error(failed.message || 'マスターを取得できませんでした。再読み込みしてください。');
     ruleState.store = results[0].data || []; ruleState.agency = results[1].data || [];

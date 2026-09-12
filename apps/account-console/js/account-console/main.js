@@ -2,6 +2,7 @@ import { DASHBOARD_URL, SIGNUP_ADMIN_URL } from "./config.js?v=20260802-modules-
 import { requireAccountConsoleSession } from "./auth.js";
 import { filterAccountArchive } from "./archive-view.mjs";
 import { memberManagementLinks } from '../../../common/member-management-links.mjs';
+import { openMemberStorePreferences } from './member-store-preferences.js?v=20260913-demo2';
 import { compareUsersBySortOrder } from "./sort.js?v=20260902-name-sync-1";
 import { planSortOrderUpdates } from "./reorder.js?v=20260802-reorder-1";
 import { resolveAccountFullName } from "./name-policy.mjs?v=20260902-name-sync-1";
@@ -184,6 +185,11 @@ function renderCurrentUsers() {
   management.replaceChildren();
   management.hidden = !selectedUser;
   if (selectedUser) {
+    const preferenceButton = document.createElement('button');
+    preferenceButton.type = 'button'; preferenceButton.textContent = '本人の希望店舗・NG店舗';
+    const target = selectedUser;
+    preferenceButton.addEventListener('click', () => openMemberStorePreferences(target, idToken));
+    management.append(preferenceButton);
     const links = memberManagementLinks(selectedUser);
     for (const [key, label] of [['off', '希望休管理'], ['rules', '指名・NGを編集']]) {
       const link = document.createElement('a');

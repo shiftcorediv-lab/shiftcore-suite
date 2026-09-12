@@ -73,11 +73,13 @@ test('旧バックエンドへの人数別条件の誤保存を防ぐ', () => {
   assert.match(read('../index.html'), /supports_person_conditions !== true/);
   assert.match(read('../backend/ordercase-apps-script/Service_Bootstrap.js'), /supports_person_conditions: true/);
 });
-test('人数と人数別条件は別一覧ではなくカレンダーの日付直下に配置する', () => {
+test('人数は日付直下、人数別条件はポップアップで編集する', () => {
   const source = read('../index.html');
   assert.match(source, /cell\.appendChild\(button\)/);
   assert.match(source, /label\.appendChild\(countInput\); cell\.appendChild\(label\)/);
-  assert.match(source, /if \(cell\) cell\.appendChild\(row\)/);
+  assert.match(source, /cell\.appendChild\(compact\)/);
+  assert.match(source, /dateConditionsDialog\.showModal\(\)/);
+  assert.match(source, /replaceChildren\(row\)/);
   assert.doesNotMatch(source, /list\.appendChild\(row\)/);
   assert.match(source, /if \(count === 0\) \{ toggleDate\(item\.work_date\); return; \}/);
 });

@@ -1,5 +1,11 @@
 import { ACCOUNT_API_URL } from "./config.js?v=20260810-org-shadow-1";
 
+export function memberStorePreferences(idToken, target, update) {
+  return postToAccountApi(update ? 'accountConsoleSaveMemberStorePreferences' : 'accountConsoleGetMemberStorePreferences', {
+    idToken, target_user_id: target, ...(update || {})
+  });
+}
+
 const INVALID_RESPONSE_MESSAGE =
   "メンバー情報を一時的に取得できませんでした。少し待ってから再読み込みしてください。";
 const READ_RETRY_DELAY_MS = 1000;

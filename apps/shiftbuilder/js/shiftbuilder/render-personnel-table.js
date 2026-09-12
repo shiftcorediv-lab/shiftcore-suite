@@ -40,8 +40,9 @@ function renderPersonMeta(person) {
   `;
 }
 
-function renderDailySummaryRows(viewModel) {
+export function renderDailySummaryRows(viewModel) {
   const summary = viewModel.dailySummary || [];
+  if (!summary.length) return '';
   const undated = summary.some(item => item.undated);
   const unknown = summary.some(item => item.submitted === null);
   return [['提出シフト数', 'submitted'], ['案件受注数', 'required'], ['過不足数', 'balance']]
@@ -258,7 +259,7 @@ export function renderPersonnelTable(viewModel, elements, handlers = {}) {
   const dates = Array.isArray(viewModel?.dates) ? viewModel.dates : [];
   const people = Array.isArray(viewModel?.people) ? viewModel.people : [];
 
-  elements.shiftTableHead.innerHTML = `
+  elements.shiftTableHead.innerHTML = renderDailySummaryRows(viewModel) + `
     <tr>
       <th
         class="personnel-header-cell row-export-trigger"
@@ -289,7 +290,7 @@ export function renderPersonnelTable(viewModel, elements, handlers = {}) {
     return;
   }
 
-  elements.shiftTableBody.innerHTML = renderDailySummaryRows(viewModel) + people
+  elements.shiftTableBody.innerHTML = people
     .map((person) => {
       const dateCells = dates
         .map((dateItem) => {

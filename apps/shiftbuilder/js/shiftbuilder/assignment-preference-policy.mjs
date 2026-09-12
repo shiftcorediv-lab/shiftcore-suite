@@ -15,6 +15,11 @@ function candidateIdentifiers(candidate = {}) {
 }
 
 export function getCaseMemberPreference(caseItem = {}, candidate = {}) {
+  let personal = {};
+  try { personal = JSON.parse(candidate.member_store_preferences || '{}') || {}; } catch { personal = {}; }
+  const storeId = String(caseItem.store_id || '');
+  const personalPreferred = !!storeId && Array.isArray(personal.preferred) && personal.preferred.includes(storeId);
+  const personalNg = !!storeId && Array.isArray(personal.ng) && personal.ng.includes(storeId);
   const identifiers = candidateIdentifiers(candidate);
   const matches = ruleIds => identifiers.some(identifier => ruleIds.includes(identifier));
   const storePreferred = matches(normalizeRuleIds(
@@ -40,12 +45,16 @@ export function getCaseMemberPreference(caseItem = {}, candidate = {}) {
   if (agencyPreferred) badgeLabels.push("代理店指名");
   if (storeNg) badgeLabels.push("店舗NG");
   if (agencyNg) badgeLabels.push("代理店NG");
+  if (personalPreferred) badgeLabels.push('本人希望');
+  if (personalNg) badgeLabels.push('本人NG');
 
   return {
     isStorePreferred: storePreferred,
     isAgencyPreferred: agencyPreferred,
     isStoreNg: storeNg,
     isAgencyNg: agencyNg,
+    isPersonalPreferred: personalPreferred,
+    isPersonalNg: personalNg,
     isPreferred: effectiveType.endsWith("preferred"),
     isNg: effectiveType.endsWith("ng"),
     effectiveType,

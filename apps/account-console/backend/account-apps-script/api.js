@@ -72,6 +72,9 @@ function doPost(e) {
 
 
     // ===== Account Console系 POST ここから =====
+    if (action === 'accountConsoleGetMemberStorePreferences' || action === 'accountConsoleSaveMemberStorePreferences') {
+      return jsonResponse_(accountConsoleMemberStorePreferences(body));
+    }
     if (action === "accountConsoleGetCurrentUser") {
       return jsonResponse_(accountConsoleGetCurrentUser(body));
     }
