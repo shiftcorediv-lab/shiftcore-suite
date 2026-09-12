@@ -1,7 +1,7 @@
 // ===== ShiftBuilder personnel-axis-view-model.js ここから =====
 
 import { getConsecutiveWorkAlert } from "./consecutive-work-alert.js?v=20260801-authfix-1";
-import { buildPersonnelDailySummary } from "./personnel-daily-summary.mjs";
+import { buildPersonnelDailySummary } from "./personnel-daily-summary.mjs?v=20260913-daily-supply-1";
 
 function firstValue(source, keys) {
   for (const key of keys) {
@@ -98,7 +98,8 @@ export function buildPersonnelAxisViewModel(
   shiftData,
   candidates = [],
   previousMonthData = null,
-  isPreviousMonthDataAvailable = false
+  isPreviousMonthDataAvailable = false,
+  dailySupply
 ) {
   const dates = Array.isArray(shiftData?.dates) ? shiftData.dates : [];
   const cases = Array.isArray(shiftData?.cases) ? shiftData.cases : [];
@@ -196,7 +197,7 @@ export function buildPersonnelAxisViewModel(
   return {
     dates,
     people,
-    dailySummary: buildPersonnelDailySummary(dates, cases, people)
+    dailySummary: buildPersonnelDailySummary(dates, cases, people, dailySupply)
   };
 }
 

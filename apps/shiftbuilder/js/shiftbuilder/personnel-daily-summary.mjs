@@ -1,5 +1,5 @@
 // 日数指定の未配置分には日付がないため、全日への需要として水増ししない。
-export function buildPersonnelDailySummary(dates, cases, people) {
+export function buildPersonnelDailySummary(dates, cases, people, dailySupply) {
   const undated = cases.some(item => {
     if ((item.input_mode || item.inputMode) !== 'days') return false;
     const assignedDays = Object.values(item.cells || {}).filter(cell => cell.assigned?.length).length;
@@ -7,7 +7,10 @@ export function buildPersonnelDailySummary(dates, cases, people) {
   });
   const submissionKnown = people.every(person => typeof person.pmoSubmitted === 'boolean');
   return dates.map(({date}) => {
-    const submitted = submissionKnown ? people.filter(person => person.pmoSubmitted && !person.requestedOffDates.includes(date)).length : null;
+    const supplied = dailySupply?.[date];
+    const submitted = dailySupply !== undefined
+      ? (Number.isInteger(supplied) && supplied >= 0 ? supplied : null)
+      : submissionKnown ? people.filter(person => person.pmoSubmitted && !person.requestedOffDates.includes(date)).length : null;
     const required = cases.reduce((count, item) => {
       const cell = item.cells?.[date];
       if ((item.input_mode || item.inputMode) === 'days') return count + (cell?.assigned?.length ? 1 : 0);

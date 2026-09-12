@@ -49,9 +49,9 @@ export function renderDailySummaryRows(viewModel) {
     .map(([label, key]) => {
       const suffix = key === 'required' && undated ? '（日程未定あり）' : key === 'submitted' && unknown ? '（未確認）' : '';
       const cells = summary.map(item => {
-        const hint = item.submitted === null ? '提出状況を取得できていないため、提出人数・過不足は未確認です。'
+        const hint = item.submitted === null ? '稼働対象者の提出人数を取得できていないため、人数・過不足は未確認です。'
           : item.undated ? '日程未定の受注が残っているため、日別の過不足は未確定です。'
-          : '提出済みの希望休以外を人数として集計。未提出者は除外。';
+          : '全稼働対象メンバーのうち、提出済みの希望休以外を集計。エリア指定時は登録拠点の一致する人のみ。停止済み・開発者・未提出者は除外。シフト操作権限の有無は問わない。';
         const value = item[key] === null ? '—' : `${key === 'balance' && item[key] > 0 ? '+' : ''}${item[key]}`;
         return `<td title="${hint}">${value}${key === 'required' && item.undated ? '+' : ''}</td>`;
       }).join('');

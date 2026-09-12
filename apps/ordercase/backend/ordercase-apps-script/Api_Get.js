@@ -39,13 +39,19 @@ function isOrderCaseReadAction_(action) {
     'getCaseDetailPageData',
     'getCaseChangeLogs',
     'listAgenciesMaster',
-    'listStoresMaster'
+    'listStoresMaster',
+    'listRuleMembers'
   ].indexOf(String(action || '')) !== -1;
 }
 
 function handleOrderCaseRead_(params) {
   try {
     const action = params.action || '';
+
+    if (action === 'listRuleMembers') {
+      requireOrderCaseEditor_(getIdTokenFromBody_(params));
+      return jsonResponse_({ok:true, action, data:listRuleMembers_()});
+    }
 
     if (action === 'bootstrap') {
       const context = requireOrderCaseViewer_(getIdTokenFromRequest_(params));
