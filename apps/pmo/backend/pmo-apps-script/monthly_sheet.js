@@ -221,13 +221,57 @@ function filterExcludedRowsFromMonthlyTable_(rows) {
 
 // 月次シートは作成時の名簿を保持する。原本を消さず、現在の回収対象だけを表示する。
 // 名簿取得失敗時は呼び出し元へエラーを返し、古い対象者を正常な一覧として表示しない。
-function filterCurrentRosterRowsFromMonthlyTable_(rows) {
-  const employeeCodes = new Set(fetchRosterFromShiftCore_().map(function(user) {
+function filterCurrentRosterRowsFromMonthlyTable_(rows, targetYearMonth) {
+  const roster = fetchRosterFromShiftCore_();
+  const employeeCodes = new Set(roster.map(function(user) {
     return normalizeText(user.employeeCode).toUpperCase();
   }).filter(function(code) { return !!code; }));
 
-  return filterExcludedRowsFromMonthlyTable_(rows).filter(function(row) {
+  const currentRows = filterExcludedRowsFromMonthlyTable_(rows).filter(function(row) {
     return employeeCodes.has(normalizeText(row[SETTINGS.MONTHLY_CODE_COLUMN - 1]).toUpperCase());
+  });
+  if (!targetYearMonth) return currentRows;
+
+  // 社員番号は変更されるため、提出原本は不変の本人IDで照合する。
+  // 月次シートや提出原本は書き換えず、現在の名簿で表示を組み立てる。
+  const requestSheet = getOrCreateRequestSheet();
+  const lastRow = requestSheet.getLastRow();
+  const requests = lastRow < 2 ? [] : requestSheet
+    .getRange(2, 1, lastRow - 1, SETTINGS.REQUEST_HEADER.length).getDisplayValues();
+  const latest = new Map();
+  requests.forEach(function(request) {
+    if (normalizeText(request[1]) === targetYearMonth &&
+        normalizeText(request[7]).toUpperCase() === "TRUE") {
+      latest.set(normalizeText(request[2]), request);
+    }
+  });
+  const dayCount = getLastDayOfMonth(targetYearMonth);
+  const byCode = new Map(currentRows.map(function(row) {
+    return [normalizeText(row[2]).toUpperCase(), row];
+  }));
+  const seen = new Set();
+  return filterExcludedRowsFromMonthlyTable_(roster.map(function(user) {
+    const code = normalizeText(user.employeeCode).toUpperCase();
+    const request = latest.get(normalizeText(user.userId));
+    const row = request || !byCode.has(code)
+      ? ["未提出", user.displayName, code, ""].concat(Array(dayCount).fill(""))
+      : byCode.get(code).slice();
+    row[1] = user.displayName;
+    row[2] = code;
+    if (request) {
+      row[0] = normalizeText(request[10]);
+      row[3] = request[5] || "";
+      const offDates = new Set(normalizeText(request[4]).split(",").map(normalizeText));
+      for (let day = 1; day <= dayCount; day++) {
+        const date = targetYearMonth + "-" + String(day).padStart(2, "0");
+        row[day + 3] = row[0] === "希望休あり" && offDates.has(date) ? "×" : "";
+      }
+    }
+    return row;
+  })).filter(function(row) {
+    if (!row[2] || seen.has(row[2])) return false;
+    seen.add(row[2]);
+    return true;
   });
 }
 
@@ -268,16 +312,8 @@ function getPmoMonthlyTable(targetYearMonth, role) {
 
     const headers = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0];
 
-    if (lastRow < 2) {
-      return {
-        success: true,
-        headers: headers,
-        rows: []
-      };
-    }
-
     const rows = filterCurrentRosterRowsFromMonthlyTable_(
-      sheet.getRange(2, 1, lastRow - 1, lastColumn).getDisplayValues()
+      lastRow < 2 ? [] : sheet.getRange(2, 1, lastRow - 1, lastColumn).getDisplayValues(), ym
     );
 
     return {

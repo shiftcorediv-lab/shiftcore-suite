@@ -1,6 +1,7 @@
 // ===== PMO roster 1件整形ここから =====
 function buildPmoRosterUser(user) {
   return {
+    userId: String(user.internal_user_id || "").trim(),
     displayName: String(user.name || "").trim(),
     employeeCode: String(user.employee_code || "").trim().toUpperCase(),
     role: String(user.role || "").trim(),
@@ -55,6 +56,7 @@ function getPmoRosterSecure(serviceSecret) {
       })
       .map(function(user) {
         return {
+          userId: user.userId,
           displayName: user.displayName,
           employeeCode: user.employeeCode
         };
