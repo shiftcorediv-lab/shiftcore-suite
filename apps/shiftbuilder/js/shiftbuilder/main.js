@@ -24,7 +24,7 @@ import { getPermissionLabel, canEdit } from "./permissions.js?v=20260801-authfix
 import { renderSummary } from "./render-summary.js?v=20260801-authfix-1";
 import { renderShiftTable } from "./render-shift-table.js?v=20260913-demo2";
 import { buildPersonnelAxisViewModel } from "./personnel-axis-view-model.js?v=20260909-member-display-1";
-import { renderPersonnelTable } from "./render-personnel-table.js?v=20260913-demo2";
+import { renderPersonnelTable, renderDailySummaryRows } from "./render-personnel-table.js?v=20260913-demo2";
 import { closePersonnelProfiles } from './personnel-profile-popover.js';
 import { getConsecutiveWorkAlert } from "./consecutive-work-alert.js?v=20260801-authfix-1";
 import { getCaseIdentityLabel } from "./display-labels.mjs?v=20260909-member-display-1";
@@ -2043,15 +2043,26 @@ function switchAxis(axis) {
   renderCurrentShiftView();
 }
 
+function refreshCandidateDependentShiftView() {
+  if (getActiveAxis() === 'personnel') {
+    renderCurrentShiftView();
+    return;
+  }
+  // 候補者はシフト本体より後に届く。配置中のセルは描き直さず集計だけ更新する。
+  const data = getCurrentShiftData();
+  if (!data || !elements.shiftTableHead) return;
+  const viewModel = buildPersonnelAxisViewModel(data, assignmentCandidates, previousMonthShiftData, isPreviousMonthDataAvailable);
+  elements.shiftTableHead.querySelectorAll('.personnel-daily-summary').forEach(row => row.remove());
+  elements.shiftTableHead.insertAdjacentHTML('afterbegin', renderDailySummaryRows(viewModel));
+}
+
 async function loadAssignmentCandidates(session, resultPromise = null) {
   if (!session || !session.isLoggedIn || !session.idToken) {
     assignmentCandidates = [];
     renderAssignmentCandidateCards();
     refreshActiveActionPopover();
 
-    if (getActiveAxis() === "personnel") {
-      renderCurrentShiftView();
-    }
+    refreshCandidateDependentShiftView();
     return;
   }
 
@@ -2091,9 +2102,7 @@ async function loadAssignmentCandidates(session, resultPromise = null) {
     renderAssignmentCandidateCards();
     refreshActiveActionPopover();
 
-    if (getActiveAxis() === "personnel") {
-      renderCurrentShiftView();
-    }
+    refreshCandidateDependentShiftView();
   } catch (error) {
     console.error("[ShiftBuilder] assignment candidates error:", error);
 
@@ -2107,9 +2116,7 @@ async function loadAssignmentCandidates(session, resultPromise = null) {
     renderAssignmentCandidateCards();
     refreshActiveActionPopover();
 
-    if (getActiveAxis() === "personnel") {
-      renderCurrentShiftView();
-    }
+    refreshCandidateDependentShiftView();
   }
 }
 

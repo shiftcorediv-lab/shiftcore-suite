@@ -1,9 +1,30 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import {readFileSync} from 'node:fs';
 import {renderShiftTable} from '../js/shiftbuilder/render-shift-table.js';
 import {renderPersonnelTable, renderDailySummaryRows} from '../js/shiftbuilder/render-personnel-table.js';
 import {getCaseMemberPreference} from '../js/shiftbuilder/assignment-preference-policy.mjs';
 const element = () => ({innerHTML:'',querySelectorAll:()=>[]});
+
+test('候補者の遅延到着後は案件セルを壊さず集計だけ更新する', () => {
+  const source=readFileSync(new URL('../js/shiftbuilder/main.js',import.meta.url),'utf8');
+  const fn=source.slice(source.indexOf('function refreshCandidateDependentShiftView()'),source.indexOf('async function loadAssignmentCandidates'));
+  let axis='case', removed=0, inserted='', fullRenders=0;
+  const context=vm.createContext({
+    getActiveAxis:()=>axis, renderCurrentShiftView:()=>fullRenders++, getCurrentShiftData:()=>({dates:[]}),
+    assignmentCandidates:[{id:'U1'}],previousMonthShiftData:null,isPreviousMonthDataAvailable:false,
+    buildPersonnelAxisViewModel:(_data,candidates)=>({dailySummary:candidates}),
+    renderDailySummaryRows:model=>JSON.stringify(model.dailySummary),
+    elements:{shiftTableHead:{querySelectorAll:()=>[{remove:()=>removed++}],insertAdjacentHTML:(where,html)=>{assert.equal(where,'afterbegin');inserted=html;}}},
+  });
+  vm.runInContext(fn,context);
+  context.refreshCandidateDependentShiftView();
+  assert.equal(removed,1); assert.equal(inserted,'[{"id":"U1"}]'); assert.equal(fullRenders,0);
+  axis='personnel'; context.refreshCandidateDependentShiftView(); assert.equal(fullRenders,1);
+  const loader=source.slice(source.indexOf('async function loadAssignmentCandidates'),source.indexOf('function findShiftCell'));
+  assert.equal((loader.match(/refreshCandidateDependentShiftView\(\)/g)||[]).length,3);
+});
 
 test('日別3行は両軸の日付見出し直上・tbodyには重複させない', () => {
   const dailySummary = [{date:'2026-10-01',submitted:3,required:2,balance:1}];
