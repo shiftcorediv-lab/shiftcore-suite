@@ -54,17 +54,22 @@ function createNextEmployeeCode_() {
   let maxSeq = 0;
 
   values.forEach(function(row) {
-    const code = String(row[0] || "").trim();
+    const code = String(row[0] || "").trim().toUpperCase();
     const match = code.match(/^AN(\d{4})$/);
 
     if (match) {
       const seq = Number(match[1]);
-      if (seq > maxSeq) {
+      // 開発者用0000・既存の特殊番号9999を通常の連番へ混ぜない。
+      // 停止済みを含めて走査し、過去の番号は再利用しない。
+      if (seq > maxSeq && seq < 9999) {
         maxSeq = seq;
       }
     }
   });
 
+  if (maxSeq >= 9998) {
+    throw new Error("社員番号の自動採番範囲を使い切りました。管理者に確認してください。");
+  }
   return "AN" + String(maxSeq + 1).padStart(4, "0");
 }
 // ===== employee_code 自動採番ここまで =====
