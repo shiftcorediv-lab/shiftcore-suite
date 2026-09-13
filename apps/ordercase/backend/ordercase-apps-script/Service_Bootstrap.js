@@ -19,15 +19,20 @@ function getBootstrapData_() {
 }
 
 // 個人・権限情報を含まない参照結果だけを保存。API入口の権限確認後に呼ぶ。
-function cachedOrderReference_(name, loader) {
+function cachedOrderReference_(name, loader, diagnostic) {
   let cache, key;
+  if (diagnostic) diagnostic.cache = 'miss';
   try {
     const version = PropertiesService.getScriptProperties().getProperty('ORDER_REFERENCE_VERSION') || '0';
     key = 'order-reference:' + version + ':' + name;
     cache = CacheService.getScriptCache();
     const value = cache.get(key);
-    if (value) return JSON.parse(value);
-  } catch (_) { cache = null; }
+    if (value) {
+      const parsed = JSON.parse(value);
+      if (diagnostic) diagnostic.cache = 'hit';
+      return parsed;
+    }
+  } catch (_) { cache = null; if (diagnostic) diagnostic.cache = 'unavailable'; }
   const result = loader();
   if (cache) { try { cache.put(key, JSON.stringify(result), 1800); } catch (_) {} }
   return result;

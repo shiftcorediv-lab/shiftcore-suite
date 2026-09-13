@@ -7,6 +7,8 @@ export async function attendanceRequest(action, payload = {}) {
   if (!ATTENDANCE_API_URL.startsWith("https://")) throw new Error("勤怠APIがまだ公開されていません。");
   // 予定同期（refresh）には書き込みがあるため、名前の前方一致では許可しない。
   const retryableRead = ["getDashboardData", "getMyWorkReportSummary"].includes(action);
+  // 表示用エラーの分類であり、サーバー処理が無書込みである保証には使わない。
+  const displayRead = retryableRead || ["getAdminDashboard", "getWorkReportAdminData", "getWorkReportAdminHistory"].includes(action);
   // 管理一覧は予定同期を伴うため再送対象にせず、画面側の待機だけを制限する。
   const boundedRead = retryableRead || ["getAdminDashboard", "refreshAdminSchedules", "getWorkReportAdminData", "getWorkReportAdminHistory"].includes(action);
   let refreshToken = false;
@@ -47,16 +49,21 @@ export async function attendanceRequest(action, payload = {}) {
   catch (_) {
     if (readController?.signal.aborted) throw timeoutError();
     if (retryableRead && attempt === 0) continue;
-    const error = new Error(retryableRead ? "情報を読み込めませんでした。少し待ってから画面を更新してください。" : "サーバーの応答を確認できませんでした。保存操作の場合は結果が不明です。再送せず、画面を更新して記録を確認してください。");
+    const error = new Error(displayRead ? "情報を読み込めませんでした。少し待ってから画面を更新してください。" : "サーバーの応答を確認できませんでした。保存操作の場合は結果が不明です。再送せず、画面を更新して記録を確認してください。");
     error.code = "INVALID_API_RESPONSE";
+    // 応答本文やURLは含めず、再発時のHTTPエラーと形式不良を区別する。
+    error.diagnostic = { status: Number(response.status) || 0, phase: "decode" };
+    try { console.warn("ATTENDANCE_RESPONSE_INVALID", error.diagnostic); } catch (_) {}
     throw error;
   } finally {
     if (readTimeout !== null) clearTimeout(readTimeout);
   }
   if (!result || typeof result !== "object" || typeof result.ok !== "boolean") {
     if (retryableRead && attempt === 0) continue;
-    const error = new Error(retryableRead ? "情報を読み込めませんでした。少し待ってから画面を更新してください。" : "サーバーから正しい応答が届きませんでした。保存操作の場合は再送せず、画面を更新して記録を確認してください。");
+    const error = new Error(displayRead ? "情報を読み込めませんでした。少し待ってから画面を更新してください。" : "サーバーから正しい応答が届きませんでした。保存操作の場合は再送せず、画面を更新して記録を確認してください。");
     error.code = "INVALID_API_RESPONSE";
+    error.diagnostic = { status: Number(response.status) || 0, phase: "shape" };
+    try { console.warn("ATTENDANCE_RESPONSE_INVALID", error.diagnostic); } catch (_) {}
     throw error;
   }
   // このコードは保存前の本人確認だけが返す。通信切断や一般エラーは再送しない。

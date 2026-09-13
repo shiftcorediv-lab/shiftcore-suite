@@ -50,10 +50,29 @@ function handleOrderCaseRead_(params) {
     const action = params.action || '';
 
     if (action === 'getStoreMasterBootstrap') {
-      requireOrderCaseEditor_(getIdTokenFromBody_(params));
-      return jsonResponse_({ ok:true, action, data:cachedOrderReference_('store-management', function() {
-        return { agencies:getAgenciesMasterForManagement_(), stores:getStoresMasterForManagement_() };
-      }) });
+      const started = Date.now();
+      const timing = { authMs:0, dataMs:0, totalMs:0, cache:'not-read', phase:'auth', ok:false };
+      let dataStarted = 0;
+      try {
+        requireOrderCaseEditor_(getIdTokenFromBody_(params));
+        timing.authMs = Date.now() - started;
+        timing.phase = 'data';
+        dataStarted = Date.now();
+        const data = cachedOrderReference_('store-management', function() {
+          return { agencies:getAgenciesMasterForManagement_(), stores:getStoresMasterForManagement_() };
+        }, timing);
+        timing.dataMs = Date.now() - dataStarted;
+        timing.totalMs = Date.now() - started;
+        timing.phase = 'complete';
+        timing.ok = true;
+        return jsonResponse_({ ok:true, action, data, serverTiming:timing });
+      } finally {
+        if (timing.phase === 'auth') timing.authMs = Date.now() - started;
+        if (timing.phase === 'data') timing.dataMs = Date.now() - dataStarted;
+        timing.totalMs = Date.now() - started;
+        // 氏名・トークン・原本・例外本文は記録しない。計測失敗で一覧を失敗させない。
+        try { console.info('ORDER_STORE_TIMING ' + JSON.stringify(timing)); } catch (_) {}
+      }
     }
 
     if (action === 'listRuleMembers') {
