@@ -32,3 +32,17 @@ test('締切前の秒数・締切経過と提出可能を表示',()=>{
   assert.match(deadlineText(deadline,now),/締切を過ぎ.*提出・修正は可能/);
   assert.match(deadlineText('invalid',now),/確認できません/);
 });
+
+test('締切の参照は一覧のロックを待たず、保存はロック内で実行する',()=>{
+  let held=false, reads=0, writes=0;
+  const c=vm.createContext({normalizeText:v=>String(v??'').trim(),
+    LockService:{getScriptLock:()=>({waitLock:()=>{held=true;},releaseLock:()=>{held=false;}})},
+    getPmoDeadlineSecure:()=>{assert.equal(held,false);reads++;return{success:true};},
+    updatePmoDeadlineSecure:()=>{assert.equal(held,true);writes++;return{success:true};},
+    ContentService:{MimeType:{JSON:'json'},createTextOutput:value=>({setMimeType:()=>JSON.parse(value)})}});
+  vm.runInContext(readFileSync(new URL('../backend/pmo-apps-script/api.js',import.meta.url),'utf8'),c);
+  for(const action of ['getPmoDeadlineSecure','updatePmoDeadlineSecure']) {
+    assert.equal(c.doPost({postData:{contents:JSON.stringify({action,targetYearMonth:'2026-10',idToken:'test'})}}).success,true);
+  }
+  assert.equal(reads,1);assert.equal(writes,1);assert.equal(held,false);
+});

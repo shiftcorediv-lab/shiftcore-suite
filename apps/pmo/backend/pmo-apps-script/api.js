@@ -27,6 +27,16 @@ function doGet(e) {
 }
 
 function doPost(e) {
+  let body;
+  try {
+    body = parseJsonBody_(e);
+    // 締切の参照は原本を書き換えないため、重い一覧・Excel処理のロックを待たせない。
+    if (normalizeText(body.action || getAction_(e)) === "getPmoDeadlineSecure") {
+      return jsonResponse_(getPmoDeadlineSecure(body.targetYearMonth, body.idToken));
+    }
+  } catch (error) {
+    return jsonResponse_({ success: false, code: normalizeText(error.code || "SERVER_ERROR"), message: "POST処理中にエラーが発生しました: " + error.message });
+  }
   const lock = LockService.getScriptLock();
 
   try {
@@ -39,9 +49,7 @@ function doPost(e) {
   }
 
   try {
-    const body = parseJsonBody_(e);
     const action = normalizeText(body.action || getAction_(e));
-    if (action === "getPmoDeadlineSecure") return jsonResponse_(getPmoDeadlineSecure(body.targetYearMonth, body.idToken));
     if (action === "updatePmoDeadlineSecure") return jsonResponse_(updatePmoDeadlineSecure(body));
 
     if (action === "getPmoCurrentUserSecure") {
