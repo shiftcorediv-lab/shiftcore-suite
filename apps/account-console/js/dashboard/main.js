@@ -389,10 +389,9 @@ async function submitDeparture() {
   const accepted = await openDialog("出発", "<p>現在時刻で出発を報告します。位置情報は取得しません。</p>", "出発する");
   if (!accepted) return;
   await runAction(async () => {
-    const result = await attendanceRequest("submitFieldReport", { reportType: "出発", scheduleId: dashboardData.schedule.schedule_id || "" });
-    // 保存確定の通知は重い再取得を待たせない。次の操作は再取得後に解放する。
+    const result = await attendanceRequest("submitFieldReport", { reportType: "出発", scheduleId: dashboardData.schedule.schedule_id || "", fastSave: true });
+    applySavedFieldReport(result);
     showFieldReportResult("出発", result);
-    await loadDashboard();
   });
 }
 
@@ -401,10 +400,21 @@ async function submitNearestArrival() {
   if (!await openDialog("最寄り到着", "<p>稼働先の最寄りへ到着した時刻と位置情報を記録します。</p>", "到着を報告する")) return;
   await runAction(async () => {
     const location = await readAttendanceLocation();
-    const result = await attendanceRequest("submitFieldReport", { reportType: "最寄り到着", scheduleId: dashboardData.schedule.schedule_id || "", location });
+    const result = await attendanceRequest("submitFieldReport", { reportType: "最寄り到着", scheduleId: dashboardData.schedule.schedule_id || "", location, fastSave: true });
+    applySavedFieldReport(result);
     showFieldReportResult("最寄り到着", result);
-    await loadDashboard();
   });
+}
+
+function applySavedFieldReport(result) {
+  const report = result.report;
+  if (!report || !report["報告日時"]) throw Object.assign(new Error("保存結果の時刻を確認できません。再送せず画面を更新してください。"), { code: "INVALID_API_RESPONSE" });
+  dashboardLoadVersion++;
+  dashboardData.fieldReports = (dashboardData.fieldReports || []).filter(row => row["報告種別"] !== report["報告種別"]).concat(report);
+  if (Object.prototype.hasOwnProperty.call(result, "timing")) dashboardData.timing = result.timing;
+  renderDashboard(dashboardData);
+  writeDashboardCache(dashboardData);
+  showStatus("保存が完了しました。");
 }
 
 function showFieldReportResult(label, result) {

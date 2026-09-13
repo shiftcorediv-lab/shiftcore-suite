@@ -2058,7 +2058,8 @@ function refreshCandidateDependentShiftView() {
   elements.shiftTableHead.insertAdjacentHTML('afterbegin', renderDailySummaryRows(viewModel));
 }
 
-async function loadAssignmentCandidates(session, resultPromise = null) {
+async function loadAssignmentCandidates(session, resultPromise = null, isCurrent = () => true) {
+  if (!isCurrent()) return;
   if (!session || !session.isLoggedIn || !session.idToken) {
     assignmentCandidates = [];
     dailySupply = null;
@@ -2089,6 +2090,7 @@ async function loadAssignmentCandidates(session, resultPromise = null) {
       area: area
     }));
 
+    if (!isCurrent()) return;
     if (!result || result.success !== true) {
       throw new Error(result?.message || "候補者一覧の取得に失敗しました");
     }
@@ -2108,6 +2110,7 @@ async function loadAssignmentCandidates(session, resultPromise = null) {
 
     refreshCandidateDependentShiftView();
   } catch (error) {
+    if (!isCurrent()) return;
     console.error("[ShiftBuilder] assignment candidates error:", error);
 
     assignmentCandidates = [];
@@ -2204,17 +2207,22 @@ function selectShiftCell(caseId, date, anchorElement) {
   renderAssignmentCandidateCards();
 }
 
+let shiftLoadGeneration = 0;
 async function loadShiftData(options = {}) {
-  // 前月・候補者の取得と描画が終わるまで、月読込の表示を維持する。
+  const generation = ++shiftLoadGeneration;
+  // 当月を先に表示し、前月・候補者の確認は続ける。
   const done = options.silent === true ? () => {} : window.PortalLoading.begin("シフトの月情報を読み込み中…");
+  let finished = false;
+  const finishPrimary = () => { if (!finished) { finished = true; done(); } };
   try {
-    await loadShiftDataContents(options);
+    await loadShiftDataContents({ ...options, onPrimaryReady: finishPrimary, isCurrent: () => generation === shiftLoadGeneration });
   } finally {
-    done();
+    finishPrimary();
   }
 }
 
 async function loadShiftDataContents(options = {}) {
+  const isCurrent = options.isCurrent || (() => true);
   const reloadCandidates = options.reloadCandidates !== false;
   const preserveSelectedCell = options.preserveSelectedCell === true;
   const preservePopoverInteraction =
@@ -2245,6 +2253,7 @@ async function loadShiftDataContents(options = {}) {
       };
     } else {
       const session = options.session || await requireShiftBuilderSession();
+      if (!isCurrent()) return;
 
       if (!session.isLoggedIn) {
         renderNoLogin(session);
@@ -2267,6 +2276,9 @@ async function loadShiftDataContents(options = {}) {
         area: selectedArea,
         bypassCache: options.bypassCache === true
       });
+      // 主要求の失敗や月切替で待機をやめても、補助要求を未処理の拒否にしない。
+      candidateRequest?.catch(() => {});
+      previousMonthRequest.catch(() => {});
 
       apiResult = await getShiftBuilderMonthData(session.idToken, {
         targetMonth: selectedMonth,
@@ -2279,6 +2291,7 @@ async function loadShiftDataContents(options = {}) {
       }
     }
   } catch (error) {
+    if (!isCurrent()) return;
     console.error("[ShiftBuilder] month data API error:", error);
 
     if (!suppressStatus) {
@@ -2287,6 +2300,7 @@ async function loadShiftDataContents(options = {}) {
     return;
   }
 
+  if (!isCurrent()) return;
   const apiData = apiResult?.data;
 
   const hasValidApiData =
@@ -2310,9 +2324,17 @@ async function loadShiftDataContents(options = {}) {
   previousMonthShiftData = null;
   isPreviousMonthDataAvailable = false;
 
+  setCurrentShiftData(shiftData);
+  if (reloadCandidates && !preservePopoverInteraction) { assignmentCandidates = []; dailySupply = null; }
+  if (!preserveSelectedCell) resetSelectedCell();
+  renderCurrentShiftView({ changedCellKey });
+  options.onPrimaryReady?.();
+  if (!suppressStatus) setStatus("当月のシフトを表示しました。前月・候補者を確認中です…");
+
   if (previousMonthRequest) {
     try {
       const previousMonthResult = await previousMonthRequest;
+      if (!isCurrent()) return;
       const previousMonthData = previousMonthResult?.data;
 
       if (
@@ -2330,6 +2352,7 @@ async function loadShiftDataContents(options = {}) {
         console.warn("[ShiftBuilder] previous month data was unavailable for consecutive-work alerts");
       }
     } catch (error) {
+      if (!isCurrent()) return;
       console.warn("[ShiftBuilder] previous month data request failed for consecutive-work alerts:", error);
     }
   }
@@ -2412,7 +2435,7 @@ async function loadShiftDataContents(options = {}) {
     shiftDataSource === "api" &&
     currentSession?.isLoggedIn
   ) {
-    await loadAssignmentCandidates(currentSession, candidateRequest);
+    await loadAssignmentCandidates(currentSession, candidateRequest, isCurrent);
   } else {
     renderAssignmentCandidateCards();
   }

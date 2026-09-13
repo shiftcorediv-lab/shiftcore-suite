@@ -40,13 +40,21 @@ function isOrderCaseReadAction_(action) {
     'getCaseChangeLogs',
     'listAgenciesMaster',
     'listStoresMaster',
-    'listRuleMembers'
+    'listRuleMembers',
+    'getStoreMasterBootstrap'
   ].indexOf(String(action || '')) !== -1;
 }
 
 function handleOrderCaseRead_(params) {
   try {
     const action = params.action || '';
+
+    if (action === 'getStoreMasterBootstrap') {
+      requireOrderCaseEditor_(getIdTokenFromBody_(params));
+      return jsonResponse_({ ok:true, action, data:cachedOrderReference_('store-management', function() {
+        return { agencies:getAgenciesMasterForManagement_(), stores:getStoresMasterForManagement_() };
+      }) });
+    }
 
     if (action === 'listRuleMembers') {
       requireOrderCaseEditor_(getIdTokenFromBody_(params));
@@ -192,7 +200,7 @@ function handleOrderCaseRead_(params) {
         ok: true,
         action: action,
         permission: context.permission,
-        data: getAgenciesMasterForManagement_()
+        data: cachedOrderReference_('agencies', getAgenciesMasterForManagement_)
       });
     }
 
@@ -203,7 +211,7 @@ function handleOrderCaseRead_(params) {
         ok: true,
         action: action,
         permission: context.permission,
-        data: getStoresMasterForManagement_()
+        data: cachedOrderReference_('stores', getStoresMasterForManagement_)
       });
     }
 

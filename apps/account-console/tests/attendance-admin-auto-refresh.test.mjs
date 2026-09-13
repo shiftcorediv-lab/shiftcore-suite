@@ -72,6 +72,26 @@ test('通信失敗は前回表示を維持して古い情報と明示し、次�
   pending = h.evaluate('load({background:true})'); h.requests[2].resolve(snapshot); await pending;
   assert.match(h.element('message').textContent, /最新情報/);
 });
+for(const invalid of [null,{ok:true,service:'shiftcore-attendance'},{...snapshot,settings:null},{...snapshot,settings:[]},{...snapshot,people:{}},{...snapshot,requests:null}]) {
+  test(`不完全な応答でも前回の正常データを保持する: ${JSON.stringify(invalid)}`, async()=>{
+    const h=setup();await h.start();
+    const previous=h.evaluate('data'), summary=h.element('summary').innerHTML;
+    const pending=h.evaluate('load()');h.requests[1].resolve(invalid);await pending;
+    assert.equal(h.evaluate('data'),previous);
+    assert.equal(h.element('summary').innerHTML,summary);
+    assert.match(h.element('message').textContent,/正しく取得できません/);
+    assert.match(h.element('message').textContent,/前回取得時点/);
+    const retry=h.evaluate('load()');h.requests[2].resolve(snapshot);await retry;
+    assert.match(h.element('message').textContent,/最新情報/);
+  });
+}
+test('初回の不完全応答は正常データなしのまま再確認を案内する',async()=>{
+  const h=setup();h.evaluate('authenticated=true');
+  const pending=h.evaluate('load()');h.requests[0].resolve({ok:true});await pending;
+  assert.equal(h.evaluate('data'),null);
+  assert.match(h.element('message').textContent,/正しく取得できません/);
+  assert.doesNotMatch(h.element('message').textContent,/前回取得時点|Cannot read/);
+});
 test('ログアウト後の遅い応答を表示せず、再更新しない', async () => {
   const h = setup(); await h.start(); const pending = h.evaluate('load({background:true})');
   h.logout(); h.requests[1].resolve(snapshot); await pending;

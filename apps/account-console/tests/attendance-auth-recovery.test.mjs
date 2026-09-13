@@ -129,8 +129,8 @@ test('再試行時にログイン本人が変わっていたら送信しない',
   assert.equal(calls(),1);
 });
 
-for (const phase of ['fetch', 'body']) {
-  test(`読み取りの${phase}待ちが60秒を超えたら終了し、自動再送しない`, async () => {
+for (const action of ['getDashboardData','getAdminDashboard']) for (const phase of ['fetch', 'body']) {
+  test(`${action}の${phase}待ちが60秒を超えたら終了し、自動再送しない`, async () => {
     const {context} = await frontend([]);
     let expire, requests = 0, cleared = 0;
     context.setTimeout = (fn, ms) => { assert.equal(ms, 60000); expire = fn; return 1; };
@@ -143,7 +143,7 @@ for (const phase of ['fetch', 'body']) {
       });
       return phase === 'fetch' ? pending() : {json: pending};
     };
-    await assert.rejects(context.attendanceRequest('getDashboardData'), e => e.code === 'API_READ_TIMEOUT' && /再読み込み/.test(e.message));
+    await assert.rejects(context.attendanceRequest(action), e => e.code === 'API_READ_TIMEOUT' && /再読み込み/.test(e.message));
     assert.equal(requests, 1);
     assert.equal(cleared, 1);
   });
@@ -159,6 +159,13 @@ test('正常な読み取りはタイマーを解除し、保存・予定同期�
   assert.equal(started, 1);
   assert.equal(cleared, 1);
 });
+for(const failure of [new Error('offline'),{invalidJson:true}]) {
+  test(`勤怠管理一覧は通信失敗でも自動再送しない: ${failure.message||'invalidJson'}`,async()=>{
+    const {context,calls}=await frontend([failure,{ok:true}]);
+    await assert.rejects(context.attendanceRequest('getAdminDashboard'));
+    assert.equal(calls(),1);
+  });
+}
 
 test('保存結果不明の画面は再打刻を止め、失敗と断定しない', async () => {
   const source=read('../js/dashboard/main.js');

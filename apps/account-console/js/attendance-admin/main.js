@@ -6,6 +6,7 @@ import { setActivity } from "../common/activity.js?v=20260831-activity-1";
 const $=id=>document.getElementById(id); let data=null; let reviewRequest=null;
 let authenticated=false, inFlight=null, writing=false, settingsDirty=false, timer=null, generation=0;
 let mutationError=false;
+let scheduleSyncRequest=null;
 const REFRESH_MS=30000;
 $("targetDate").value=new Intl.DateTimeFormat("sv-SE",{timeZone:"Asia/Tokyo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
 for(const id of ["viewMode","targetDate"]) $(id).addEventListener("change",async()=>{generation++;await inFlight;await load();});
@@ -13,7 +14,7 @@ function interacting(){return writing||$("reviewDialog").open||Boolean(document.
 function scheduleRefresh(){clearTimeout(timer);timer=null;if(authenticated&&!document.hidden&&!mutationError)timer=setTimeout(()=>load({background:true}),REFRESH_MS);}
 document.addEventListener("visibilitychange",()=>{clearTimeout(timer);if(!document.hidden&&authenticated)load({background:true});});
 onAuthStateChanged(auth,user=>{authenticated=Boolean(user);if(user)load();else{clearTimeout(timer);generation++;window.location.replace("./index.html");}});
-$("refreshBtn").addEventListener("click",()=>load()); $("statusFilter").addEventListener("change",renderPeople); $("searchInput").addEventListener("input",renderPeople);
+$("refreshBtn").addEventListener("click",()=>load().then(()=>syncAdminSchedules(true))); $("statusFilter").addEventListener("change",renderPeople); $("searchInput").addEventListener("input",renderPeople);
 $("endWarningTime").addEventListener("input",()=>{settingsDirty=true;});
 $("saveTimeBtn").addEventListener("click",async()=>{if(writing)return;writing=true;generation++;const time=$("endWarningTime").value;message("通知時刻を保存しています…",false,true);try{await attendanceRequest("updateEndWarningTime",{time});settingsDirty=$("endWarningTime").value!==time;message("通知時刻を保存しました。");await inFlight;await load();}catch(e){message(e.message,true)}finally{writing=false;scheduleRefresh()}});
 
@@ -27,21 +28,43 @@ function load({background=false}={}){
   if(!background)message("勤怠情報を読み込んでいます…",false,true);
   inFlight=(async()=>{
     try{
-      const next=await attendanceRequest("getAdminDashboard",{viewMode:$("viewMode").value||"day",targetDate:$("targetDate").value});
+      const next=await attendanceRequest("getAdminDashboard",{viewMode:$("viewMode").value||"day",targetDate:$("targetDate").value,deferScheduleSync:true});
       // 通信開始後に入力・承認操作を始めた場合も、操作中の画面を差し替えない。
       if(!authenticated||requestGeneration!==generation||(background&&(document.hidden||interacting())))return;
+      // 疎通確認などの別形式の応答を、正常な勤怠一覧として取り込まない。
+      if(!next||!Array.isArray(next.people)||!Array.isArray(next.requests)||!next.settings||typeof next.settings!=="object"||Array.isArray(next.settings))throw new Error("勤怠情報を正しく取得できませんでした。「更新」で再確認してください。");
       data=next;mutationError=false;
       if(!settingsDirty)$("endWarningTime").value=data.settings.end_warning_time||"19:00";
       render();message("最新情報を表示しています。（表示中は約30秒ごとに自動更新）");
+      if(next.scheduleSync && !["fresh-cache","in-progress"].includes(next.scheduleSync.status)) {
+        message("勤怠情報を表示しました。最新のシフト予定を確認中です。",false,true);
+        void syncAdminSchedules();
+      }
     }catch(e){
       if(requestGeneration!==generation||!authenticated)return;
-      if(!background||(!document.hidden&&!interacting()))message(background?"自動更新できませんでした。表示は前回取得時点の情報です。「更新」で再確認できます。":e.message,true);
+      if(!background||(!document.hidden&&!interacting()))message(background?"自動更新できませんでした。表示は前回取得時点の情報です。「更新」で再確認できます。":e.message+(data?" 表示は前回取得時点の情報です。":""),true);
       if(e.code==="FORBIDDEN"){authenticated=false;setTimeout(()=>location.replace("./dashboard.html"),1200);}
     }finally{done();}
   })().finally(()=>{inFlight=null;scheduleRefresh();});
   return inFlight;
 }
-function render(){const people=data.people||[];const status=p=>p.record?.["状態"]||"未開始";const counts={all:people.length,not:people.filter(p=>status(p)==="未開始").length,running:people.filter(p=>["稼働中","開始遅延"].includes(status(p))).length,issues:(data.requests||[]).length};$("summary").innerHTML=card("選択期間の予定・勤怠",counts.all)+card("未開始",counts.not)+card("稼働中",counts.running)+card("承認待ち",counts.issues);renderPeople();renderRequests()}
+
+async function syncAdminSchedules(forceRefresh=false){
+  if(!data?.scheduleSync)return;
+  if(scheduleSyncRequest)return scheduleSyncRequest;
+  scheduleSyncRequest=(async()=>{
+    try{
+      const result=await attendanceRequest("refreshAdminSchedules",{forceRefresh});
+      if(result.scheduleSync?.status==="failed")throw new Error("予定同期に失敗しました");
+      await inFlight;
+      if(authenticated&&!document.hidden&&!interacting())await load({background:true});
+    }catch(_){
+      if(authenticated&&!document.hidden)message("打刻情報は取得済みですが、シフト予定の同期ができませんでした。次の更新で再確認します。",true);
+    }finally{scheduleSyncRequest=null;}
+  })();
+  return scheduleSyncRequest;
+}
+function render(){const people=data.people||[];const status=p=>p.record?.["状態"]||"未開始";const counts={all:people.length,not:people.filter(p=>status(p)==="未開始").length,running:people.filter(p=>["稼働中","開始遅延"].includes(status(p))).length,issues:(data.requests||[]).length};$("summary").innerHTML=card("選択期間の予定・勤怠",counts.all)+card("未開始",counts.not)+card("稼働中",counts.running)+card("承認待ち",counts.issues)+(data.notificationReviewCount?card("通知の要確認（管理者へ連絡）",data.notificationReviewCount):"");renderPeople();renderRequests()}
 function renderPeople(){if(!data)return;const filter=$("statusFilter").value;const q=$("searchInput").value.toLowerCase();const items=(data.people||[]).filter(p=>{const status=p.record?.["状態"]||"未開始";const hay=[p.schedule?.["氏名"],p.record?.["氏名"],p.schedule?.email,p.record?.email,p.schedule?.["稼働場所"],p.record?.["予定場所"]].join(" ").toLowerCase();return(!filter||status===filter)&&(!q||hay.includes(q))});$("peopleRows").innerHTML=items.length?items.map(p=>{const s=p.schedule||{};const r=p.record||{};const reports=p.fieldReports||[];const departure=reports.find(x=>x["報告種別"]==="出発");const nearestArrival=reports.find(x=>x["報告種別"]==="最寄り到着");const arrival=reports.find(x=>x["報告種別"]==="入店");const status=r["状態"]||"未開始";const locationLinks=[];if(data.preciseLocationAccess&&hasCoordinate(p.nearestLocation))locationLinks.push(locationLink("最寄り到着",p.nearestLocation));if(data.preciseLocationAccess&&hasCoordinate(p.location))locationLinks.push(locationLink("入店（旧記録）",p.location));const location=locationLinks.join("<br>")||(r["位置取得状態"]||"未取得");return`<tr><td>${e(day(s["勤務日"]||r["勤務日"]))}</td><td><strong>${e(s["氏名"]||r["氏名"]||"—")}</strong><br><small>${e(s.email||r.email||"")}</small></td><td>${e(t(s["予定開始"]))}–${e(t(s["予定終了"]))}</td><td>${e(s["稼働場所"]||r["予定場所"]||"予定外")}</td><td>${e(t(departure?.["報告日時"]))}</td><td>${e(t(nearestArrival?.["報告日時"]))}</td><td>${e(t(arrival?.["報告日時"]))}</td><td><span class="badge ${cls(status)}">${e(status)}</span></td><td>${e(t(r["実開始"]))}</td><td>${e(t(r["実終了"]))}</td><td>${location}</td></tr>`}).join(""):`<tr><td colspan="11">該当者はいません。</td></tr>`}
 function hasCoordinate(location){return location?.["緯度"]!==undefined&&location?.["緯度"]!==null&&location?.["緯度"]!==""&&location?.["経度"]!==undefined&&location?.["経度"]!==null&&location?.["経度"]!==""}
 function locationLink(label,location){return`<a class="location-link" target="_blank" rel="noopener" href="https://www.google.com/maps?q=${encodeURIComponent(location["緯度"]+","+location["経度"])}">${e(label)}位置</a>`}

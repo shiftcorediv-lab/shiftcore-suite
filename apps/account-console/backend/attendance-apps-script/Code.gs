@@ -161,11 +161,12 @@ function doGet(e) {
 
 function doPost(e) {
   attendanceDiagnosticAction_ = null;
+  const diagnosticStartedAt = Date.now();
   try {
     const requestStartedAt = Date.now();
     const body = JSON.parse((e && e.postData && e.postData.contents) || "{}");
     const action = String(body.action || "");
-    attendanceDiagnosticAction_ = ["getPortalBootstrap", "getDashboardData", "refreshDashboardData", "getMyWorkReportSummary", "submitFieldReport", "arrive", "clockIn", "clockOut", "submitCorrection"].includes(action) ? action : null;
+    attendanceDiagnosticAction_ = ["getPortalBootstrap", "getDashboardData", "refreshDashboardData", "getMyWorkReportSummary", "getAdminDashboard", "getWorkReportAdminData", "submitFieldReport", "arrive", "clockIn", "clockOut", "submitCorrection"].includes(action) ? action : null;
     const identityTiming = {};
     const user = attendanceStage_("auth", () => resolveUser_(body.idToken, { allowReadCache: ["getPortalBootstrap", "getDashboardData", "getMyWorkReportSummary"].includes(action), timing: identityTiming }));
     const authenticatedAt = Date.now();
@@ -241,19 +242,38 @@ function doPost(e) {
     }
     if (action === "getMyNotifications") return jsonOutput_({ ok: true, notifications: dashboardNotifications_(user) });
     if (action === "getWorkReportAdminData") return jsonOutput_(getWorkReportAdminData_(user, payload));
+    if (action === "getWorkReportAdminHistory") {
+      requireAdmin_(user);
+      assertWorkReportSchema_();
+      const report = rows_(SHEETS.reports).find(row => String(row.report_id || "") === String(payload.reportId || ""));
+      if (!report) throw apiError_("REPORT_NOT_FOUND", "対象の実績報告が見つかりません。");
+      return jsonOutput_({ ok:true, reportId:String(report.report_id), revisions:workReportRevisionHistory_(report, rows_(SHEETS.reportRevisions), rows_(SHEETS.reportAnswers), rows_(SHEETS.notifications)) });
+    }
     if (action === "setupWorkReportData") return jsonOutput_(setupWorkReportData_(user));
     if (action === "saveWorkReportItem") return jsonOutput_(saveWorkReportItem_(user, payload));
     if (action === "saveWorkReportCaseMapping") return jsonOutput_(saveWorkReportCaseMapping_(user, payload));
     if (action === "returnWorkReport") return jsonOutput_(returnWorkReport_(user, payload));
     if (action === "exportWorkReportsCsv") return jsonOutput_(exportWorkReportsCsv_(user, payload));
     if (action === "markNotificationRead") return jsonOutput_(withDashboardReferenceInvalidation_(user, () => markNotificationRead_(user, payload)));
-    if (action === "getAdminDashboard") return jsonOutput_(getAdminDashboard_(user, body.idToken, payload));
+    if (action === "getAdminDashboard") {
+      const result = attendanceStage_("dashboard", () => getAdminDashboard_(user, body.idToken, payload));
+      result.serverTiming = { authMs: authenticatedAt - requestStartedAt, dataMs: Date.now() - authenticatedAt, totalMs: Date.now() - requestStartedAt, identity: identityTiming };
+      return jsonOutput_(result);
+    }
+    if (action === "refreshAdminSchedules") {
+      requireAdmin_(user);
+      const result = getDashboardSchedules_(body.idToken, { forceRefresh: payload.forceRefresh === true, sourceRevision: String(payload.shiftDataRevision || "") });
+      return jsonOutput_({ ok: true, scheduleSync: result.sync });
+    }
     if (action === "reviewRequest") return jsonOutput_(withAllDashboardReferenceInvalidation_(() => reviewRequest_(user, payload, body.idToken)));
     if (action === "updateEndWarningTime") return jsonOutput_(withAllDashboardReferenceInvalidation_(() => updateEndWarningTime_(user, payload)));
     throw apiError_("UNKNOWN_ACTION", "未対応の操作です。");
   } catch (error) {
     return jsonOutput_({ ok: false, code: error.code || "SERVER_ERROR", message: error.message || String(error) });
   } finally {
+    if (attendanceDiagnosticAction_) {
+      try { console.log("ATTENDANCE_REQUEST_TIMING", JSON.stringify({ action: attendanceDiagnosticAction_, durationMs: Date.now() - diagnosticStartedAt })); } catch (_) {}
+    }
     attendanceDiagnosticAction_ = null;
   }
 }
@@ -550,15 +570,19 @@ function withAllDashboardReferenceInvalidation_(action) {
 function submitFieldReport_(user, payload, idToken) {
   const reportType = String(payload.reportType || "");
   if (!["出発", "最寄り到着"].includes(reportType)) throw apiError_("FIELD_REPORT_TYPE_INVALID", "未対応の現場報告です。");
+  // 外部同期は排他区間の外。区間内では保存済み予定を改めて本人と照合する。
+  if (payload.fastSave === true) getSchedules_(idToken);
   const lock = attendanceWriteLock_();
   lock.waitLock(20000);
   try {
     ensureFieldReportSheet_();
     ensureFieldReportContractHeaders_();
+    if (payload.fastSave === true) ensureFieldReportDeliveryHeaders_();
     const today = today_();
+    const sourceSchedules = payload.fastSave === true ? rows_(SHEETS.schedules) : undefined;
     const schedule = reportType === "出発"
-      ? findSchedule_(user, today, payload.scheduleId, idToken)
-      : findScheduleById_(user, payload.scheduleId, idToken);
+      ? findSchedule_(user, today, payload.scheduleId, idToken, sourceSchedules)
+      : findScheduleById_(user, payload.scheduleId, idToken, sourceSchedules);
     if (!schedule) throw apiError_("FIELD_REPORT_SCHEDULE_REQUIRED", "本日の稼働予定を確認できません。");
     const workDate = dateKey_(schedule["勤務日"]);
     const scheduleKey = scheduleReportKey_(schedule);
@@ -577,10 +601,11 @@ function submitFieldReport_(user, payload, idToken) {
     const location = reportType === "最寄り到着"
       ? saveLocation_(user, fieldReportId, validateNearestArrivalLocation_(payload.location), `最寄り到着: ${schedule["稼働場所"] || ""}`)
       : null;
-    appendObject_(SHEETS.fieldReports, { field_report_id: fieldReportId, "勤務日": workDate, "開発予定ID": schedule["開発予定ID"] || "", "報告種別": reportType, "報告者メール": user.email, "報告者氏名": user.name || "", "報告日時": now, schedule_id: schedule.schedule_id || "" });
+    appendObject_(SHEETS.fieldReports, { field_report_id: fieldReportId, "勤務日": workDate, "開発予定ID": schedule["開発予定ID"] || "", "報告種別": reportType, "報告者メール": user.email, "報告者氏名": user.name || "", "報告日時": now, schedule_id: schedule.schedule_id || "", ...(payload.fastSave === true ? { "通知状態": "待機", "通知組織ID": user.organization_id || "", "通知試行回数": 0 } : {}) });
     // 通知は保存後の付随処理。失敗しても保存済みの打刻を失敗と返さない。
     SpreadsheetApp.flush();
     const savedReport = fieldReportsFor_(user, workDate, scheduleKey, schedule["開発予定ID"]).find(report => String(report["報告種別"]) === reportType) || null;
+    if (payload.fastSave === true) return { ok: true, report: savedReport, timing: safeTimingStatus_(schedule, new Date()), notificationStatus: "queued", locationStatus: location ? location.status : "対象外" };
     let notificationStatus = "sent";
     try {
       notifyManagers_(user, `${reportType}報告`, `${user.name || user.email}さんが${formatJst_(now)}に${reportType}を報告しました。`);
@@ -1148,18 +1173,21 @@ function setupWorkReportData_(user) {
 function buildWorkReportAdminData_(payload) {
   const filters = normalizeWorkReportFilters_(payload);
   const schedules = rows_(SHEETS.schedules);
+  // 勤務ごとに同じ設定表を読み直さない。要求をまたぐ権限キャッシュではない。
+  const caseMappings = rows_(SHEETS.reportCaseMappings);
+  const reportTemplates = rows_(SHEETS.reportTemplates);
   const reports = rows_(SHEETS.reports);
   const reportByRecord = reports.reduce((result, report) => {
     if (report.record_id && !result[String(report.record_id)]) result[String(report.record_id)] = report;
     return result;
   }, Object.create(null));
   const reportAnswers = rows_(SHEETS.reportAnswers);
-  const revisions = rows_(SHEETS.reportRevisions);
-  const notifications = rows_(SHEETS.notifications);
+  const revisions = payload.deferHistory === true ? [] : rows_(SHEETS.reportRevisions);
+  const notifications = payload.deferHistory === true ? [] : rows_(SHEETS.notifications);
   const completedRecords = rows_(SHEETS.records).filter(record => {
     const workDate = dateKey_(record["勤務日"]);
     if (!Boolean(record["実終了"] || record["正式終了"]) || workDate < filters.dateFrom || workDate > filters.dateTo) return false;
-    return Boolean(reportByRecord[String(record.record_id || "")] || workReportTemplateForContext_(workReportContext_(record, schedules)));
+    return Boolean(reportByRecord[String(record.record_id || "")] || workReportTemplateForContext_(workReportContext_(record, schedules), caseMappings, reportTemplates));
   });
   const submissionRows = completedRecords.map(record => {
     const context = workReportContext_(record, schedules);
@@ -1187,7 +1215,8 @@ function buildWorkReportAdminData_(payload) {
     const reportRevisions = workReportRevisionHistory_(report, revisions, reportAnswers, notifications);
     return {
       reportId,
-      legacy: !currentAnswers.length && !reportRevisions.length,
+      historyDeferred: payload.deferHistory === true,
+      legacy: !currentAnswers.length && !reportRevisions.length && !report.current_revision_id,
       result: String(report["実績内容"] || ""),
       notes: String(report["課題・申し送り"] || ""),
       answers: currentAnswers.sort(workReportItemSort_).map(publicWorkReportAnswer_),
@@ -1354,7 +1383,7 @@ function workReportStoredTextEquals_(stored, expected) {
 function exportWorkReportsCsv_(user, payload) {
   requireAdmin_(user);
   assertWorkReportSchema_();
-  const data = buildWorkReportAdminData_(payload || {});
+  const data = buildWorkReportAdminData_({ ...(payload || {}), deferHistory: false });
   const detailById = data.reportDetails.reduce((result, detail) => (result[detail.reportId] = detail, result), {});
   const includeHistory = booleanValue_(payload && payload.includeHistory);
   const headers = ["勤務日", "店舗名", "案件ID", "案件名", "報告者", "報告者メール", "提出状態", "報告日時", "改訂番号", "改訂種別", "改訂者", "改訂日時", "最新版"]
@@ -1668,9 +1697,14 @@ function getAdminDashboard_(user, idToken, payload) {
   const range = attendanceAdminRange_(payload);
   const admin = isAdmin_(user);
   const settings = admin ? settings_() : {};
-  const schedules = admin ? getSchedules_(idToken).filter(r => range.matches(r["勤務日"])) : [];
+  // 新画面は最新打刻を先に表示し、予定同期は別リクエストで行う。旧画面の契約は維持。
+  const deferScheduleSync = payload && payload.deferScheduleSync === true;
+  const schedules = admin ? (deferScheduleSync ? rows_(SHEETS.schedules) : getSchedules_(idToken)).filter(r => range.matches(r["勤務日"])) : [];
   const records = admin ? rows_(SHEETS.records).filter(r => range.matches(r["勤務日"])) : [];
-  const fieldReports = admin ? rows_(SHEETS.fieldReports).filter(r => range.matches(r["勤務日"])) : [];
+  const allFieldReports = admin ? rows_(SHEETS.fieldReports) : [];
+  const fieldReports = allFieldReports.filter(r => range.matches(r["勤務日"]));
+  const notificationReviewCount = allFieldReports.filter(r => r["通知状態"] === "要確認" ||
+    (["送信中", "待機"].includes(r["通知状態"]) && Date.now() - new Date(r["通知試行日時"] || r["報告日時"]).getTime() > 15 * 60 * 1000)).length;
   const pendingRequests = rows_(SHEETS.requests).filter(r => String(r["状態"]) === "申請中");
   const reviewerId = internalUserId_(user);
   const requests = admin
@@ -1690,7 +1724,7 @@ function getAdminDashboard_(user, idToken, payload) {
     people.push({ schedule: null, record, location: loc || null, fieldReports: fieldReports.filter(r => normalizeEmail_(r["報告者メール"]) === normalizeEmail_(record.email) && dateKey_(r["勤務日"]) === dateKey_(record["勤務日"])) });
   });
   people.sort(function(a,b) { return dateKey_((a.schedule || a.record)["勤務日"]).localeCompare(dateKey_((b.schedule || b.record)["勤務日"])); });
-  return { ok: true, serverNow: nowIso_(), people, requests, settings, preciseLocationAccess: admin && canViewPreciseLocation_(user) };
+  return { ok: true, serverNow: nowIso_(), people, requests, settings, notificationReviewCount, preciseLocationAccess: admin && canViewPreciseLocation_(user), ...(admin && deferScheduleSync ? { scheduleSync: dashboardScheduleSyncStatus_() } : {}) };
 }
 
 function reviewRequest_(user, payload, idToken) {
@@ -2263,7 +2297,51 @@ function setupAttendanceTriggers() {
   ScriptApp.newTrigger("cleanupExpiredLocations").timeBased().atHour(2).everyDays(1).inTimezone(TZ).create();
 }
 
+function ensureFieldReportDeliveryHeaders_() {
+  const sheet = SpreadsheetApp.getActive().getSheetByName(SHEETS.fieldReports);
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  const missing = ["通知状態", "通知組織ID", "通知試行回数", "通知試行日時"].filter(name => !headers.includes(name));
+  if (missing.length) sheet.getRange(1, headers.length + 1, 1, missing.length).setValues([missing]);
+}
+
+// 打刻と同じ行に送信待ちを保存するため、待ち行だけが失われる隙間を作らない。
+function deliverPendingFieldReports_() {
+  const startedAt = Date.now();
+  const pending = rows_(SHEETS.fieldReports).filter(row => row["通知状態"] === "待機").slice(0, 20);
+  for (const candidate of pending) {
+    if (Date.now() - startedAt > 60000) break;
+    const lock = attendanceWriteLock_();
+    let report;
+    lock.waitLock(20000);
+    try {
+      report = rows_(SHEETS.fieldReports).find(row => row.field_report_id === candidate.field_report_id && row["通知状態"] === "待機");
+      if (!report) continue;
+      updateById_(SHEETS.fieldReports, "field_report_id", report.field_report_id, { "通知状態": "送信中", "通知試行回数": Number(report["通知試行回数"] || 0) + 1, "通知試行日時": new Date() });
+    } finally { lock.releaseLock(); }
+    // メールはロック外。結果不明の自動再送は重複メールになるため行わない。
+    try {
+      const type = String(report["報告種別"] || "");
+      const email = String(report["報告者メール"] || "");
+      const name = String(report["報告者氏名"] || "");
+      const title = `${type}報告`;
+      const message = `${name || email}さんが${formatJst_(new Date(report["報告日時"]))}に${type}を報告しました。`;
+      const people = [{ email, name }].concat(managerEmails_(report["通知組織ID"]));
+      const recipients = [...new Set(people.map(person => person.email).filter(Boolean))];
+      people.forEach(person => {
+        if (!notificationExists_(person.email, title, report.field_report_id)) createNotification_(person.email, person.name, title, message, report.field_report_id);
+      });
+      if (recipients.length) sendAttendanceMail_({ to: recipients.join(","), subject: `[Another Portal] ${title}`, body: message });
+      updateById_(SHEETS.fieldReports, "field_report_id", report.field_report_id, { "通知状態": "送信済み" });
+    } catch (_) {
+      // 送信中に中断した行も含め、原本へ状態を残して人手の確認対象とする。
+      updateById_(SHEETS.fieldReports, "field_report_id", report.field_report_id, { "通知状態": "要確認" });
+      console.warn("FIELD_REPORT_DELIVERY_REQUIRES_REVIEW");
+    }
+  }
+}
+
 function runAttendanceNotifications() {
+  try { deliverPendingFieldReports_(); } catch (_) { console.warn("FIELD_REPORT_DELIVERY_BATCH_FAILED"); }
   const now = new Date();
   const current = timeKey_(now);
   const today = today_();

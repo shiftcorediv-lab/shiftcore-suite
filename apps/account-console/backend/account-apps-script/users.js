@@ -13,7 +13,9 @@ function getUsersSheet() {
 
 
 // ===== ユーザー一覧取得ここから =====
+let accountUsersRequestMemo_ = null;
 function getUsersData() {
+  if (accountUsersRequestMemo_ && accountUsersRequestMemo_.rows) return accountUsersRequestMemo_.rows;
   const sheet = getUsersSheet();
   const values = sheet.getDataRange().getValues();
 
@@ -24,7 +26,7 @@ function getUsersData() {
   const headers = values[0];
   const rows = values.slice(1);
 
-  return rows.map(row => {
+  const result = rows.map(row => {
     const obj = {};
 
     headers.forEach((header, index) => {
@@ -33,6 +35,8 @@ function getUsersData() {
 
     return obj;
   });
+  if (accountUsersRequestMemo_) accountUsersRequestMemo_.rows = result;
+  return result;
 }
 // ===== ユーザー一覧取得ここまで =====
 

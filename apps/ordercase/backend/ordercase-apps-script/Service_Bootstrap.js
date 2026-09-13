@@ -9,13 +9,33 @@
  * OrderCase画面の初期表示に必要なデータを返す
  ****************************************************/
 function getBootstrapData_() {
-  return {
+  return cachedOrderReference_('bootstrap', function() { return {
     supports_person_conditions: true,
     case_types: getActiveCaseTypes_(),
     agencies_master: getActiveAgenciesMaster_(),
     stores_master: getActiveStoresMaster_(),
     settings: getSettingsMap_()
-  };
+  }; });
+}
+
+// 個人・権限情報を含まない参照結果だけを保存。API入口の権限確認後に呼ぶ。
+function cachedOrderReference_(name, loader) {
+  let cache, key;
+  try {
+    const version = PropertiesService.getScriptProperties().getProperty('ORDER_REFERENCE_VERSION') || '0';
+    key = 'order-reference:' + version + ':' + name;
+    cache = CacheService.getScriptCache();
+    const value = cache.get(key);
+    if (value) return JSON.parse(value);
+  } catch (_) { cache = null; }
+  const result = loader();
+  if (cache) { try { cache.put(key, JSON.stringify(result), 1800); } catch (_) {} }
+  return result;
+}
+
+function invalidateOrderReferences_() {
+  // 古い取得が遅れて完了しても、新しい世代へ書き戻せない。
+  PropertiesService.getScriptProperties().setProperty('ORDER_REFERENCE_VERSION', Utilities.getUuid());
 }
 /****************************************************
  * getBootstrapData_ ここまで

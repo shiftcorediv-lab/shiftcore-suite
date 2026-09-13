@@ -32,7 +32,7 @@ function accountConsoleGetBootstrap(body) {
       return shouldIncludeAccountConsoleUser_(operator, user);
     });
 
-  const logsResult = canViewAuditLogs
+  const logsResult = canViewAuditLogs && body.deferLogs !== true
     ? listAccountConsoleLogs_("")
     : { success: true, ok: true, logs: [] };
 
@@ -42,6 +42,7 @@ function accountConsoleGetBootstrap(body) {
     user: operator,
     users: users,
     logs: logsResult.logs || [],
+    logsDeferred: canViewAuditLogs && body.deferLogs === true,
     canUseAccountConsole: true,
     canEditUsers: canEditUsers,
     canViewAuditLogs: canViewAuditLogs

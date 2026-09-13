@@ -7,6 +7,8 @@ export async function attendanceRequest(action, payload = {}) {
   if (!ATTENDANCE_API_URL.startsWith("https://")) throw new Error("勤怠APIがまだ公開されていません。");
   // 予定同期（refresh）には書き込みがあるため、名前の前方一致では許可しない。
   const retryableRead = ["getDashboardData", "getMyWorkReportSummary"].includes(action);
+  // 管理一覧は予定同期を伴うため再送対象にせず、画面側の待機だけを制限する。
+  const boundedRead = retryableRead || ["getAdminDashboard", "refreshAdminSchedules", "getWorkReportAdminData", "getWorkReportAdminHistory"].includes(action);
   let refreshToken = false;
   for (let attempt = 0; attempt < 2; attempt++) {
   if (auth.currentUser?.uid !== user.uid) throw new Error("ログインしたアカウントが変わりました。画面を再読み込みしてください。");
@@ -18,7 +20,7 @@ export async function attendanceRequest(action, payload = {}) {
   }
   if (auth.currentUser?.uid !== user.uid) throw new Error("ログインしたアカウントが変わりました。画面を再読み込みしてください。");
   // 読み取りだけ待機を打ち切る。サーバー側の処理を止めた保証はないため、時間切れは自動再送しない。
-  const readController = retryableRead ? new AbortController() : null;
+  const readController = boundedRead ? new AbortController() : null;
   const readTimeout = readController ? setTimeout(() => readController.abort(), 60000) : null;
   const timeoutError = () => Object.assign(new Error("読み込みに時間がかかっています。少し待ってから画面を再読み込みしてください。"), { code: "API_READ_TIMEOUT" });
   let response;

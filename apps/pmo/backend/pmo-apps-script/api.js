@@ -26,6 +26,7 @@ function doGet(e) {
   }
 }
 
+let pmoReadOnlyRequest_ = false;
 function doPost(e) {
   let body;
   try {
@@ -33,6 +34,17 @@ function doPost(e) {
     // 締切の参照は原本を書き換えないため、重い一覧・Excel処理のロックを待たせない。
     if (normalizeText(body.action || getAction_(e)) === "getPmoDeadlineSecure") {
       return jsonResponse_(getPmoDeadlineSecure(body.targetYearMonth, body.idToken));
+    }
+    const readAction = normalizeText(body.action || getAction_(e));
+    if (["getPmoCurrentUserSecure", "getPmoAdminMetaSecure", "getPmoMonthlyTableSecure", "exportMonthlyExcelSecure"].includes(readAction)) {
+      // 最新申請の取得は反映復旧の書込みを伴うため、ここへ含めない。
+      pmoReadOnlyRequest_ = true;
+      try {
+        if (readAction === "getPmoCurrentUserSecure") return jsonResponse_(getPmoCurrentUserSecure(body.idToken));
+        if (readAction === "getPmoAdminMetaSecure") return jsonResponse_(getPmoAdminMetaSecure(body.targetYearMonth, body.idToken));
+        if (readAction === "getPmoMonthlyTableSecure") return jsonResponse_(getPmoMonthlyTableSecure(body.targetYearMonth, body.idToken));
+        return jsonResponse_(exportMonthlyExcelSecure(body.targetYearMonth, body.idToken));
+      } finally { pmoReadOnlyRequest_ = false; }
     }
   } catch (error) {
     return jsonResponse_({ success: false, code: normalizeText(error.code || "SERVER_ERROR"), message: "POST処理中にエラーが発生しました: " + error.message });

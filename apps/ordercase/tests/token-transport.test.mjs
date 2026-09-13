@@ -27,6 +27,7 @@ const workerSource = readFileSync(
 test('認証付き読取はIDトークンをURLではなくPOST bodyへ入れる', async () => {
   const requests = [];
   const context = vm.createContext({
+    AbortController, setTimeout, clearTimeout,
     URL,
     JSON,
     Object,

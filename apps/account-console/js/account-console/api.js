@@ -82,7 +82,8 @@ export async function getCurrentAccountConsoleUser(idToken) {
 // ===== 初期表示データ取得ここから =====
 export async function getAccountConsoleBootstrap(idToken) {
   return postToAccountApi("accountConsoleGetBootstrap", {
-    idToken: idToken
+    idToken: idToken,
+    deferLogs: true
   }, { retries: 1 });
 }
 // ===== 初期表示データ取得ここまで =====

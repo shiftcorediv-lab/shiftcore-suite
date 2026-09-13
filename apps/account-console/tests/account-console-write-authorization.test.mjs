@@ -107,7 +107,7 @@ test("変更履歴はaudit.view相当のadminとdeveloperだけが取得でき�
   );
 
   assert.match(usersSource, /canViewAuditLogs/);
-  assert.match(usersSource, /canViewAuditLogs\s*\?\s*listAccountConsoleLogs_/);
+  assert.match(usersSource, /canViewAuditLogs\s*&& body.deferLogs !== true\s*\?\s*listAccountConsoleLogs_/);
   assert.match(frontendSource, /canViewAuditLogs/);
 });
 
