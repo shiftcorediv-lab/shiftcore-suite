@@ -54,7 +54,8 @@ function handleOrderCaseRead_(params) {
       const timing = { authMs:0, dataMs:0, totalMs:0, cache:'not-read', phase:'auth', ok:false };
       let dataStarted = 0;
       try {
-        requireOrderCaseEditor_(getIdTokenFromBody_(params));
+        timing.identity = {};
+        requireOrderCaseEditor_(getIdTokenFromBody_(params), timing.identity);
         timing.authMs = Date.now() - started;
         timing.phase = 'data';
         dataStarted = Date.now();

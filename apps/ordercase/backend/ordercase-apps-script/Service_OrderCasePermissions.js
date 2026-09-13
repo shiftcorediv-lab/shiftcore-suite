@@ -13,6 +13,8 @@
 function resolveOrderCaseUserByIdToken_(idToken, options) {
   const safeIdToken = String(idToken || '').trim();
   const bypassCache = options && options.bypassCache === true;
+  const timing = options && options.timing;
+  if (timing) timing.cache = bypassCache ? 'disabled' : 'miss';
 
   if (!safeIdToken) {
     throw new Error('idToken が必要です。');
@@ -30,12 +32,15 @@ function resolveOrderCaseUserByIdToken_(idToken, options) {
 
   if (cachedText) {
     try {
-      return JSON.parse(cachedText);
+      const cachedUser = JSON.parse(cachedText);
+      if (timing) timing.cache = 'hit';
+      return cachedUser;
     } catch (error) {
       // キャッシュ破損時は無視して再取得する
     }
   }
 
+  const lookupStartedAt = Date.now();
   const response = UrlFetchApp.fetch(SHIFTCORE_ACCOUNT_API_URL, {
     method: 'post',
     contentType: 'text/plain;charset=utf-8',
@@ -58,6 +63,15 @@ function resolveOrderCaseUserByIdToken_(idToken, options) {
 
   if (!result || result.ok !== true || !result.user) {
     throw new Error(result && result.message ? result.message : 'ログインユーザーを確認できません。');
+  }
+
+  if (timing) {
+    timing.roundTripMs = Date.now() - lookupStartedAt;
+    // 同じ本人照合要求の内訳だけを渡す。上流の自由な項目や個人情報は複製しない。
+    ['firebaseMs', 'memberLookupMs'].forEach(function(key) {
+      const value = result.identityTiming && result.identityTiming[key];
+      if (typeof value === 'number' && Number.isFinite(value) && value >= 0) timing[key] = value;
+    });
   }
 
   if (!bypassCache) {
@@ -132,8 +146,8 @@ function requireOrderCaseViewer_(idToken) {
  * requireOrderCaseEditor_ ここから
  * 新規登録・編集用
  ****************************************************/
-function requireOrderCaseEditor_(idToken) {
-  const context = requireOrderCaseUser_(idToken, { bypassCache: true });
+function requireOrderCaseEditor_(idToken, timing) {
+  const context = requireOrderCaseUser_(idToken, { bypassCache: true, timing: timing });
 
   if (!context.canEdit) {
     throw new Error('案件を登録・編集する権限がありません。');
