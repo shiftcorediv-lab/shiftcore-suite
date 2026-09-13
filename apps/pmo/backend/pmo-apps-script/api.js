@@ -41,6 +41,8 @@ function doPost(e) {
   try {
     const body = parseJsonBody_(e);
     const action = normalizeText(body.action || getAction_(e));
+    if (action === "getPmoDeadlineSecure") return jsonResponse_(getPmoDeadlineSecure(body.targetYearMonth, body.idToken));
+    if (action === "updatePmoDeadlineSecure") return jsonResponse_(updatePmoDeadlineSecure(body));
 
     if (action === "getPmoCurrentUserSecure") {
       return jsonResponse_(getPmoCurrentUserSecure(body.idToken));

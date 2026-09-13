@@ -1,0 +1,11 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>締切タイマー確認用（本番へ保存しません）</title>
+<link rel="stylesheet" href="../css/pmo.css"><link rel="stylesheet" href="../css/deadline.css"><body><main class="container"><h1>締切タイマー確認用</h1><p>サンプル表示。本番データは変更しません。</p><section class="card" id="testDeadline"></section></main>
+<script type="module">
+import { mountDeadline } from '../js/deadline-widget.js';
+let deadlineAt='2026-09-14T23:59:00+09:00';
+mountDeadline(document.getElementById('testDeadline'),{editable:true,request:async body=>{
+ if(body.action==='updatePmoDeadlineSecure')deadlineAt=body.deadlineAt;
+ return {success:true,targetYearMonth:'2026-10',deadlineAt,serverNow:'2026-09-13T09:00:00+09:00'};
+}}).load('2026-10');
+</script></body></html>
