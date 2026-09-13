@@ -55,9 +55,21 @@ async function fetchApiJsonWithParams(action, params, options = {}) {
     }))
   });
 
-  const res = await fetch(base, requestOptions);
-
-  return parseApiJsonResponse_(res, action);
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (options.signal?.aborted) abort();
+  options.signal?.addEventListener('abort', abort, { once: true });
+  const timer = setTimeout(abort, 60000);
+  try {
+    const res = await fetch(base, { ...requestOptions, signal: controller.signal });
+    return await parseApiJsonResponse_(res, action);
+  } catch (error) {
+    if (error.name === 'AbortError') throw new Error('読み込みに時間がかかっています。しばらくしてから更新してください。');
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    options.signal?.removeEventListener('abort', abort);
+  }
 }
 /****************************************************
  * fetchApiJsonWithParams ここまで

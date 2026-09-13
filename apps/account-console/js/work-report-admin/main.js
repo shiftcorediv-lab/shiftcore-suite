@@ -69,6 +69,7 @@ function needsSchemaSetup(error) {
 
 function filterPayload() {
   return {
+    deferHistory: true,
     dateFrom: $("dateFrom").value,
     dateTo: $("dateTo").value,
     status: $("statusFilter").value,
@@ -209,10 +210,23 @@ async function addItem(event) {
   }
 }
 
-function showDetail(reportId) {
+let detailLoadGeneration = 0;
+async function showDetail(reportId) {
+  const detailGeneration = ++detailLoadGeneration;
   const detail = (data.reportDetails || []).find(item => item.reportId === reportId);
   const submission = (data.submissions || []).find(item => item.reportId === reportId);
   if (!detail || !submission) return;
+  if (detail.historyDeferred) {
+    const done = window.PortalLoading.begin("修正履歴を読み込んでいます…");
+    try {
+      const result = await attendanceRequest("getWorkReportAdminHistory", { reportId });
+      if (detailGeneration !== detailLoadGeneration || !(data.reportDetails || []).includes(detail)) return;
+      if (!Array.isArray(result.revisions)) throw new Error("修正履歴を確認できませんでした。");
+      detail.revisions = result.revisions;
+      detail.historyDeferred = false;
+    } catch (error) { message(error.message, true); return; }
+    finally { done(); }
+  }
   const rows = [
     ["勤務日", submission.workDate], ["氏名", submission.reporterName], ["店舗", submission.storeName], ["案件", submission.planName]
   ];

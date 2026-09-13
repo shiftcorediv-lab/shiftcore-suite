@@ -133,6 +133,7 @@ async function init() {
     renderCurrentUserPermission(currentUser);
     renderCurrentUsers();
     renderLogs(canViewAuditLogs && Array.isArray(bootstrapResult.logs) ? bootstrapResult.logs : []);
+    if (bootstrapResult.logsDeferred) document.getElementById("logsList").textContent = "メンバーを選択するか、変更履歴の更新ボタンで取得できます。";
 
     clearUserForm();
     applyUserEditingMode();

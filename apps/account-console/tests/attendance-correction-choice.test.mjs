@@ -7,7 +7,7 @@ const source = readFileSync(new URL("../js/dashboard/main.js", import.meta.url),
 const functionSource = name => source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0];
 
 for (const name of ['submitDeparture', 'submitNearestArrival']) {
-  test(`${name}: 保存確定後すぐ通知し、再取得完了までは処理を終えない`, async () => {
+  test(`${name}: 保存確定の応答を反映し、全体再取得を待たずに完了する`, async () => {
     const events = [];
     let resolveSave, resolveRefresh, finished = false;
     const save = new Promise(resolve => { resolveSave = resolve; });
@@ -15,6 +15,7 @@ for (const name of ['submitDeparture', 'submitNearestArrival']) {
     const c = vm.createContext({ busy: false, dashboardData: { schedule: { schedule_id: 'S1' } },
       openDialog: async () => true, readAttendanceLocation: async () => ({}),
       runAction: async action => action(), attendanceRequest: () => save,
+      applySavedFieldReport: () => events.push('applied'),
       showFieldReportResult: () => events.push('saved'),
       loadDashboard: () => { events.push('refresh'); return refresh; } });
     vm.runInContext(functionSource(name), c);
@@ -23,8 +24,8 @@ for (const name of ['submitDeparture', 'submitNearestArrival']) {
     assert.deepEqual(events, [], '保存前に成功を表示しない');
     resolveSave({ ok: true });
     await new Promise(resolve => setImmediate(resolve));
-    assert.deepEqual(events, ['saved', 'refresh']);
-    assert.equal(finished, false);
+    assert.deepEqual(events, ['applied', 'saved']);
+    assert.equal(finished, true);
     resolveRefresh(); await pending;
     assert.equal(finished, true);
   });

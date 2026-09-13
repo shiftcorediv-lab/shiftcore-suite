@@ -80,7 +80,9 @@ function doPost(e) {
     }
 
     if (action === "accountConsoleGetBootstrap") {
-      return jsonResponse_(accountConsoleGetBootstrap(body));
+      accountUsersRequestMemo_ = {};
+      try { return jsonResponse_(accountConsoleGetBootstrap(body)); }
+      finally { accountUsersRequestMemo_ = null; }
     }
 
     if (action === "accountConsoleListUsers") {

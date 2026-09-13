@@ -17,6 +17,14 @@ function getOrCreateRequestSheet() {
   const ss = getSpreadsheet_();
   let sheet = ss.getSheetByName(SETTINGS.REQUEST_SHEET_NAME);
 
+  if (typeof pmoReadOnlyRequest_ !== "undefined" && pmoReadOnlyRequest_) {
+    if (!sheet) throw new Error("希望休申請シートが未設定です。管理者へ連絡してください。");
+    // 参照で列修復や固定行の更新を行わない。保存側の初期化は従来どおり。
+    const headers = sheet.getRange(1, 1, 1, SETTINGS.REQUEST_HEADER.length).getDisplayValues()[0];
+    if (SETTINGS.REQUEST_HEADER.some((value, index) => normalizeText(headers[index]) !== value)) throw new Error("希望休申請シートの列構成を確認してください。");
+    return sheet;
+  }
+
   if (!sheet) {
     sheet = ss.insertSheet(SETTINGS.REQUEST_SHEET_NAME);
   }

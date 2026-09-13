@@ -4,6 +4,7 @@
  ****************************************************/
 
 function handlePost_(e) {
+  let referenceMutation = false;
   try {
     const body = parsePostBody_(e);
     const action = body.action || '';
@@ -18,6 +19,7 @@ function handlePost_(e) {
      ****************************************************/
     if (action === 'createCase') {
       const context = requireOrderCaseCreator_(getIdTokenFromBody_(body));
+      referenceMutation = true;
 
       payload.created_by = context.user.name || context.user.displayName || context.user.email || '';
       payload.created_by_email = context.user.email || '';
@@ -41,6 +43,7 @@ function handlePost_(e) {
      ****************************************************/
     if (action === 'updateCase') {
       const context = requireOrderCaseEditor_(getIdTokenFromBody_(body));
+      referenceMutation = true;
 
       payload.updated_by = context.user.name || context.user.displayName || context.user.email || '';
       payload.updated_by_email = context.user.email || '';
@@ -59,21 +62,25 @@ function handlePost_(e) {
 
     if (action === 'updateStoreMaster') {
       const context = requireOrderCaseEditor_(getIdTokenFromBody_(body));
+      referenceMutation = true;
       return jsonResponse_({ ok: true, action: action, permission: context.permission, data: updateStoreMaster_(payload) });
     }
 
     if (action === 'updateMemberAssignmentRule') {
       const context = requireOrderCaseEditor_(getIdTokenFromBody_(body));
+      referenceMutation = true;
       return jsonResponse_({ ok: true, action: action, permission: context.permission, data: updateMemberAssignmentRule_(payload) });
     }
 
     if (action === 'createAgencyMaster') {
       const context = requireOrderCaseEditor_(getIdTokenFromBody_(body));
+      referenceMutation = true;
       return jsonResponse_({ ok: true, action: action, permission: context.permission, data: createAgencyMaster_(payload, context) });
     }
 
     if (action === 'updateAgencyMaster') {
       const context = requireOrderCaseEditor_(getIdTokenFromBody_(body));
+      referenceMutation = true;
       return jsonResponse_({ ok: true, action: action, permission: context.permission, data: updateAgencyMaster_(payload, context) });
     }
     /****************************************************
@@ -100,5 +107,9 @@ function handlePost_(e) {
       code: 'SERVER_ERROR',
       message: error && error.message ? error.message : String(error)
     });
+  } finally {
+    if (referenceMutation) {
+      try { invalidateOrderReferences_(); } catch (_) { console.warn('ORDER_REFERENCE_INVALIDATION_FAILED'); }
+    }
   }
 }
