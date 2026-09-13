@@ -109,6 +109,20 @@ test('読み取り応答不良が続いても二回で止まり、保存結果�
   await assert.rejects(context.attendanceRequest('getDashboardData'), e => e.code==='INVALID_API_RESPONSE' && !/保存|再送/.test(e.message));
   assert.equal(calls(),2);
 });
+for (const action of ['getAdminDashboard','getWorkReportAdminData','getWorkReportAdminHistory']) {
+  for (const failure of [{invalidJson:true},{}]) {
+    test(`${action}の取得失敗を保存結果不明と表示せず、自動再送もしない: ${JSON.stringify(failure)}`,async()=>{
+      const {context,calls}=await frontend([failure,{ok:true}]);
+      await assert.rejects(context.attendanceRequest(action),e=>e.code==='INVALID_API_RESPONSE' && !/保存|再送/.test(e.message) && e.diagnostic.status===0);
+      assert.equal(calls(),1);
+    });
+  }
+}
+test('不正応答の診断はHTTP状態と失敗段階だけで本文や認証情報を残さない',async()=>{
+  const {context}=await frontend([]);
+  context.fetch=async()=>({status:502,json:async()=>{throw Error('SECRET RESPONSE');}});
+  await assert.rejects(context.attendanceRequest('getWorkReportAdminData'),e=>JSON.stringify(e.diagnostic)==='{"status":502,"phase":"decode"}' && !e.message.includes('SECRET'));
+});
 for (const action of ['refreshDashboardData','getWorkReportForm','arrive','clockIn','clockOut','submitCorrection','submitFieldReport','submitReport']) {
   test(`${action}は読み取り再試行の対象へ広げない`, async () => {
     const {context,calls} = await frontend([{invalidJson:true},{ok:true}]);
