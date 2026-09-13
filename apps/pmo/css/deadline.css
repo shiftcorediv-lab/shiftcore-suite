@@ -1,0 +1,9 @@
+.pmo-deadline{border:1px solid var(--line,#dce5f2);border-left:4px solid var(--blue,#1958b7);border-radius:14px;padding:16px 20px;margin:16px 0;background:var(--white,#fff);color:var(--ink,#172033)}
+.pmo-deadline p{margin:6px 0;font-size:13px;line-height:1.6}
+.pmo-deadline [data-countdown]{display:block;color:var(--blue,#1958b7);font-size:20px;font-variant-numeric:tabular-nums;line-height:1.5}
+.pmo-deadline label{display:block;font-size:13px;margin:12px 0 8px}
+.pmo-deadline input{display:block;width:min(100%,270px);padding:9px 12px;border:1px solid var(--line,#ccd5e1);border-radius:8px;background:var(--white,#fff);color:inherit;font:inherit;margin-top:5px;box-sizing:border-box}
+.pmo-deadline button{width:auto;max-width:100%;border:1px solid var(--line,#ccd5e1);border-radius:8px;padding:9px 14px;font:inherit;font-size:13px;cursor:pointer;margin:4px 8px 0 0;background:var(--white,#fff);color:inherit}
+.pmo-deadline [data-deadline-save]{background:var(--blue,#1958b7);color:#fff;border-color:transparent}
+.pmo-deadline button:disabled{opacity:.55;cursor:wait}
+@media(max-width:480px){.pmo-deadline{padding:12px 14px}.pmo-deadline [data-countdown]{font-size:18px}}

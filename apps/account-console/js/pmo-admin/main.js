@@ -1,4 +1,5 @@
 import { showLoading, hideLoading, waitForNextPaint } from "../common/loading.js";
+import { mountDeadline } from "../../../pmo/js/deadline-widget.js";
 import { getQueryParams } from "./query.js";
 import {
   monthSelect,
@@ -39,6 +40,7 @@ const tableLoadGeneration = createResponseGeneration();
 let currentIdToken = "";
 let canManage = false;
 let currentMeta = null;
+let deadline = null;
 
 setupShiftCoreEntryBanner(params);
 renderEmptyTable("認証確認後に一覧を表示します。");
@@ -107,6 +109,8 @@ async function loadMeta(targetYearMonth = "") {
     }
 
     renderMonthOptions(result.months || [], result.selectedYearMonth || "");
+    if (!deadline) deadline = mountDeadline(document.getElementById("pmoDeadline"), { editable: true });
+    if (monthSelect.value) deadline.load(monthSelect.value);
 
     const initialHeaders = result.initialTable?.headers || [];
     const initialRows = result.initialTable?.rows || [];
@@ -171,6 +175,7 @@ async function loadMonthlyTable(targetYearMonth = "") {
       headers: result.headers || [],
       rows: result.rows || []
     });
+    currentMeta = { ...currentMeta, selectedYearMonth, monthlySheetUrl: result.monthlySheetUrl || "" };
 
     showMessage("一覧を更新しました", "success");
   } catch (error) {
@@ -184,6 +189,7 @@ async function loadMonthlyTable(targetYearMonth = "") {
 }
 
 monthSelect.addEventListener("change", async () => {
+  if (deadline) deadline.load(monthSelect.value);
   await loadMonthlyTable(monthSelect.value);
 });
 
@@ -211,7 +217,7 @@ openRequestBtn.addEventListener("click", () => {
 
 downloadCsvBtn.addEventListener("click", async () => {
   const selectedYearMonth = String(
-    (currentMeta && currentMeta.selectedYearMonth) || monthSelect.value || ""
+    monthSelect.value || ""
   ).trim();
 
   if (!selectedYearMonth || !currentIdToken) {

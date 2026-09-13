@@ -247,7 +247,7 @@ function doPost(e) {
     if (action === "returnWorkReport") return jsonOutput_(returnWorkReport_(user, payload));
     if (action === "exportWorkReportsCsv") return jsonOutput_(exportWorkReportsCsv_(user, payload));
     if (action === "markNotificationRead") return jsonOutput_(withDashboardReferenceInvalidation_(user, () => markNotificationRead_(user, payload)));
-    if (action === "getAdminDashboard") return jsonOutput_(getAdminDashboard_(user, body.idToken));
+    if (action === "getAdminDashboard") return jsonOutput_(getAdminDashboard_(user, body.idToken, payload));
     if (action === "reviewRequest") return jsonOutput_(withAllDashboardReferenceInvalidation_(() => reviewRequest_(user, payload, body.idToken)));
     if (action === "updateEndWarningTime") return jsonOutput_(withAllDashboardReferenceInvalidation_(() => updateEndWarningTime_(user, payload)));
     throw apiError_("UNKNOWN_ACTION", "未対応の操作です。");
@@ -1649,13 +1649,28 @@ function sheetText_(value) { return safeSpreadsheetText_(value); }
 function booleanValue_(value) { return value === true || value === 1 || ["true", "1", "yes", "on", "有効", "必須"].includes(String(value || "").trim().toLowerCase()); }
 function normalizeDashboardOrder_(value) { const order = Number(value || 0); if (!Number.isInteger(order) || order < 0 || order > 100000) throw apiError_("REPORT_DASHBOARD_ORDER_INVALID", "成績表示順は0以上の整数で入力してください。"); return order; }
 
-function getAdminDashboard_(user, idToken) {
+function attendanceAdminRange_(payload) {
+  const p = payload || {};
+  const mode = p.viewMode || "day";
+  const date = String(p.targetDate || today_());
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+      isNaN(Date.parse(date + "T00:00:00Z")) ||
+      new Date(date + "T00:00:00Z").toISOString().slice(0, 10) !== date ||
+      !["day", "month"].includes(mode)) throw apiError_("INVALID_DATE", "表示日を正しく指定してください。");
+  return { mode, date, matches: function(value) {
+    const key = dateKey_(value);
+    return mode === "month" ? key.slice(0, 7) === date.slice(0, 7) : key === date;
+  }};
+}
+
+function getAdminDashboard_(user, idToken, payload) {
   const today = today_();
+  const range = attendanceAdminRange_(payload);
   const admin = isAdmin_(user);
   const settings = admin ? settings_() : {};
-  const schedules = admin ? getSchedules_(idToken).filter(r => dateKey_(r["勤務日"]) === today) : [];
-  const records = admin ? rows_(SHEETS.records).filter(r => dateKey_(r["勤務日"]) === today) : [];
-  const fieldReports = admin ? rows_(SHEETS.fieldReports).filter(r => dateKey_(r["勤務日"]) === today) : [];
+  const schedules = admin ? getSchedules_(idToken).filter(r => range.matches(r["勤務日"])) : [];
+  const records = admin ? rows_(SHEETS.records).filter(r => range.matches(r["勤務日"])) : [];
+  const fieldReports = admin ? rows_(SHEETS.fieldReports).filter(r => range.matches(r["勤務日"])) : [];
   const pendingRequests = rows_(SHEETS.requests).filter(r => String(r["状態"]) === "申請中");
   const reviewerId = internalUserId_(user);
   const requests = admin
@@ -1672,8 +1687,9 @@ function getAdminDashboard_(user, idToken) {
   });
   records.filter(record => !schedules.some(s => recordMatchesSchedule_(record, s, schedules))).forEach(record => {
     const loc = locations.find(l => String(l.attendance_record_id) === String(record.record_id));
-    people.push({ schedule: null, record, location: loc || null, fieldReports: fieldReports.filter(r => normalizeEmail_(r["報告者メール"]) === normalizeEmail_(record.email)) });
+    people.push({ schedule: null, record, location: loc || null, fieldReports: fieldReports.filter(r => normalizeEmail_(r["報告者メール"]) === normalizeEmail_(record.email) && dateKey_(r["勤務日"]) === dateKey_(record["勤務日"])) });
   });
+  people.sort(function(a,b) { return dateKey_((a.schedule || a.record)["勤務日"]).localeCompare(dateKey_((b.schedule || b.record)["勤務日"])); });
   return { ok: true, serverNow: nowIso_(), people, requests, settings, preciseLocationAccess: admin && canViewPreciseLocation_(user) };
 }
 

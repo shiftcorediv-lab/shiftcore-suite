@@ -16,7 +16,7 @@
         <span class="portal-brand-mark" aria-hidden="true"><span></span><span></span></span>
         <span class="portal-brand-copy"><strong>Another Portal</strong><small>WORKFORCE PLATFORM</small></span>
       </a>
-      <div class="portal-module-title"><h1>勤怠管理</h1><p class="admin-subtitle">本日の稼働状況</p></div>
+      <div class="portal-module-title"><h1>勤怠管理</h1><p class="admin-subtitle">日別・月別の稼働状況</p></div>
     </div>
     <div class="header-actions">
       <a class="nav-link" href="./work-report-admin.html">実績報告管理</a>
@@ -24,9 +24,10 @@
     </div>
   </header>
   <main>
+    <section class="toolbar"><label>表示単位<select id="viewMode"><option value="day">日別</option><option value="month">月別</option></select></label><label>表示日<input id="targetDate" type="date"></label><span>月別は選択日の属する月を表示します。承認待ちは期間外も含みます。</span></section>
     <section id="summary" class="summary"></section>
     <section class="toolbar"><div><label>表示<select id="statusFilter"><option value="">すべて</option><option>未開始</option><option>稼働中</option><option>開始遅延</option><option>終了済み</option><option>修正申請中</option></select></label><label>検索<input id="searchInput" placeholder="氏名・場所・メール"></label></div><label>終了漏れ通知<input id="endWarningTime" type="time"><button id="saveTimeBtn">保存</button></label></section>
-    <section class="panel"><div class="table-wrap"><table><thead><tr><th>氏名</th><th>予定</th><th>稼働場所</th><th>出発</th><th>最寄り到着</th><th>入店</th><th>打刻状況</th><th>開始</th><th>終了</th><th>位置情報</th></tr></thead><tbody id="peopleRows"></tbody></table></div></section>
+    <section class="panel"><div class="table-wrap"><table><thead><tr><th>勤務日</th><th>氏名</th><th>予定</th><th>稼働場所</th><th>出発</th><th>最寄り到着</th><th>入店</th><th>打刻状況</th><th>開始</th><th>終了</th><th>位置情報</th></tr></thead><tbody id="peopleRows"></tbody></table></div></section>
     <section class="panel"><div class="panel-title"><h2>承認待ち</h2><span id="requestCount">0件</span></div><div id="requestList" class="request-list"></div></section>
     <div id="message" role="status" aria-live="polite" data-shiftcore-loading="true" aria-busy="true">勤怠情報を読み込んでいます…</div>
   </main>

@@ -7,6 +7,8 @@ import {
   dashboardBtn
 } from "./dom.js";
 import { DASHBOARD_URL } from "./config.js";
+import { mountDeadline } from "./deadline-widget.js";
+import { getTargetYearMonth } from "./calendar.js";
 import { apiPost } from "./api.js";
 import { requireAuthenticatedSession } from "../../account-console/js/common/auth-session.js";
 import { setActivity } from "../../account-console/js/common/activity.js";
@@ -39,6 +41,8 @@ import {
 } from "./request.js?v=20260906-integrity-1";
 
 let currentIdToken = "";
+const deadline = mountDeadline(document.getElementById("pmoDeadline"));
+deadline.load(getTargetYearMonth());
 
 window.addEventListener("DOMContentLoaded", async () => {
   if (isLineInAppBrowser()) {

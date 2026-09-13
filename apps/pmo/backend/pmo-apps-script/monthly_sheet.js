@@ -320,6 +320,7 @@ function getPmoMonthlyTable(targetYearMonth, role) {
       success: true,
       headers: headers,
       rows: rows,
+      monthlySheetUrl: buildSheetUrl_(sheet),
       sheetName: sheet.getName()
     };
 

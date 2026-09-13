@@ -203,9 +203,24 @@
     header.querySelectorAll(".panel-heading button").forEach(b => b.addEventListener("click", close));
     document.addEventListener("click", e => { if (!header.contains(e.target)) close(); });
     document.addEventListener("keydown", e => { if (e.key === "Escape") { close(); trigger.focus(); } });
+    let identityRequest = null;
+    async function resolveHeaderUser() {
+      if (!identityRequest) identityRequest = (async () => {
+        const { resolveAuthenticatedSession } = await import(new URL("../account-console/js/common/auth-session.js", themeUrl));
+        const session = await resolveAuthenticatedSession();
+        if (!session.ok) return null;
+        const { resolveCurrentUserWithGasByIdToken } = await import(new URL("../account-console/js/login/api.js", themeUrl));
+        const result = await resolveCurrentUserWithGasByIdToken(session.idToken);
+        if (!result?.ok || !result.user) throw new Error("本人情報を取得できませんでした");
+        return result.user;
+      })().catch(error => { identityRequest = null; throw error; });
+      return identityRequest;
+    }
     async function identity() {
       let user;
       try { user = JSON.parse(sessionStorage.getItem("shiftcore_user") || "null"); } catch (_) {}
+      // 新しいタブにはセッション情報がない。URLの人物情報で補わず認証済み本人を取得する。
+      if (!user) user = await resolveHeaderUser();
       const name = user?.displayName || user?.display_name || user?.name || "未ログイン";
       header.querySelector(".portal-user-name").textContent = name;
       trigger.firstElementChild.textContent = [...name][0] || "—";
@@ -265,7 +280,7 @@
         if (!list.childElementCount) list.textContent = "通知はありません。";
       } catch (_) { list.textContent = "通知を取得できませんでした。閉じて再度お試しください。"; }
     });
-    identity().catch(() => {});
+    identity().catch(() => { header.querySelector(".portal-user-name").textContent = "本人情報を再確認"; });
   }
 
   applyPresentationMode();

@@ -173,13 +173,28 @@ function exportMonthlyExcel(targetYearMonth, role) {
     }
 
     const sourceSheet = getMonthlyRequestSheet(ym);
-    const sourceSpreadsheet = getSpreadsheet_();
+    const table = getPmoMonthlyTable(ym, role);
+    if (!table.success) throw new Error(table.message || "希望休一覧を取得できませんでした");
 
     tempSpreadsheet = SpreadsheetApp.create(buildMonthlySheetName(ym) + "_export_temp");
     tempFile = DriveApp.getFileById(tempSpreadsheet.getId());
 
     const copiedSheet = sourceSheet.copyTo(tempSpreadsheet);
     copiedSheet.setName(sourceSheet.getName());
+    // 書式は引き継ぎ、内容だけを画面と同じ現行名簿・最新申請に揃える。
+    copiedSheet.getDataRange().clearContent();
+    const exportValues = [table.headers].concat(table.rows);
+    if (copiedSheet.getMaxRows() < exportValues.length) {
+      copiedSheet.insertRowsAfter(copiedSheet.getMaxRows(), exportValues.length - copiedSheet.getMaxRows());
+    }
+    copiedSheet.getRange(1, 1, exportValues.length, table.headers.length).setValues(
+      exportValues.map(function(row) {
+        return table.headers.map(function(_, index) {
+          const value = row[index] == null ? "" : String(row[index]);
+          return /^[\s\u0000-\u001f]*[=+@-]/.test(value) ? "'" + value : value;
+        });
+      })
+    );
 
     const sheets = tempSpreadsheet.getSheets();
     sheets.forEach(function(sheet) {

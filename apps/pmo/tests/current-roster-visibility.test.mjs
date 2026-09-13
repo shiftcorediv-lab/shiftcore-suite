@@ -8,6 +8,7 @@ function setup(fetchRoster) {
     normalizeText: (value) => String(value ?? "").trim(),
     SETTINGS: { MONTHLY_CODE_COLUMN: 3, REQUEST_HEADER: Array(12), EXCLUDED_EMPLOYEE_CODES_FOR_MONTHLY: ["DEV"] },
     getLastDayOfMonth: () => 31,
+    buildSheetUrl_: () => "https://example.test/monthly",
     getOrCreateRequestSheet: () => ({ getLastRow: () => 1 }),
     fetchRosterFromShiftCore_: fetchRoster,
   });
