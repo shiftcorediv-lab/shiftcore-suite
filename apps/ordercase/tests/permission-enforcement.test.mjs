@@ -154,6 +154,7 @@ test('更新認可は15分キャッシュを使わずAccountの現行状態を�
     fetch() {
       accountFetchCount += 1;
       return {
+        getResponseCode: () => 200,
         getContentText: () => JSON.stringify({
           ok: true,
           user: {

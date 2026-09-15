@@ -12,7 +12,7 @@ function setup(identityTiming) {
     Utilities:{base64EncodeWebSafe:()=> 'hash',computeDigest:()=>[],DigestAlgorithm:{SHA_256:'sha256'}},
     SHIFTCORE_ACCOUNT_API_URL:'https://example.invalid',ORDERCASE_PERMISSION_ALL:'all',
     ORDERCASE_PERMISSION_EDIT:'edit',ORDERCASE_PERMISSION_VIEW:'view',ORDERCASE_PERMISSION_VIEW_WITHOUT_AMOUNT:'no-amount',
-    UrlFetchApp:{fetch:()=>{fetches++;now+=100;return {getContentText:()=>JSON.stringify({ok:true,user,identityTiming})};}}});
+    UrlFetchApp:{fetch:()=>{fetches++;now+=100;return {getResponseCode:()=>200,getContentText:()=>JSON.stringify({ok:true,user,identityTiming})};}}});
   vm.runInContext(source,c);
   return {c,getFetches:()=>fetches};
 }
@@ -21,13 +21,13 @@ test('編集権限はキャッシュを迂回し同一照合の数値だけを�
   const timing={};
   const result=c.requireOrderCaseEditor_('SECRET',timing);
   assert.equal(result.canEdit,true);assert.equal(getFetches(),1);
-  assert.deepEqual(timing,{cache:'disabled',roundTripMs:100,firebaseMs:10,memberLookupMs:20});
+  assert.deepEqual(timing,{cache:'disabled',attempts:1,roundTripMs:100,firebaseMs:10,memberLookupMs:20});
 });
 test('上流に計測がない場合や不正な数値でも本人照合を壊さない',()=>{
   for(const input of [undefined,{firebaseMs:-1,memberLookupMs:'20'},{firebaseMs:null,memberLookupMs:null}]) {
     const {c}=setup(input);const timing={};
     assert.equal(c.requireOrderCaseEditor_('SECRET',timing).canEdit,true);
-    assert.deepEqual(timing,{cache:'disabled',roundTripMs:100});
+    assert.deepEqual(timing,{cache:'disabled',attempts:1,roundTripMs:100});
   }
 });
 test('計測なしの既存呼出しと読取キャッシュを維持する',()=>{
