@@ -41,28 +41,11 @@ function resolveOrderCaseUserByIdToken_(idToken, options) {
   }
 
   const lookupStartedAt = Date.now();
-  const response = UrlFetchApp.fetch(SHIFTCORE_ACCOUNT_API_URL, {
-    method: 'post',
-    contentType: 'text/plain;charset=utf-8',
-    payload: JSON.stringify({
-      action: 'resolveCurrentUserByIdToken',
-      idToken: safeIdToken
-    }),
-    muteHttpExceptions: true
-  });
-
-  const text = response.getContentText();
-
   let result;
-
   try {
-    result = JSON.parse(text);
-  } catch (error) {
-    throw new Error('ShiftCore Account API のレスポンス解析に失敗しました: ' + text);
-  }
-
-  if (!result || result.ok !== true || !result.user) {
-    throw new Error(result && result.message ? result.message : 'ログインユーザーを確認できません。');
+    result = fetchOrderCaseIdentity_(safeIdToken, timing);
+  } finally {
+    if (timing) timing.roundTripMs = Date.now() - lookupStartedAt;
   }
 
   if (timing) {
@@ -79,6 +62,33 @@ function resolveOrderCaseUserByIdToken_(idToken, options) {
   }
 
   return result.user;
+}
+
+function fetchOrderCaseIdentity_(idToken, timing) {
+  // 再送するのは読取専用の本人照合だけ。案件の保存処理はこの中で実行しない。
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    if (timing) timing.attempts = attempt;
+    let status = 0, data = null;
+    try {
+      const response = UrlFetchApp.fetch(SHIFTCORE_ACCOUNT_API_URL, {
+        method: 'post', contentType: 'text/plain;charset=utf-8',
+        payload: JSON.stringify({ action:'resolveCurrentUserByIdToken', idToken:idToken }),
+        muteHttpExceptions: true
+      });
+      status = response.getResponseCode();
+      data = JSON.parse(response.getContentText());
+    } catch (_) { /* HTML本文・認証情報・通信例外本文は利用者にもログにも出さない。 */ }
+    const valid = data && typeof data === 'object' && !Array.isArray(data) && typeof data.ok === 'boolean';
+    const temporary = valid && ['WORKER_ERROR', 'INVALID_LOOKUP_RESPONSE', 'AUTH_SERVICE_UNAVAILABLE'].indexOf(data.code) !== -1;
+    if (valid && !data.ok && !temporary) {
+      throw new Error('ログイン情報または利用権限を確認できません。ダッシュボードから開き直してください。');
+    }
+    if (status === 200 && valid && data.ok && data.user && typeof data.user === 'object' && !Array.isArray(data.user)) return data;
+    if (status >= 400 && status < 500 && [404, 408, 429].indexOf(status) === -1) {
+      throw new Error('本人確認が拒否されました。ダッシュボードから開き直してください。');
+    }
+  }
+  throw new Error('本人確認サービスとの通信に失敗しました。少し待ってから画面を再読み込みしてください。');
 }
 /****************************************************
  * resolveOrderCaseUserByIdToken_ ここまで
